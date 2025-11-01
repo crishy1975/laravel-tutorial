@@ -192,7 +192,7 @@
         <option value="{{ $c }}"></option>
       @endforeach
     </datalist>
-  </div>
+  </div> 
 
   {{-- Bemerkung --}}
   <div class="col-12">
