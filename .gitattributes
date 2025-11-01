@@ -1,0 +1,14 @@
+* text=auto eol=lf
+
+*.css diff=css
+*.html diff=html
+*.md diff=markdown
+*.php diff=php
+
+/.github export-ignore
+CHANGELOG.md export-ignore
+.styleci.yml export-ignore
+
+*.blade.php text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
