@@ -2,51 +2,70 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Gebaeude;
 use App\Models\Timeline;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;      // ✅ wichtig
-use Illuminate\Support\Facades\Schema;  // ✅ wichtig
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 class TimelineController extends Controller
 {
     /**
      * Speichert einen Timeline-Eintrag zu einem Gebäude.
-     * - datum optional -> default: heute
-     * - bemerkung optional
-     * - setzt (optional) Statusfelder am Gebäude
+     *
+     * Unterstützt:
+     *  - Klassisches POST-Submit (Redirect zurück, Flash-Message)
+     *  - AJAX/fetch mit "Accept: application/json" (JSON-Response)
+     *
+     * Erwartete Felder:
+     *  - datum (nullable|date)     -> Standard: heute
+     *  - bemerkung (nullable|str)
+     *  - returnTo (optional)       -> Ziel-URL für Redirects
      */
     public function timelineStore(Request $request, int $id)
     {
-        // Eindeutige Debug-ID für Logs/Flash
+        // Eindeutige Debug-ID für Logs/Fehlersuche
         $debugId = (string) Str::uuid();
 
         // 1) Gebäude laden (404 wenn nicht vorhanden)
-        $gebaeude = \App\Models\Gebaeude::findOrFail($id);
+        $gebaeude = Gebaeude::findOrFail($id);
 
-        // 2) Validierung – bemerkung & datum optional
+        // 2) Validierung (beide Felder optional)
         try {
             $data = $request->validate([
-                'datum'     => ['nullable', 'date'],   // leer -> später "heute"
-                'bemerkung' => ['nullable', 'string', 'max:1000'], // optional
+                'datum'     => ['nullable', 'date'],
+                'bemerkung' => ['nullable', 'string', 'max:1000'],
             ]);
         } catch (\Illuminate\Validation\ValidationException $ve) {
+            // Bei klassischem Submit übernimmt Laravel Redirect + Errors automatisch.
+            // Für AJAX liefern wir 422 mit Fehlerdetails.
             Log::warning('timelineStore VALIDATION FAILED', [
                 'debugId'  => $debugId,
                 'gebaeude' => $gebaeude->id,
                 'errors'   => $ve->errors(),
                 'payload'  => $request->all(),
             ]);
-            throw $ve; // Standard-Redirect mit Fehlermeldungen
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'     => false,
+                    'errors' => $ve->errors(),
+                    'msg'    => 'Validierung fehlgeschlagen',
+                    'debugId'=> $debugId,
+                ], 422);
+            }
+
+            throw $ve;
         }
 
-        // 3) Defaults bestimmen
+        // 3) Defaults & Meta
         $user     = $request->user();
         $datum    = $data['datum'] ?? now()->toDateString();
-        $note     = $data['bemerkung'] ?? null;
-        $returnTo = $request->input('returnTo'); // 🔙 aus Hidden-Feld
+        $note = isset($data['bemerkung']) ? trim((string)$data['bemerkung']) : '';
+        $returnTo = $request->input('returnTo');
 
         Log::info('timelineStore START', [
             'debugId'      => $debugId,
@@ -60,8 +79,8 @@ class TimelineController extends Controller
         try {
             DB::beginTransaction();
 
-            // 4) Timeline schreiben
-            // ACHTUNG: Damit create() funktioniert, müssen Felder im Timeline-Model $fillable sein.
+            // 4) Timeline-Eintrag schreiben
+            // ACHTUNG: Timeline::$fillable muss die Felder erlauben.
             $timeline = Timeline::create([
                 'gebaeude_id' => $gebaeude->id,
                 'datum'       => $datum,
@@ -71,26 +90,22 @@ class TimelineController extends Controller
             ]);
 
             // 5) Gebäude-Status aktualisieren (nur wenn Spalten existieren)
-            $updates = [];
-
-            // Beispiel-Felder – bitte an DEINE Spalten anpassen:
-            // rechnung_schreiben (bool/int), gemachte_reinigungen (int), letzter_termin (date)
-            $tableGebaeude = $gebaeude->getTable(); // z. B. 'gebaeude' oder 'gebaeudes'
+            //    Passe diese Logik an deine echten Spalten an.
+            $tableGebaeude = $gebaeude->getTable();
+            $updates       = [];
 
             if (Schema::hasColumn($tableGebaeude, 'rechnung_schreiben')) {
                 $updates['rechnung_schreiben'] = 1;
             }
-
             if (Schema::hasColumn($tableGebaeude, 'gemachte_reinigungen')) {
                 $updates['gemachte_reinigungen'] = DB::raw('COALESCE(gemachte_reinigungen,0) + 1');
             }
-
             if (Schema::hasColumn($tableGebaeude, 'letzter_termin')) {
                 $updates['letzter_termin'] = $datum;
             }
 
             if (!empty($updates)) {
-                \App\Models\Gebaeude::whereKey($gebaeude->id)->update($updates);
+                Gebaeude::whereKey($gebaeude->id)->update($updates);
             }
 
             DB::commit();
@@ -102,21 +117,39 @@ class TimelineController extends Controller
                 'set_updates'  => $updates,
             ]);
 
-            // 🔙 sauber zurück – bevorzugt zu returnTo, sonst auf Edit-Seite
+            // 6) Response je nach Erwartung: JSON oder Redirect
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'          => true,
+                    'message'     => 'Timeline-Eintrag hinzugefügt.',
+                    'timeline_id' => $timeline->id,
+                    'debugId'     => $debugId,
+                ], 201);
+            }
+
             return redirect()
                 ->to($returnTo ?: route('gebaeude.edit', $gebaeude->id))
                 ->with('success', "Timeline-Eintrag hinzugefügt. (Debug-ID: {$debugId})");
+
         } catch (Throwable $e) {
             DB::rollBack();
 
             Log::error('timelineStore ERROR', [
-                'debugId'      => $debugId,
-                'type'         => get_class($e),
-                'message'      => $e->getMessage(),
-                'trace_top'    => collect($e->getTrace())->take(5),
-                'payload'      => $request->all(),
-                'gebaeude_id'  => $gebaeude->id,
+                'debugId'     => $debugId,
+                'type'        => get_class($e),
+                'message'     => $e->getMessage(),
+                'trace_top'   => collect($e->getTrace())->take(5),
+                'payload'     => $request->all(),
+                'gebaeude_id' => $gebaeude->id,
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Timeline konnte nicht gespeichert werden.',
+                    'debugId' => $debugId,
+                ], 500);
+            }
 
             return back()
                 ->withInput()
@@ -126,6 +159,9 @@ class TimelineController extends Controller
 
     /**
      * Löscht einen Timeline-Eintrag.
+     *
+     * Unterstützt sowohl echtes DELETE (Form mit @method('DELETE'))
+     * als auch AJAX/fetch mit POST + _method=DELETE (JSON-Body).
      */
     public function destroy(Request $request, int $id)
     {
@@ -145,6 +181,14 @@ class TimelineController extends Controller
                 'user_id'     => optional($request->user())->id,
             ]);
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'      => true,
+                    'message' => 'Timeline-Eintrag gelöscht.',
+                    'debugId' => $debugId,
+                ]);
+            }
+
             return redirect()
                 ->to($returnTo ?: route('gebaeude.edit', $gid))
                 ->with('success', 'Timeline-Eintrag gelöscht.');
@@ -155,6 +199,14 @@ class TimelineController extends Controller
                 'type'     => get_class($e),
                 'message'  => $e->getMessage(),
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Löschen fehlgeschlagen.',
+                    'debugId' => $debugId,
+                ], 500);
+            }
 
             return back()
                 ->with('error', "Löschen fehlgeschlagen. (Fehler-ID: {$debugId})");

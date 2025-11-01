@@ -8,6 +8,7 @@ use App\Http\Controllers\TourController;
 use App\Http\Controllers\TimelineController;
 
 /* -------------------- Adressen -------------------- */
+
 Route::middleware(['auth', 'verified'])
     ->prefix('adresse')
     ->name('adresse.')
@@ -41,8 +42,8 @@ Route::post('/tools/vies-lookup', [\App\Http\Controllers\ToolsController::class,
     ->name('tools.viesLookup');
 
 /* -------------------- Home -------------------- */
-Route::get('/', fn () => redirect()->route('gebaeude.index'))
-    ->middleware(['auth','verified'])->name('home');
+Route::get('/', fn() => redirect()->route('gebaeude.index'))
+    ->middleware(['auth', 'verified'])->name('home');
 
 /* -------------------- Gebäude -------------------- */
 Route::middleware(['auth', 'verified'])
@@ -95,6 +96,14 @@ Route::post('/gebaeude/{id}/timeline', [TimelineController::class, 'timelineStor
 
 // DELETE: Timeline-Eintrag löschen
 Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
-    ->name('timeline.destroy');
+    ->name('timeline.destroy'); // routes/web.php
+    
+Route::post('/gebaeude/{id}/artikel', [\App\Http\Controllers\ArtikelGebaeudeController::class, 'store'])
+    ->name('gebaeude.artikel.store');
 
-require __DIR__.'/auth.php';
+Route::delete('/artikel-gebaeude/{id}', [\App\Http\Controllers\ArtikelGebaeudeController::class, 'destroy'])
+    ->name('artikel.gebaeude.destroy');
+
+
+
+require __DIR__ . '/auth.php';

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB; // ✅ Richtig importieren
 
 class Gebaeude extends Model
 {
@@ -69,8 +70,8 @@ class Gebaeude extends Model
 
         'faellig'             => 'boolean',
         'rechnung_schreiben'  => 'boolean',
-        'geplante_reinigungen'=> 'integer',
-        'gemachte_reinigungen'=> 'integer',
+        'geplante_reinigungen' => 'integer',
+        'gemachte_reinigungen' => 'integer',
 
         // Nur als boolean casten, wenn TINYINT(1)/BOOLEAN
         'm01' => 'boolean',
@@ -134,5 +135,24 @@ class Gebaeude extends Model
     public function timeline(): HasMany
     {
         return $this->timelines();
+    }
+
+    /**
+     * Artikel-Positionen zum Gebäude (z. B. für Angebote/Rechnungen).
+     */
+    public function artikel()
+    {
+        return $this->hasMany(\App\Models\ArtikelGebaeude::class, 'gebaeude_id')
+            ->orderBy('id'); // oder nach beschreibung/created_at sortieren
+    }
+
+    public function getArtikelSummeAttribute(): float
+    {
+        // Eine einzelne SQL-Query – kein Laden aller Positionen (performant)
+        $sum = \App\Models\ArtikelGebaeude::where('gebaeude_id', $this->id)
+            ->select(DB::raw('COALESCE(SUM(anzahl * einzelpreis),0) AS total'))
+            ->value('total');
+
+        return (float) $sum;
     }
 }

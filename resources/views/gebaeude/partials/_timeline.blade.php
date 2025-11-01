@@ -1,6 +1,12 @@
 {{-- resources/views/gebaeude/partials/_timeline.blade.php --}}
-{{-- Timeline: Formular (Datum + Bemerkung + Hinzufügen) und darunter die Liste der Einträge. --}}
-{{-- Passt sich optisch an _touren_multi an (Kopf mit Icon + hr, kompakte Inputs). --}}
+{{-- Kein verschachteltes <form>! Wir nutzen fetch() für POST/DELETE. --}}
+
+@php
+  // CSRF-Token für JS
+  $csrf = csrf_token();
+  // Zielrouten
+  $routeStore = route('gebaeude.timeline.store', $gebaeude->id);
+@endphp
 
 <div class="row g-4">
 
@@ -11,22 +17,14 @@
         <i class="bi bi-clock-history text-muted"></i>
         <span class="fw-semibold">Timeline</span>
       </div>
-      {{-- optionaler Platz für spätere Schalter/Filter --}}
       <div></div>
     </div>
     <hr class="mt-2 mb-0">
   </div>
 
-  {{-- Formular: eine Zeile, kompakt --}}
+  {{-- Kompakte Eingabezeile (ohne <form>) --}}
   <div class="col-12">
-    {{-- WICHTIG: Grid-Klassen (row g-2) auf das <form>, sonst greifen die col-md-* nicht --}}
-    <form method="POST"
-          action="{{ route('gebaeude.timeline.store', $gebaeude->id) }}"
-          class="row g-2 align-items-end">
-      @csrf
-      <input type="hidden" name="gebaeude_id" value="{{ $gebaeude->id }}">
-      <input type="hidden" name="returnTo" value="{{ url()->current() }}">
-
+    <div class="row g-2 align-items-end">
       {{-- Datum --}}
       <div class="col-md-3">
         <label for="tl_datum" class="form-label fw-semibold mb-1">
@@ -34,46 +32,45 @@
         </label>
         <input
           type="date"
-          class="form-control @error('datum') is-invalid @enderror"
+          class="form-control"
           id="tl_datum"
           name="datum"
           value="{{ old('datum', now()->toDateString()) }}">
-        @error('datum') <div class="invalid-feedback">{{ $message }}</div> @enderror
+        {{-- Validierungsfehler des letzten Requests (falls Server-Redirect) --}}
+        @error('datum') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
       </div>
 
-      {{-- Bemerkung (optional) --}}
+      {{-- Bemerkung --}}
       <div class="col-md-7">
         <label for="tl_bem" class="form-label fw-semibold mb-1">
           <i class="bi bi-chat-left-text"></i> Bemerkung (optional)
         </label>
         <input
           type="text"
-          class="form-control @error('bemerkung') is-invalid @enderror"
+          class="form-control"
           id="tl_bem"
           name="bemerkung"
           placeholder="Kurze Notiz …"
           value="{{ old('bemerkung') }}">
-        @error('bemerkung') <div class="invalid-feedback">{{ $message }}</div> @enderror
+        @error('bemerkung') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
       </div>
 
       {{-- Hinzufügen --}}
       <div class="col-md-2 text-end">
         <label class="form-label d-block mb-1">&nbsp;</label>
-        <button type="submit" class="btn btn-success w-100">
+        <button type="button" id="tl_add_btn" class="btn btn-success w-100">
           <i class="bi bi-plus-circle"></i> Hinzufügen
         </button>
       </div>
-
-      {{-- Person wird im Controller automatisch aus Login / ggf. Adresse gesetzt --}}
-    </form>
+    </div>
   </div>
 
   {{-- Liste der Timeline-Einträge --}}
   <div class="col-12">
     @php
       /** @var \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection $entries */
-      $entries = $timelineEntries
-        ?? ($gebaeude->timeline()->orderByDesc('datum')->orderByDesc('id')->get());
+      // Hinweis: Relation heißt bei dir 'timelines()' (Plural)
+      $entries = $timelineEntries ?? $gebaeude->timelines()->get();
     @endphp
 
     <div class="table-responsive">
@@ -86,11 +83,10 @@
             <th class="text-end" style="width: 100px;">Aktionen</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="tl_tbody">
           @forelse($entries as $e)
-            <tr>
+            <tr data-id="{{ $e->id }}">
               <td class="text-nowrap">
-                {{-- optional() verhindert Crash bei NULL-Datum --}}
                 {{ optional(\Illuminate\Support\Carbon::parse($e->datum))->format('d.m.Y') }}
               </td>
               <td class="text-wrap" style="white-space: normal;">
@@ -100,16 +96,13 @@
                 {{ $e->person_name ?: '—' }}
               </td>
               <td class="text-end">
-                <form action="{{ route('timeline.destroy', $e->id) }}"
-                      method="POST"
-                      onsubmit="return confirm('Diesen Eintrag wirklich löschen?')">
-                  @csrf
-                  @method('DELETE')
-                  <input type="hidden" name="returnTo" value="{{ url()->current() }}">
-                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Löschen">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </form>
+                {{-- Kein verschachteltes <form>: Button triggert fetch(DELETE) --}}
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger tl-del-btn"
+                        data-id="{{ $e->id }}"
+                        title="Löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
               </td>
             </tr>
           @empty
@@ -125,3 +118,101 @@
   </div>
 
 </div>
+
+{{-- JS: fetch() für Hinzufügen/Löschen, kein jQuery nötig --}}
+<script>
+  (function() {
+    // CSRF-Token & Routen aus Blade
+    const CSRF     = @json($csrf);
+    const ROUTE_STORE = @json($routeStore);
+    const RETURN_TO   = @json(url()->current());
+
+    const $btnAdd  = document.getElementById('tl_add_btn');
+    const $date    = document.getElementById('tl_datum');
+    const $remark  = document.getElementById('tl_bem');
+
+    // Enter in den Inputs soll nicht das äußere Formular submitten
+    [$date, $remark].forEach(el => {
+      el?.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          $btnAdd?.click();
+        }
+      });
+    });
+
+    // ▶ Hinzufügen via fetch(POST)
+    $btnAdd?.addEventListener('click', async () => {
+      const payload = {
+        datum: ($date?.value || null),
+        bemerkung: ($remark?.value || null),
+        returnTo: RETURN_TO
+      };
+
+      try {
+        const res = await fetch(ROUTE_STORE, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        // Wenn der Controller bei Nicht-JSON redirectet, kann res.ok trotzdem true sein.
+        // Wir versuchen JSON zu lesen; falls es scheitert, reloaden wir.
+        let data = null;
+        try { data = await res.json(); } catch (e) {}
+
+        if (res.ok) {
+          // easy way: Seite neu laden, damit Tabelle & Flash aktualisiert werden
+          window.location.reload();
+          return;
+        }
+
+        alert('Fehler beim Speichern der Timeline (HTTP ' + res.status + ').');
+      } catch (err) {
+        console.error(err);
+        alert('Netzwerkfehler beim Speichern der Timeline.');
+      }
+    });
+
+    // ▶ Löschen via fetch(DELETE), Delegation an Tabelle
+    document.getElementById('tl_tbody')?.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('.tl-del-btn');
+      if (!btn) return;
+
+      const id = btn.getAttribute('data-id');
+      if (!id) return;
+
+      if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+
+      // Route für DELETE (wir bauen sie wie im Blade-Form vorher)
+      const routeDelete = @json(route('timeline.destroy', 0)).replace(/0$/, String(id));
+
+      try {
+        const res = await fetch(routeDelete, {
+          method: 'POST', // Laravel braucht POST mit _method=DELETE (bei fetch ohne Form)
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ _method: 'DELETE', returnTo: RETURN_TO })
+        });
+
+        // Erfolgreich? Dann reload
+        if (res.ok) {
+          window.location.reload();
+          return;
+        }
+
+        alert('Fehler beim Löschen (HTTP ' + res.status + ').');
+      } catch (err) {
+        console.error(err);
+        alert('Netzwerkfehler beim Löschen.');
+      }
+    });
+  })();
+</script>
