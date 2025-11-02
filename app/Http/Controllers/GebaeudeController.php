@@ -15,6 +15,8 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Schema;
+use App\Services\FaelligkeitsService;
+use Illuminate\Http\JsonResponse;
 use Throwable;
 
 class GebaeudeController extends Controller
@@ -717,5 +719,43 @@ class GebaeudeController extends Controller
             'success',
             "Zurückgesetzt: {$affected} Datensätze. Summe vorher: {$sumBefore}, nachher: {$sumAfter}."
         );
+    }
+
+    public function recalcFaelligkeit(int $id, FaelligkeitsService $svc)
+    {
+        $g = \App\Models\Gebaeude::findOrFail($id);
+        $isFaellig = $svc->recalcForGebaeude($g);
+
+        // JSON-Antwort für fetch(); bei Bedarf kannst du redirecten
+        return response()->json([
+            'ok'       => true,
+            'faellig'  => $isFaellig,
+            'message'  => $isFaellig
+                ? 'Anlage ist fällig (für den aktuellen Monat).'
+                : 'Anlage ist aktuell nicht fällig.',
+        ]);
+    }
+
+    public function recalcFaelligAll(
+        \Illuminate\Http\Request $request,
+        FaelligkeitsService $svc
+    ) 
+    {
+        // Sicherheits-Gate kannst du hier optional prüfen (Rolle etc.)
+        $processed = $svc->recalcAll();
+
+        // Bei Button-Klick wollen wir üblicherweise einen Redirect mit Flash:
+        if (!$request->expectsJson()) {
+            return back()->with(
+                'success',
+                "Fälligkeit für {$processed} Gebäude neu berechnet."
+            );
+        }
+
+        // Falls du das via AJAX aufrufst:
+        return response()->json([
+            'ok'        => true,
+            'processed' => $processed,
+        ]);
     }
 }

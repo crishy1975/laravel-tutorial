@@ -107,6 +107,11 @@ Route::middleware(['auth', 'verified'])
             ->whereNumber('id')->name('artikel.reorder');
         Route::post('/reset-gemachte-reinigungen', [GebaeudeController::class, 'resetGemachteReinigungen'])
             ->name('resetGemachteReinigungen');
+        Route::post('/{id}/faellig/recalc', [GebaeudeController::class, 'recalcFaelligkeit'])
+            ->whereNumber('id')
+            ->name('faellig.recalc');
+        Route::post('/faellig/recalc-all', [GebaeudeController::class, 'recalcFaelligAll'])
+            ->name('gebaeude.faellig.recalcAll');
     });
 
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
