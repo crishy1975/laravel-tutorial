@@ -54,6 +54,13 @@ class Gebaeude extends Model
         'm11',
         'm12',
         'select_tour',
+        'bemerkung_buchhaltung',
+        'cup',
+        'cig',
+        'auftrag_id',
+        'auftrag_datum',
+        'fattura_profile_id',
+        'bank_match_text_template',
     ];
 
     /**
@@ -143,7 +150,8 @@ class Gebaeude extends Model
     public function artikel()
     {
         return $this->hasMany(\App\Models\ArtikelGebaeude::class, 'gebaeude_id')
-            ->orderBy('id'); // oder nach beschreibung/created_at sortieren
+            ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
+            ->orderBy('id');
     }
 
     public function getArtikelSummeAttribute(): float
@@ -154,5 +162,23 @@ class Gebaeude extends Model
             ->value('total');
 
         return (float) $sum;
+    }
+
+    /** Nur aktive Positionen (für Rechnung) */
+    public function aktiveArtikel()
+    {
+        return $this->hasMany(\App\Models\ArtikelGebaeude::class, 'gebaeude_id')
+            ->where('aktiv', true)
+            ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
+            ->orderBy('id');
+    }
+
+    /** Summe NUR aktiver Positionen (z. B. für Rechnung) */
+    public function getArtikelSummeAktivAttribute(): float
+    {
+        return (float) \App\Models\ArtikelGebaeude::where('gebaeude_id', $this->id)
+            ->where('aktiv', true)
+            ->selectRaw('COALESCE(SUM(anzahl * einzelpreis), 0) as total')
+            ->value('total');
     }
 }

@@ -42,6 +42,15 @@
             <i class="bi bi-house"></i> Allgemein
           </button>
         </li>
+        {{-- 🔹 Tabs-Header: neuen Tab „FatturaPA“ ergänzen --}}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-fatturapa" data-bs-toggle="tab"
+            data-bs-target="#content-fatturapa" type="button" role="tab"
+            aria-controls="content-fatturapa" aria-selected="false">
+            <i class="bi bi-file-earmark-text"></i> FatturaPA
+          </button>
+        </li>
+
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="tab-adressen" data-bs-toggle="tab"
             data-bs-target="#content-adressen" type="button" role="tab">
@@ -69,6 +78,21 @@
             <i class="bi bi-clock-history"></i> Timeline
           </button>
         </li>
+        {{-- 🔹 Tabs-Navigation: neuer Tab "Artikel" mit Icon --}}
+        <li class="nav-item" role="presentation">
+          <button
+            class="nav-link" {{-- "active" hinzufügen, falls dieser Tab standardmäßig aktiv sein soll --}}
+            id="tab-artikel"
+            data-bs-toggle="tab"
+            data-bs-target="#content-artikel"
+            type="button"
+            role="tab"
+            aria-controls="content-artikel"
+            aria-selected="false">
+            <i class="bi bi-receipt"></i> Artikel
+          </button>
+        </li>
+
       </ul>
     </div>
 
@@ -91,6 +115,10 @@
         <div class="tab-pane fade show active" id="content-allgemein" role="tabpanel">
           @include('gebaeude.partials._allgemein')
         </div>
+        {{-- 🔹 Tabs-Content: Pane für „FatturaPA“ --}}
+        <div class="tab-pane fade" id="content-fatturapa" role="tabpanel" aria-labelledby="tab-fatturapa">
+          @include('gebaeude.partials._fatturapa')
+        </div>
         <div class="tab-pane fade" id="content-adressen" role="tabpanel">
           @include('gebaeude.partials._adressen')
         </div>
@@ -104,6 +132,17 @@
           {{-- Inhalt der Timeline, z. B.: --}}
 
           @include('gebaeude.partials._timeline', ['gebaeude' => $gebaeude])
+        </div>
+        {{-- 🔹 Inhalt der Tabs: Pane für "Artikel"
+     Hinweis: Kein verschachteltes <form> – das Partial arbeitet per fetch/AJAX. --}}
+        <div
+          class="tab-pane fade" {{-- "show active" ergänzen, wenn dieser Tab aktiv sein soll --}}
+          id="content-artikel"
+          role="tabpanel"
+          aria-labelledby="tab-artikel">
+
+          {{-- Artikel-Partial einbinden (editierbare Tabelle mit Add/Update/Delete Icons) --}}
+          @include('gebaeude.partials._artikel', ['gebaeude' => $gebaeude])
         </div>
       </div>
 

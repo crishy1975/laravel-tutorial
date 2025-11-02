@@ -1,11 +1,10 @@
 {{-- resources/views/gebaeude/partials/_timeline.blade.php --}}
-{{-- Kein verschachteltes <form>! Wir nutzen fetch() für POST/DELETE. --}}
+{{-- Timeline-Partial ohne verschachtelte <form>-Tags.
+     Hinzufügen/Löschen via fetch(), CSRF/Routes kommen über data-* Attribute. --}}
 
 @php
-  // CSRF-Token für JS
-  $csrf = csrf_token();
-  // Zielrouten
-  $routeStore = route('gebaeude.timeline.store', $gebaeude->id);
+  // Optional: Falls du serverseitige Fehlermeldungen von der letzten Request-Runde anzeigen willst,
+  // sind die @error-Abschnitte weiter unten aktiv.
 @endphp
 
 <div class="row g-4">
@@ -69,7 +68,7 @@
   <div class="col-12">
     @php
       /** @var \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection $entries */
-      // Hinweis: Relation heißt bei dir 'timelines()' (Plural)
+      // Hinweis: Relation heißt im Model 'timelines()' (Plural)
       $entries = $timelineEntries ?? $gebaeude->timelines()->get();
     @endphp
 
@@ -119,38 +118,49 @@
 
 </div>
 
-{{-- JS: fetch() für Hinzufügen/Löschen, kein jQuery nötig --}}
+<div id="timeline-root"
+     data-csrf="{{ csrf_token() }}"
+     data-route-store="{{ route('gebaeude.timeline.store', $gebaeude->id) }}"
+     data-route-destroy0="{{ route('timeline.destroy', 0) }}"
+     data-return-to="{{ url()->current() }}">
+</div>
+
+@verbatim
 <script>
-  (function() {
-    // CSRF-Token & Routen aus Blade
-    const CSRF     = @json($csrf);
-    const ROUTE_STORE = @json($routeStore);
-    const RETURN_TO   = @json(url()->current());
+(function () {
+  // --- Werte sicher aus dem DOM holen ---
+  var root        = document.getElementById('timeline-root');
+  var CSRF        = (root && root.dataset && root.dataset.csrf) || '';
+  var ROUTE_STORE = (root && root.dataset && root.dataset.routeStore) || '';
+  var ROUTE_DEST0 = (root && root.dataset && root.dataset.routeDestroy0) || ''; // z.B. .../0
+  var RETURN_TO   = (root && root.dataset && root.dataset.returnTo) || '';
 
-    const $btnAdd  = document.getElementById('tl_add_btn');
-    const $date    = document.getElementById('tl_datum');
-    const $remark  = document.getElementById('tl_bem');
+  var btnAdd   = document.getElementById('tl_add_btn');
+  var inputDate   = document.getElementById('tl_datum');
+  var inputRemark = document.getElementById('tl_bem');
 
-    // Enter in den Inputs soll nicht das äußere Formular submitten
-    [$date, $remark].forEach(el => {
-      el?.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          $btnAdd?.click();
-        }
-      });
+  // Enter in den Inputs soll NICHT das äußere Formular submitten
+  [inputDate, inputRemark].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        if (btnAdd) btnAdd.click();
+      }
     });
+  });
 
-    // ▶ Hinzufügen via fetch(POST)
-    $btnAdd?.addEventListener('click', async () => {
-      const payload = {
-        datum: ($date?.value || null),
-        bemerkung: ($remark?.value || null),
+  // ▶ Hinzufügen via fetch(POST)
+  if (btnAdd) {
+    btnAdd.addEventListener('click', async function () {
+      var payload = {
+        datum: (inputDate && inputDate.value) ? inputDate.value : null,
+        bemerkung: (inputRemark && inputRemark.value) ? inputRemark.value : null,
         returnTo: RETURN_TO
       };
 
       try {
-        const res = await fetch(ROUTE_STORE, {
+        var res = await fetch(ROUTE_STORE, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -160,40 +170,46 @@
           body: JSON.stringify(payload)
         });
 
-        // Wenn der Controller bei Nicht-JSON redirectet, kann res.ok trotzdem true sein.
-        // Wir versuchen JSON zu lesen; falls es scheitert, reloaden wir.
-        let data = null;
-        try { data = await res.json(); } catch (e) {}
-
-        if (res.ok) {
-          // easy way: Seite neu laden, damit Tabelle & Flash aktualisiert werden
-          window.location.reload();
-          return;
+        // Wenn der Controller JSON liefert, prüfen; sonst (Redirect) einfach reloaden
+        var isJson = (res.headers.get('content-type') || '').includes('application/json');
+        if (isJson) {
+          var json = await res.json();
+          if (!res.ok || json.ok === false) {
+            throw new Error(json.message || 'Fehler beim Speichern.');
+          }
+        } else if (!res.ok) {
+          throw new Error('Fehler beim Speichern (HTTP ' + res.status + ').');
         }
 
-        alert('Fehler beim Speichern der Timeline (HTTP ' + res.status + ').');
+        // Erfolg → Seite neu laden (Tabelle & Flash aktualisieren)
+        window.location.reload();
+
       } catch (err) {
         console.error(err);
-        alert('Netzwerkfehler beim Speichern der Timeline.');
+        alert('Netzwerk-/Serverfehler beim Speichern der Timeline: ' + err.message);
       }
     });
+  }
 
-    // ▶ Löschen via fetch(DELETE), Delegation an Tabelle
-    document.getElementById('tl_tbody')?.addEventListener('click', async (ev) => {
-      const btn = ev.target.closest('.tl-del-btn');
+  // ▶ Löschen via fetch(DELETE), Delegation an Tabellenkörper
+  var tbody = document.getElementById('tl_tbody');
+  if (tbody) {
+    tbody.addEventListener('click', async function (ev) {
+      var target = ev.target;
+      var btn = target && target.closest ? target.closest('.tl-del-btn') : null;
       if (!btn) return;
 
-      const id = btn.getAttribute('data-id');
+      var id = btn.getAttribute('data-id');
       if (!id) return;
 
       if (!confirm('Diesen Eintrag wirklich löschen?')) return;
 
-      // Route für DELETE (wir bauen sie wie im Blade-Form vorher)
-      const routeDelete = @json(route('timeline.destroy', 0)).replace(/0$/, String(id));
+      // Route mit Platzhalter-ID 0 → echte ID einsetzen
+      var routeDelete = ROUTE_DEST0.replace(/\/0$/, '/' + String(id));
 
       try {
-        const res = await fetch(routeDelete, {
-          method: 'POST', // Laravel braucht POST mit _method=DELETE (bei fetch ohne Form)
+        var res = await fetch(routeDelete, {
+          method: 'POST', // Method Spoofing für DELETE
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': CSRF,
@@ -202,17 +218,25 @@
           body: JSON.stringify({ _method: 'DELETE', returnTo: RETURN_TO })
         });
 
-        // Erfolgreich? Dann reload
-        if (res.ok) {
-          window.location.reload();
-          return;
+        var isJson = (res.headers.get('content-type') || '').includes('application/json');
+        if (isJson) {
+          var json = await res.json();
+          if (!res.ok || json.ok === false) {
+            throw new Error(json.message || 'Fehler beim Löschen.');
+          }
+        } else if (!res.ok) {
+          throw new Error('Fehler beim Löschen (HTTP ' + res.status + ').');
         }
 
-        alert('Fehler beim Löschen (HTTP ' + res.status + ').');
+        // Erfolg → Seite neu laden (einfach & robust)
+        window.location.reload();
+
       } catch (err) {
         console.error(err);
-        alert('Netzwerkfehler beim Löschen.');
+        alert('Netzwerk-/Serverfehler beim Löschen: ' + err.message);
       }
     });
-  })();
+  }
+})();
 </script>
+@endverbatim

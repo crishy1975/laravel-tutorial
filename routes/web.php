@@ -1,61 +1,89 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
+/* ===== Controller Imports ===== */
+use App\Http\Controllers\ToolsController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\GebaeudeController;
 use App\Http\Controllers\AdresseController;
+use App\Http\Controllers\GebaeudeController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\TimelineController;
+use App\Http\Controllers\ArtikelGebaeudeController;
 
-/* -------------------- Adressen -------------------- */
+/*
+|--------------------------------------------------------------------------
+| WEB ROUTES (vollständig & bereinigt)
+|--------------------------------------------------------------------------
+| - Einheitliche Namen & Parameter (id, tour, gebaeude, …)
+| - whereNumber() für IDs
+| - Auth/Verified dort, wo UI-geschützt ist
+| - Keine Duplikate / vergessenen Routen
+*/
 
+/* ==================== Home ==================== */
+// Startseite → direkt zu Gebäude-Index
+Route::get('/', fn () => redirect()->route('gebaeude.index'))
+    ->middleware(['auth', 'verified'])
+    ->name('home');
+
+
+/* ==================== Auth (Breeze / Fortify) ==================== */
+// Profile (Standard aus Breeze)
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+
+/* ==================== Tools (z. B. VIES) ==================== */
+Route::post('/tools/vies-lookup', [ToolsController::class, 'viesLookup'])
+    ->middleware(['auth', 'verified'])
+    ->name('tools.viesLookup');
+
+
+/* ==================== Adressen ==================== */
 Route::middleware(['auth', 'verified'])
     ->prefix('adresse')
     ->name('adresse.')
     ->group(function () {
-        Route::get('/',              [AdresseController::class, 'index'])->name('index');
-        Route::get('/create',        [AdresseController::class, 'create'])->name('create');
-        Route::post('/',             [AdresseController::class, 'store'])->name('store');
+        // Liste & CRUD
+        Route::get('/',        [AdresseController::class, 'index'])->name('index');
+        Route::get('/create',  [AdresseController::class, 'create'])->name('create');
+        Route::post('/',       [AdresseController::class, 'store'])->name('store');
 
-        // optional/empfohlen: zuerst statisch
+        // Optional: Bulk-Löschen
         Route::post('/bulk-destroy', [AdresseController::class, 'bulkDestroy'])->name('bulkDestroy');
 
-        // optional: JSON-Endpoint
-        Route::get('/{id}/json',     [AdresseController::class, 'showJson'])
+        // Optional: JSON-Detail
+        Route::get('/{id}/json', [AdresseController::class, 'showJson'])
             ->whereNumber('id')->name('json');
 
-        Route::get('/{id}',          [AdresseController::class, 'show'])
+        // Show / Edit / Update / Delete
+        Route::get('/{id}',      [AdresseController::class, 'show'])
             ->whereNumber('id')->name('show');
 
-        Route::get('/{id}/edit',     [AdresseController::class, 'edit'])
+        Route::get('/{id}/edit', [AdresseController::class, 'edit'])
             ->whereNumber('id')->name('edit');
 
-        Route::put('/{id}',          [AdresseController::class, 'update'])
+        Route::put('/{id}',      [AdresseController::class, 'update'])
             ->whereNumber('id')->name('update');
 
-        Route::delete('/{id}',       [AdresseController::class, 'destroy'])
+        Route::delete('/{id}',   [AdresseController::class, 'destroy'])
             ->whereNumber('id')->name('destroy');
     });
 
-/* -------------------- Tools -------------------- */
-Route::post('/tools/vies-lookup', [\App\Http\Controllers\ToolsController::class, 'viesLookup'])
-    ->name('tools.viesLookup');
 
-/* -------------------- Home -------------------- */
-Route::get('/', fn() => redirect()->route('gebaeude.index'))
-    ->middleware(['auth', 'verified'])->name('home');
-
-/* -------------------- Gebäude -------------------- */
+/* ==================== Gebäude ==================== */
 Route::middleware(['auth', 'verified'])
     ->prefix('gebaeude')
     ->name('gebaeude.')
     ->group(function () {
+        // Liste & CRUD
         Route::get('/',        [GebaeudeController::class, 'index'])->name('index');
         Route::get('/create',  [GebaeudeController::class, 'create'])->name('create');
         Route::post('/',       [GebaeudeController::class, 'store'])->name('store');
-
-        Route::post('/bulk-attach-tour', [GebaeudeController::class, 'bulkAttachTour'])
-            ->name('touren.bulkAttach');
 
         Route::get('/{id}/edit', [GebaeudeController::class, 'edit'])
             ->whereNumber('id')->name('edit');
@@ -66,44 +94,74 @@ Route::middleware(['auth', 'verified'])
         Route::delete('/{id}',   [GebaeudeController::class, 'destroy'])
             ->whereNumber('id')->name('destroy');
 
-        Route::post('/{id}/timeline', [GebaeudeController::class, 'timelineStore'])
-            ->whereNumber('id')->name('timeline.store');
+        // 🔗 Touren: Bulk-Attach (für dein Modal in gebaeude.index)
+        // (Route-Name exakt wie in deinen Views: ge baeude.touren.bulkAttach)
+        Route::post('/touren/bulk-attach', [GebaeudeController::class, 'bulkAttachTour'])
+            ->name('touren.bulkAttach');
 
-        Route::delete('/{id}/timeline/{timeline}', [GebaeudeController::class, 'timelineDestroy'])
-            ->whereNumber('id')->whereNumber('timeline')->name('timeline.destroy');
+        // 🧾 Artikel-Positionen (pro Gebäude)
+        Route::post('/{id}/artikel',         [ArtikelGebaeudeController::class, 'store'])
+            ->whereNumber('id')->name('artikel.store');
+
+        Route::post('/{id}/artikel/reorder', [ArtikelGebaeudeController::class, 'reorder'])
+            ->whereNumber('id')->name('artikel.reorder');
     });
 
-/* -------------------- Touren -------------------- */
+// 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::patch('tour/reorder', [TourController::class, 'reorder'])->name('tour.reorder');
-    Route::patch('tour/{tour}/toggle', [TourController::class, 'toggleActive'])
+    Route::put('/artikel-gebaeude/{id}',    [ArtikelGebaeudeController::class, 'update'])
+        ->whereNumber('id')->name('artikel.gebaeude.update');
+
+    Route::delete('/artikel-gebaeude/{id}', [ArtikelGebaeudeController::class, 'destroy'])
+        ->whereNumber('id')->name('artikel.gebaeude.destroy');
+});
+
+
+/* ==================== Timeline (pro Gebäude) ==================== */
+// Speichern eines Timeline-Eintrags (View nutzt: ge baeude.timeline.store)
+Route::post('/gebaeude/{id}/timeline', [TimelineController::class, 'timelineStore'])
+    ->middleware(['auth', 'verified'])
+    ->whereNumber('id')->name('gebaeude.timeline.store');
+
+// Löschen eines Timeline-Eintrags (View nutzt: timeline.destroy)
+Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
+    ->middleware(['auth', 'verified'])
+    ->whereNumber('id')->name('timeline.destroy');
+
+
+/* ==================== Touren ==================== */
+Route::middleware(['auth', 'verified'])->group(function () {
+
+    // Reihung aller Touren (Drag&Drop)
+    Route::patch('/tour/reorder', [TourController::class, 'reorder'])
+        ->name('tour.reorder');
+
+    // Aktiv-Flag toggeln
+    Route::patch('/tour/{tour}/toggle', [TourController::class, 'toggleActive'])
         ->whereNumber('tour')->name('tour.toggle');
 
-    Route::get('tour/{id}', [TourController::class, 'show'])
+    // Show (separat, da Resource 'show' ausgeschlossen wird)
+    Route::get('/tour/{id}', [TourController::class, 'show'])
         ->whereNumber('id')->name('tour.show');
 
-    Route::delete('tour/{tour}/gebaeude/{gebaeude}', [TourController::class, 'detachGebaeude'])
-        ->whereNumber('tour')->whereNumber('gebaeude')->name('tour.gebaeude.detach');
+    // 🔗 Tour ⇄ Gebäude: NUR Pivot löschen
 
-    Route::post('tour/{tour}/gebaeude/detach-bulk', [TourController::class, 'detachGebaeudeBulk'])
-        ->whereNumber('tour')->name('tour.gebaeude.detachBulk');
+    // Einzel-Detach (eine Verknüpfung entfernen)
+    // View: route('tour.gebaeude.detach', ['tour' => $tour->id, 'gebaeude' => $g->id])
+    Route::delete('/tour/{tour}/gebaeude/{gebaeude}', [TourController::class, 'detach'])
+        ->whereNumber('tour')->whereNumber('gebaeude')
+        ->name('tour.gebaeude.detach');
 
+    // Bulk-Detach (mehrere Verknüpfungen gleichzeitig)
+    // View: route('tour.gebaeude.bulkDetach', $tour->id)
+    Route::delete('/tour/{tour}/gebaeude', [TourController::class, 'bulkDetach'])
+        ->whereNumber('tour')
+        ->name('tour.gebaeude.bulkDetach');
+
+    // Resource (ohne show) → index/create/store/edit/update/destroy
     Route::resource('tour', TourController::class)->except(['show']);
 });
-// POST: Timeline-Eintrag zu Gebäude speichern
-Route::post('/gebaeude/{id}/timeline', [TimelineController::class, 'timelineStore'])
-    ->name('gebaeude.timeline.store');
-
-// DELETE: Timeline-Eintrag löschen
-Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
-    ->name('timeline.destroy'); // routes/web.php
-    
-Route::post('/gebaeude/{id}/artikel', [\App\Http\Controllers\ArtikelGebaeudeController::class, 'store'])
-    ->name('gebaeude.artikel.store');
-
-Route::delete('/artikel-gebaeude/{id}', [\App\Http\Controllers\ArtikelGebaeudeController::class, 'destroy'])
-    ->name('artikel.gebaeude.destroy');
 
 
-
+/* ==================== Auth Scaffolding ==================== */
 require __DIR__ . '/auth.php';

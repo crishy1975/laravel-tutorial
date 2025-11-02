@@ -1,7 +1,7 @@
 {{-- resources/views/tour/show.blade.php --}}
 {{-- Detailansicht einer Tour mit Checkboxen und Löschen-Buttons,
-    wobei NUR die Pivot-Verknüpfung (tourgebaeude) gelöscht wird.
-    Kein Code weggelassen. --}}
+     wobei NUR die Pivot-Verknüpfung (tourgebaeude) gelöscht wird.
+     Vollständige Datei. Keine verschachtelten <form>-Tags. --}}
 
 @extends('layouts.app')
 
@@ -19,7 +19,11 @@
         @endif
       </h3>
       <div class="text-muted small">
-        ID: {{ $tour->id }} · Reihenfolge: {{ $tour->reihenfolge }} · Angelegt: {{ $tour->created_at?->format('d.m.Y H:i') }}
+        ID: {{ $tour->id }}
+        @if(!is_null($tour->reihenfolge))
+          · Reihenfolge: {{ $tour->reihenfolge }}
+        @endif
+        · Angelegt: {{ $tour->created_at?->format('d.m.Y H:i') }}
       </div>
     </div>
 
@@ -57,23 +61,24 @@
   <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span>
-        <i class="bi bi-buildings"></i> Verknüpfte Anlagen ({{ $tour->gebaeude->count() }})
+        <i class="bi bi-buildings"></i>
+        Verknüpfte Anlagen ({{ $tour->gebaeude->count() }})
       </span>
 
       {{-- 🔘 Bulk-Verknüpfung löschen (nur Pivot) --}}
       @if($tour->gebaeude->isNotEmpty())
-      <form id="bulk-detach-form"
-            method="POST"
-            action="{{ route('tour.gebaeude.detach', $tour->id) }}"
-            onsubmit="return confirm('Ausgewählte Verknüpfung(en) wirklich löschen?');">
-        @csrf
-        @method('DELETE')
-        {{-- returnTo für sauberes Zurück --}}
-        <input type="hidden" name="returnTo" value="{{ url()->full() }}">
-        <button type="submit" class="btn btn-sm btn-outline-danger" id="bulk-detach-btn" disabled>
-          <i class="bi bi-trash"></i> Ausgewählte entfernen
-        </button>
-      </form>
+        <form id="bulk-detach-form"
+              method="POST"
+              action="{{ route('tour.gebaeude.bulkDetach', $tour->id) }}"
+              onsubmit="return confirm('Ausgewählte Verknüpfung(en) wirklich löschen?');">
+          @csrf
+          @method('DELETE')
+          {{-- returnTo für sauberes Zurück --}}
+          <input type="hidden" name="returnTo" value="{{ url()->full() }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger" id="bulk-detach-btn" disabled>
+            <i class="bi bi-trash"></i> Ausgewählte entfernen
+          </button>
+        </form>
       @endif
     </div>
 
@@ -96,16 +101,12 @@
         </thead>
         <tbody>
           @forelse($tour->gebaeude as $g)
-            @php
-              // Falls deine Gebaeude-Tabelle anders benannt ist, bitte Felder anpassen:
-              // Hier nehme ich die Felder aus deiner Index-Seite: codex, gebaeude_name, strasse, hausnummer, wohnort
-            @endphp
             <tr>
-              {{-- ✅ Einzel-Checkbox. Wichtig: gehört zum Bulk-Form via form=... --}}
+              {{-- ✅ Einzel-Checkbox. Per form-Attribut der Bulk-Form zugeordnet --}}
               <td>
                 <input type="checkbox"
                        class="row-check"
-                       name="ids[]"
+                       name="gebaeude_ids[]"
                        value="{{ $g->id }}"
                        form="bulk-detach-form">
               </td>
@@ -127,13 +128,12 @@
 
                   {{-- 🗑️ Nur Verknüpfung (Pivot) dieser EINEN Zeile löschen --}}
                   <form method="POST"
-                        action="{{ route('tour.gebaeude.detach', $tour->id) }}"
+                        action="{{ route('tour.gebaeude.detach', ['tour' => $tour->id, 'gebaeude' => $g->id]) }}"
                         class="d-inline"
                         onsubmit="return confirm('Diese Verknüpfung wirklich löschen?');">
                     @csrf
                     @method('DELETE')
                     <input type="hidden" name="returnTo" value="{{ url()->full() }}">
-                    <input type="hidden" name="ids[]" value="{{ $g->id }}">
                     <button type="submit"
                             class="btn btn-sm btn-outline-danger"
                             title="Verknüpfung entfernen"
@@ -161,34 +161,30 @@
 
 @push('scripts')
 <script>
+  // Master-Checkbox & Bulk-Button-Logik (ohne Abhängigkeiten)
   document.addEventListener('DOMContentLoaded', function () {
-    // ✅ Master-Checkbox toggelt alle
-    const master = document.getElementById('check-all');
-    const checks = () => Array.from(document.querySelectorAll('.row-check'));
-    const bulkBtn = document.getElementById('bulk-detach-btn');
+    const master   = document.getElementById('check-all');
+    const bulkBtn  = document.getElementById('bulk-detach-btn');
+    const getChecks = () => Array.from(document.querySelectorAll('.row-check'));
 
     function updateBulkState() {
-      // Button aktivieren, wenn mind. eine Checkbox markiert ist
-      if (bulkBtn) {
-        const any = checks().some(ch => ch.checked);
-        bulkBtn.disabled = !any;
-      }
+      if (!bulkBtn) return;
+      const any = getChecks().some(ch => ch.checked);
+      bulkBtn.disabled = !any;
     }
 
     if (master) {
       master.addEventListener('change', () => {
-        checks().forEach(ch => ch.checked = master.checked);
+        getChecks().forEach(ch => ch.checked = master.checked);
         updateBulkState();
       });
     }
 
-    // Einzelne Checkboxen beobachten
-    checks().forEach(ch => {
+    getChecks().forEach(ch => {
       ch.addEventListener('change', () => {
-        // Master in „indeterminate“, wenn nicht alle gleich
         if (master) {
-          const all   = checks();
-          const on    = all.filter(c => c.checked).length;
+          const all = getChecks();
+          const on  = all.filter(c => c.checked).length;
           master.checked = (on === all.length);
           master.indeterminate = (on > 0 && on < all.length);
         }
@@ -196,7 +192,6 @@
       });
     });
 
-    // Initialer Zustand
     updateBulkState();
   });
 </script>

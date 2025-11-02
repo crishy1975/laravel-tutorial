@@ -321,4 +321,26 @@ class TourController extends Controller
         // (array_unique greift hier nicht, da Werte Arrays sind – unsere Zuweisung überschreibt ohnehin.)
         return $sync;
     }
+
+    // app/Http/Controllers/TourController.php
+
+    public function bulkDetach(\Illuminate\Http\Request $request, int $tour)
+    {
+        // 1) Tour laden
+        $tourModel = \App\Models\Tour::findOrFail($tour);
+
+        // 2) Auswahl validieren: Array mit IDs
+        $data = $request->validate([
+            'gebaeude_ids'   => ['required', 'array', 'min:1'],
+            'gebaeude_ids.*' => ['integer', 'exists:gebaeude,id'],
+            'returnTo'       => ['nullable', 'url'],
+        ]);
+
+        // 3) Detach in einem Rutsch
+        $tourModel->gebaeude()->detach($data['gebaeude_ids']);
+
+        // 4) Zurück
+        $back = $data['returnTo'] ?? route('tour.show', $tourModel->id);
+        return redirect()->to($back)->with('success', 'Verknüpfungen entfernt.');
+    }
 }
