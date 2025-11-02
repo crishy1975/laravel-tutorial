@@ -3,8 +3,17 @@
      Hinzufügen/Löschen via fetch(), CSRF/Routes kommen über data-* Attribute. --}}
 
 @php
-  // Optional: Falls du serverseitige Fehlermeldungen von der letzten Request-Runde anzeigen willst,
-  // sind die @error-Abschnitte weiter unten aktiv.
+  // Create-Schutz: bei neuem Gebäude existiert keine ID → Timeline inaktiv halten
+  $hasId = isset($gebaeude) && $gebaeude?->exists;
+
+  // Routen/Token nur setzen, wenn ID vorhanden ist
+  $csrf          = csrf_token();
+  $routeStore    = $hasId ? route('gebaeude.timeline.store', $gebaeude->id) : '';
+  $routeDestroy0 = route('timeline.destroy', 0);
+
+  /** @var \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection $entries */
+  // Relation heißt im Model 'timelines()' (Plural)
+  $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect());
 @endphp
 
 <div class="row g-4">
@@ -34,7 +43,8 @@
           class="form-control"
           id="tl_datum"
           name="datum"
-          value="{{ old('datum', now()->toDateString()) }}">
+          value="{{ old('datum', now()->toDateString()) }}"
+          {{ $hasId ? '' : 'disabled' }}>
         {{-- Validierungsfehler des letzten Requests (falls Server-Redirect) --}}
         @error('datum') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
       </div>
@@ -50,28 +60,31 @@
           id="tl_bem"
           name="bemerkung"
           placeholder="Kurze Notiz …"
-          value="{{ old('bemerkung') }}">
+          value="{{ old('bemerkung') }}"
+          {{ $hasId ? '' : 'disabled' }}>
         @error('bemerkung') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
       </div>
 
       {{-- Hinzufügen --}}
       <div class="col-md-2 text-end">
         <label class="form-label d-block mb-1">&nbsp;</label>
-        <button type="button" id="tl_add_btn" class="btn btn-success w-100">
+        <button type="button" id="tl_add_btn" class="btn btn-success w-100" {{ $hasId ? '' : 'disabled' }}>
           <i class="bi bi-plus-circle"></i> Hinzufügen
         </button>
       </div>
+
+      @unless($hasId)
+        <div class="col-12">
+          <div class="alert alert-info py-2 mb-0">
+            Bitte Gebäude zuerst speichern – danach ist die Timeline aktiv.
+          </div>
+        </div>
+      @endunless
     </div>
   </div>
 
   {{-- Liste der Timeline-Einträge --}}
   <div class="col-12">
-    @php
-      /** @var \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection $entries */
-      // Hinweis: Relation heißt im Model 'timelines()' (Plural)
-      $entries = $timelineEntries ?? $gebaeude->timelines()->get();
-    @endphp
-
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -107,7 +120,11 @@
           @empty
             <tr>
               <td colspan="4" class="text-center text-muted py-4">
-                Keine Timeline-Einträge vorhanden.
+                @if($hasId)
+                  Keine Timeline-Einträge vorhanden.
+                @else
+                  Timeline erst nach dem Speichern verfügbar.
+                @endif
               </td>
             </tr>
           @endforelse
@@ -118,10 +135,11 @@
 
 </div>
 
+{{-- Daten für JS als data-* bereitstellen (keine @json im Script!) --}}
 <div id="timeline-root"
-     data-csrf="{{ csrf_token() }}"
-     data-route-store="{{ route('gebaeude.timeline.store', $gebaeude->id) }}"
-     data-route-destroy0="{{ route('timeline.destroy', 0) }}"
+     data-csrf="{{ $csrf }}"
+     data-route-store="{{ $routeStore }}"
+     data-route-destroy0="{{ $routeDestroy0 }}"
      data-return-to="{{ url()->current() }}">
 </div>
 
@@ -135,9 +153,15 @@
   var ROUTE_DEST0 = (root && root.dataset && root.dataset.routeDestroy0) || ''; // z.B. .../0
   var RETURN_TO   = (root && root.dataset && root.dataset.returnTo) || '';
 
-  var btnAdd   = document.getElementById('tl_add_btn');
+  var btnAdd      = document.getElementById('tl_add_btn');
   var inputDate   = document.getElementById('tl_datum');
   var inputRemark = document.getElementById('tl_bem');
+  var tbody       = document.getElementById('tl_tbody');
+
+  // Auf Create-Seite existiert ROUTE_STORE nicht → Funktionen nicht aktivieren
+  if (!ROUTE_STORE) {
+    return;
+  }
 
   // Enter in den Inputs soll NICHT das äußere Formular submitten
   [inputDate, inputRemark].forEach(function (el) {
@@ -145,58 +169,54 @@
     el.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter') {
         ev.preventDefault();
-        if (btnAdd) btnAdd.click();
+        if (btnAdd && !btnAdd.disabled) btnAdd.click();
       }
     });
   });
 
   // ▶ Hinzufügen via fetch(POST)
   if (btnAdd) {
-    btnAdd.addEventListener('click', async function () {
+    btnAdd.addEventListener('click', function () {
       var payload = {
         datum: (inputDate && inputDate.value) ? inputDate.value : null,
         bemerkung: (inputRemark && inputRemark.value) ? inputRemark.value : null,
         returnTo: RETURN_TO
       };
 
-      try {
-        var res = await fetch(ROUTE_STORE, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        // Wenn der Controller JSON liefert, prüfen; sonst (Redirect) einfach reloaden
-        var isJson = (res.headers.get('content-type') || '').includes('application/json');
-        if (isJson) {
-          var json = await res.json();
-          if (!res.ok || json.ok === false) {
-            throw new Error(json.message || 'Fehler beim Speichern.');
-          }
-        } else if (!res.ok) {
-          throw new Error('Fehler beim Speichern (HTTP ' + res.status + ').');
+      fetch(ROUTE_STORE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      .then(function (res) {
+        var ct = res.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') !== -1) {
+          return res.json().then(function (json) { return { ok: res.ok, json: json }; });
         }
-
-        // Erfolg → Seite neu laden (Tabelle & Flash aktualisieren)
+        return { ok: res.ok, json: null };
+      })
+      .then(function (r) {
+        if (!r.ok || (r.json && r.json.ok === false)) {
+          var msg = (r.json && r.json.message) ? r.json.message : 'Fehler beim Speichern.';
+          throw new Error(msg);
+        }
         window.location.reload();
-
-      } catch (err) {
+      })
+      .catch(function (err) {
         console.error(err);
         alert('Netzwerk-/Serverfehler beim Speichern der Timeline: ' + err.message);
-      }
+      });
     });
   }
 
   // ▶ Löschen via fetch(DELETE), Delegation an Tabellenkörper
-  var tbody = document.getElementById('tl_tbody');
   if (tbody) {
-    tbody.addEventListener('click', async function (ev) {
-      var target = ev.target;
-      var btn = target && target.closest ? target.closest('.tl-del-btn') : null;
+    tbody.addEventListener('click', function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest('.tl-del-btn') : null;
       if (!btn) return;
 
       var id = btn.getAttribute('data-id');
@@ -207,34 +227,33 @@
       // Route mit Platzhalter-ID 0 → echte ID einsetzen
       var routeDelete = ROUTE_DEST0.replace(/\/0$/, '/' + String(id));
 
-      try {
-        var res = await fetch(routeDelete, {
-          method: 'POST', // Method Spoofing für DELETE
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ _method: 'DELETE', returnTo: RETURN_TO })
-        });
-
-        var isJson = (res.headers.get('content-type') || '').includes('application/json');
-        if (isJson) {
-          var json = await res.json();
-          if (!res.ok || json.ok === false) {
-            throw new Error(json.message || 'Fehler beim Löschen.');
-          }
-        } else if (!res.ok) {
-          throw new Error('Fehler beim Löschen (HTTP ' + res.status + ').');
+      fetch(routeDelete, {
+        method: 'POST', // Method Spoofing für DELETE
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ _method: 'DELETE', returnTo: RETURN_TO })
+      })
+      .then(function (res) {
+        var ct = res.headers.get('content-type') || '';
+        if (ct.indexOf('application/json') !== -1) {
+          return res.json().then(function (json) { return { ok: res.ok, json: json }; });
         }
-
-        // Erfolg → Seite neu laden (einfach & robust)
+        return { ok: res.ok, json: null };
+      })
+      .then(function (r) {
+        if (!r.ok || (r.json && r.json.ok === false)) {
+          var msg = (r.json && r.json.message) ? r.json.message : 'Fehler beim Löschen.';
+          throw new Error(msg);
+        }
         window.location.reload();
-
-      } catch (err) {
+      })
+      .catch(function (err) {
         console.error(err);
         alert('Netzwerk-/Serverfehler beim Löschen: ' + err.message);
-      }
+      });
     });
   }
 })();

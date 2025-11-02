@@ -1,9 +1,24 @@
 {{-- resources/views/gebaeude/partials/_artikel.blade.php --}}
-{{-- Editierbare Tabelle für artikel_gebaeude mit Drag&Drop-Sortierung und "Nur aktive anzeigen". --}}
+{{-- Editierbare Tabelle für artikel_gebaeude mit Drag&Drop-Sortierung und "Nur aktive anzeigen".
+   Create-Schutz: ohne Gebäude-ID (create-Seite) sind Eingaben/JS-Aktionen deaktiviert. --}}
 
 @php
   /** @var \App\Models\Gebaeude $gebaeude */
-  $serverSumAktiv = (float) ($gebaeude->artikel_summe_aktiv ?? \App\Models\ArtikelGebaeude::where('gebaeude_id', $gebaeude->id)->where('aktiv', true)->selectRaw('COALESCE(SUM(anzahl * einzelpreis),0) as total')->value('total'));
+  $hasId = isset($gebaeude) && $gebaeude?->exists;
+
+  // Summe der aktiven Positionen nur rechnen, wenn eine ID vorhanden ist
+  if ($hasId) {
+      $serverSumAktiv = (float) ($gebaeude->artikel_summe_aktiv
+          ?? \App\Models\ArtikelGebaeude::where('gebaeude_id', $gebaeude->id)
+              ->where('aktiv', true)
+              ->selectRaw('COALESCE(SUM(anzahl * einzelpreis),0) as total')
+              ->value('total'));
+  } else {
+      $serverSumAktiv = 0.0;
+  }
+
+  // Datensätze nur laden, wenn ID vorhanden
+  $artikelListe = $hasId ? ($gebaeude->artikel ?? []) : [];
 @endphp
 
 <div class="row g-4">
@@ -17,7 +32,7 @@
       </div>
       <div class="d-flex align-items-center gap-4">
         <div class="form-check form-switch m-0">
-          <input class="form-check-input" type="checkbox" id="art-only-active" checked>
+          <input class="form-check-input" type="checkbox" id="art-only-active" checked {{ $hasId ? '' : 'disabled' }}>
           <label class="form-check-label" for="art-only-active">Nur aktive anzeigen</label>
         </div>
         <div class="text-muted small">
@@ -27,6 +42,15 @@
     </div>
     <hr class="mt-2 mb-0">
   </div>
+
+  {{-- Hinweis auf Create-Seite --}}
+  @unless($hasId)
+    <div class="col-12">
+      <div class="alert alert-info py-2 mb-0">
+        Bitte Gebäude zuerst speichern – danach können Artikel erfasst und bearbeitet werden.
+      </div>
+    </div>
+  @endunless
 
   {{-- Tabelle --}}
   <div class="col-12">
@@ -51,59 +75,59 @@
               <i class="bi bi-plus-circle text-success"></i>
             </td>
             <td>
-              <input type="text" class="form-control" id="new-beschreibung" placeholder="Beschreibung">
+              <input type="text" class="form-control" id="new-beschreibung" placeholder="Beschreibung" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="number" class="form-control text-end" id="new-anzahl" step="0.01" min="0" value="1">
+              <input type="number" class="form-control text-end" id="new-anzahl" step="0.01" min="0" value="1" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="number" class="form-control text-end" id="new-einzelpreis" step="0.01" min="0" value="0.00">
+              <input type="number" class="form-control text-end" id="new-einzelpreis" step="0.01" min="0" value="0.00" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
               <input type="text" class="form-control text-end" id="new-gesamtpreis" value="0,00" disabled>
             </td>
             <td>
               <div class="form-check form-switch m-0">
-                <input class="form-check-input" type="checkbox" id="new-aktiv" checked>
+                <input class="form-check-input" type="checkbox" id="new-aktiv" {{ $hasId ? 'checked' : 'disabled' }}>
               </div>
             </td>
             <td class="text-end">
-              <button type="button" id="btn-add-art" class="btn btn-sm btn-success">
+              <button type="button" id="btn-add-art" class="btn btn-sm btn-success" {{ $hasId ? '' : 'disabled' }}>
                 <i class="bi bi-check2-circle"></i> Hinzufügen
               </button>
             </td>
           </tr>
 
-          {{-- Bestehende Datensätze --}}
-          @foreach(($gebaeude->artikel ?? []) as $p)
+          {{-- Bestehende Datensätze (nur bei vorhandener ID) --}}
+          @foreach($artikelListe as $p)
             @php $rowTotal = (float)$p->anzahl * (float)$p->einzelpreis; @endphp
             <tr data-id="{{ $p->id }}" draggable="true" data-aktiv="{{ $p->aktiv ? '1' : '0' }}">
-              <td class="text-center cursor-move" style="cursor: move;">
+              <td class="text-center" style="cursor: move;">
                 <i class="bi bi-grip-vertical text-muted" data-role="drag-handle" title="Ziehen zum Sortieren"></i>
               </td>
               <td>
-                <input type="text" class="form-control" data-field="beschreibung" value="{{ $p->beschreibung }}">
+                <input type="text" class="form-control" data-field="beschreibung" value="{{ $p->beschreibung }}" {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
-                <input type="number" class="form-control text-end" data-field="anzahl" step="0.01" min="0" value="{{ number_format((float)$p->anzahl, 2, '.', '') }}">
+                <input type="number" class="form-control text-end" data-field="anzahl" step="0.01" min="0" value="{{ number_format((float)$p->anzahl, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
-                <input type="number" class="form-control text-end" data-field="einzelpreis" step="0.01" min="0" value="{{ number_format((float)$p->einzelpreis, 2, '.', '') }}">
+                <input type="number" class="form-control text-end" data-field="einzelpreis" step="0.01" min="0" value="{{ number_format((float)$p->einzelpreis, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
                 <input type="text" class="form-control text-end" data-field="gesamtpreis" value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
               </td>
               <td>
                 <div class="form-check form-switch m-0">
-                  <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }}>
+                  <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }} {{ $hasId ? '' : 'disabled' }}>
                 </div>
               </td>
               <td class="text-end">
                 <div class="btn-group">
-                  <button type="button" class="btn btn-sm btn-primary d-none" data-role="btn-save" title="Speichern">
+                  <button type="button" class="btn btn-sm btn-primary d-none" data-role="btn-save" title="Speichern" {{ $hasId ? '' : 'disabled' }}>
                     <i class="bi bi-save2"></i>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger" data-role="btn-delete" title="Löschen">
+                  <button type="button" class="btn btn-sm btn-outline-danger" data-role="btn-delete" title="Löschen" {{ $hasId ? '' : 'disabled' }}>
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
@@ -115,7 +139,10 @@
         <tfoot>
           <tr class="table-light">
             <td colspan="4" class="text-end fw-semibold">Summe (aktiv):</td>
-            <td><input type="text" class="form-control text-end fw-semibold" id="art-summe-foot" value="{{ number_format($serverSumAktiv, 2, ',', '.') }}" disabled></td>
+            <td>
+              <input type="text" class="form-control text-end fw-semibold" id="art-summe-foot"
+                     value="{{ number_format($serverSumAktiv, 2, ',', '.') }}" disabled>
+            </td>
             <td colspan="2"></td>
           </tr>
         </tfoot>
@@ -124,13 +151,13 @@
   </div>
 </div>
 
-{{-- Data-Container --}}
+{{-- Data-Container für JS (Routen nur setzen, wenn ID existiert) --}}
 <div id="artikel-root"
      data-csrf="{{ csrf_token() }}"
-     data-route-store="{{ route('gebaeude.artikel.store', $gebaeude->id) }}"
+     data-route-store="{{ $hasId ? route('gebaeude.artikel.store', $gebaeude->id) : '' }}"
      data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
      data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
-     data-route-reorder="{{ route('gebaeude.artikel.reorder', $gebaeude->id) }}">
+     data-route-reorder="{{ $hasId ? route('gebaeude.artikel.reorder', $gebaeude->id) : '' }}">
 </div>
 
 @verbatim
@@ -143,13 +170,18 @@
   var ROUTE_DELETE0=(root&&root.dataset&&root.dataset.routeDelete0)||'';
   var ROUTE_REORDER=(root&&root.dataset&&root.dataset.routeReorder)||'';
 
-  function euro(v){var n=Number.isFinite(+v)?+v:0;return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  function parseNum(v){var x=parseFloat(String(v).replace(',','.'));return Number.isFinite(x)?x:0;}
-
   var tbody=document.getElementById('art-tbody');
   var sumHead=document.getElementById('art-summe-head');
   var sumFoot=document.getElementById('art-summe-foot');
   var onlyActive=document.getElementById('art-only-active');
+
+  // Früh raus auf Create-Seite (ohne Store-Route keine Aktionen)
+  if (!ROUTE_STORE) {
+    return;
+  }
+
+  function euro(v){var n=Number.isFinite(+v)?+v:0;return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function parseNum(v){var x=parseFloat(String(v).replace(',','.'));return Number.isFinite(x)?x:0;}
 
   function isActive(tr){var cb=tr.querySelector('[data-field="aktiv"]');return cb?cb.checked:false;}
 
@@ -162,8 +194,10 @@
   }
 
   function recalcRowTotal(tr){
-    var qty=parseNum(tr.querySelector('[data-field="anzahl"]')&&tr.querySelector('[data-field="anzahl"]').value);
-    var price=parseNum(tr.querySelector('[data-field="einzelpreis"]')&&tr.querySelector('[data-field="einzelpreis"]').value);
+    var qEl=tr.querySelector('[data-field="anzahl"]');
+    var pEl=tr.querySelector('[data-field="einzelpreis"]');
+    var qty=parseNum(qEl&&qEl.value);
+    var price=parseNum(pEl&&pEl.value);
     var total=qty*price;
     var tot=tr.querySelector('[data-field="gesamtpreis"]');
     if(tot) tot.value=euro(total);
@@ -174,13 +208,13 @@
     var showOnly=onlyActive&&onlyActive.checked;
     (tbody?tbody.querySelectorAll('tr[data-id]'):[]).forEach(function(tr){
       if(showOnly && !isActive(tr)) return;
-      var qty=parseNum(tr.querySelector('[data-field="anzahl"]')&&tr.querySelector('[data-field="anzahl"]').value);
-      var price=parseNum(tr.querySelector('[data-field="einzelpreis"]')&&tr.querySelector('[data-field="einzelpreis"]').value);
+      var qty=parseNum((tr.querySelector('[data-field="anzahl"]')||{}).value);
+      var price=parseNum((tr.querySelector('[data-field="einzelpreis"]')||{}).value);
       sum+=qty*price;
     });
     var newActive=document.getElementById('new-aktiv');
-    var newQty=parseNum(document.getElementById('new-anzahl')&&document.getElementById('new-anzahl').value);
-    var newPrice=parseNum(document.getElementById('new-einzelpreis')&&document.getElementById('new-einzelpreis').value);
+    var newQty=parseNum((document.getElementById('new-anzahl')||{}).value);
+    var newPrice=parseNum((document.getElementById('new-einzelpreis')||{}).value);
     var addNew=(newActive&&newActive.checked)?(newQty*newPrice):0;
     if(sumHead) sumHead.textContent=euro(sum+addNew);
     if(sumFoot) sumFoot.value=euro(sum);
@@ -311,8 +345,8 @@
 
       if(btnSave){
         var beschr=(tr.querySelector('[data-field="beschreibung"]')&&tr.querySelector('[data-field="beschreibung"]').value||'').trim();
-        var anzahl=parseNum(tr.querySelector('[data-field="anzahl"]')&&tr.querySelector('[data-field="anzahl"]').value);
-        var preis=parseNum(tr.querySelector('[data-field="einzelpreis"]')&&tr.querySelector('[data-field="einzelpreis"]').value);
+        var anzahl=parseNum((tr.querySelector('[data-field="anzahl"]')||{}).value);
+        var preis=parseNum((tr.querySelector('[data-field="einzelpreis"]')||{}).value);
         var aktivCb=tr.querySelector('[data-field="aktiv"]');
         var aktiv=aktivCb&&aktivCb.checked?1:0;
         if(!beschr){alert('Beschreibung darf nicht leer sein.');return;}

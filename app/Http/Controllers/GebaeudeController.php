@@ -14,7 +14,6 @@ use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 use App\Models\Timeline;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 
 class GebaeudeController extends Controller
@@ -27,63 +26,68 @@ class GebaeudeController extends Controller
         $gebaeude = Gebaeude::with([
             'postadresse',
             'rechnungsempfaenger',
-            // ✅ Beziehung heißt "touren" (Plural) und wird nach Pivot sortiert
+            // Beziehung heißt "touren" (Plural) und wird nach Pivot sortiert
             'touren' => fn($q) => $q->orderBy('tourgebaeude.reihenfolge'),
-            // 🕒 Optional: Timeline eager laden (spart Queries in der View)
+            // Optional: Timeline eager laden (spart Queries in der View)
             'timelines' => fn($q) => $q->orderBy('datum', 'desc')->orderBy('id', 'desc'),
         ])->findOrFail($id);
 
-        // Für Auswahlfelder: sinnvoll sortiert
+        // Adress-Auswahl
         $adressen = Adresse::orderBy('name')->get(['id', 'name', 'wohnort']);
 
-        // ✨ Codex-Präfix-Vorschläge aus bestehenden Gebäuden
+        // Fattura-Profile (optional & robust: nur laden, wenn Klasse & Tabelle existieren)
+        $fatturaProfiles = collect();
+        try {
+            if (class_exists(\App\Models\FatturaProfile::class) && Schema::hasTable('fattura_profiles')) {
+                $fatturaProfiles = \App\Models\FatturaProfile::orderBy('name')->get(['id', 'name']);
+            }
+        } catch (\Throwable $e) {
+            $fatturaProfiles = collect();
+        }
+
+        // Codex-Präfix-Vorschläge aus bestehenden Gebäuden
         $codexPrefixTips = \App\Models\Gebaeude::query()
             ->select(['codex', 'strasse', 'wohnort'])
             ->whereNotNull('codex')
             ->where('codex', '!=', '')
             ->get()
             ->map(function ($g) {
-                // Präfix = nur Buchstaben vom Anfang (z. B. "gam" aus "gam43")
                 if (!preg_match('/^[A-Za-z]+/', (string) $g->codex, $m)) {
                     return null;
                 }
-                $prefix = strtolower($m[0]); // klein vereinheitlichen
+                $prefix = strtolower($m[0]);
                 return [
                     'prefix'  => $prefix,
                     'strasse' => $g->strasse ?: '',
                     'wohnort' => $g->wohnort ?: '',
                 ];
             })
-            ->filter() // nulls entfernen
-            ->groupBy('prefix') // Duplikate je Präfix zusammenfassen
+            ->filter()
+            ->groupBy('prefix')
             ->map(function ($items, $prefix) {
-                // Einen repräsentativen Datensatz für die Hint-Zeile nehmen
                 $one   = $items->first();
                 $hint  = trim(($one['strasse'] ?: '') . ($one['wohnort'] ? ', ' . $one['wohnort'] : ''));
-                return [
-                    'prefix' => $prefix,
-                    'hint'   => $hint, // z. B. "Höfeweg, Leifers"
-                ];
+                return ['prefix' => $prefix, 'hint' => $hint];
             })
             ->values()
             ->sortBy('prefix')
             ->take(300); // Sicherheitslimit
 
-        // 🔹 optionaler Rücksprung-Link mit Fallback auf aktuelle Seite
+        // optionaler Rücksprung-Link
         $returnTo = $request->query('returnTo', url()->current());
 
-        // Touren-Auswahl (nur existierende Spalten selektieren)
+        // Touren-Auswahl
         $tourenAlle = Tour::orderBy('name')->get(['id', 'name', 'beschreibung', 'aktiv']);
         $tourenMap  = $tourenAlle->keyBy('id');
 
-        // ✅ korrekte Variablen an View übergeben
         return view('gebaeude.form', compact(
             'gebaeude',
             'adressen',
             'returnTo',
             'tourenAlle',
             'tourenMap',
-            'codexPrefixTips'
+            'codexPrefixTips',
+            'fatturaProfiles'
         ));
     }
 
@@ -92,16 +96,15 @@ class GebaeudeController extends Controller
      */
     public function update(Request $request, $id)
     {
-        // ➤ Korrelations-ID für Log + UI
         $debugId = (string) Str::uuid();
 
         try {
-            // 0) Datensatz laden
+            // Datensatz laden
             $gebaeude = Gebaeude::findOrFail($id);
 
-            // 1) Validierung Grunddaten (DE-Messages)
+            // 1) Validierung Grunddaten + FatturaPA-Defaults
             $validated = $request->validate([
-                // --- Basisfelder ---
+                // Basisfelder
                 'codex'                  => 'nullable|string|max:10',
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
@@ -136,6 +139,15 @@ class GebaeudeController extends Controller
                 // Flags
                 'rechnung_schreiben'     => 'required|in:0,1',
                 'faellig'                => 'required|in:0,1',
+
+                // 🔹 FatturaPA/Defaults (NEU)
+                'bemerkung_buchhaltung'      => 'nullable|string',
+                'cup'                         => 'nullable|string|max:20',
+                'cig'                         => 'nullable|string|max:10',
+                'auftrag_id'                  => 'nullable|string|max:50',
+                'auftrag_datum'               => 'nullable|date',
+                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profiles,id',
+                'bank_match_text_template'    => 'nullable|string',
             ], [
                 'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
@@ -147,7 +159,7 @@ class GebaeudeController extends Controller
             // 2) Validierung Pivot (Touren)
             $request->validate([
                 'tour_ids'      => ['nullable', 'array'],
-                'tour_ids.*'    => ['integer', 'exists:tour,id'], // Tabelle: 'tour' (singular)
+                'tour_ids.*'    => ['integer', 'exists:tour,id'],
                 'reihenfolge'   => ['nullable', 'array'],
                 'reihenfolge.*' => ['nullable', 'integer', 'min:1'],
             ]);
@@ -165,30 +177,28 @@ class GebaeudeController extends Controller
                 $validated[$flag] = (int)($validated[$flag] ?? 0) === 1 ? 1 : 0;
             }
 
-            // 3a) **Codex-Präfix**: nur führende Buchstaben (z. B. "gam" aus "gam43")
+            // Codex-Präfix (nur führende Buchstaben)
             if ($request->filled('codex')) {
                 $raw = (string)$request->input('codex');
                 if (preg_match('/^[A-Za-z]+/', $raw, $m)) {
-                    $validated['codex'] = strtolower($m[0]); // oder strtoupper(...)
+                    $validated['codex'] = strtolower($m[0]);
                 } else {
-                    // kein Buchstabenpräfix → leer/null setzen (oder weglassen, wenn du freie Eingabe willst)
                     $validated['codex'] = null;
                 }
             }
 
-            // 4) Pivot-Array bauen: [tour_id => ['reihenfolge' => n], ...]
+            // Pivot-Array: [tour_id => ['reihenfolge' => n], ...]
             $attach = [];
             $ids = array_values($request->input('tour_ids', [])); // Auswahl-Reihenfolge
             $pos = 1;
             foreach ($ids as $tourId) {
                 $tourId = (int)$tourId;
                 $ord = (int)($request->input("reihenfolge.$tourId") ?? 0);
-                if ($ord < 1) { $ord = $pos; } // Fallback 1..N
+                if ($ord < 1) { $ord = $pos; }
                 $attach[$tourId] = ['reihenfolge' => $ord];
                 $pos++;
             }
 
-            // Debug: Startlog
             Log::info('Gebaeude.update START', [
                 'debugId'   => $debugId,
                 'gebaeude'  => $gebaeude->id,
@@ -209,7 +219,7 @@ class GebaeudeController extends Controller
                 ]);
             });
 
-            // 6) Erfolg (sicherer Redirect)
+            // 6) Erfolg
             $returnTo = $this->safeReturnTo($request->input('returnTo'), route('gebaeude.edit', $gebaeude->id));
 
             return redirect()
@@ -217,7 +227,6 @@ class GebaeudeController extends Controller
                 ->with('success', 'Gebäude wurde erfolgreich aktualisiert (inkl. Touren).');
 
         } catch (ValidationException $ve) {
-            // ➤ Validierungsfehler
             Log::warning('Gebaeude.update VALIDATION FAILED', [
                 'debugId' => $debugId,
                 'errors'  => $ve->errors(),
@@ -229,7 +238,6 @@ class GebaeudeController extends Controller
                 ->with('error', "Speichern fehlgeschlagen. Bitte Eingaben prüfen. (Fehler-ID: {$debugId})")
                 ->with('error_detail', $first);
         } catch (QueryException $qe) {
-            // ➤ DB-/SQL-Fehler
             Log::error('Gebaeude.update DB ERROR', [
                 'debugId'  => $debugId,
                 'code'     => $qe->getCode(),
@@ -241,7 +249,6 @@ class GebaeudeController extends Controller
                 ->withInput()
                 ->with('error', "Speichern fehlgeschlagen (DB-Fehler). Debug-ID: {$debugId}");
         } catch (Throwable $e) {
-            // ➤ Unerwarteter Fehler
             Log::error('Gebaeude.update UNEXPECTED ERROR', [
                 'debugId' => $debugId,
                 'type'    => get_class($e),
@@ -272,7 +279,7 @@ class GebaeudeController extends Controller
             ->when($hausnummer !== '',    fn($q) => $q->where('hausnummer', 'like', "%{$hausnummer}%"))
             ->when($wohnort !== '',       fn($q) => $q->where('wohnort', 'like', "%{$wohnort}%"));
 
-        // ✅ MariaDB-robust: erst Zahlenteil (CAST), dann kompletter String
+        // MariaDB-robust: erst Zahlenteil (CAST), dann kompletter String
         $q->orderBy('codex')
           ->orderBy('strasse')
           ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
@@ -298,14 +305,23 @@ class GebaeudeController extends Controller
         $gebaeude = new \App\Models\Gebaeude();
         $adressen = Adresse::orderBy('name')->get(['id', 'name', 'wohnort']);
 
-        // Vorschlagsliste für Codex-Präfix + Hint (Straße, Ort)
+        // Fattura-Profile (optional & robust)
+        $fatturaProfiles = collect();
+        try {
+            if (class_exists(\App\Models\FatturaProfile::class) && Schema::hasTable('fattura_profiles')) {
+                $fatturaProfiles = \App\Models\FatturaProfile::orderBy('name')->get(['id', 'name']);
+            }
+        } catch (\Throwable $e) {
+            $fatturaProfiles = collect();
+        }
+
+        // Codex-Präfix-Tipps
         $codexPrefixTips = \App\Models\Gebaeude::query()
             ->select(['codex', 'strasse', 'wohnort'])
             ->whereNotNull('codex')
             ->where('codex', '!=', '')
             ->get()
             ->map(function ($g) {
-                // Präfix = nur Buchstaben vom Anfang (z. B. "gam" aus "gam43")
                 if (!preg_match('/^[A-Za-z]+/', (string) $g->codex, $m)) {
                     return null;
                 }
@@ -327,7 +343,7 @@ class GebaeudeController extends Controller
             ->sortBy('prefix')
             ->take(300);
 
-        return view('gebaeude.form', compact('gebaeude', 'adressen', 'codexPrefixTips'));
+        return view('gebaeude.form', compact('gebaeude', 'adressen', 'codexPrefixTips', 'fatturaProfiles'));
     }
 
     /**
@@ -338,9 +354,9 @@ class GebaeudeController extends Controller
         $debugId = (string) Str::uuid();
 
         try {
-            // 1) Validierung (mit deutschen Messages)
+            // 1) Validierung (inkl. FatturaPA-Defaults)
             $validated = $request->validate([
-                // --- Basisfelder ---
+                // Basisfelder
                 'codex'                  => 'nullable|string|max:10',
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
@@ -375,6 +391,15 @@ class GebaeudeController extends Controller
                 // Flags
                 'rechnung_schreiben'     => 'required|in:0,1',
                 'faellig'                => 'required|in:0,1',
+
+                // 🔹 FatturaPA/Defaults (NEU)
+                'bemerkung_buchhaltung'      => 'nullable|string',
+                'cup'                         => 'nullable|string|max:20',
+                'cig'                         => 'nullable|string|max:10',
+                'auftrag_id'                  => 'nullable|string|max:50',
+                'auftrag_datum'               => 'nullable|date',
+                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profiles,id',
+                'bank_match_text_template'    => 'nullable|string',
             ], [
                 'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
@@ -460,7 +485,7 @@ class GebaeudeController extends Controller
      */
     public function bulkAttachTour(Request $request)
     {
-        // Safety: ignorier Method-Spoofing für diese Route
+        // Safety: Method-Spoofing für diese Route ignorieren
         if ($request->input('_method')) {
             $request->request->remove('_method');
         }
@@ -503,14 +528,13 @@ class GebaeudeController extends Controller
     {
         $debugId = (string) Str::uuid();
 
-        // Gebäude muss existieren
         $gebaeude = \App\Models\Gebaeude::findOrFail($id);
 
-        // ✅ Validierung: bemerkung optional!
+        // bemerkung optional!
         try {
             $data = $request->validate([
-                'datum'     => ['nullable', 'date'],   // darf leer sein → wird dann heute gesetzt
-                'bemerkung' => ['nullable', 'string'],// optional
+                'datum'     => ['nullable', 'date'],
+                'bemerkung' => ['nullable', 'string'],
             ]);
         } catch (ValidationException $ve) {
             Log::warning('timelineStore VALIDATION FAILED', [
@@ -522,8 +546,8 @@ class GebaeudeController extends Controller
             throw $ve;
         }
 
-        $user   = $request->user(); // eingeloggte Person (kann null sein)
-        $datum  = $data['datum'] ?? now()->toDateString(); // Model castet 'date' → ok
+        $user   = $request->user();
+        $datum  = $data['datum'] ?? now()->toDateString();
         $note   = $data['bemerkung'] ?? null;
 
         Log::info('timelineStore START', [
@@ -537,7 +561,7 @@ class GebaeudeController extends Controller
         try {
             DB::beginTransaction();
 
-            // 1) Timeline-Eintrag anlegen (Eloquent pflegt created_at/updated_at)
+            // 1) Timeline-Eintrag anlegen
             $timeline = Timeline::create([
                 'gebaeude_id' => $gebaeude->id,
                 'datum'       => $datum,
@@ -546,10 +570,7 @@ class GebaeudeController extends Controller
                 'person_id'   => $user?->id ?? 0,
             ]);
 
-            // 2) Gebäude-Status aktualisieren:
-            //    - „anzReinigung“: gemachte_reinigungen +1
-            //    - „isRechnungSchreiben“: rechnung_schreiben = 1
-            //    - optional: letzter_termin = datum (falls Spalte existiert)
+            // 2) Gebäude-Status aktualisieren
             $updates = [
                 'rechnung_schreiben'   => 1,
                 'gemachte_reinigungen' => DB::raw('COALESCE(gemachte_reinigungen,0) + 1'),
@@ -560,7 +581,7 @@ class GebaeudeController extends Controller
                     $updates['letzter_termin'] = $datum;
                 }
             } catch (\Throwable $e) {
-                // Schema-Check optional ignorieren
+                // ignore
             }
 
             \App\Models\Gebaeude::whereKey($gebaeude->id)->update($updates);
@@ -626,7 +647,7 @@ class GebaeudeController extends Controller
                 return $url;
             }
         } catch (\Throwable $e) {
-            // still
+            // ignore
         }
 
         return $fallback;
