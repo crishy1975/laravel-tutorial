@@ -6,15 +6,16 @@ use Illuminate\Http\Request;
 use App\Models\Gebaeude;
 use App\Models\Adresse;
 use App\Models\Tour;
+use App\Models\Timeline;
+use App\Models\FatturaProfile; // ✅ NEU: FatturaProfile importieren
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
-use Throwable;
-use App\Models\Timeline;
 use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class GebaeudeController extends Controller
 {
@@ -26,32 +27,35 @@ class GebaeudeController extends Controller
         $gebaeude = Gebaeude::with([
             'postadresse',
             'rechnungsempfaenger',
-            // Beziehung heißt "touren" (Plural) und wird nach Pivot sortiert
+            // ✅ Beziehung "touren" (Plural) nach Pivot sortiert
             'touren' => fn($q) => $q->orderBy('tourgebaeude.reihenfolge'),
-            // Optional: Timeline eager laden (spart Queries in der View)
+            // 🕒 Optional: Timeline eager laden (spart Queries in der View)
             'timelines' => fn($q) => $q->orderBy('datum', 'desc')->orderBy('id', 'desc'),
         ])->findOrFail($id);
 
-        // Adress-Auswahl
+        // 📇 Adress-Auswahl
         $adressen = Adresse::orderBy('name')->get(['id', 'name', 'wohnort']);
 
-        // Fattura-Profile (optional & robust: nur laden, wenn Klasse & Tabelle existieren)
+        // 🧾 Fattura-Profile (robust: nur laden, wenn Tabelle existiert)
         $fatturaProfiles = collect();
         try {
-            if (class_exists(\App\Models\FatturaProfile::class) && Schema::hasTable('fattura_profiles')) {
-                $fatturaProfiles = \App\Models\FatturaProfile::orderBy('name')->get(['id', 'name']);
+            if (Schema::hasTable('fattura_profile')) {
+                // ⚠️ Tabelle heißt 'fattura_profile', Sortierung nach 'bezeichnung'
+                $fatturaProfiles = FatturaProfile::orderBy('bezeichnung')
+                    ->get(['id', 'bezeichnung', 'mwst_satz', 'split_payment', 'ritenuta']);
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $fatturaProfiles = collect();
         }
 
-        // Codex-Präfix-Vorschläge aus bestehenden Gebäuden
-        $codexPrefixTips = \App\Models\Gebaeude::query()
+        // ✨ Codex-Präfix-Vorschläge
+        $codexPrefixTips = Gebaeude::query()
             ->select(['codex', 'strasse', 'wohnort'])
             ->whereNotNull('codex')
             ->where('codex', '!=', '')
             ->get()
             ->map(function ($g) {
+                // Präfix = nur führende Buchstaben (z. B. "gam" aus "gam43")
                 if (!preg_match('/^[A-Za-z]+/', (string) $g->codex, $m)) {
                     return null;
                 }
@@ -65,21 +69,22 @@ class GebaeudeController extends Controller
             ->filter()
             ->groupBy('prefix')
             ->map(function ($items, $prefix) {
-                $one   = $items->first();
-                $hint  = trim(($one['strasse'] ?: '') . ($one['wohnort'] ? ', ' . $one['wohnort'] : ''));
+                $one  = $items->first();
+                $hint = trim(($one['strasse'] ?: '') . ($one['wohnort'] ? ', ' . $one['wohnort'] : ''));
                 return ['prefix' => $prefix, 'hint' => $hint];
             })
             ->values()
             ->sortBy('prefix')
             ->take(300); // Sicherheitslimit
 
-        // optionaler Rücksprung-Link
+        // 🔙 optionaler Rücksprung-Link
         $returnTo = $request->query('returnTo', url()->current());
 
-        // Touren-Auswahl
+        // 🗺️ Touren-Auswahl
         $tourenAlle = Tour::orderBy('name')->get(['id', 'name', 'beschreibung', 'aktiv']);
         $tourenMap  = $tourenAlle->keyBy('id');
 
+        // ➜ View
         return view('gebaeude.form', compact(
             'gebaeude',
             'adressen',
@@ -92,7 +97,7 @@ class GebaeudeController extends Controller
     }
 
     /**
-     * Gebäude aktualisieren inkl. Pivot (Touren).
+     * Gebäude aktualisieren inkl. Pivot (Touren) und FatturaPA-Feldern.
      */
     public function update(Request $request, $id)
     {
@@ -104,7 +109,7 @@ class GebaeudeController extends Controller
 
             // 1) Validierung Grunddaten + FatturaPA-Defaults
             $validated = $request->validate([
-                // Basisfelder
+                // --- Basisfelder ---
                 'codex'                  => 'nullable|string|max:10',
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
@@ -132,21 +137,23 @@ class GebaeudeController extends Controller
                 'm11' => 'required|in:0,1',
                 'm12' => 'required|in:0,1',
 
-                // Zähler
+                // Zähler (❗ KEINE lte-Regel mehr)
                 'geplante_reinigungen'   => 'nullable|integer|min:0',
-                'gemachte_reinigungen'   => 'nullable|integer|min:0|lte:geplante_reinigungen',
+                'gemachte_reinigungen'   => 'nullable|integer|min:0',
+
 
                 // Flags
                 'rechnung_schreiben'     => 'required|in:0,1',
                 'faellig'                => 'required|in:0,1',
 
-                // 🔹 FatturaPA/Defaults (NEU)
+                // --- FatturaPA/Defaults (NEU) ---
                 'bemerkung_buchhaltung'      => 'nullable|string',
                 'cup'                         => 'nullable|string|max:20',
                 'cig'                         => 'nullable|string|max:10',
                 'auftrag_id'                  => 'nullable|string|max:50',
                 'auftrag_datum'               => 'nullable|date',
-                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profiles,id',
+                // ✅ richtige Tabelle & Spalte:
+                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profile,id',
                 'bank_match_text_template'    => 'nullable|string',
             ], [
                 'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
@@ -170,14 +177,28 @@ class GebaeudeController extends Controller
             $validated['gemachte_reinigungen'] = isset($validated['gemachte_reinigungen'])
                 ? (int)$validated['gemachte_reinigungen'] : null;
 
-            foreach ([
-                'm01','m02','m03','m04','m05','m06','m07','m08','m09','m10','m11','m12',
-                'rechnung_schreiben','faellig'
-            ] as $flag) {
+            foreach (
+                [
+                    'm01',
+                    'm02',
+                    'm03',
+                    'm04',
+                    'm05',
+                    'm06',
+                    'm07',
+                    'm08',
+                    'm09',
+                    'm10',
+                    'm11',
+                    'm12',
+                    'rechnung_schreiben',
+                    'faellig'
+                ] as $flag
+            ) {
                 $validated[$flag] = (int)($validated[$flag] ?? 0) === 1 ? 1 : 0;
             }
 
-            // Codex-Präfix (nur führende Buchstaben)
+            // 3a) Codex-Präfix (nur führende Buchstaben, klein)
             if ($request->filled('codex')) {
                 $raw = (string)$request->input('codex');
                 if (preg_match('/^[A-Za-z]+/', $raw, $m)) {
@@ -187,14 +208,16 @@ class GebaeudeController extends Controller
                 }
             }
 
-            // Pivot-Array: [tour_id => ['reihenfolge' => n], ...]
+            // 4) Pivot-Array: [tour_id => ['reihenfolge' => n], ...]
             $attach = [];
             $ids = array_values($request->input('tour_ids', [])); // Auswahl-Reihenfolge
             $pos = 1;
             foreach ($ids as $tourId) {
                 $tourId = (int)$tourId;
                 $ord = (int)($request->input("reihenfolge.$tourId") ?? 0);
-                if ($ord < 1) { $ord = $pos; }
+                if ($ord < 1) {
+                    $ord = $pos;
+                }
                 $attach[$tourId] = ['reihenfolge' => $ord];
                 $pos++;
             }
@@ -225,7 +248,6 @@ class GebaeudeController extends Controller
             return redirect()
                 ->to($returnTo)
                 ->with('success', 'Gebäude wurde erfolgreich aktualisiert (inkl. Touren).');
-
         } catch (ValidationException $ve) {
             Log::warning('Gebaeude.update VALIDATION FAILED', [
                 'debugId' => $debugId,
@@ -272,18 +294,18 @@ class GebaeudeController extends Controller
         $hausnummer    = trim($request->get('hausnummer', ''));
         $wohnort       = trim($request->get('wohnort', ''));
 
-        $q = \App\Models\Gebaeude::query()
+        $q = Gebaeude::query()
             ->when($codex !== '',         fn($q) => $q->where('codex', 'like', "%{$codex}%"))
             ->when($gebaeude_name !== '', fn($q) => $q->where('gebaeude_name', 'like', "%{$gebaeude_name}%"))
             ->when($strasse !== '',       fn($q) => $q->where('strasse', 'like', "%{$strasse}%"))
             ->when($hausnummer !== '',    fn($q) => $q->where('hausnummer', 'like', "%{$hausnummer}%"))
             ->when($wohnort !== '',       fn($q) => $q->where('wohnort', 'like', "%{$wohnort}%"));
 
-        // MariaDB-robust: erst Zahlenteil (CAST), dann kompletter String
+        // ✅ MariaDB-robust: erst Zahlenteil (CAST), dann kompletter String
         $q->orderBy('codex')
-          ->orderBy('strasse')
-          ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-          ->orderBy('hausnummer');
+            ->orderBy('strasse')
+            ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
+            ->orderBy('hausnummer');
 
         $gebaeude = $q->paginate(15)->appends($request->query());
 
@@ -302,21 +324,22 @@ class GebaeudeController extends Controller
      */
     public function create()
     {
-        $gebaeude = new \App\Models\Gebaeude();
+        $gebaeude = new Gebaeude();
         $adressen = Adresse::orderBy('name')->get(['id', 'name', 'wohnort']);
 
-        // Fattura-Profile (optional & robust)
+        // 🧾 Fattura-Profile (robust)
         $fatturaProfiles = collect();
         try {
-            if (class_exists(\App\Models\FatturaProfile::class) && Schema::hasTable('fattura_profiles')) {
-                $fatturaProfiles = \App\Models\FatturaProfile::orderBy('name')->get(['id', 'name']);
+            if (Schema::hasTable('fattura_profile')) {
+                $fatturaProfiles = FatturaProfile::orderBy('bezeichnung')
+                    ->get(['id', 'bezeichnung', 'mwst_satz', 'split_payment', 'ritenuta']);
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $fatturaProfiles = collect();
         }
 
-        // Codex-Präfix-Tipps
-        $codexPrefixTips = \App\Models\Gebaeude::query()
+        // ✨ Codex-Präfix-Tipps
+        $codexPrefixTips = Gebaeude::query()
             ->select(['codex', 'strasse', 'wohnort'])
             ->whereNotNull('codex')
             ->where('codex', '!=', '')
@@ -356,7 +379,7 @@ class GebaeudeController extends Controller
         try {
             // 1) Validierung (inkl. FatturaPA-Defaults)
             $validated = $request->validate([
-                // Basisfelder
+                // --- Basisfelder ---
                 'codex'                  => 'nullable|string|max:10',
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
@@ -392,13 +415,14 @@ class GebaeudeController extends Controller
                 'rechnung_schreiben'     => 'required|in:0,1',
                 'faellig'                => 'required|in:0,1',
 
-                // 🔹 FatturaPA/Defaults (NEU)
+                // --- FatturaPA/Defaults (NEU) ---
                 'bemerkung_buchhaltung'      => 'nullable|string',
                 'cup'                         => 'nullable|string|max:20',
                 'cig'                         => 'nullable|string|max:10',
                 'auftrag_id'                  => 'nullable|string|max:50',
                 'auftrag_datum'               => 'nullable|date',
-                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profiles,id',
+                // ✅ richtige Tabelle & Spalte:
+                'fattura_profile_id'          => 'nullable|integer|exists:fattura_profile,id',
                 'bank_match_text_template'    => 'nullable|string',
             ], [
                 'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
@@ -412,7 +436,7 @@ class GebaeudeController extends Controller
             $validated['geplante_reinigungen'] = isset($validated['geplante_reinigungen']) ? (int)$validated['geplante_reinigungen'] : null;
             $validated['gemachte_reinigungen'] = isset($validated['gemachte_reinigungen']) ? (int)$validated['gemachte_reinigungen'] : null;
 
-            foreach (['m01','m02','m03','m04','m05','m06','m07','m08','m09','m10','m11','m12','rechnung_schreiben','faellig'] as $flag) {
+            foreach (['m01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'rechnung_schreiben', 'faellig'] as $flag) {
                 $validated[$flag] = (int)($validated[$flag] ?? 0) === 1 ? 1 : 0;
             }
 
@@ -499,7 +523,7 @@ class GebaeudeController extends Controller
         ]);
 
         $ids   = $data['ids'];
-        $tour  = \App\Models\Tour::findOrFail($data['tour_id']);
+        $tour  = Tour::findOrFail($data['tour_id']);
         $order = $data['pivot_reihenfolge'] ?? null;
 
         DB::transaction(function () use ($ids, $tour, $order) {
@@ -508,7 +532,7 @@ class GebaeudeController extends Controller
                     ->where('tour_id', $tour->id)
                     ->max('reihenfolge') + 1);
 
-                $gebaeude = \App\Models\Gebaeude::findOrFail($gid);
+                $gebaeude = Gebaeude::findOrFail($gid);
                 $gebaeude->touren()->syncWithoutDetaching([
                     $tour->id => ['reihenfolge' => $reihenfolge],
                 ]);
@@ -528,7 +552,8 @@ class GebaeudeController extends Controller
     {
         $debugId = (string) Str::uuid();
 
-        $gebaeude = \App\Models\Gebaeude::findOrFail($id);
+        // Gebäude muss existieren
+        $gebaeude = Gebaeude::findOrFail($id);
 
         // bemerkung optional!
         try {
@@ -580,11 +605,11 @@ class GebaeudeController extends Controller
                 if (Schema::hasColumn('gebaeude', 'letzter_termin')) {
                     $updates['letzter_termin'] = $datum;
                 }
-            } catch (\Throwable $e) {
-                // ignore
+            } catch (Throwable $e) {
+                // ignore Schema-Check-Fehler
             }
 
-            \App\Models\Gebaeude::whereKey($gebaeude->id)->update($updates);
+            Gebaeude::whereKey($gebaeude->id)->update($updates);
 
             DB::commit();
 
@@ -595,7 +620,7 @@ class GebaeudeController extends Controller
             ]);
 
             return back()->with('success', "Timeline-Eintrag hinzugefügt und Status aktualisiert. (Debug-ID: {$debugId})");
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
 
             Log::error('timelineStore ERROR', [
@@ -619,7 +644,7 @@ class GebaeudeController extends Controller
     public function timelineDestroy(Request $request, int $id, int $timeline)
     {
         // Sicherheit: nur Timeline dieses Gebäudes löschbar
-        $gebaeude = \App\Models\Gebaeude::findOrFail($id);
+        $gebaeude = Gebaeude::findOrFail($id);
         $entry = Timeline::where('id', $timeline)
             ->where('gebaeude_id', $gebaeude->id)
             ->firstOrFail();
@@ -646,10 +671,51 @@ class GebaeudeController extends Controller
             if ($retUrl && $appUrl && (($retUrl['host'] ?? null) === ($appUrl['host'] ?? null))) {
                 return $url;
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // ignore
         }
 
         return $fallback;
+    }
+
+    /**
+     * Setzt für ALLE Gebäude 'gemachte_reinigungen' auf 0.
+     * Wird über einen separaten Button/POST-Formular ausgelöst.
+     */
+    public function resetGemachteReinigungen(Request $request)
+    {
+        // Optional: einfache Schutzabfrage (CSRF ist ohnehin aktiv).
+        // Du kannst hier auch Rollen/Gates verwenden (z.B. Gate::authorize('admin')).
+        if (!$request->user()) {
+            abort(403);
+        }
+
+        // Mini-Bestätigung: falls du einen Hidden-Input "confirm" mitsendest.
+        // (Kannst du auch weglassen; der JS-confirm im Button reicht.)
+        if ($request->filled('confirm') && $request->input('confirm') !== 'YES') {
+            return back()->with('error', 'Aktion nicht bestätigt.');
+        }
+
+        // Für Feedback/Logging ein paar Kennzahlen erfassen
+        $countTotal = DB::table('gebaeude')->count();
+        $sumBefore  = (int) DB::table('gebaeude')->sum('gemachte_reinigungen');
+
+        // Update aller Datensätze auf 0
+        $affected = DB::table('gebaeude')->update(['gemachte_reinigungen' => 0]);
+
+        $sumAfter = (int) DB::table('gebaeude')->sum('gemachte_reinigungen');
+
+        Log::info('Reset gemachte_reinigungen per Button', [
+            'user_id'   => $request->user()->id,
+            'countTotal' => $countTotal,
+            'affected'  => $affected,
+            'sumBefore' => $sumBefore,
+            'sumAfter'  => $sumAfter,
+        ]);
+
+        return back()->with(
+            'success',
+            "Zurückgesetzt: {$affected} Datensätze. Summe vorher: {$sumBefore}, nachher: {$sumAfter}."
+        );
     }
 }

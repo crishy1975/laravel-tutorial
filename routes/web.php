@@ -23,7 +23,7 @@ use App\Http\Controllers\ArtikelGebaeudeController;
 
 /* ==================== Home ==================== */
 // Startseite → direkt zu Gebäude-Index
-Route::get('/', fn () => redirect()->route('gebaeude.index'))
+Route::get('/', fn() => redirect()->route('gebaeude.index'))
     ->middleware(['auth', 'verified'])
     ->name('home');
 
@@ -105,6 +105,8 @@ Route::middleware(['auth', 'verified'])
 
         Route::post('/{id}/artikel/reorder', [ArtikelGebaeudeController::class, 'reorder'])
             ->whereNumber('id')->name('artikel.reorder');
+        Route::post('/reset-gemachte-reinigungen', [GebaeudeController::class, 'resetGemachteReinigungen'])
+            ->name('resetGemachteReinigungen');
     });
 
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)

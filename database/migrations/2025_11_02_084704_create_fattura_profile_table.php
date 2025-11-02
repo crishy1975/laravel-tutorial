@@ -1,40 +1,29 @@
 <?php
 
-namespace App\Models;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-
-class FatturaProfile extends Model
+return new class extends Migration
 {
-    use HasFactory, SoftDeletes;
-
-    // Tabellenname explizit (dein Projekt nutzt oft Singular-Tabellennamen)
-    protected $table = 'fattura_profile';
-
-    // Mass Assignment
-    protected $fillable = [
-        'bezeichnung',
-        'split_payment',
-        'ritenuta',
-        'mwst_satz',
-        'bemerkung',
-    ];
-
-    // Typ-Casts
-    protected $casts = [
-        'split_payment' => 'boolean',
-        'ritenuta'      => 'boolean',
-        'mwst_satz'     => 'decimal:2',
-    ];
-
-    /**
-     * Gebäude, die dieses Profil verwenden.
-     * (nur sinnvoll, wenn du bereits eine Spalte 'fattura_profile_id' in 'gebaeude' hast)
-     */
-    public function gebaeude()
+    public function up(): void
     {
-        return $this->hasMany(Gebaeude::class, 'fattura_profile_id');
+        Schema::create('fattura_profile', function (Blueprint $table) {
+            $table->id();
+            $table->string('bezeichnung', 100);
+            $table->text('bemerkung')->nullable();
+            $table->boolean('split_payment')->default(false);
+            $table->boolean('ritenuta')->default(false);
+            $table->decimal('mwst_satz', 5, 2)->default(22.00);
+            $table->string('code', 30)->nullable()->unique();
+            $table->timestamps();
+            $table->softDeletes();
+            $table->index(['split_payment', 'ritenuta']);
+        });
     }
-}
+
+    public function down(): void
+    {
+        Schema::dropIfExists('fattura_profile');
+    }
+};

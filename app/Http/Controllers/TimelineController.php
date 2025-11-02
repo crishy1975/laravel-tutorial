@@ -51,10 +51,10 @@ class TimelineController extends Controller
 
             if ($request->expectsJson()) {
                 return response()->json([
-                    'ok'     => false,
-                    'errors' => $ve->errors(),
-                    'msg'    => 'Validierung fehlgeschlagen',
-                    'debugId'=> $debugId,
+                    'ok'      => false,
+                    'errors'  => $ve->errors(),
+                    'msg'     => 'Validierung fehlgeschlagen',
+                    'debugId' => $debugId,
                 ], 422);
             }
 
@@ -64,7 +64,7 @@ class TimelineController extends Controller
         // 3) Defaults & Meta
         $user     = $request->user();
         $datum    = $data['datum'] ?? now()->toDateString();
-        $note = isset($data['bemerkung']) ? trim((string)$data['bemerkung']) : '';
+        $note     = isset($data['bemerkung']) ? trim((string) $data['bemerkung']) : '';
         $returnTo = $request->input('returnTo');
 
         Log::info('timelineStore START', [
@@ -90,7 +90,6 @@ class TimelineController extends Controller
             ]);
 
             // 5) Gebäude-Status aktualisieren (nur wenn Spalten existieren)
-            //    Passe diese Logik an deine echten Spalten an.
             $tableGebaeude = $gebaeude->getTable();
             $updates       = [];
 
@@ -117,20 +116,35 @@ class TimelineController extends Controller
                 'set_updates'  => $updates,
             ]);
 
-            // 6) Response je nach Erwartung: JSON oder Redirect
+            // 6) ➕ NEU: Fälligkeit direkt nach erfolgreichem Commit neu berechnen
+            //    Erwartet die Methode Gebaeude::recomputeFaellig() (wie von uns vorgeschlagen).
+            $faellig = null;
+            try {
+                $gebaeude->refresh();              // sicherheitshalber neu laden
+                if (method_exists($gebaeude, 'recomputeFaellig')) {
+                    $faellig = $gebaeude->recomputeFaellig(); // persistiert intern
+                }
+            } catch (\Throwable $re) {
+                Log::warning('faellig recompute after timeline failed', [
+                    'gebaeude_id' => $gebaeude->id,
+                    'msg'         => $re->getMessage(),
+                ]);
+            }
+
+            // 7) Response je nach Erwartung: JSON oder Redirect
             if ($request->expectsJson()) {
                 return response()->json([
-                    'ok'          => true,
-                    'message'     => 'Timeline-Eintrag hinzugefügt.',
-                    'timeline_id' => $timeline->id,
-                    'debugId'     => $debugId,
+                    'ok'           => true,
+                    'message'      => 'Timeline-Eintrag hinzugefügt.',
+                    'timeline_id'  => $timeline->id,
+                    'faellig'      => is_bool($faellig) ? (int) $faellig : (int) ($gebaeude->faellig ?? 0),
+                    'debugId'      => $debugId,
                 ], 201);
             }
 
             return redirect()
                 ->to($returnTo ?: route('gebaeude.edit', $gebaeude->id))
                 ->with('success', "Timeline-Eintrag hinzugefügt. (Debug-ID: {$debugId})");
-
         } catch (Throwable $e) {
             DB::rollBack();
 
@@ -156,6 +170,7 @@ class TimelineController extends Controller
                 ->with('error', "Timeline konnte nicht gespeichert werden. (Debug-ID: {$debugId})");
         }
     }
+
 
     /**
      * Löscht einen Timeline-Eintrag.
