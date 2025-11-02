@@ -12,3 +12,7 @@ fattura-profil
     mwstSatz: zahl
     Bezeichnung: text
     Bemerkung: text
+
+
+rechnung-tabelle
+    

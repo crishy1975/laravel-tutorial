@@ -1,6 +1,6 @@
 {{-- resources/views/gebaeude/partials/_einteilung.blade.php --}}
 {{-- Reines Feld-Partial: wird im Hauptformular (create/edit) eingebunden.
-    WICHTIG: Kein eigenes <form> hier! Alle Buttons arbeiten mit fetch().
+     WICHTIG: Kein eigenes <form> hier! Alle Buttons arbeiten mit fetch().
 --}}
 
 <div class="row g-3">
@@ -87,44 +87,44 @@
     </div>
   </div>
 
-  {{-- Fällig (Switch) + Live-Badge + „Fälligkeit jetzt prüfen“ (pro Gebäude) --}}
+  {{-- Fällig (Switch) + Live-Badge --}}
   <div class="col-md-6">
     {{-- Hidden 0: auch wenn Switch aus ist, 0 speichern --}}
     <input type="hidden" name="faellig" value="0">
+
     <div class="d-flex flex-column gap-2 mt-2">
-      <div class="form-check form-switch m-0">
-        <input
-          class="form-check-input @error('faellig') is-invalid @enderror"
-          type="checkbox" role="switch"
-          id="faellig" name="faellig" value="1"
-          @checked( (int)old('faellig', $gebaeude->faellig ?? 0) === 1 )
-        >
-        <label class="form-check-label fw-semibold" for="faellig">
-          Fällig
-        </label>
-        @error('faellig') <div class="text-danger small">{{ $message }}</div> @enderror
-      </div>
-
-      {{-- Infozeile: farbiges Badge + Button --}}
       <div class="d-flex align-items-center gap-2">
-        <span id="faellig-badge"
-              class="badge {{ (int)($gebaeude->faellig ?? 0) === 1 ? 'text-bg-danger' : 'text-bg-secondary' }}">
-          {{ (int)($gebaeude->faellig ?? 0) === 1 ? 'FÄLLIG' : 'nicht fällig' }}
-        </span>
+        <div class="form-check form-switch m-0">
+          <input
+            class="form-check-input @error('faellig') is-invalid @enderror"
+            type="checkbox" role="switch"
+            id="faellig" name="faellig" value="1"
+            @checked( (int)old('faellig', $gebaeude->faellig ?? 0) === 1 )
+          >
+          <label class="form-check-label fw-semibold" for="faellig">
+            Fällig
+          </label>
+          @error('faellig') <div class="text-danger small">{{ $message }}</div> @enderror
+        </div>
 
-        {{-- Kein <form>, nur Button + fetch(POST) für EIN Gebäude --}}
-        <button type="button" id="btn-recalc-faellig" class="btn btn-outline-primary btn-sm">
-          <i class="bi bi-arrow-repeat"></i> Fälligkeit jetzt prüfen
-        </button>
+        {{-- Status-Badge (wird vom Button unten live aktualisiert) --}}
+
       </div>
     </div>
   </div>
 
   {{-- =========================== --}}
-  {{-- 🔴 Globaler Button: ALLE gemachte_reinigungen → 0 --}}
+  {{-- 🔘 Globale Aktionen (unten) --}}
   {{-- =========================== --}}
   <div class="col-12">
     <div class="d-flex align-items-center justify-content-end gap-3">
+      {{-- Fälligkeit (nur dieses Gebäude) neu berechnen --}}
+      <button type="button" id="btn-recalc-faellig" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-arrow-repeat"></i>
+        Fälligkeit jetzt prüfen
+      </button>
+
+      {{-- ALLE gemachte_reinigungen global zurücksetzen --}}
       <button
         type="button"
         id="btn-reset-gemachte"
@@ -167,7 +167,7 @@
    *     - erwartet JSON: { ok: true, faellig: 0|1 }
    *     - aktualisiert Badge + Switch live
    * --------------------------------- */
-  if (btnRecalc && badge && chkFaellig) {
+  if (btnRecalc) {
     btnRecalc.addEventListener('click', async function () {
       if (!ROUTE_RECALC) {
         alert('Route für Fälligkeit nicht gefunden.');
@@ -196,14 +196,19 @@
           throw new Error(json.message || ('HTTP ' + res.status));
         }
 
-        // Live-Update UI
+        // Live-Update UI (Badge nur, wenn vorhanden)
         var isFaellig = !!json.faellig;
-        badge.textContent = isFaellig ? 'FÄLLIG' : 'nicht fällig';
-        badge.classList.toggle('text-bg-danger', isFaellig);
-        badge.classList.toggle('text-bg-secondary', !isFaellig);
+
+        if (badge) {
+          badge.textContent = isFaellig ? 'FÄLLIG' : 'nicht fällig';
+          badge.classList.toggle('text-bg-danger', isFaellig);
+          badge.classList.toggle('text-bg-secondary', !isFaellig);
+        }
 
         // Switch im Formular mitziehen (damit "Speichern" den Status mitnimmt)
-        chkFaellig.checked = isFaellig;
+        if (chkFaellig) {
+          chkFaellig.checked = isFaellig;
+        }
       } catch (err) {
         console.error(err);
         alert('Fälligkeit konnte nicht berechnet werden: ' + err.message);
