@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use App\Models\Rechnung;
 use App\Models\RechnungPosition;
+use App\Models\ArtikelGebaeude;
+use App\Models\PreisAufschlag;
+use App\Models\Timeline;
+use App\Models\Tour;
+use App\Models\Adresse;
+use App\Models\FatturaProfile;
 
 class Gebaeude extends Model
 {
@@ -19,11 +25,15 @@ class Gebaeude extends Model
 
     /**
      * Expliziter Tabellenname.
+     *
+     * @var string
      */
     protected $table = 'gebaeude';
 
     /**
      * Mass-Assignable Felder.
+     *
+     * @var array<int, string>
      */
     protected $fillable = [
         'codex',
@@ -67,8 +77,9 @@ class Gebaeude extends Model
     ];
 
     /**
-     * Moderne Casts (statt $dates).
-     * Passe Bool-/Int-Casts an deine DB-Typen an.
+     * Attribute-Casts (statt $dates).
+     *
+     * @var array<string, string>
      */
     protected $casts = [
         'deleted_at'         => 'datetime',
@@ -78,12 +89,12 @@ class Gebaeude extends Model
         'created_at'         => 'datetime',
         'updated_at'         => 'datetime',
 
-        'faellig'             => 'boolean',
-        'rechnung_schreiben'  => 'boolean',
+        'faellig'              => 'boolean',
+        'rechnung_schreiben'   => 'boolean',
         'geplante_reinigungen' => 'integer',
         'gemachte_reinigungen' => 'integer',
 
-        // Nur als boolean casten, wenn TINYINT(1)/BOOLEAN
+        // Monats-Flags: nur boolean casten, wenn TINYINT(1)/BOOLEAN
         'm01' => 'boolean',
         'm02' => 'boolean',
         'm03' => 'boolean',
@@ -98,9 +109,9 @@ class Gebaeude extends Model
         'm12' => 'boolean',
     ];
 
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
     // Beziehungen
-    // ─────────────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
 
     /**
      * Postadresse (BelongsTo).
@@ -131,6 +142,8 @@ class Gebaeude extends Model
 
     /**
      * Timeline-Einträge (HasMany), neueste zuerst.
+     *
+     * @return HasMany<Timeline>
      */
     public function timelines(): HasMany
     {
@@ -141,6 +154,8 @@ class Gebaeude extends Model
 
     /**
      * BC-Alias (Singular) für bestehende Views: $gebaeude->timeline()
+     *
+     * @return HasMany<Timeline>
      */
     public function timeline(): HasMany
     {
@@ -149,16 +164,35 @@ class Gebaeude extends Model
 
     /**
      * Artikel-Positionen zum Gebäude (z. B. für Angebote/Rechnungen).
+     *
+     * @return HasMany<ArtikelGebaeude>
      */
-    public function artikel()
+    public function artikel(): HasMany
     {
-        return $this->hasMany(\App\Models\ArtikelGebaeude::class, 'gebaeude_id')
+        // Alle Artikel zu diesem Gebäude (unabhängig von aktiv/inaktiv)
+        return $this->hasMany(ArtikelGebaeude::class, 'gebaeude_id')
+            ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
+            ->orderBy('id');
+    }
+
+    /**
+     * Nur aktive Positionen (für Rechnung).
+     *
+     * @return HasMany<ArtikelGebaeude>
+     */
+    public function aktiveArtikel(): HasMany
+    {
+        // Nur Datensätze mit aktiv = true, sortiert nach Reihenfolge
+        return $this->hasMany(ArtikelGebaeude::class, 'gebaeude_id')
+            ->where('aktiv', true)
             ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
             ->orderBy('id');
     }
 
     /**
      * Preisaufschläge, die zu diesem Gebäude gehören (z. B. Fahrtkosten, Zuschläge).
+     *
+     * @return HasMany<PreisAufschlag>
      */
     public function preisAufschlaege(): HasMany
     {
@@ -167,29 +201,25 @@ class Gebaeude extends Model
             ->orderBy('id');
     }
 
+    /**
+     * Summe aller Artikel (aktiv + inaktiv) aus ArtikelGebaeude.
+     */
     public function getArtikelSummeAttribute(): float
     {
         // Eine einzelne SQL-Query – kein Laden aller Positionen (performant)
-        $sum = \App\Models\ArtikelGebaeude::where('gebaeude_id', $this->id)
+        $sum = ArtikelGebaeude::where('gebaeude_id', $this->id)
             ->select(DB::raw('COALESCE(SUM(anzahl * einzelpreis),0) AS total'))
             ->value('total');
 
         return (float) $sum;
     }
 
-    /** Nur aktive Positionen (für Rechnung) */
-    public function aktiveArtikel()
-    {
-        return $this->hasMany(\App\Models\ArtikelGebaeude::class, 'gebaeude_id')
-            ->where('aktiv', true)
-            ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
-            ->orderBy('id');
-    }
-
-    /** Summe NUR aktiver Positionen (z. B. für Rechnung) */
+    /**
+     * Summe NUR aktiver Positionen (z. B. für Rechnung).
+     */
     public function getArtikelSummeAktivAttribute(): float
     {
-        return (float) \App\Models\ArtikelGebaeude::where('gebaeude_id', $this->id)
+        return (float) ArtikelGebaeude::where('gebaeude_id', $this->id)
             ->where('aktiv', true)
             ->selectRaw('COALESCE(SUM(anzahl * einzelpreis), 0) as total')
             ->value('total');
@@ -197,9 +227,12 @@ class Gebaeude extends Model
 
     /**
      * Nur aktive Preisaufschläge (z. B. für die Rechnungsstellung).
+     *
+     * @return HasMany<PreisAufschlag>
      */
     public function aktivePreisAufschlaege(): HasMany
     {
+        // Filtert die preisAufschlaege-Relation nach aktiv = true
         return $this->preisAufschlaege()->where('aktiv', true);
     }
 
@@ -216,9 +249,12 @@ class Gebaeude extends Model
             );
     }
 
-    public function fatturaProfile()
+    /**
+     * Fattura-Profil, das dem Gebäude zugeordnet ist.
+     */
+    public function fatturaProfile(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\FatturaProfile::class, 'fattura_profile_id');
+        return $this->belongsTo(FatturaProfile::class, 'fattura_profile_id');
     }
 
     /**
@@ -227,8 +263,9 @@ class Gebaeude extends Model
     public function isMonthActive(int $month): bool
     {
         // month 1 => m01, 12 => m12
-        $key = 'm' . str_pad((string)$month, 2, '0', STR_PAD_LEFT);
-        return (int)($this->{$key} ?? 0) === 1;
+        $key = 'm' . str_pad((string) $month, 2, '0', STR_PAD_LEFT);
+
+        return (int) ($this->{$key} ?? 0) === 1;
     }
 
     /**
@@ -236,14 +273,18 @@ class Gebaeude extends Model
      */
     public function lastCleaningDate(): ?Carbon
     {
-        // Achtung: Relation heißt bei dir 'timelines'
+        // Achtung: Relation heißt 'timelines'
         $d = $this->timelines()->max('datum');
+
         return $d ? Carbon::parse($d) : null;
     }
 
     /**
      * Rechnet das Flag 'faellig' anhand der Regel neu und speichert es (optional).
-     * Regel: faellig = (aktueller Monat aktiv) && (letzte Reinigung < 1. Tag des Monats ODER keine Reinigung).
+     *
+     * Regel:
+     *  faellig = (aktueller Monat aktiv)
+     *            && (letzte Reinigung < 1. Tag des Monats ODER keine Reinigung).
      *
      * @param  \Illuminate\Support\Carbon|null $today  für Tests überschreibbar
      * @param  bool $persist  true => schreibt in DB, false => nur berechnen
@@ -252,18 +293,21 @@ class Gebaeude extends Model
     public function recomputeFaellig(?Carbon $today = null, bool $persist = true): bool
     {
         $today = $today ?: now();
-        $monthActive = $this->isMonthActive((int)$today->month);
+        $monthActive = $this->isMonthActive((int) $today->month);
 
         // Wenn aktueller Monat nicht aktiv → nie fällig
-        if (!$monthActive) {
-            if ($persist) $this->update(['faellig' => 0]);
+        if (! $monthActive) {
+            if ($persist) {
+                $this->update(['faellig' => 0]);
+            }
+
             return false;
         }
 
         $last = $this->lastCleaningDate(); // kann null sein
         $monthStart = $today->copy()->startOfMonth();
 
-        $due = !$last || $last->lt($monthStart);
+        $due = ! $last || $last->lt($monthStart);
 
         if ($persist) {
             $this->update(['faellig' => $due ? 1 : 0]);
@@ -283,13 +327,29 @@ class Gebaeude extends Model
 
         // Sparsam selektieren (nur Spalten, die wir brauchen)
         static::query()
-            ->select(['id', 'faellig', 'm01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12'])
+            ->select([
+                'id',
+                'faellig',
+                'm01',
+                'm02',
+                'm03',
+                'm04',
+                'm05',
+                'm06',
+                'm07',
+                'm08',
+                'm09',
+                'm10',
+                'm11',
+                'm12',
+            ])
             ->chunkById(500, function ($chunk) use ($today, &$changed) {
                 /** @var \App\Models\Gebaeude $g */
                 foreach ($chunk as $g) {
                     $new = $g->recomputeFaellig($today, false); // nur berechnen
                     $newInt = $new ? 1 : 0;
-                    if ((int)$g->faellig !== $newInt) {
+
+                    if ((int) $g->faellig !== $newInt) {
                         $g->faellig = $newInt;
                         $g->save();
                         $changed++;
@@ -301,14 +361,14 @@ class Gebaeude extends Model
     }
 
     /**
-     * Rechnungen für dieses Gebäude
+     * Rechnungen für dieses Gebäude.
+     *
+     * @return HasMany<Rechnung>
      */
     public function rechnungen(): HasMany
     {
         return $this->hasMany(Rechnung::class);
     }
-
-// app/Models/Gebaeude.php - Nur der betroffene Teil
 
     /**
      * Erstellt automatisch eine Rechnung aus diesem Gebäude.
@@ -319,21 +379,16 @@ class Gebaeude extends Model
      * - FatturaPA-Profile (Snapshot)
      * - Alle aktiven Artikel als Rechnungspositionen
      *
-     * @param array<string, mixed> $overrides Optionale Überschreibungen (z.B. ['rechnungsdatum' => '2025-12-31'])
+     * @param array<string, mixed> $overrides Optionale Überschreibungen
      * @return \App\Models\Rechnung Die erstellte Rechnung im Status 'draft'
-     * 
+     *
      * @example
      * $gebaeude = Gebaeude::find(1);
      * $rechnung = $gebaeude->createRechnung();
-     * 
-     * // Mit Überschreibungen:
-     * $rechnung = $gebaeude->createRechnung([
-     *     'rechnungsdatum' => '2025-12-31',
-     *     'zahlungsziel' => '2026-01-30',
-     * ]);
      */
     public function createRechnung(array $overrides = []): Rechnung
     {
+        // Delegiert die eigentliche Logik an das Rechnung-Model
         return Rechnung::createFromGebaeude($this, $overrides);
     }
 }
