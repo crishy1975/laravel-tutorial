@@ -302,6 +302,10 @@ class Rechnung extends Model
 
         // Artikel übernehmen (nur aktive)
         $artikelListe = $gebaeude->aktiveArtikel()->orderBy('reihenfolge')->get();
+        $artikelNettoSumme = $artikelListe->reduce(
+            fn (float $summe, ArtikelGebaeude $artikel) => $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
+            0.0
+        );
 
         $position = 1;
         foreach ($artikelListe as $artikel) {
@@ -315,6 +319,27 @@ class Rechnung extends Model
                 'einzelpreis'          => $artikel->einzelpreis,
                 'mwst_satz'            => $mwstSatz,
                 'artikel_gebaeude_id'  => $artikel->id,
+            ]);
+        }
+
+        // Aktive Preisaufschläge als zusätzliche Positionen hinzufügen
+        $aufschlaege = $gebaeude->aktivePreisAufschlaege()->get();
+        foreach ($aufschlaege as $aufschlag) {
+            $mwstSatz = $profile?->mwst_satz ?? 22.00;
+            $betrag = $aufschlag->berechneBetrag($artikelNettoSumme);
+
+            $beschreibung = $aufschlag->bezeichnung;
+            if ($aufschlag->istProzentual()) {
+                $beschreibung .= sprintf(' (%.2f%%)', $aufschlag->wert);
+            }
+
+            $rechnung->positionen()->create([
+                'position'     => $position++,
+                'beschreibung' => $beschreibung,
+                'anzahl'       => 1,
+                'einheit'      => 'Stk',
+                'einzelpreis'  => $betrag,
+                'mwst_satz'    => $mwstSatz,
             ]);
         }
 
