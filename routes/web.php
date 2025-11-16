@@ -10,6 +10,7 @@ use App\Http\Controllers\GebaeudeController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\ArtikelGebaeudeController;
+use App\Http\Controllers\RechnungController;
 
 /*
 |--------------------------------------------------------------------------
@@ -168,6 +169,47 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Resource (ohne show) → index/create/store/edit/update/destroy
     Route::resource('tour', TourController::class)->except(['show']);
 });
+
+
+/* ==================== Rechnungen ==================== */
+Route::middleware(['auth', 'verified'])
+    ->prefix('rechnung')
+    ->name('rechnung.')
+    ->group(function () {
+        // Liste & CRUD
+        Route::get('/',        [RechnungController::class, 'index'])->name('index');
+        Route::get('/create',  [RechnungController::class, 'create'])->name('create');
+        Route::post('/',       [RechnungController::class, 'store'])->name('store');
+
+        Route::get('/{id}',      [RechnungController::class, 'show'])
+            ->whereNumber('id')->name('show');
+
+        Route::get('/{id}/edit', [RechnungController::class, 'edit'])
+            ->whereNumber('id')->name('edit');
+
+        Route::put('/{id}',      [RechnungController::class, 'update'])
+            ->whereNumber('id')->name('update');
+
+        Route::delete('/{id}',   [RechnungController::class, 'destroy'])
+            ->whereNumber('id')->name('destroy');
+
+        // 📄 Export (PDF, XML)
+        Route::get('/{id}/pdf',  [RechnungController::class, 'generatePdf'])
+            ->whereNumber('id')->name('pdf');
+
+        Route::get('/{id}/xml',  [RechnungController::class, 'generateXml'])
+            ->whereNumber('id')->name('xml');
+
+        // 🧾 Positionen verwalten
+        Route::post('/{id}/position', [RechnungController::class, 'storePosition'])
+            ->whereNumber('id')->name('position.store');
+
+        Route::put('/position/{id}', [RechnungController::class, 'updatePosition'])
+            ->whereNumber('id')->name('position.update');
+
+        Route::delete('/position/{id}', [RechnungController::class, 'destroyPosition'])
+            ->whereNumber('id')->name('position.destroy');
+    });
 
 
 /* ==================== Auth Scaffolding ==================== */

@@ -11,13 +11,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\Gebaeude;
+use App\Models\ArtikelGebaeude;
+use App\Models\Adresse;
+use App\Models\FatturaProfile;
+use App\Models\RechnungPosition;
 
 class Rechnung extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * Expliziter Tabellenname.
+     *
+     * @var string
+     */
     protected $table = 'rechnungen';
 
+    /**
+     * Mass-Assignable Felder.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'jahr',
         'laufnummer',
@@ -95,49 +109,74 @@ class Rechnung extends Model
         'externe_referenz',
     ];
 
+    /**
+     * Attribut-Casts.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
-        'rechnungsdatum' => 'date',
-        'leistungsdatum' => 'date',
-        'zahlungsziel'   => 'date',
-        'bezahlt_am'     => 'date',
-        'auftrag_datum'  => 'date',
-        'netto_summe'    => 'decimal:2',
-        'mwst_betrag'    => 'decimal:2',
-        'brutto_summe'   => 'decimal:2',
-        'ritenuta_betrag' => 'decimal:2',
-        'zahlbar_betrag'  => 'decimal:2',
-        'mwst_satz'      => 'decimal:2',
+        'rechnungsdatum'   => 'date',
+        'leistungsdatum'   => 'date',
+        'zahlungsziel'     => 'date',
+        'bezahlt_am'       => 'date',
+        'auftrag_datum'    => 'date',
+
+        'netto_summe'      => 'decimal:2',
+        'mwst_betrag'      => 'decimal:2',
+        'brutto_summe'     => 'decimal:2',
+        'ritenuta_betrag'  => 'decimal:2',
+        'zahlbar_betrag'   => 'decimal:2',
+        'mwst_satz'        => 'decimal:2',
         'ritenuta_prozent' => 'decimal:2',
-        'split_payment'   => 'boolean',
-        'ritenuta'        => 'boolean',
+
+        'split_payment'    => 'boolean',
+        'ritenuta'         => 'boolean',
     ];
 
     // ═══════════════════════════════════════════════════════════
     // 🔗 RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════
 
+    /**
+     * Zugehöriges Gebäude.
+     */
     public function gebaeude(): BelongsTo
     {
         return $this->belongsTo(Gebaeude::class);
     }
 
+    /**
+     * Rechnungsempfänger-Adresse.
+     */
     public function rechnungsempfaenger(): BelongsTo
     {
         return $this->belongsTo(Adresse::class, 'rechnungsempfaenger_id');
     }
 
+    /**
+     * Postadresse für den Versand.
+     */
     public function postadresse(): BelongsTo
     {
         return $this->belongsTo(Adresse::class, 'postadresse_id');
     }
 
+    /**
+     * Fattura-Profil.
+     */
     public function fatturaProfile(): BelongsTo
     {
         return $this->belongsTo(FatturaProfile::class);
     }
 
+    /**
+     * Einzelne Rechnungspositionen.
+     *
+     * @return HasMany<RechnungPosition>
+     */
     public function positionen(): HasMany
     {
+        // Positionen automatisch nach 'position' sortiert zurückgeben
         return $this->hasMany(RechnungPosition::class)->orderBy('position');
     }
 
@@ -146,7 +185,7 @@ class Rechnung extends Model
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Formatierte Rechnungsnummer: "2025/0042"
+     * Formatierte Rechnungsnummer: "2025/0042".
      */
     public function getNummernAttribute(): string
     {
@@ -165,7 +204,7 @@ class Rechnung extends Model
     }
 
     /**
-     * Ist die Rechnung editierbar? (nur im Status "draft")
+     * Ist die Rechnung editierbar? (nur im Status "draft").
      */
     public function getIstEditierbarAttribute(): bool
     {
@@ -173,11 +212,11 @@ class Rechnung extends Model
     }
 
     /**
-     * Status-Badge für UI
+     * Status-Badge für UI.
      */
     public function getStatusBadgeAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'draft'     => '<span class="badge bg-secondary">Entwurf</span>',
             'sent'      => '<span class="badge bg-primary">Versendet</span>',
             'paid'      => '<span class="badge bg-success">Bezahlt</span>',
@@ -199,10 +238,16 @@ class Rechnung extends Model
     {
         $positionen = $this->positionen;
 
+        // Netto = Summe aller Netto-Gesamtbeträge
         $this->netto_summe = $positionen->sum('netto_gesamt');
+
+        // MwSt-Betrag = Summe aller MwSt-Beträge
         $this->mwst_betrag = $positionen->sum('mwst_betrag');
+
+        // Brutto = Netto + MwSt
         $this->brutto_summe = $this->netto_summe + $this->mwst_betrag;
 
+        // Ritenuta nur, wenn aktiviert und Prozentsatz > 0
         if ($this->ritenuta && $this->ritenuta_prozent > 0) {
             $this->ritenuta_betrag = round(
                 $this->netto_summe * ($this->ritenuta_prozent / 100),
@@ -212,6 +257,7 @@ class Rechnung extends Model
             $this->ritenuta_betrag = 0;
         }
 
+        // Zahlbar = Brutto - Ritenuta
         $this->zahlbar_betrag = $this->brutto_summe - $this->ritenuta_betrag;
 
         $this->save();
@@ -223,21 +269,31 @@ class Rechnung extends Model
 
     /**
      * Erstellt eine neue Rechnung aus einem Gebäude
-     * (übernimmt Artikel, Adresse, Profil)
+     * (übernimmt Artikel, Adresse, Profil).
      * 
-     * @param Gebaeude $gebaeude
-     * @param array<string, mixed> $overrides
+     * @param Gebaeude $gebaeude                Das Gebäude, aus dem die Rechnung erzeugt wird.
+     * @param array<string, mixed> $overrides   Optional: Felder überschreiben (z.B. Datum).
      * @return self
      */
     public static function createFromGebaeude(Gebaeude $gebaeude, array $overrides = []): self
     {
+        // Neues Jahr / Laufnummer ermitteln (mit Lock gegen Race Conditions)
         $jahr = now()->year;
-        $laufnummer = self::where('jahr', $jahr)->max('laufnummer') + 1;
+        
+        // WICHTIG: Laufnummer mit DB-Lock ermitteln, um Duplikate zu vermeiden
+        $laufnummer = DB::transaction(function () use ($jahr) {
+            $maxLaufnummer = (int) self::where('jahr', $jahr)
+                ->lockForUpdate()
+                ->max('laufnummer');
+            return $maxLaufnummer + 1;
+        });
 
+        // Zugeordnete Adressen / Profile aus dem Gebäude
         $rechnungsempfaenger = $gebaeude->rechnungsempfaenger;
-        $postadresse = $gebaeude->postadresse;
-        $profile = $gebaeude->fatturaProfile;
+        $postadresse         = $gebaeude->postadresse;
+        $profile             = $gebaeude->fatturaProfile;
 
+        // Basisdaten für die neue Rechnung (Snapshot der aktuellen Daten)
         $rechnung = new self(array_merge([
             'jahr'                    => $jahr,
             'laufnummer'              => $laufnummer,
@@ -291,7 +347,7 @@ class Rechnung extends Model
             'auftrag_id'              => $gebaeude->auftrag_id,
             'auftrag_datum'           => $gebaeude->auftrag_datum,
             
-            // Profil-Einstellungen
+            // Profil-Einstellungen (Snapshot)
             'profile_bezeichnung'     => $profile?->bezeichnung,
             'mwst_satz'               => $profile?->mwst_satz ?? 22.00,
             'split_payment'           => $profile?->split_payment ?? false,
@@ -299,16 +355,26 @@ class Rechnung extends Model
             'ritenuta_prozent'        => $profile?->ritenuta ? 4.00 : null,
         ], $overrides));
 
+        // Rechnung speichern, damit wir eine ID für Positionen haben
         $rechnung->save();
 
         // Artikel übernehmen (nur aktive)
         $artikelListe = $gebaeude->aktiveArtikel()->orderBy('reihenfolge')->get();
+
+        // Netto-Summe der Artikel für spätere Aufschläge
         $artikelNettoSumme = $artikelListe->reduce(
-            fn (float $summe, ArtikelGebaeude $artikel) => $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
+            /**
+             * @param float           $summe
+             * @param ArtikelGebaeude $artikel
+             */
+            fn (float $summe, ArtikelGebaeude $artikel) =>
+                $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
             0.0
         );
 
         $position = 1;
+
+        // Normale Artikelpositionen anlegen
         foreach ($artikelListe as $artikel) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
 
@@ -325,9 +391,10 @@ class Rechnung extends Model
 
         // Aktive Preisaufschläge als zusätzliche Positionen hinzufügen
         $aufschlaege = $gebaeude->aktivePreisAufschlaege()->get();
+
         foreach ($aufschlaege as $aufschlag) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
-            $betrag = $aufschlag->berechneBetrag($artikelNettoSumme);
+            $betrag   = $aufschlag->berechneBetrag($artikelNettoSumme);
 
             $beschreibung = $aufschlag->bezeichnung;
             if ($aufschlag->istProzentual()) {
@@ -344,6 +411,7 @@ class Rechnung extends Model
             ]);
         }
 
+        // Abschließende Neuberechnung aller Summen
         $rechnung->recalculate();
 
         return $rechnung;
