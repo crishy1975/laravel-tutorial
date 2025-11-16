@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Gebaeude;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -24,6 +25,12 @@ class PreisAufschlag extends Model
         'reihenfolge' => 'integer',
     ];
 
+    /**
+     * Zugehöriges Gebäude (BelongsTo).
+     *
+     * Der explizite Import von Gebaeude stellt sicher, dass die Relation
+     * korrekt aufgelöst wird und IDEs saubere Typinformationen erhalten.
+     */
     public function gebaeude(): BelongsTo
     {
         return $this->belongsTo(Gebaeude::class, 'gebaeude_id');
