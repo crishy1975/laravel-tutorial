@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class FatturaProfile extends Model
 {
@@ -34,5 +35,13 @@ class FatturaProfile extends Model
     public function gebaeude()
     {
         return $this->hasMany(Gebaeude::class, 'fattura_profile_id');
+    }
+
+    /**
+     * Rechnungen, die dieses Profil verwenden
+     */
+    public function rechnungen(): HasMany
+    {
+        return $this->hasMany(Rechnung::class);
     }
 }

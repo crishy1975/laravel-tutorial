@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\Gebaeude;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 
 class FaelligkeitsService
 {
@@ -20,7 +20,9 @@ class FaelligkeitsService
      */
     public function recalcForGebaeude(Gebaeude $g, ?Carbon $now = null): bool
     {
-        $now = $now ?: Carbon::now('Europe/Rome');
+    // Verwende die in `config/app.php` konfigurierte Zeitzone statt hartkodiert
+    $tz = config('app.timezone') ?: 'UTC';
+    $now = $now ?: Carbon::now($tz);
 
         // 1) Letzte Reinigung (MAX(datum)) – ohne vererbte orderBy()!
         $last = $g->timelines()

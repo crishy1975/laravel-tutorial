@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Adresse extends Model
 {
@@ -39,4 +40,20 @@ class Adresse extends Model
         'created_at',
         'updated_at',
     ];
+
+    /**
+     * Rechnungen, bei denen diese Adresse Rechnungsempfänger (Zahler) ist
+     */
+    public function rechnungenAlsEmpfaenger(): HasMany
+    {
+        return $this->hasMany(Rechnung::class, 'rechnungsempfaenger_id');
+    }
+
+    /**
+     * Rechnungen, bei denen diese Adresse Postadresse (Versand) ist
+     */
+    public function rechnungenAlsPostadresse(): HasMany
+    {
+        return $this->hasMany(Rechnung::class, 'postadresse_id');
+    }
 }

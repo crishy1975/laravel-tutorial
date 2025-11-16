@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\DB; 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use App\Models\Rechnung;
 
 class Gebaeude extends Model
 {
@@ -265,5 +266,42 @@ class Gebaeude extends Model
             });
 
         return $changed;
+    }
+
+    /**
+     * Rechnungen für dieses Gebäude
+     */
+    public function rechnungen(): HasMany
+    {
+        return $this->hasMany(Rechnung::class);
+    }
+
+// app/Models/Gebaeude.php - Nur der betroffene Teil
+
+    /**
+     * Erstellt automatisch eine Rechnung aus diesem Gebäude.
+     * 
+     * Kopiert automatisch:
+     * - Rechnungsempfänger & Postadresse (Snapshot)
+     * - Gebäude-Informationen (Snapshot)
+     * - FatturaPA-Profile (Snapshot)
+     * - Alle aktiven Artikel als Rechnungspositionen
+     *
+     * @param array<string, mixed> $overrides Optionale Überschreibungen (z.B. ['rechnungsdatum' => '2025-12-31'])
+     * @return \App\Models\Rechnung Die erstellte Rechnung im Status 'draft'
+     * 
+     * @example
+     * $gebaeude = Gebaeude::find(1);
+     * $rechnung = $gebaeude->createRechnung();
+     * 
+     * // Mit Überschreibungen:
+     * $rechnung = $gebaeude->createRechnung([
+     *     'rechnungsdatum' => '2025-12-31',
+     *     'zahlungsziel' => '2026-01-30',
+     * ]);
+     */
+    public function createRechnung(array $overrides = []): Rechnung
+    {
+        return Rechnung::createFromGebaeude($this, $overrides);
     }
 }

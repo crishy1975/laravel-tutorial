@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ArtikelGebaeude extends Model
 {
@@ -42,5 +43,24 @@ class ArtikelGebaeude extends Model
     public function scopeAktiv($q)
     {
         return $q->where('aktiv', true);
+    }
+
+    /**
+     * Rechnungspositionen, die aus diesem Artikel erstellt wurden
+     * (für Nachvollziehbarkeit: "Diese Position stammt von Artikel #123")
+     */
+    public function rechnungPositionen(): HasMany
+    {
+        return $this->hasMany(RechnungPosition::class, 'artikel_gebaeude_id');
+    }
+
+    /**
+     * Wurde dieser Artikel bereits abgerechnet?
+     */
+    public function istAbgerechnet(): bool
+    {
+        return $this->rechnungPositionen()
+            ->whereHas('rechnung', fn($q) => $q->whereIn('status', ['sent', 'paid']))
+            ->exists();
     }
 }
