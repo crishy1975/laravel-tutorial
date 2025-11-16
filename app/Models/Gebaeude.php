@@ -156,6 +156,16 @@ class Gebaeude extends Model
             ->orderBy('id');
     }
 
+    /**
+     * Preisaufschläge, die zu diesem Gebäude gehören (z. B. Fahrtkosten, Zuschläge).
+     */
+    public function preisAufschlaege(): HasMany
+    {
+        return $this->hasMany(PreisAufschlag::class, 'gebaeude_id')
+            ->orderByRaw('COALESCE(reihenfolge, 999999) asc')
+            ->orderBy('id');
+    }
+
     public function getArtikelSummeAttribute(): float
     {
         // Eine einzelne SQL-Query – kein Laden aller Positionen (performant)
@@ -182,6 +192,27 @@ class Gebaeude extends Model
             ->where('aktiv', true)
             ->selectRaw('COALESCE(SUM(anzahl * einzelpreis), 0) as total')
             ->value('total');
+    }
+
+    /**
+     * Nur aktive Preisaufschläge (z. B. für die Rechnungsstellung).
+     */
+    public function aktivePreisAufschlaege(): HasMany
+    {
+        return $this->preisAufschlaege()->where('aktiv', true);
+    }
+
+    /**
+     * Berechnet die Summe aller aktiven Aufschläge basierend auf einer Netto-Basis.
+     */
+    public function berechnePreisAufschlaege(float $basisNetto): float
+    {
+        return $this->aktivePreisAufschlaege()
+            ->get()
+            ->reduce(
+                fn (float $summe, PreisAufschlag $aufschlag) => $summe + $aufschlag->berechneBetrag($basisNetto),
+                0.0
+            );
     }
 
     public function fatturaProfile()
