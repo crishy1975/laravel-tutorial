@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use App\Models\Rechnung;
+use App\Models\RechnungPosition;
 
 class Gebaeude extends Model
 {
