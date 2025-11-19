@@ -226,14 +226,29 @@ class Gebaeude extends Model
     }
 
     /**
-     * Nur aktive Preisaufschläge (z. B. für die Rechnungsstellung).
-     *
-     * @return HasMany<PreisAufschlag>
+     * Preisaufschläge die für dieses Gebäude gelten (angepasst an Inflations-Schema).
+     * 
+     * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function aktivePreisAufschlaege(): HasMany
+    public function aktivePreisAufschlaege()
     {
-        // Filtert die preisAufschlaege-Relation nach aktiv = true
-        return $this->preisAufschlaege()->where('aktiv', true);
+        $jahr = now()->year;
+
+        // 1. Prüfe ob gebäudespezifischer Aufschlag existiert
+        $gebaeudespezifisch = PreisAufschlag::where('ist_global', false)
+            ->where('gebaeude_id', $this->id)
+            ->where('jahr', $jahr)
+            ->first();
+
+        if ($gebaeudespezifisch) {
+            // Gebäudespezifischen Aufschlag zurückgeben
+            return PreisAufschlag::where('id', $gebaeudespezifisch->id);
+        }
+
+        // 2. Fallback: Globaler Aufschlag
+        return PreisAufschlag::where('ist_global', true)
+            ->whereNull('gebaeude_id')
+            ->where('jahr', $jahr);
     }
 
     /**
@@ -241,12 +256,90 @@ class Gebaeude extends Model
      */
     public function berechnePreisAufschlaege(float $basisNetto): float
     {
-        return $this->aktivePreisAufschlaege()
-            ->get()
-            ->reduce(
-                fn (float $summe, PreisAufschlag $aufschlag) => $summe + $aufschlag->berechneBetrag($basisNetto),
-                0.0
-            );
+        $aufschlag = $this->aktivePreisAufschlaege()->first();
+
+        if (!$aufschlag) {
+            return 0.0; // Kein Aufschlag
+        }
+
+        return $aufschlag->berechneBetrag($basisNetto);
+    }
+
+    /**
+     * Ermittelt den Aufschlag-Prozentsatz für dieses Gebäude.
+     */
+    public function getAufschlagProzent(?int $jahr = null): float
+    {
+        $jahr = $jahr ?? now()->year;
+
+        // 1. Prüfe gebäudespezifischen Aufschlag
+        $gebaeudespezifisch = PreisAufschlag::where('ist_global', false)
+            ->where('gebaeude_id', $this->id)
+            ->where('jahr', $jahr)
+            ->first();
+
+        if ($gebaeudespezifisch) {
+            return (float) $gebaeudespezifisch->aufschlag_prozent;
+        }
+
+        // 2. Fallback: Globaler Aufschlag
+        $global = PreisAufschlag::where('ist_global', true)
+            ->whereNull('gebaeude_id')
+            ->where('jahr', $jahr)
+            ->first();
+
+        if ($global) {
+            return (float) $global->aufschlag_prozent;
+        }
+
+        // 3. Kein Aufschlag
+        return 0.0;
+    }
+
+    /**
+     * Hat dieses Gebäude einen individuellen Aufschlag?
+     */
+    public function hatIndividuellenAufschlag(?int $jahr = null): bool
+    {
+        $jahr = $jahr ?? now()->year;
+
+        return PreisAufschlag::where('ist_global', false)
+            ->where('gebaeude_id', $this->id)
+            ->where('jahr', $jahr)
+            ->exists();
+    }
+
+    /**
+     * Setzt einen individuellen Aufschlag für dieses Gebäude.
+     */
+    public function setAufschlag(float $prozent, ?int $jahr = null, ?string $bemerkung = null): PreisAufschlag
+    {
+        $jahr = $jahr ?? now()->year;
+
+        return PreisAufschlag::updateOrCreate(
+            [
+                'jahr' => $jahr,
+                'ist_global' => false,
+                'gebaeude_id' => $this->id,
+            ],
+            [
+                'aufschlag_prozent' => $prozent,
+                'bemerkung' => $bemerkung,
+            ]
+        );
+    }
+
+    /**
+     * Entfernt individuellen Aufschlag (nutzt dann wieder globalen).
+     */
+    public function entferneIndividuellenAufschlag(?int $jahr = null): void
+    {
+        $jahr = $jahr ?? now()->year;
+
+        PreisAufschlag::where('ist_global', false)
+            ->where('gebaeude_id', $this->id)
+            ->where('jahr', $jahr)
+            ->delete();
     }
 
     /**

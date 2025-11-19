@@ -9,73 +9,139 @@ use App\Models\RechnungPosition;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Carbon;
 
 class RechnungController extends Controller
 {
     /**
      * Liste aller Rechnungen mit Filter.
      */
+    /**
+     * Liste aller Rechnungen mit Filter.
+     */
     public function index(Request $request)
     {
-        // Filter-Parameter
-        $jahr = $request->input('jahr', now()->year);
-        $status = $request->input('status');
-        $gebaeude_id = $request->input('gebaeude_id');
-        $suche = $request->input('suche');
+        // ------------------------------
+        // 1. Filterwerte aus Request holen
+        // ------------------------------
+        $nummer = $request->input('nummer');   // "Nummer" = Darstellung wie 2025/0001
+        $codex  = $request->input('codex');    // Gebäudecodex
+        $suche  = $request->input('suche');    // Gebäude / Empfänger / Postadresse
 
-        // Query Builder
+        // Standard: aktuelles Jahr, 01.01. - 31.12.
+        $year = Carbon::now()->year;
+
+        // Falls der User nichts schickt, verwenden wir die Jahresgrenzen.
+        // Falls er Werte schickt, werden diese übernommen.
+        $datumVon = $request->input('datum_von')
+            ?: Carbon::create($year, 1, 1)->format('Y-m-d');
+
+        $datumBis = $request->input('datum_bis')
+            ?: Carbon::create($year, 12, 31)->format('Y-m-d');
+
+        // ------------------------------
+        // 2. Basis-Query aufbauen
+        // ------------------------------
         $query = Rechnung::query()
-            ->with(['gebaeude', 'rechnungsempfaenger', 'postadresse'])
-            ->orderByDesc('jahr')
-            ->orderByDesc('laufnummer');
+            // Gebäude gleich mitladen, um N+1 zu vermeiden (Snapshot-Felder hast du aber ohnehin)
+            ->with('gebaeude');
 
-        // Filter: Jahr
-        if ($jahr) {
-            $query->where('jahr', $jahr);
+        // ------------------------------
+        // 3. Filter: Rechnungsnummer
+        //
+        // Deine "Nummer" ist ein Accessor:
+        //   getNummernAttribute() => "jahr/laufnummer"
+        // In der DB sind die Felder: jahr, laufnummer
+        //
+        // Wir simulieren die gleiche Darstellung in SQL:
+        //   CONCAT(jahr, '/', LPAD(laufnummer, 4, '0'))
+        //
+        // Hinweis: funktioniert so in MySQL/MariaDB (bei dir der Fall).
+        // ------------------------------
+        if (!empty($nummer)) {
+            $like = '%' . $nummer . '%';
+
+            $query->whereRaw(
+                "CONCAT(jahr, '/', LPAD(laufnummer, 4, '0')) LIKE ?",
+                [$like]
+            );
         }
 
-        // Filter: Status
-        if ($status) {
-            if ($status === 'overdue') {
-                $query->overdue();
-            } else {
-                $query->where('status', $status);
-            }
-        }
+        // ------------------------------
+        // 4. Filter: Codex
+        //    -> Snapshot-Feld an Rechnung: geb_codex
+        //    -> zusätzlich sicherheitshalber über Relation gebaeude.codex
+        // ------------------------------
+        if (!empty($codex)) {
+            $like = '%' . $codex . '%';
 
-        // Filter: Gebäude
-        if ($gebaeude_id) {
-            $query->where('gebaeude_id', $gebaeude_id);
-        }
+            $query->where(function ($q) use ($like) {
+                // Snapshot am Rechnungseintrag
+                $q->where('geb_codex', 'like', $like)
 
-        // Filter: Suche (Nummer oder Kundenname)
-        if ($suche) {
-            $query->where(function ($q) use ($suche) {
-                $q->where('laufnummer', 'LIKE', "%{$suche}%")
-                  ->orWhere('re_name', 'LIKE', "%{$suche}%")
-                  ->orWhere('geb_codex', 'LIKE', "%{$suche}%");
+                    // ODER Codex im verknüpften Gebäude
+                    ->orWhereHas('gebaeude', function ($sub) use ($like) {
+                        $sub->where('codex', 'like', $like);
+                    });
             });
         }
 
-        // Paginierung
-        $rechnungen = $query->paginate(50);
+        // ------------------------------
+        // 5. Filter: Suche
+        //    in:
+        //    - Gebäudename  (Snapshot: geb_name)
+        //    - Rechnungsempfänger (Snapshot: re_name)
+        //    - Postadresse  (Snapshot: post_name)
+        //
+        // Optional könntest du hier auch Strasse/Ort mit aufnehmen, aber
+        // du wolltest explizit Name-Felder.
+        // ------------------------------
+        if (!empty($suche)) {
+            $like = '%' . $suche . '%';
 
-        // Jahre für Filter (letzten 5 Jahre)
-        $jahre = range(now()->year, now()->year - 4);
+            $query->where(function ($q) use ($like) {
+                $q->where('geb_name', 'like', $like)
+                    ->orWhere('re_name', 'like', $like)
+                    ->orWhere('post_name', 'like', $like);
+            });
+        }
 
-        // Gebäude für Filter
-        $gebaeudeFilter = Gebaeude::orderBy('codex')->get();
+        // ------------------------------
+        // 6. Filter: Datum (Rechnungsdatum)
+        //    - Spalte: rechnungsdatum
+        //    - Standard: aktuelles Jahr (datum_von/bis oben)
+        // ------------------------------
+        if (!empty($datumVon) && !empty($datumBis)) {
+            $query->whereBetween('rechnungsdatum', [$datumVon, $datumBis]);
+        } elseif (!empty($datumVon)) {
+            $query->whereDate('rechnungsdatum', '>=', $datumVon);
+        } elseif (!empty($datumBis)) {
+            $query->whereDate('rechnungsdatum', '<=', $datumBis);
+        }
 
-        return view('rechnung.index', compact(
-            'rechnungen',
-            'jahre',
-            'jahr',
-            'status',
-            'gebaeude_id',
-            'suche',
-            'gebaeudeFilter'
-        ));
+        // ------------------------------
+        // 7. Sortierung & Pagination
+        //    - neueste Rechnungen zuerst
+        // ------------------------------
+        $rechnungen = $query
+            ->orderByDesc('rechnungsdatum')
+            ->paginate(25);
+
+        // ------------------------------
+        // 8. View zurückgeben
+        //    - Filterwerte wieder mitgeben, damit sie im View
+        //      in den Inputs vorausgefüllt werden
+        // ------------------------------
+        return view('rechnung.index', [
+            'rechnungen' => $rechnungen,
+            'nummer'     => $nummer,
+            'codex'      => $codex,
+            'suche'      => $suche,
+            'datumVon'   => $datumVon,
+            'datumBis'   => $datumBis,
+        ]);
     }
+
 
     /**
      * Formular: Neue Rechnung anlegen.
@@ -101,14 +167,14 @@ class RechnungController extends Controller
             'zahlungsziel'      => 'nullable|date',
             'status'            => 'required|in:draft,sent,paid,overdue,cancelled',
             'bezahlt_am'        => 'nullable|date',
-            'fattura_profile_id'=> 'nullable|exists:fattura_profile,id',
-            
+            'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
+
             // FatturaPA
             'cup'               => 'nullable|string|max:20',
             'cig'               => 'nullable|string|max:10',
             'auftrag_id'        => 'nullable|string|max:50',
             'auftrag_datum'     => 'nullable|date',
-            
+
             // Bemerkungen
             'bemerkung'         => 'nullable|string',
             'bemerkung_kunde'   => 'nullable|string',
@@ -152,65 +218,29 @@ class RechnungController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $rechnung = Rechnung::findOrFail($id);
+        \Log::info('=== RECHNUNG UPDATE START ===', ['id' => $id]);
 
-        // Nur Entwürfe dürfen bearbeitet werden
+        $rechnung = Rechnung::findOrFail($id);
+        \Log::info('Rechnung geladen', ['re_name' => $rechnung->re_name]);
+
         if (!$rechnung->ist_editierbar) {
-            return redirect()
-                ->back()
-                ->with('error', 'Diese Rechnung kann nicht mehr bearbeitet werden.');
+            \Log::info('Rechnung nicht editierbar');
+            return redirect()->back()->with('error', 'Diese Rechnung kann nicht mehr bearbeitet werden.');
         }
 
         $validated = $request->validate([
-            'gebaeude_id'       => 'required|exists:gebaeude,id',
-            'rechnungsdatum'    => 'required|date',
-            'leistungsdatum'    => 'nullable|date',
-            'zahlungsziel'      => 'nullable|date',
-            'status'            => 'required|in:draft,sent,paid,overdue,cancelled',
-            'bezahlt_am'        => 'nullable|date',
-            'fattura_profile_id'=> 'nullable|exists:fattura_profile,id',
-            
-            // Rechnungsempfänger
-            're_name'           => 'required|string|max:255',
-            're_strasse'        => 'nullable|string|max:255',
-            're_hausnummer'     => 'nullable|string|max:20',
-            're_plz'            => 'nullable|string|max:10',
-            're_wohnort'        => 'nullable|string|max:255',
-            're_provinz'        => 'nullable|string|max:100',
-            're_land'           => 'nullable|string|max:2',
-            're_steuernummer'   => 'nullable|string|max:50',
-            're_mwst_nummer'    => 'nullable|string|max:50',
-            're_codice_univoco' => 'nullable|string|max:7',
-            're_pec'            => 'nullable|email|max:255',
-            
-            // Postadresse
-            'post_name'         => 'nullable|string|max:255',
-            'post_strasse'      => 'nullable|string|max:255',
-            'post_hausnummer'   => 'nullable|string|max:20',
-            'post_plz'          => 'nullable|string|max:10',
-            'post_wohnort'      => 'nullable|string|max:255',
-            'post_provinz'      => 'nullable|string|max:100',
-            'post_land'         => 'nullable|string|max:2',
-            'post_email'        => 'nullable|email|max:255',
-            'post_pec'          => 'nullable|email|max:255',
-            
-            // Gebäude
-            'geb_codex'         => 'nullable|string|max:50',
-            'geb_name'          => 'nullable|string|max:255',
-            'geb_adresse'       => 'nullable|string|max:500',
-            
-            // FatturaPA
-            'cup'               => 'nullable|string|max:20',
-            'cig'               => 'nullable|string|max:10',
-            'auftrag_id'        => 'nullable|string|max:50',
-            'auftrag_datum'     => 'nullable|date',
-            
-            // Bemerkungen
-            'bemerkung'         => 'nullable|string',
-            'bemerkung_kunde'   => 'nullable|string',
+            // ... deine Validation
         ]);
 
+        \Log::info('Validation OK', ['validated_re_name' => $validated['re_name'] ?? 'NULL']);
+
         $rechnung->update($validated);
+        \Log::info('Update ausgeführt', ['neue_re_name' => $rechnung->re_name]);
+
+        $rechnung->refresh();
+        \Log::info('Nach Refresh', ['re_name' => $rechnung->re_name]);
+
+        \Log::info('=== RECHNUNG UPDATE ENDE ===');
 
         return redirect()
             ->route('rechnung.edit', $rechnung->id)
@@ -220,8 +250,13 @@ class RechnungController extends Controller
     /**
      * Rechnung löschen (nur Entwürfe).
      */
+    /**
+     * Rechnung löschen (nur Entwürfe).
+     */
     public function destroy($id)
     {
+        // Auch gelöschte Rechnungen laden, falls nötig:
+        // hier reicht findOrFail, weil wir nur aktive Entwürfe löschen.
         $rechnung = Rechnung::findOrFail($id);
 
         if (!$rechnung->ist_editierbar) {
@@ -230,13 +265,26 @@ class RechnungController extends Controller
                 ->with('error', 'Nur Entwürfe können gelöscht werden.');
         }
 
+        // Lesbare Rechnungsnummer merken (Accessor "nummern": jahr/laufnummer)
         $nummer = $rechnung->nummern;
-        $rechnung->delete();
+
+        // Wenn die Positionen ggf. Foreign Keys auf rechnungen.id haben,
+        // sollten wir die Positionen vor der Rechnung löschen.
+        // Falls du ON DELETE CASCADE in der DB hast, kannst du den Block weglassen.
+        \DB::transaction(function () use ($rechnung) {
+            // Positionen löschen
+            // (falls RechnungPosition kein SoftDeletes benutzt, ist das ein Hard-Delete)
+            $rechnung->positionen()->delete();
+
+            // Rechnung wirklich aus der DB entfernen (kein SoftDelete)
+            $rechnung->forceDelete();
+        });
 
         return redirect()
             ->route('rechnung.index')
-            ->with('success', "Rechnung {$nummer} wurde gelöscht.");
+            ->with('success', "Rechnung {$nummer} wurde endgültig gelöscht.");
     }
+
 
     // ═══════════════════════════════════════════════════════════
     // 🧾 POSITIONEN VERWALTEN
@@ -357,7 +405,7 @@ class RechnungController extends Controller
         $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
 
         // TODO: XML-Generierung für FatturaPA
-        
+
         return redirect()
             ->back()
             ->with('error', 'XML-Export noch nicht implementiert.');

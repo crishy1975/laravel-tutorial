@@ -227,4 +227,45 @@ class TimelineController extends Controller
                 ->with('error', "Löschen fehlgeschlagen. (Fehler-ID: {$debugId})");
         }
     }
+
+    /**
+     * Verrechnen-Flag eines Timeline-Eintrags setzen.
+     *
+     * Erwartet per JSON (fetch):
+     *   { "verrechnen": 1|0 }
+     */
+    public function toggleVerrechnen(Request $request, int $id)
+    {
+        // Eintrag laden (404, falls nicht vorhanden)
+        $entry = Timeline::findOrFail($id);
+
+        // Eingaben prüfen: verrechnen muss boolean sein
+        $validated = $request->validate([
+            'verrechnen' => 'required|boolean',
+        ]);
+
+        // Flag setzen
+        $entry->verrechnen = $validated['verrechnen'];
+
+        // OPTIONAL:
+        // Wenn du beim Einschalten automatisch "verrechnet_am" setzen möchtest:
+        // if ($entry->verrechnen && !$entry->verrechnet_am) {
+        //     $entry->verrechnet_am = now();
+        // }
+        //
+        // Wenn du beim Ausschalten das Datum wieder löschen willst:
+        // if (!$entry->verrechnen) {
+        //     $entry->verrechnet_am = null;
+        //     $entry->verrechnet_mit_rn_nummer = null;
+        // }
+
+        $entry->save();
+
+        // Für dein fetch() im View: saubere JSON-Antwort
+        return response()->json([
+            'ok'         => true,
+            'id'         => $entry->id,
+            'verrechnen' => (bool) $entry->verrechnen,
+        ]);
+    }
 }

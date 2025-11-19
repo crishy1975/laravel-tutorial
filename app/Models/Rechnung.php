@@ -39,7 +39,7 @@ class Rechnung extends Model
         'rechnungsempfaenger_id',
         'postadresse_id',
         'fattura_profile_id',
-        
+
         // Snapshot Rechnungsempfänger
         're_name',
         're_strasse',
@@ -52,7 +52,7 @@ class Rechnung extends Model
         're_mwst_nummer',
         're_codice_univoco',
         're_pec',
-        
+
         // Snapshot Postadresse
         'post_name',
         'post_strasse',
@@ -63,46 +63,46 @@ class Rechnung extends Model
         'post_land',
         'post_email',
         'post_pec',
-        
+
         // Snapshot Gebäude
         'geb_codex',
         'geb_name',
         'geb_adresse',
-        
+
         // Datumsfelder
         'rechnungsdatum',
-        'leistungsdatum',
+        'leistungsdaten',
         'zahlungsziel',
         'bezahlt_am',
-        
+
         // Beträge
         'netto_summe',
         'mwst_betrag',
         'brutto_summe',
         'ritenuta_betrag',
         'zahlbar_betrag',
-        
+
         // Status & Flags
         'status',
-        
+
         // Snapshot Profil
         'profile_bezeichnung',
         'mwst_satz',
         'split_payment',
         'ritenuta',
         'ritenuta_prozent',
-        
+
         // FatturaPA
         'cup',
         'cig',
         'auftrag_id',
         'auftrag_datum',
-        
+
         // Texte
         'bemerkung',
         'bemerkung_kunde',
         'zahlungsbedingungen',
-        
+
         // Dateipfade
         'pdf_pfad',
         'xml_pfad',
@@ -116,7 +116,6 @@ class Rechnung extends Model
      */
     protected $casts = [
         'rechnungsdatum'   => 'date',
-        'leistungsdatum'   => 'date',
         'zahlungsziel'     => 'date',
         'bezahlt_am'       => 'date',
         'auftrag_datum'    => 'date',
@@ -279,7 +278,7 @@ class Rechnung extends Model
     {
         // Neues Jahr / Laufnummer ermitteln (mit Lock gegen Race Conditions)
         $jahr = now()->year;
-        
+
         // WICHTIG: Laufnummer mit DB-Lock ermitteln, um Duplikate zu vermeiden
         $laufnummer = DB::transaction(function () use ($jahr) {
             $maxLaufnummer = (int) self::where('jahr', $jahr)
@@ -302,10 +301,11 @@ class Rechnung extends Model
             'postadresse_id'          => $postadresse->id,
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
             'rechnungsdatum'          => now(),
-            'leistungsdatum'          => now(),
+            // NEU: Leistungsdaten als String, z.B. identisch mit dem Rechnungsdatum
+            'leistungsdaten'          => now()->toDateString(),
             'zahlungsziel'            => now()->addDays(30),
             'status'                  => 'draft',
-            
+
             // Snapshot Rechnungsempfänger
             're_name'                 => $rechnungsempfaenger->name,
             're_strasse'              => $rechnungsempfaenger->strasse,
@@ -318,7 +318,7 @@ class Rechnung extends Model
             're_mwst_nummer'          => $rechnungsempfaenger->mwst_nummer,
             're_codice_univoco'       => $rechnungsempfaenger->codice_univoco,
             're_pec'                  => $rechnungsempfaenger->pec,
-            
+
             // Snapshot Postadresse
             'post_name'               => $postadresse->name,
             'post_strasse'            => $postadresse->strasse,
@@ -329,7 +329,7 @@ class Rechnung extends Model
             'post_land'               => $postadresse->land,
             'post_email'              => $postadresse->email,
             'post_pec'                => $postadresse->pec,
-            
+
             // Snapshot Gebäude
             'geb_codex'               => $gebaeude->codex,
             'geb_name'                => $gebaeude->gebaeude_name,
@@ -340,13 +340,13 @@ class Rechnung extends Model
                 $gebaeude->plz,
                 $gebaeude->wohnort
             ),
-            
+
             // FatturaPA aus Gebäude
             'cup'                     => $gebaeude->cup,
             'cig'                     => $gebaeude->cig,
             'auftrag_id'              => $gebaeude->auftrag_id,
             'auftrag_datum'           => $gebaeude->auftrag_datum,
-            
+
             // Profil-Einstellungen (Snapshot)
             'profile_bezeichnung'     => $profile?->bezeichnung,
             'mwst_satz'               => $profile?->mwst_satz ?? 22.00,
@@ -367,8 +367,8 @@ class Rechnung extends Model
              * @param float           $summe
              * @param ArtikelGebaeude $artikel
              */
-            fn (float $summe, ArtikelGebaeude $artikel) =>
-                $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
+            fn(float $summe, ArtikelGebaeude $artikel) =>
+            $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
             0.0
         );
 
