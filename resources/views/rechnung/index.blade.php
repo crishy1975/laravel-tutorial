@@ -2,210 +2,367 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+// Standardwerte für Datum von/bis:
+// - wenn vom Controller $datumVon / $datumBis gesetzt wurden, diese verwenden
+// - sonst: 01.01.dieses Jahres bzw. 31.12.dieses Jahres
+$year = now()->year;
+$defaultDatumVon = $datumVon ?? \Illuminate\Support\Carbon::create($year, 1, 1)->format('Y-m-d');
+$defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31)->format('Y-m-d');
+@endphp
+
 <div class="container py-4">
 
-  {{-- Kopfzeile --}}
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3><i class="bi bi-receipt"></i> Rechnungen</h3>
-    <div class="d-flex gap-2">
-      <a href="{{ route('rechnung.create') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Neue Rechnung
-      </a>
-    </div>
-  </div>
-
-  {{-- Flash Messages --}}
-  @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show">
-      <i class="bi bi-check-circle"></i> {{ session('success') }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  @endif
-  @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">
-      <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-  @endif
-
-  {{-- Filter --}}
-  <form method="GET" action="{{ route('rechnung.index') }}" class="card card-body mb-3">
-    <div class="row g-2 align-items-end">
-      
-      {{-- Jahr --}}
-      <div class="col-md-2">
-        <label class="form-label mb-1">Jahr</label>
-        <select name="jahr" class="form-select">
-          @foreach($jahre as $j)
-            <option value="{{ $j }}" {{ $jahr == $j ? 'selected' : '' }}>
-              {{ $j }}
-            </option>
-          @endforeach
-        </select>
-      </div>
-
-      {{-- Status --}}
-      <div class="col-md-2">
-        <label class="form-label mb-1">Status</label>
-        <select name="status" class="form-select">
-          <option value="">Alle</option>
-          <option value="draft" {{ $status === 'draft' ? 'selected' : '' }}>Entwurf</option>
-          <option value="sent" {{ $status === 'sent' ? 'selected' : '' }}>Versendet</option>
-          <option value="paid" {{ $status === 'paid' ? 'selected' : '' }}>Bezahlt</option>
-          <option value="overdue" {{ $status === 'overdue' ? 'selected' : '' }}>Überfällig</option>
-          <option value="cancelled" {{ $status === 'cancelled' ? 'selected' : '' }}>Storniert</option>
-        </select>
-      </div>
-
-      {{-- Gebäude --}}
-      <div class="col-md-3">
-        <label class="form-label mb-1">Gebäude</label>
-        <select name="gebaeude_id" class="form-select">
-          <option value="">Alle Gebäude</option>
-          @foreach($gebaeudeFilter as $g)
-            <option value="{{ $g->id }}" {{ $gebaeude_id == $g->id ? 'selected' : '' }}>
-              {{ $g->codex }} - {{ $g->gebaeude_name }}
-            </option>
-          @endforeach
-        </select>
-      </div>
-
-      {{-- Suche --}}
-      <div class="col-md-3">
-        <label class="form-label mb-1">Suche (Nr./Kunde)</label>
-        <input type="text" name="suche" class="form-control" 
-               value="{{ $suche }}" placeholder="z.B. 0042 oder Müller">
-      </div>
-
-      {{-- Buttons --}}
-      <div class="col-md-2">
-        <button class="btn btn-outline-secondary w-100" type="submit">
-          <i class="bi bi-search"></i> Suchen
-        </button>
-      </div>
-
-      @if($jahr || $status || $gebaeude_id || $suche)
-        <div class="col-md-2">
-          <a href="{{ route('rechnung.index') }}" class="btn btn-outline-dark w-100">
-            <i class="bi bi-x-circle"></i> Reset
-          </a>
+    {{-- Kopfzeile --}}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-receipt"></i> Rechnungen</h3>
+        <div class="d-flex gap-2">
+            <a href="{{ route('rechnung.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Neue Rechnung
+            </a>
         </div>
-      @endif
     </div>
-  </form>
 
-  {{-- Tabelle --}}
-  @if($rechnungen->isEmpty())
+    {{-- Filterbereich:
+         - Rechnungsnummer
+         - Codex
+         - Suche (Gebäudename ODER Rechnungsempfänger ODER Postadresse)
+         - Datum von / bis (Standard: 01.01.dieses Jahres bis 31.12.dieses Jahres)
+         KEIN <form>, nur JS-Redirect mit Query-Parametern.
+    --}}
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+
+                {{-- Rechnungsnummer (Format: 2025/0001 usw.) --}}
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <input type="text"
+                            class="form-control"
+                            id="filter-nummer"
+                            name="nummer"
+                            value="{{ $nummer ?? '' }}"
+                            placeholder="Rechnungsnummer">
+                        <label for="filter-nummer">Rechnungsnummer</label>
+                    </div>
+                </div>
+
+                {{-- Codex --}}
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <input type="text"
+                            class="form-control"
+                            id="filter-codex"
+                            name="codex"
+                            value="{{ $codex ?? '' }}"
+                            placeholder="Codex">
+                        <label for="filter-codex">Codex</label>
+                    </div>
+                </div>
+
+                {{-- Suche in Gebäudename ODER Rechnungsempfänger ODER Postadresse --}}
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <input type="text"
+                            class="form-control"
+                            id="filter-suche"
+                            name="suche"
+                            value="{{ $suche ?? '' }}"
+                            placeholder="Suche">
+                        <label for="filter-suche">
+                            Suche (Gebäude, Empfänger, Postadresse)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2 align-items-end mt-2">
+                {{-- Datum von (Standard: 01.01.dieses Jahres) --}}
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <input type="date"
+                            class="form-control"
+                            id="filter-datum-von"
+                            name="datum_von"
+                            value="{{ $defaultDatumVon }}"
+                            placeholder="Datum von">
+                        <label for="filter-datum-von">Datum von</label>
+                    </div>
+                </div>
+
+                {{-- Datum bis (Standard: 31.12.dieses Jahres) --}}
+                <div class="col-md-3">
+                    <div class="form-floating">
+                        <input type="date"
+                            class="form-control"
+                            id="filter-datum-bis"
+                            name="datum_bis"
+                            value="{{ $defaultDatumBis }}"
+                            placeholder="Datum bis">
+                        <label for="filter-datum-bis">Datum bis</label>
+                    </div>
+                </div>
+
+                <div class="col-md-6 text-end">
+                    {{-- Filter-Button --}}
+                    <button type="button"
+                        class="btn btn-outline-primary mt-2 mt-md-0"
+                        id="btnFilterRechnungen"
+                        title="Filter anwenden">
+                        <i class="bi bi-funnel"></i> Filtern
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Tabellenbereich --}}
+    @if($rechnungen->isEmpty())
     <div class="alert alert-info">Keine Rechnungen gefunden.</div>
-  @else
+    @else
     <div class="card">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Nummer</th>
-              <th>Datum</th>
-              <th>Kunde</th>
-              <th>Gebäude</th>
-              <th class="text-end">Zahlbar</th>
-              <th>Status</th>
-              <th class="text-end">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            @foreach($rechnungen as $r)
-              <tr>
-                {{-- Nummer --}}
-                <td>
-                  <a href="{{ route('rechnung.show', $r->id) }}" class="text-decoration-none fw-semibold">
-                    {{ $r->nummern }}
-                  </a>
-                </td>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nummer</th>
+                        <th>Datum</th>
+                        <th>Codex</th>
+                        <th>Gebäude</th>
+                        <th class="text-end">Zahlbar</th>
+                        <th>Status</th>
+                        <th class="text-end">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($rechnungen as $rechnung)
+                    <tr data-rechnung-id="{{ $rechnung->id }}">
+                        {{-- Nummer (Accessor: nummern => "jahr/laufnummer") --}}
+                        <td>
+                            <span class="fw-semibold">
+                                {{ $rechnung->nummern }}
+                            </span>
+                        </td>
 
-                {{-- Datum --}}
-                <td>{{ $r->rechnungsdatum?->format('d.m.Y') }}</td>
+                        {{-- Datum (Rechnungsdatum) --}}
+                        <td>
+                            {{ optional($rechnung->rechnungsdatum)->format('d.m.Y') }}
+                        </td>
 
-                {{-- Kunde (Snapshot) --}}
-                <td>
-                  <div class="small">
-                    {{ $r->re_name }}
-                    @if($r->re_wohnort)
-                      <br><span class="text-muted">{{ $r->re_wohnort }}</span>
-                    @endif
-                  </div>
-                </td>
+                        {{-- Codex (Snapshot oder Relation) --}}
+                        <td>
+                            {{ $rechnung->geb_codex ?? $rechnung->gebaeude?->codex ?? '–' }}
+                        </td>
 
-                {{-- Gebäude (Snapshot) --}}
-                <td>
-                  @if($r->gebaeude)
-                    <a href="{{ route('gebaeude.edit', $r->gebaeude_id) }}" 
-                       class="text-decoration-none small">
-                      {{ $r->geb_codex }}
-                    </a>
-                  @else
-                    <span class="text-muted small">{{ $r->geb_codex }}</span>
-                  @endif
-                </td>
+                        {{-- Gebäudename (Snapshot oder Relation) als Link zum Gebäude (Edit-Seite) --}}
+                        <td>
+                            @php
+                            // Bevorzugt den Snapshot-Namen, sonst den aktuellen Namen aus der Relation
+                            $gebName = $rechnung->geb_name ?? $rechnung->gebaeude?->gebaeude_name ?? '–';
+                            @endphp
 
-                {{-- Zahlbar --}}
-                <td class="text-end">
-                  <strong>{{ number_format($r->zahlbar_betrag, 2, ',', '.') }} €</strong>
-                  @if($r->zahlungsziel && $r->status !== 'paid')
-                    <br><small class="text-muted">bis {{ $r->zahlungsziel->format('d.m.Y') }}</small>
-                  @endif
-                </td>
+                            @if($rechnung->gebaeude_id && $gebName !== '–')
+                            {{-- Link zur Bearbeitung des Gebäudes
+             Route laut web.php: gebaeude.edit
+             link-primary = blau, text-decoration-none = nicht unterstrichen --}}
+                            <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}"
+                                class="link-primary text-decoration-none">
+                                {{ $gebName }}
+                            </a>
+                            @else
+                            {{ $gebName }}
+                            @endif
+                        </td>
 
-                {{-- Status --}}
-                <td>{!! $r->status_badge !!}</td>
 
-                {{-- Aktionen --}}
-                <td class="text-end">
-                  <div class="btn-group">
-                    {{-- Ansehen --}}
-                    <a href="{{ route('rechnung.show', $r->id) }}" 
-                       class="btn btn-sm btn-outline-secondary" title="Ansehen">
-                      <i class="bi bi-eye"></i>
-                    </a>
+                        {{-- Zahlbar / Betrag (Snapshot-Feld) --}}
+                        <td class="text-end">
+                            {{ number_format($rechnung->zahlbar_betrag ?? 0, 2, ',', '.') }} €
+                        </td>
 
-                    {{-- Bearbeiten (nur Entwurf) --}}
-                    @if($r->ist_editierbar)
-                      <a href="{{ route('rechnung.edit', $r->id) }}" 
-                         class="btn btn-sm btn-outline-primary" title="Bearbeiten">
-                        <i class="bi bi-pencil"></i>
-                      </a>
-                    @endif
+                        {{-- Status --}}
+                        <td>
+                            @php
+                            $status = $rechnung->status ?? 'draft';
+                            $badgeClass = match ($status) {
+                            'paid' => 'bg-success',
+                            'cancelled' => 'bg-secondary',
+                            'draft' => 'bg-warning text-dark',
+                            'sent' => 'bg-primary',
+                            'overdue' => 'bg-danger',
+                            default => 'bg-light text-dark',
+                            };
+                            @endphp
+                            <span class="badge {{ $badgeClass }}">
+                                {{ ucfirst($status) }}
+                            </span>
+                        </td>
 
-                    {{-- Löschen (nur Entwurf) --}}
-                    @if($r->ist_editierbar)
-                      <form action="{{ route('rechnung.destroy', $r->id) }}" 
-                            method="POST" class="d-inline"
-                            onsubmit="return confirm('Rechnung {{ $r->nummern }} wirklich löschen?')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Löschen">
-                          <i class="bi bi-trash"></i>
-                        </button>
-                      </form>
-                    @endif
-                  </div>
-                </td>
-              </tr>
-            @endforeach
-          </tbody>
-        </table>
-      </div>
+                        {{-- Aktionen (vollständig, ohne Form, Delete via JS/fetch) --}}
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm" role="group">
+                                {{-- Anzeigen --}}
+                                <a href="{{ route('rechnung.show', $rechnung->id) }}"
+                                    class="btn btn-outline-secondary"
+                                    title="Details anzeigen">
+                                    <i class="bi bi-eye"></i>
+                                </a>
 
-      {{-- Pagination --}}
-      <div class="card-footer d-flex justify-content-between align-items-center">
-        <div class="text-muted small">
-          {{ $rechnungen->total() }} Rechnungen gefunden
+                                {{-- Bearbeiten --}}
+                                <a href="{{ route('rechnung.edit', $rechnung->id) }}"
+                                    class="btn btn-outline-primary"
+                                    title="Bearbeiten">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+
+                                {{-- Löschen: Button + JS, KEIN <form>, KEIN GET-Delete --}}
+                                <button type="button"
+                                    class="btn btn-outline-danger btn-delete-rechnung"
+                                    title="Löschen"
+                                    data-delete-url="{{ route('rechnung.destroy', $rechnung->id) }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
-        <div>
-          {{ $rechnungen->appends(compact('jahr', 'status', 'gebaeude_id', 'suche'))->links() }}
+
+        {{-- Pagination --}}
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                {{ $rechnungen->total() }} Rechnungen gefunden
+            </div>
+            <div>
+                {{-- alle Filter als Query-Parameter erhalten --}}
+                {{ $rechnungen->appends([
+                        'nummer'    => $nummer ?? null,
+                        'codex'     => $codex ?? null,
+                        'suche'     => $suche ?? null,
+                        'datum_von' => $datumVon ?? $defaultDatumVon,
+                        'datum_bis' => $datumBis ?? $defaultDatumBis,
+                    ])->links() }}
+            </div>
         </div>
-      </div>
     </div>
-  @endif
+    @endif
 
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    // Voraussetzung im Layout:
+    // <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const baseIndexUrl = "{{ route('rechnung.index') }}";
+
+        // Filter-Felder aus dem DOM holen
+        const nummerInput = document.getElementById('filter-nummer');
+        const codexInput = document.getElementById('filter-codex');
+        const sucheInput = document.getElementById('filter-suche');
+        const datumVonInput = document.getElementById('filter-datum-von');
+        const datumBisInput = document.getElementById('filter-datum-bis');
+        const btnFilter = document.getElementById('btnFilterRechnungen');
+
+        // ---------------------------------
+        // Filter-Logik: Nummer, Codex, Suche, Datum von/bis
+        // ---------------------------------
+        function applyFilter() {
+            const nummer = nummerInput?.value ?? '';
+            const codex = codexInput?.value ?? '';
+            const suche = sucheInput?.value ?? '';
+            const datumVon = datumVonInput?.value ?? '';
+            const datumBis = datumBisInput?.value ?? '';
+
+            const params = new URLSearchParams();
+
+            if (nummer) params.append('nummer', nummer);
+            if (codex) params.append('codex', codex);
+            if (suche) params.append('suche', suche);
+            if (datumVon) params.append('datum_von', datumVon);
+            if (datumBis) params.append('datum_bis', datumBis);
+
+            const targetUrl = params.toString() ?
+                baseIndexUrl + '?' + params.toString() :
+                baseIndexUrl;
+
+            // klassischer GET-Redirect mit Query-Parametern
+            window.location.href = targetUrl;
+        }
+
+        // Klick auf Filter-Button
+        if (btnFilter) {
+            btnFilter.addEventListener('click', function() {
+                applyFilter();
+            });
+        }
+
+        // Enter in einem der Felder soll auch filtern
+        [nummerInput, codexInput, sucheInput, datumVonInput, datumBisInput].forEach(function(input) {
+            if (!input) return;
+            input.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    applyFilter();
+                }
+            });
+        });
+
+        // ---------------------------------
+        // Löschen-Logik via fetch(), ohne <form>
+        // ---------------------------------
+        const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : null;
+
+        document.querySelectorAll('.btn-delete-rechnung').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const url = this.getAttribute('data-delete-url');
+                const row = this.closest('tr');
+
+                if (!url) {
+                    console.error('Keine data-delete-url am Button gesetzt.');
+                    return;
+                }
+
+                if (!csrfToken) {
+                    alert('CSRF-Token nicht gefunden. Löschen nicht möglich.');
+                    return;
+                }
+
+                if (!confirm('Diese Rechnung wirklich löschen?')) {
+                    return;
+                }
+
+                // POST + _method=DELETE für Laravel
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        _method: 'DELETE'
+                    })
+                }).then(function(response) {
+                    if (response.ok) {
+                        if (row) {
+                            row.remove();
+                        }
+                    } else {
+                        alert('Fehler beim Löschen der Rechnung.');
+                    }
+                }).catch(function(error) {
+                    console.error(error);
+                    alert('Netzwerkfehler beim Löschen der Rechnung.');
+                });
+            });
+        });
+    });
+</script>
+@endpush

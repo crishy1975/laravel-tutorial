@@ -25,6 +25,9 @@ class Timeline extends Model
         'bemerkung',
         'person_name',
         'person_id',    // je nach Nutzung: User-ID ODER Adresse-ID (siehe Relation unten)
+        'verrechnen',
+        'verrechnet_am',
+        'verrechnet_mit_rn_nummer',
     ];
 
     /**
@@ -46,7 +49,9 @@ class Timeline extends Model
         'created_at'  => 'datetime',
         'updated_at'  => 'datetime',
         'deleted_at'  => 'datetime',
-    ];
+        'verrechnet_am'  => 'date',     // NEU
+        'verrechnen'     => 'boolean',  // NEU
+  ];
 
     // ───────────────────────────────── Beziehungen ─────────────────────────────────
 

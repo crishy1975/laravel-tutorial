@@ -136,6 +136,12 @@ Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('timeline.destroy');
 
+    // NEU: Verrechnen-Status eines Timeline-Eintrags toggeln
+Route::patch('/timeline/{id}/verrechnen', [TimelineController::class, 'toggleVerrechnen'])
+    ->middleware(['auth', 'verified'])
+    ->whereNumber('id')
+    ->name('timeline.toggleVerrechnen');
+
 
 /* ==================== Touren ==================== */
 Route::middleware(['auth', 'verified'])->group(function () {
