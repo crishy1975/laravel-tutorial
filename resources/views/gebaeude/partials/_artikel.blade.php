@@ -103,6 +103,7 @@
             @php $rowTotal = (float)$p->anzahl * (float)$p->einzelpreis; @endphp
             <tr data-id="{{ $p->id }}" draggable="true" data-aktiv="{{ $p->aktiv ? '1' : '0' }}">
               <td class="text-center" style="cursor: move;">
+                {{-- Griff zum Ziehen --}}
                 <i class="bi bi-grip-vertical text-muted" data-role="drag-handle" title="Ziehen zum Sortieren"></i>
               </td>
               <td>
@@ -163,205 +164,458 @@
 @verbatim
 <script>
 (function(){
-  var root=document.getElementById('artikel-root');
-  var CSRF=(root&&root.dataset&&root.dataset.csrf)||'';
-  var ROUTE_STORE=(root&&root.dataset&&root.dataset.routeStore)||'';
-  var ROUTE_UPDATE0=(root&&root.dataset&&root.dataset.routeUpdate0)||'';
-  var ROUTE_DELETE0=(root&&root.dataset&&root.dataset.routeDelete0)||'';
-  var ROUTE_REORDER=(root&&root.dataset&&root.dataset.routeReorder)||'';
+  // Root-Element mit Routen & CSRF
+  var root = document.getElementById('artikel-root');
+  var CSRF = (root && root.dataset && root.dataset.csrf) || '';
+  var ROUTE_STORE   = (root && root.dataset && root.dataset.routeStore)   || '';
+  var ROUTE_UPDATE0 = (root && root.dataset && root.dataset.routeUpdate0) || '';
+  var ROUTE_DELETE0 = (root && root.dataset && root.dataset.routeDelete0) || '';
+  var ROUTE_REORDER = (root && root.dataset && root.dataset.routeReorder) || '';
 
-  var tbody=document.getElementById('art-tbody');
-  var sumHead=document.getElementById('art-summe-head');
-  var sumFoot=document.getElementById('art-summe-foot');
-  var onlyActive=document.getElementById('art-only-active');
+  var tbody     = document.getElementById('art-tbody');
+  var sumHead   = document.getElementById('art-summe-head');
+  var sumFoot   = document.getElementById('art-summe-foot');
+  var onlyActive = document.getElementById('art-only-active');
 
   // Früh raus auf Create-Seite (ohne Store-Route keine Aktionen)
   if (!ROUTE_STORE) {
     return;
   }
 
-  function euro(v){var n=Number.isFinite(+v)?+v:0;return n.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  function parseNum(v){var x=parseFloat(String(v).replace(',','.'));return Number.isFinite(x)?x:0;}
+  // Hilfsfunktionen für Zahlenformat / Parsing
+  function euro(v){
+    var n = Number.isFinite(+v) ? +v : 0;
+    return n.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
 
-  function isActive(tr){var cb=tr.querySelector('[data-field="aktiv"]');return cb?cb.checked:false;}
+  function parseNum(v){
+    var x = parseFloat(String(v).replace(',', '.'));
+    return Number.isFinite(x) ? x : 0;
+  }
 
+  // Prüfen, ob Zeile als "aktiv" markiert ist
+  function isActive(tr){
+    var cb = tr.querySelector('[data-field="aktiv"]');
+    return cb ? cb.checked : false;
+  }
+
+  // Nur aktive Zeilen anzeigen, wenn Schalter gesetzt
   function applyActiveFilter(){
-    var showOnly=onlyActive&&onlyActive.checked;
-    (tbody?tbody.querySelectorAll('tr[data-id]'):[]).forEach(function(tr){
-      var active=isActive(tr);
-      tr.style.display=(showOnly && !active)?'none':'';
+    var showOnly = onlyActive && onlyActive.checked;
+    (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
+      var active = isActive(tr);
+      tr.style.display = (showOnly && !active) ? 'none' : '';
     });
   }
 
+  // Gesamtpreis je Zeile (Anzahl * Einzelpreis) neu berechnen
   function recalcRowTotal(tr){
-    var qEl=tr.querySelector('[data-field="anzahl"]');
-    var pEl=tr.querySelector('[data-field="einzelpreis"]');
-    var qty=parseNum(qEl&&qEl.value);
-    var price=parseNum(pEl&&pEl.value);
-    var total=qty*price;
-    var tot=tr.querySelector('[data-field="gesamtpreis"]');
-    if(tot) tot.value=euro(total);
+    var qEl = tr.querySelector('[data-field="anzahl"]');
+    var pEl = tr.querySelector('[data-field="einzelpreis"]');
+    var qty   = parseNum(qEl && qEl.value);
+    var price = parseNum(pEl && pEl.value);
+    var total = qty * price;
+    var totEl = tr.querySelector('[data-field="gesamtpreis"]');
+    if (totEl) {
+      totEl.value = euro(total);
+    }
   }
 
+  // Summe aller aktiven Positionen berechnen
+  // Wichtig: immer nur "aktive" Zeilen, unabhängig vom Filter
   function recalcSum(){
-    var sum=0;
-    var showOnly=onlyActive&&onlyActive.checked;
-    (tbody?tbody.querySelectorAll('tr[data-id]'):[]).forEach(function(tr){
-      if(showOnly && !isActive(tr)) return;
-      var qty=parseNum((tr.querySelector('[data-field="anzahl"]')||{}).value);
-      var price=parseNum((tr.querySelector('[data-field="einzelpreis"]')||{}).value);
-      sum+=qty*price;
+    var sum = 0;
+
+    (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
+      if (!isActive(tr)) {
+        // Inaktive Positionen nie mitrechnen
+        return;
+      }
+      var qty   = parseNum((tr.querySelector('[data-field="anzahl"]')      || {}).value);
+      var price = parseNum((tr.querySelector('[data-field="einzelpreis"]') || {}).value);
+      sum += qty * price;
     });
-    var newActive=document.getElementById('new-aktiv');
-    var newQty=parseNum((document.getElementById('new-anzahl')||{}).value);
-    var newPrice=parseNum((document.getElementById('new-einzelpreis')||{}).value);
-    var addNew=(newActive&&newActive.checked)?(newQty*newPrice):0;
-    if(sumHead) sumHead.textContent=euro(sum+addNew);
-    if(sumFoot) sumFoot.value=euro(sum);
+
+    // Neue Zeile (noch nicht gespeichert) nur berücksichtigen,
+    // wenn aktiv angehakt ist – für die Anzeige im Kopf
+    var newActive = document.getElementById('new-aktiv');
+    var addNew = 0;
+    if (newActive && newActive.checked) {
+      var newQty   = parseNum((document.getElementById('new-anzahl')      || {}).value);
+      var newPrice = parseNum((document.getElementById('new-einzelpreis') || {}).value);
+      addNew = newQty * newPrice;
+    }
+
+    if (sumHead) {
+      sumHead.textContent = euro(sum + addNew);
+    }
+    if (sumFoot) {
+      // Fuß-Summe: nur gespeicherte aktive Zeilen
+      sumFoot.value = euro(sum);
+    }
   }
 
-  function markDirty(tr,dirty){
-    var ind=tr.querySelector('[data-role="dirty-indicator"]');
-    var btnSave=tr.querySelector('[data-role="btn-save"]');
-    if(dirty){
-      if(ind){ind.classList.remove('bi-circle','text-muted');ind.classList.add('bi-record-fill','text-warning');ind.title='Änderungen nicht gespeichert';}
-      if(btnSave) btnSave.classList.remove('d-none');
+  // Zeile als "dirty" (= Änderungen vorhanden) oder "clean" markieren
+  function markDirty(tr, dirty){
+    var ind    = tr.querySelector('[data-role="dirty-indicator"]');
+    var btnSave = tr.querySelector('[data-role="btn-save"]');
+
+    if (dirty) {
+      if (ind) {
+        ind.classList.remove('bi-circle', 'text-muted');
+        ind.classList.add('bi-record-fill', 'text-warning');
+        ind.title = 'Änderungen nicht gespeichert';
+      }
+      if (btnSave) {
+        btnSave.classList.remove('d-none');
+      }
       tr.classList.add('table-warning');
     } else {
-      if(ind){ind.classList.remove('bi-record-fill','text-warning');ind.classList.add('bi-circle','text-muted');ind.title='Keine Änderungen';}
-      if(btnSave) btnSave.classList.add('d-none');
+      if (ind) {
+        ind.classList.remove('bi-record-fill', 'text-warning');
+        ind.classList.add('bi-circle', 'text-muted');
+        ind.title = 'Keine Änderungen';
+      }
+      if (btnSave) {
+        btnSave.classList.add('d-none');
+      }
       tr.classList.remove('table-warning');
     }
   }
 
-  var newQtyEl=document.getElementById('new-anzahl');
-  var newPriceEl=document.getElementById('new-einzelpreis');
-  var newTotEl=document.getElementById('new-gesamtpreis');
-  var newAktivEl=document.getElementById('new-aktiv');
+  // Elemente der Eingabezeile "Neu"
+  var newQtyEl    = document.getElementById('new-anzahl');
+  var newPriceEl  = document.getElementById('new-einzelpreis');
+  var newTotEl    = document.getElementById('new-gesamtpreis');
+  var newAktivEl  = document.getElementById('new-aktiv');
 
+  // Gesamtpreis der neuen Zeile berechnen + Summe aktualisieren
   function recalcNewTotal(){
-    var tot=parseNum(newQtyEl&&newQtyEl.value)*parseNum(newPriceEl&&newPriceEl.value);
-    if(newTotEl) newTotEl.value=euro(tot);
+    var tot = parseNum(newQtyEl && newQtyEl.value) * parseNum(newPriceEl && newPriceEl.value);
+    if (newTotEl) {
+      newTotEl.value = euro(tot);
+    }
     recalcSum();
   }
-  [newQtyEl,newPriceEl,newAktivEl,onlyActive].forEach(function(el){if(el)el.addEventListener('input',function(){applyActiveFilter();recalcNewTotal();});});
-  applyActiveFilter();recalcNewTotal();
 
-  ['new-beschreibung','new-anzahl','new-einzelpreis'].forEach(function(id){
-    var el=document.getElementById(id);
-    if(!el) return;
-    el.addEventListener('keydown',function(e){
-      if(e.key==='Enter'){e.preventDefault();var b=document.getElementById('btn-add-art');if(b)b.click();}
+  // Filter + neue Zeile bei Eingabe/Änderung aktualisieren
+  [newQtyEl, newPriceEl, newAktivEl, onlyActive].forEach(function(el){
+    if (!el) return;
+    el.addEventListener('input', function(){
+      applyActiveFilter();
+      recalcNewTotal();
     });
   });
 
-  var btnAdd=document.getElementById('btn-add-art');
-  if(btnAdd){
-    btnAdd.addEventListener('click',async function(){
-      var beschr=(document.getElementById('new-beschreibung')&&document.getElementById('new-beschreibung').value||'').trim();
-      var anzahl=parseNum(newQtyEl&&newQtyEl.value);
-      var preis=parseNum(newPriceEl&&newPriceEl.value);
-      var aktiv=(newAktivEl&&newAktivEl.checked)?1:0;
-      if(!beschr){alert('Bitte eine Beschreibung eingeben.');return;}
-      try{
-        var res=await fetch(ROUTE_STORE,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':CSRF,'Accept':'application/json'},body:JSON.stringify({beschreibung:beschr,anzahl:anzahl,einzelpreis:preis,aktiv:aktiv})});
-        var isJson=(res.headers.get('content-type')||'').includes('application/json');
-        if(isJson){
-          var json=await res.json();
-          if(!res.ok||json.ok===false){throw new Error(json.message||'Fehler beim Hinzufügen.');}
-        }else if(!res.ok){throw new Error('Fehler beim Hinzufügen (HTTP '+res.status+').');}
-        window.location.reload();
-      }catch(err){console.error(err);alert('Fehler beim Hinzufügen: '+err.message);}
-    });
-  }
+  // Initiale Anzeige
+  applyActiveFilter();
+  recalcNewTotal();
 
-  if(tbody){
-    tbody.addEventListener('input',function(e){
-      var inp=e.target;
-      var tr=inp.closest?inp.closest('tr[data-id]'):null;
-      if(!tr) return;
-      if(inp.matches&&inp.matches('[data-field="anzahl"], [data-field="einzelpreis"]')){recalcRowTotal(tr);}
-      markDirty(tr,true);
-      recalcSum();
+  // ENTER in der "Neu"-Zeile löst Hinzufügen aus
+  ['new-beschreibung', 'new-anzahl', 'new-einzelpreis'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var b = document.getElementById('btn-add-art');
+        if (b) b.click();
+      }
     });
+  });
 
-    tbody.addEventListener('change',function(e){
-      var inp=e.target;
-      var tr=inp.closest?inp.closest('tr[data-id]'):null;
-      if(!tr) return;
-      if(inp.matches&&inp.matches('[data-field="aktiv"]')){markDirty(tr,true);applyActiveFilter();recalcSum();}
-    });
+  // Artikel hinzufügen (POST auf ROUTE_STORE)
+  var btnAdd = document.getElementById('btn-add-art');
+  if (btnAdd){
+    btnAdd.addEventListener('click', async function(){
+      var beschrEl = document.getElementById('new-beschreibung');
+      var beschr   = (beschrEl && beschrEl.value || '').trim();
+      var anzahl   = parseNum(newQtyEl   && newQtyEl.value);
+      var preis    = parseNum(newPriceEl && newPriceEl.value);
+      var aktiv    = (newAktivEl && newAktivEl.checked) ? 1 : 0;
 
-    var dragSrc=null;
-    tbody.addEventListener('dragstart',function(e){
-      var row=e.target.closest?e.target.closest('tr[data-id]'):null;
-      if(!row) return;e.dataTransfer.effectAllowed='move';dragSrc=row;row.classList.add('opacity-50');
-    });
-    tbody.addEventListener('dragend',function(e){
-      if(dragSrc){dragSrc.classList.remove('opacity-50');dragSrc=null;}
-    });
-    tbody.addEventListener('dragover',function(e){
-      if(!dragSrc) return;var row=e.target.closest?e.target.closest('tr[data-id]'):null;if(!row||row===dragSrc) return;
-      e.preventDefault();
-    });
-    tbody.addEventListener('drop',async function(e){
-      if(!dragSrc) return;
-      var target=e.target.closest?e.target.closest('tr[data-id]'):null;
-      if(!target||target===dragSrc) return;
-      e.preventDefault();
-      var rect=target.getBoundingClientRect();
-      var before=(e.clientY-rect.top)<(rect.height/2);
-      if(before) tbody.insertBefore(dragSrc,target); else tbody.insertBefore(dragSrc,target.nextSibling);
-
-      var ids=[]; (tbody?tbody.querySelectorAll('tr[data-id]'):[]).forEach(function(tr){ if(tr.style.display!=='none') ids.push(tr.getAttribute('data-id')); });
-
-      try{
-        var res=await fetch(ROUTE_REORDER,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':CSRF,'Accept':'application/json'},body:JSON.stringify({ids:ids})});
-        var isJson=(res.headers.get('content-type')||'').includes('application/json');
-        if(isJson){var json=await res.json(); if(!res.ok||json.ok===false){throw new Error(json.message||'Fehler beim Sortieren.');}}
-        else if(!res.ok){throw new Error('Fehler beim Sortieren (HTTP '+res.status+').');}
-      }catch(err){console.error(err);alert('Fehler beim Sortieren: '+err.message);}
-    });
-
-    tbody.addEventListener('click',async function(e){
-      var btnDel=e.target.closest?e.target.closest('[data-role="btn-delete"]'):null;
-      var btnSave=e.target.closest?e.target.closest('[data-role="btn-save"]'):null;
-      var tr=e.target.closest?e.target.closest('tr[data-id]'):null;
-      if(!tr) return;
-      var id=tr.getAttribute('data-id');
-
-      if(btnDel){
-        if(!confirm('Diese Position wirklich löschen?')) return;
-        var url=ROUTE_DELETE0.replace(/\/0$/, '/'+id);
-        try{
-          var res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':CSRF,'Accept':'application/json'},body:JSON.stringify({_method:'DELETE'})});
-          var isJson=(res.headers.get('content-type')||'').includes('application/json');
-          if(isJson){var json=await res.json(); if(!res.ok||json.ok===false){throw new Error(json.message||'Fehler beim Löschen.');}}
-          else if(!res.ok){throw new Error('Fehler beim Löschen (HTTP '+res.status+').');}
-          tr.remove();recalcSum();
-        }catch(err){console.error(err);alert('Fehler beim Löschen: '+err.message);}
+      if (!beschr){
+        alert('Bitte eine Beschreibung eingeben.');
         return;
       }
 
-      if(btnSave){
-        var beschr=(tr.querySelector('[data-field="beschreibung"]')&&tr.querySelector('[data-field="beschreibung"]').value||'').trim();
-        var anzahl=parseNum((tr.querySelector('[data-field="anzahl"]')||{}).value);
-        var preis=parseNum((tr.querySelector('[data-field="einzelpreis"]')||{}).value);
-        var aktivCb=tr.querySelector('[data-field="aktiv"]');
-        var aktiv=aktivCb&&aktivCb.checked?1:0;
-        if(!beschr){alert('Beschreibung darf nicht leer sein.');return;}
-        var url2=ROUTE_UPDATE0.replace(/\/0$/, '/'+id);
-        try{
-          var res2=await fetch(url2,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':CSRF,'Accept':'application/json'},body:JSON.stringify({_method:'PUT',beschreibung:beschr,anzahl:anzahl,einzelpreis:preis,aktiv:aktiv})});
-          var isJson2=(res2.headers.get('content-type')||'').includes('application/json');
-          if(isJson2){var json2=await res2.json(); if(!res2.ok||json2.ok===false){throw new Error(json2.message||'Fehler beim Speichern.');}}
-          else if(!res2.ok){throw new Error('Fehler beim Speichern (HTTP '+res2.status+').');}
-          markDirty(tr,false);recalcRowTotal(tr);recalcSum();
-        }catch(err){console.error(err);alert('Fehler beim Speichern: '+err.message);}
+      try {
+        var res = await fetch(ROUTE_STORE, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            beschreibung: beschr,
+            anzahl: anzahl,
+            einzelpreis: preis,
+            aktiv: aktiv
+          })
+        });
+
+        var isJson = (res.headers.get('content-type') || '').includes('application/json');
+        if (isJson){
+          var json = await res.json();
+          if (!res.ok || json.ok === false){
+            throw new Error(json.message || 'Fehler beim Hinzufügen.');
+          }
+        } else if (!res.ok){
+          throw new Error('Fehler beim Hinzufügen (HTTP ' + res.status + ').');
+        }
+
+        // Nach erfolgreichem Hinzufügen: Seite neu laden → neue Zeile sichtbar
+        window.location.reload();
+      } catch (err){
+        console.error(err);
+        alert('Fehler beim Hinzufügen: ' + err.message);
       }
     });
   }
 
+  // Gemeinsame Funktion zum Speichern einer bestehenden Zeile (Update)
+  async function saveRow(tr) {
+    var id = tr.getAttribute('data-id');
+
+    // Feld-Refs aus der Zeile
+    var beschrEl = tr.querySelector('[data-field="beschreibung"]');
+    var anzahlEl = tr.querySelector('[data-field="anzahl"]');
+    var preisEl  = tr.querySelector('[data-field="einzelpreis"]');
+    var aktivCb  = tr.querySelector('[data-field="aktiv"]');
+
+    var beschr = (beschrEl && beschrEl.value || '').trim();
+    var anzahl = parseNum(anzahlEl && anzahlEl.value);
+    var preis  = parseNum(preisEl  && preisEl.value);
+    var aktiv  = (aktivCb && aktivCb.checked) ? 1 : 0;
+
+    if (!beschr) {
+      alert('Beschreibung darf nicht leer sein.');
+      return;
+    }
+
+    var url = ROUTE_UPDATE0.replace(/\/0$/, '/' + id);
+
+    try {
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          _method: 'PUT',
+          beschreibung: beschr,
+          anzahl: anzahl,
+          einzelpreis: preis,
+          aktiv: aktiv
+        })
+      });
+
+      var isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (isJson) {
+        var json = await res.json();
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.message || 'Fehler beim Speichern.');
+        }
+      } else if (!res.ok) {
+        throw new Error('Fehler beim Speichern (HTTP ' + res.status + ').');
+      }
+
+      // Erfolgreich gespeichert → Zeile wieder "clean"
+      markDirty(tr, false);
+      recalcRowTotal(tr);
+      recalcSum();
+    } catch (err) {
+      console.error(err);
+      alert('Fehler beim Speichern: ' + err.message);
+      // Fehler wird nach außen gereicht, damit Aufrufer ggf. zurücksetzen kann
+      throw err;
+    }
+  }
+
+  // Event-Handler für Eingaben in bestehenden Zeilen (ohne aktiv)
+  if (tbody){
+    tbody.addEventListener('input', function(e){
+      var inp = e.target;
+      var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
+      if (!tr) return;
+
+      // Änderung bei Anzahl/Einzelpreis → Zeilensumme neu
+      if (inp.matches && inp.matches('[data-field="anzahl"], [data-field="einzelpreis"]')) {
+        recalcRowTotal(tr);
+      }
+
+      // Jede Eingabe → Zeile als "dirty" markieren und Summe neu
+      markDirty(tr, true);
+      recalcSum();
+    });
+
+    // Änderung von "aktiv" direkt speichern
+    tbody.addEventListener('change', async function(e){
+      var inp = e.target;
+      var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
+      if (!tr) return;
+
+      // FALL: aktiv-Checkbox geändert
+      if (inp.matches && inp.matches('[data-field="aktiv"]')) {
+        var cb = inp;
+        // Vorheriger Zustand (Checkbox wurde gerade getoggelt)
+        var previousChecked = !cb.checked;
+
+        try {
+          // Sofort speichern (PUT)
+          await saveRow(tr);
+
+          // Nach erfolgreichem Speichern Filter anwenden (Zeile kann verschwinden)
+          applyActiveFilter();
+          // Summe wird in saveRow() schon neu berechnet
+        } catch (err) {
+          // Bei Fehler: Zustand der Checkbox zurücksetzen + Filter/Summe neu
+          cb.checked = previousChecked;
+          applyActiveFilter();
+          recalcSum();
+        }
+
+        return;
+      }
+
+      // andere change-Events aktuell nicht nötig, aber Hook vorhanden
+    });
+
+    // Drag & Drop für Sortierung
+    var dragSrc = null;
+
+    tbody.addEventListener('dragstart', function(e){
+      var row = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      if (!row) return;
+      e.dataTransfer.effectAllowed = 'move';
+      dragSrc = row;
+      row.classList.add('opacity-50');
+    });
+
+    tbody.addEventListener('dragend', function(e){
+      if (dragSrc){
+        dragSrc.classList.remove('opacity-50');
+        dragSrc = null;
+      }
+    });
+
+    tbody.addEventListener('dragover', function(e){
+      if (!dragSrc) return;
+      var row = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      if (!row || row === dragSrc) return;
+      e.preventDefault();
+    });
+
+    tbody.addEventListener('drop', async function(e){
+      if (!dragSrc) return;
+      var target = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      if (!target || target === dragSrc) return;
+      e.preventDefault();
+
+      var rect = target.getBoundingClientRect();
+      var before = (e.clientY - rect.top) < (rect.height / 2);
+
+      if (before) {
+        tbody.insertBefore(dragSrc, target);
+      } else {
+        tbody.insertBefore(dragSrc, target.nextSibling);
+      }
+
+      // Neue Reihenfolge der sichtbaren Zeilen an Server senden
+      var ids = [];
+      (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
+        if (tr.style.display !== 'none') {
+          ids.push(tr.getAttribute('data-id'));
+        }
+      });
+
+      try {
+        var res = await fetch(ROUTE_REORDER, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ ids: ids })
+        });
+
+        var isJson = (res.headers.get('content-type') || '').includes('application/json');
+        if (isJson) {
+          var json = await res.json();
+          if (!res.ok || json.ok === false) {
+            throw new Error(json.message || 'Fehler beim Sortieren.');
+          }
+        } else if (!res.ok) {
+          throw new Error('Fehler beim Sortieren (HTTP ' + res.status + ').');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Fehler beim Sortieren: ' + err.message);
+      }
+    });
+
+    // Klick-Events für Speichern/Löschen
+    tbody.addEventListener('click', async function(e){
+      var btnDel  = e.target.closest ? e.target.closest('[data-role="btn-delete"]') : null;
+      var btnSave = e.target.closest ? e.target.closest('[data-role="btn-save"]')   : null;
+      var tr      = e.target.closest ? e.target.closest('tr[data-id]')             : null;
+      if (!tr) return;
+      var id = tr.getAttribute('data-id');
+
+      // Löschen
+      if (btnDel){
+        if (!confirm('Diese Position wirklich löschen?')) return;
+        var url = ROUTE_DELETE0.replace(/\/0$/, '/' + id);
+
+        try {
+          var res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-TOKEN': CSRF,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ _method: 'DELETE' })
+          });
+
+          var isJson = (res.headers.get('content-type') || '').includes('application/json');
+          if (isJson){
+            var json = await res.json();
+            if (!res.ok || json.ok === false){
+              throw new Error(json.message || 'Fehler beim Löschen.');
+            }
+          } else if (!res.ok){
+            throw new Error('Fehler beim Löschen (HTTP ' + res.status + ').');
+          }
+
+          tr.remove();
+          recalcSum();
+        } catch (err){
+          console.error(err);
+          alert('Fehler beim Löschen: ' + err.message);
+        }
+        return;
+      }
+
+      // Speichern-Button (manuelles Speichern bei anderen Änderungen)
+      if (btnSave){
+        try {
+          await saveRow(tr);
+        } catch (err) {
+          // Fehler schon in saveRow behandelt (alert)
+        }
+      }
+    });
+  }
+
+  // Initiale Summenberechnung
   recalcSum();
 })();
 </script>

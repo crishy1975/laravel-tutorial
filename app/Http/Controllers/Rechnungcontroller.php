@@ -146,14 +146,60 @@ class RechnungController extends Controller
     /**
      * Formular: Neue Rechnung anlegen.
      */
-    public function create()
+    /**
+     * Neue Rechnung sofort anlegen und direkt ins Bearbeitungsformular springen.
+     */
+    public function create(Request $request)
     {
+        // Neue Instanz
         $rechnung = new Rechnung();
-        $gebaeude_liste = Gebaeude::orderBy('codex')->get();
-        $profile = FatturaProfile::all();
 
-        return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile'));
+        // Falls von einem Gebäude aus aufgerufen (?gebaeude_id=...)
+        if ($request->filled('gebaeude_id')) {
+            $rechnung->gebaeude_id = $request->integer('gebaeude_id');
+
+            // Optional: Hier könntest du später Daten aus dem Gebäude in die Rechnung übernehmen
+            // (Kunde, Adresse, Beschreibung, etc.)
+            //
+            // $gebaeude = Gebaeude::find($rechnung->gebaeude_id);
+            // if ($gebaeude) {
+            //     $rechnung->kunde_id = $gebaeude->kunde_id;
+            //     // weitere Felder...
+            // }
+        }
+
+        // Standard-/Pflichtwerte setzen
+        $rechnung->status         = 'draft';          // Entwurf
+        $rechnung->typ_rechnung   = 'rechnung';       // Standard: Rechnung (kein Gutschrift)
+        $rechnung->rechnungsdatum = now();            // Heute
+        $rechnung->jahr           = now()->year;     // Aktuelles Jahr
+        $rechnung->laufnummer     = 1;                // Vorläufige Laufnummer (wird später gesetzt)
+        $rechnung->re_name = 'Rechnungsempfänger noch nicht gewählt';
+        $rechnung->post_name = 'Postadresse noch nicht gewählt';
+        // WICHTIG:
+        // Falls deine Tabelle `rechnungen` noch weitere NOT NULL-Felder ohne Default hat,
+        // musst du diese hier sinnvoll befüllen, sonst gibt es einen SQL-Fehler beim save().
+        // z.B.:
+        // $rechnung->waehrung = 'EUR';
+        // $rechnung->sprache  = 'de';
+
+        // Speichern in der Datenbank
+        $rechnung->save();
+
+        // Optional: Falls du nach dem Speichern eine Rechnungsnummer generierst
+        // (z.B. basierend auf ID + Jahr), kannst du das hier tun:
+        //
+        // if (!$rechnung->nummern) {
+        //     $rechnung->nummern = 'R-' . now()->year . '-' . str_pad($rechnung->id, 5, '0', STR_PAD_LEFT);
+        //     $rechnung->save();
+        // }
+
+        // Direkt auf das Bearbeitungsformular umleiten
+        return redirect()
+            ->route('rechnung.edit', $rechnung->id)
+            ->with('info', 'Neue Rechnung als Entwurf angelegt.');
     }
+
 
     /**
      * Neue Rechnung speichern.

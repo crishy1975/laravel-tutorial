@@ -15,6 +15,7 @@ class ArtikelGebaeude extends Model
         'anzahl',
         'einzelpreis',
         'aktiv',
+        'basis_preis',
         'reihenfolge',
     ];
 

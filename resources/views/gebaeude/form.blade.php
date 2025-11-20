@@ -153,6 +153,14 @@
           {{ isset($gebaeude) ? 'Änderungen speichern' : 'Gebäude anlegen' }}
         </button>
 
+        {{-- ✅ Neue Rechnung für dieses Gebäude anlegen und direkt Vorschau öffnen --}}
+        @if(!empty($gebaeude?->id))
+        <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}#content-vorschau"
+          class="btn btn-success ms-2">
+          <i class="bi bi-plus-circle"></i> Neue Rechnung
+        </a>
+        @endif
+
         <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary">
           <i class="bi bi-arrow-left"></i> Zurück
         </a>
