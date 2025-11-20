@@ -289,7 +289,7 @@ class GebaeudeController extends Controller
      * Gebäude-Index mit Filtern und MariaDB-kompatibler Sortierung.
      */
     public function index(Request $request)
-    {
+    { 
         $codex         = trim($request->get('codex', ''));
         $gebaeude_name = trim($request->get('gebaeude_name', ''));
         $strasse       = trim($request->get('strasse', ''));

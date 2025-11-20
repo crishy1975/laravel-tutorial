@@ -56,13 +56,6 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-adressen"
-                        data-bs-toggle="tab" data-bs-target="#content-adressen"
-                        type="button" role="tab">
-                        <i class="bi bi-people"></i> Adressen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="tab-positionen"
                         data-bs-toggle="tab" data-bs-target="#content-positionen"
                         type="button" role="tab">

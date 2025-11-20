@@ -188,7 +188,7 @@ class Rechnung extends Model
      */
     public function getNummernAttribute(): string
     {
-        return sprintf('%d/%04d', $this->jahr, $this->laufnummer);
+        return sprintf('%d_%04d', $this->jahr, $this->laufnummer);
     }
 
     /**
