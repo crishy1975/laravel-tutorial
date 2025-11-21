@@ -11,26 +11,16 @@ use App\Http\Controllers\TourController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\ArtikelGebaeudeController;
 use App\Http\Controllers\RechnungController;
+use App\Http\Controllers\PreisAufschlagController;
 
-/*
-|--------------------------------------------------------------------------
-| WEB ROUTES (vollständig & bereinigt)
-|--------------------------------------------------------------------------
-| - Einheitliche Namen & Parameter (id, tour, gebaeude, …)
-| - whereNumber() für IDs
-| - Auth/Verified dort, wo UI-geschützt ist
-| - Keine Duplikate / vergessenen Routen
-*/
-
-/* ==================== Home ==================== */
-// Startseite → direkt zu Gebäude-Index
+// Home / Dashboard Redirect
 Route::get('/', fn() => redirect()->route('gebaeude.index'))
     ->middleware(['auth', 'verified'])
     ->name('home');
 
 
-/* ==================== Auth (Breeze / Fortify) ==================== */
-// Profile (Standard aus Breeze)
+
+// ==================== Profile Routes ====================
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -125,8 +115,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 
-/* ==================== Timeline (pro Gebäude) ==================== */
-// Speichern eines Timeline-Eintrags (View nutzt: ge baeude.timeline.store)
+// ══════════════════════════════════════════════════════════
+// GEBÄUDE - TIMELINE
+// ══════════════════════════════════════════════════════════
 Route::post('/gebaeude/{id}/timeline', [TimelineController::class, 'timelineStore'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('gebaeude.timeline.store');
@@ -136,14 +127,15 @@ Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('timeline.destroy');
 
-// NEU: Verrechnen-Status eines Timeline-Eintrags toggeln
+// Verrechnen-Flag eines Timeline-Eintrags toggeln (AJAX)
 Route::patch('/timeline/{id}/verrechnen', [TimelineController::class, 'toggleVerrechnen'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')
     ->name('timeline.toggleVerrechnen');
 
-
-/* ==================== Touren ==================== */
+// ══════════════════════════════════════════════════════════
+// TOUREN
+// ══════════════════════════════════════════════════════════
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Reihung aller Touren (Drag&Drop)
@@ -176,7 +168,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('tour', TourController::class)->except(['show']);
 });
 
-
+// ══════════════════════════════════════════════════════════
+// RECHNUNGEN
+// ══════════════════════════════════════════════════════════
 Route::middleware(['auth'])->group(function () {
 
     // ═══════════════════════════════════════════════════════════
@@ -250,5 +244,17 @@ Route::middleware(['auth'])->group(function () {
         ->name('rechnung.xml');
 });
 
-/* ==================== Auth Scaffolding ==================== */
+
+// ═══════════════════════════════════════════════════════════
+// PREIS-AUFSCHLÄGE
+// ═══════════════════════════════════════════════════════════
+
+Route::middleware(['auth'])->prefix('preis-aufschlaege')->name('preis-aufschlaege.')->group(function () {
+    Route::get('/', [PreisAufschlagController::class, 'index'])->name('index');
+    Route::post('/global', [PreisAufschlagController::class, 'storeGlobal'])->name('store-global');
+    Route::delete('/global/{id}', [PreisAufschlagController::class, 'destroyGlobal'])->name('destroy-global');
+    Route::post('/preview', [PreisAufschlagController::class, 'preview'])->name('preview');
+});
+
+// ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';

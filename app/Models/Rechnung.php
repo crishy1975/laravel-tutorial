@@ -20,18 +20,8 @@ class Rechnung extends Model
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * Expliziter Tabellenname.
-     *
-     * @var string
-     */
     protected $table = 'rechnungen';
 
-    /**
-     * Mass-Assignable Felder.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'jahr',
         'laufnummer',
@@ -99,188 +89,117 @@ class Rechnung extends Model
         'auftrag_id',
         'auftrag_datum',
 
-        // Texte
-        'bemerkung',
-        'bemerkung_kunde',
-        'zahlungsbedingungen',
-
-        // Dateipfade
-        'pdf_pfad',
-        'xml_pfad',
-        'externe_referenz',
+        // NEU: Aufschlag-Tracking
+        'aufschlag_prozent',
+        'aufschlag_typ',
     ];
 
-    /**
-     * Attribut-Casts.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
-        'rechnungsdatum'   => 'date',
-        'zahlungsziel'     => 'date',
-        'bezahlt_am'       => 'date',
-        'auftrag_datum'    => 'date',
-
-        'netto_summe'      => 'decimal:2',
-        'mwst_betrag'      => 'decimal:2',
-        'brutto_summe'     => 'decimal:2',
-        'ritenuta_betrag'  => 'decimal:2',
-        'zahlbar_betrag'   => 'decimal:2',
-        'mwst_satz'        => 'decimal:2',
-        'ritenuta_prozent' => 'decimal:2',
-
-        'split_payment'    => 'boolean',
-        'ritenuta'         => 'boolean',
+        'jahr'                => 'integer',
+        'laufnummer'          => 'integer',
+        'rechnungsdatum'      => 'date',
+        'zahlungsziel'        => 'date',
+        'bezahlt_am'          => 'date',
+        'auftrag_datum'       => 'date',
+        'netto_summe'         => 'decimal:2',
+        'mwst_betrag'         => 'decimal:2',
+        'brutto_summe'        => 'decimal:2',
+        'ritenuta_betrag'     => 'decimal:2',
+        'zahlbar_betrag'      => 'decimal:2',
+        'mwst_satz'           => 'decimal:2',
+        'ritenuta_prozent'    => 'decimal:2',
+        'split_payment'       => 'boolean',
+        'ritenuta'            => 'boolean',
+        'aufschlag_prozent'   => 'decimal:2',
     ];
 
     // ═══════════════════════════════════════════════════════════
     // 🔗 RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * Zugehöriges Gebäude.
-     */
     public function gebaeude(): BelongsTo
     {
         return $this->belongsTo(Gebaeude::class);
     }
 
-    /**
-     * Rechnungsempfänger-Adresse.
-     */
     public function rechnungsempfaenger(): BelongsTo
     {
         return $this->belongsTo(Adresse::class, 'rechnungsempfaenger_id');
     }
 
-    /**
-     * Postadresse für den Versand.
-     */
     public function postadresse(): BelongsTo
     {
         return $this->belongsTo(Adresse::class, 'postadresse_id');
     }
 
-    /**
-     * Fattura-Profil.
-     */
     public function fatturaProfile(): BelongsTo
     {
-        return $this->belongsTo(FatturaProfile::class);
+        return $this->belongsTo(FatturaProfile::class, 'fattura_profile_id');
     }
 
-    /**
-     * Einzelne Rechnungspositionen.
-     *
-     * @return HasMany<RechnungPosition>
-     */
     public function positionen(): HasMany
     {
-        // Positionen automatisch nach 'position' sortiert zurückgeben
-        return $this->hasMany(RechnungPosition::class)->orderBy('position');
+        return $this->hasMany(RechnungPosition::class)
+            ->orderBy('position');
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 🏷️ ACCESSORS
+    // 🧮 BERECHNUNG
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Formatierte Rechnungsnummer: "2025/0042".
-     */
-    public function getNummernAttribute(): string
-    {
-        return sprintf('%d/%04d', $this->jahr, $this->laufnummer);
-    }
-
-    /**
-     * Ist die Rechnung überfällig?
-     */
-    public function getIstUeberfaelligAttribute(): bool
-    {
-        return $this->status !== 'paid'
-            && $this->status !== 'cancelled'
-            && $this->zahlungsziel
-            && Carbon::parse($this->zahlungsziel)->isPast();
-    }
-
-    /**
-     * Ist die Rechnung editierbar? (nur im Status "draft").
-     */
-    public function getIstEditierbarAttribute(): bool
-    {
-        return $this->status === 'draft';
-    }
-
-    /**
-     * Status-Badge für UI.
-     */
-    public function getStatusBadgeAttribute(): string
-    {
-        return match ($this->status) {
-            'draft'     => '<span class="badge bg-secondary">Entwurf</span>',
-            'sent'      => '<span class="badge bg-primary">Versendet</span>',
-            'paid'      => '<span class="badge bg-success">Bezahlt</span>',
-            'cancelled' => '<span class="badge bg-danger">Storniert</span>',
-            'overdue'   => '<span class="badge bg-warning text-dark">Überfällig</span>',
-            default     => '<span class="badge bg-light text-dark">Unbekannt</span>',
-        };
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // 🧮 BERECHNUNGEN
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Berechnet alle Summen neu aus den Positionen
-     * und speichert sie in der Datenbank.
+     * Berechnet alle Summen neu (aus den Positionen).
+     * Berücksichtigt automatisch Ritenuta d'acconto bei aktiviertem Flag.
      */
     public function recalculate(): void
     {
-        $positionen = $this->positionen;
+        // Summen aus Positionen
+        $netto = (float) $this->positionen->sum('netto_gesamt');
+        $mwst  = (float) $this->positionen->sum('mwst_betrag');
+        $brutto = (float) $this->positionen->sum('brutto_gesamt');
 
-        // Netto = Summe aller Netto-Gesamtbeträge
-        $this->netto_summe = $positionen->sum('netto_gesamt');
-
-        // MwSt-Betrag = Summe aller MwSt-Beträge
-        $this->mwst_betrag = $positionen->sum('mwst_betrag');
-
-        // Brutto = Netto + MwSt
-        $this->brutto_summe = $this->netto_summe + $this->mwst_betrag;
-
-        // Ritenuta nur, wenn aktiviert und Prozentsatz > 0
+        // Ritenuta d'acconto (4% vom Netto, falls aktiviert)
+        $ritenuta = 0.0;
         if ($this->ritenuta && $this->ritenuta_prozent > 0) {
-            $this->ritenuta_betrag = round(
-                $this->netto_summe * ($this->ritenuta_prozent / 100),
-                2
-            );
-        } else {
-            $this->ritenuta_betrag = 0;
+            $ritenuta = round($netto * ((float) $this->ritenuta_prozent / 100), 2);
         }
 
         // Zahlbar = Brutto - Ritenuta
-        $this->zahlbar_betrag = $this->brutto_summe - $this->ritenuta_betrag;
+        $zahlbar = round($brutto - $ritenuta, 2);
 
-        $this->save();
+        // Speichern
+        $this->update([
+            'netto_summe'    => $netto,
+            'mwst_betrag'    => $mwst,
+            'brutto_summe'   => $brutto,
+            'ritenuta_betrag' => $ritenuta,
+            'zahlbar_betrag' => $zahlbar,
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 🏗️ FACTORY METHODS
+    // 🏭 FACTORY: Rechnung aus Gebäude erstellen
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Erstellt eine neue Rechnung aus einem Gebäude
-     * (übernimmt Artikel, Adresse, Profil).
+     * Erstellt eine Rechnung aus einem Gebäude.
      * 
-     * @param Gebaeude $gebaeude                Das Gebäude, aus dem die Rechnung erzeugt wird.
-     * @param array<string, mixed> $overrides   Optional: Felder überschreiben (z.B. Datum).
+     * Features:
+     * - Kopiert Snapshots von Gebäude, Adressen, FatturaPA-Profil
+     * - Übernimmt aktive Artikel als Positionen
+     * - ⭐ WICHTIG: Wendet automatisch Preis-Aufschlag auf Einzelpreise an
+     * - Markiert Timeline-Einträge als verrechnet
+     * - Berechnet Leistungsdaten aus Timeline
+     * 
+     * @param Gebaeude $gebaeude
+     * @param array $overrides Optionale Überschreibungen
      * @return self
      */
     public static function createFromGebaeude(Gebaeude $gebaeude, array $overrides = []): self
     {
-        // Neues Jahr / Laufnummer ermitteln (mit Lock gegen Race Conditions)
+        // Jahr / Laufnummer ermitteln (mit Lock)
         $jahr = now()->year;
 
-        // WICHTIG: Laufnummer mit DB-Lock ermitteln, um Duplikate zu vermeiden
         $laufnummer = DB::transaction(function () use ($jahr) {
             $maxLaufnummer = (int) self::where('jahr', $jahr)
                 ->lockForUpdate()
@@ -288,27 +207,40 @@ class Rechnung extends Model
             return $maxLaufnummer + 1;
         });
 
-        // Zugeordnete Adressen / Profile aus dem Gebäude
+        // Zugeordnete Adressen / Profile
         $rechnungsempfaenger = $gebaeude->rechnungsempfaenger;
         $postadresse         = $gebaeude->postadresse;
         $profile             = $gebaeude->fatturaProfile;
 
         // ═══════════════════════════════════════════════════════════
-        // 🕒 Timeline-Einträge verarbeiten (verrechnen=true)
+        // 🕒 Timeline-Einträge verarbeiten
         // ═══════════════════════════════════════════════════════════
         
-        // Alle Timeline-Einträge mit verrechnen=true laden (sortiert nach Datum)
         $timelineEintraege = \App\Models\Timeline::where('gebaeude_id', $gebaeude->id)
             ->where('verrechnen', true)
-            ->whereNull('deleted_at') // Nur nicht gelöschte
+            ->whereNull('deleted_at')
             ->orderBy('datum')
             ->get();
 
-        // Leistungsdaten-String aus Timeline-Einträgen generieren
-        // Wenn keine Timeline-Einträge: "Jahr/anno YYYY"
         $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
 
-        // Basisdaten für die neue Rechnung (Snapshot der aktuellen Daten)
+        // ═══════════════════════════════════════════════════════════
+        // 💰 PREIS-AUFSCHLAG ERMITTELN
+        // ═══════════════════════════════════════════════════════════
+        
+        $aufschlagProzent = $gebaeude->getAufschlagProzent($jahr);
+        $aufschlagTyp = $gebaeude->hatIndividuellenAufschlag() ? 'individuell' : 'global';
+
+        \Log::info('Rechnung erstellen - Aufschlag', [
+            'gebaeude_id'      => $gebaeude->id,
+            'aufschlag_prozent' => $aufschlagProzent,
+            'aufschlag_typ'    => $aufschlagTyp,
+        ]);
+
+        // ═══════════════════════════════════════════════════════════
+        // 📋 RECHNUNG ERSTELLEN (Snapshot)
+        // ═══════════════════════════════════════════════════════════
+
         $rechnung = new self(array_merge([
             'jahr'                    => $jahr,
             'laufnummer'              => $laufnummer,
@@ -317,7 +249,6 @@ class Rechnung extends Model
             'postadresse_id'          => $postadresse->id,
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
             'rechnungsdatum'          => now(),
-            // Leistungsdaten aus Timeline-Einträgen (oder "Jahr/anno YYYY")
             'leistungsdaten'          => $leistungsdaten,
             'zahlungsziel'            => now()->addDays(30),
             'status'                  => 'draft',
@@ -357,7 +288,7 @@ class Rechnung extends Model
                 $gebaeude->wohnort
             ),
 
-            // FatturaPA aus Gebäude
+            // FatturaPA
             'cup'                     => $gebaeude->cup,
             'cig'                     => $gebaeude->cig,
             'auftrag_id'              => $gebaeude->auftrag_id,
@@ -369,61 +300,52 @@ class Rechnung extends Model
             'split_payment'           => $profile?->split_payment ?? false,
             'ritenuta'                => $profile?->ritenuta ?? false,
             'ritenuta_prozent'        => $profile?->ritenuta ? 4.00 : null,
+
+            // Aufschlag-Tracking
+            'aufschlag_prozent'       => $aufschlagProzent,
+            'aufschlag_typ'           => $aufschlagTyp,
         ], $overrides));
 
-        // Rechnung speichern, damit wir eine ID für Positionen haben
         $rechnung->save();
 
-        // Artikel übernehmen (nur aktive)
-        $artikelListe = $gebaeude->aktiveArtikel()->orderBy('reihenfolge')->get();
+        // ═══════════════════════════════════════════════════════════
+        // 📦 POSITIONEN ERSTELLEN (mit angepassten Preisen)
+        // ═══════════════════════════════════════════════════════════
 
-        // Netto-Summe der Artikel für spätere Aufschläge
-        $artikelNettoSumme = $artikelListe->reduce(
-            /**
-             * @param float           $summe
-             * @param ArtikelGebaeude $artikel
-             */
-            fn(float $summe, ArtikelGebaeude $artikel) =>
-            $summe + ((float) $artikel->anzahl * (float) $artikel->einzelpreis),
-            0.0
-        );
+        $artikelListe = $gebaeude->aktiveArtikel()
+            ->orderBy('reihenfolge')
+            ->get();
 
         $position = 1;
 
-        // Normale Artikelpositionen anlegen
         foreach ($artikelListe as $artikel) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
+            
+            // ⭐ HIER: Preis mit Aufschlag berechnen
+            $originalPreis = (float) $artikel->einzelpreis;
+            $einzelpreisAngepasst = $originalPreis;
+            
+            if ($aufschlagProzent != 0) {
+                $aufschlagBetrag = round($originalPreis * ($aufschlagProzent / 100), 2);
+                $einzelpreisAngepasst = round($originalPreis + $aufschlagBetrag, 2);
+                
+                \Log::debug('Preis angepasst', [
+                    'artikel'         => $artikel->beschreibung,
+                    'original'        => $originalPreis,
+                    'aufschlag'       => $aufschlagBetrag,
+                    'neu'             => $einzelpreisAngepasst,
+                    'prozent'         => $aufschlagProzent,
+                ]);
+            }
 
             $rechnung->positionen()->create([
                 'position'             => $position++,
                 'beschreibung'         => $artikel->beschreibung,
                 'anzahl'               => $artikel->anzahl,
                 'einheit'              => 'Stk',
-                'einzelpreis'          => $artikel->einzelpreis,
+                'einzelpreis'          => $einzelpreisAngepasst, // ⭐ Angepasster Preis
                 'mwst_satz'            => $mwstSatz,
                 'artikel_gebaeude_id'  => $artikel->id,
-            ]);
-        }
-
-        // Aktive Preisaufschläge als zusätzliche Positionen hinzufügen
-        $aufschlaege = $gebaeude->aktivePreisAufschlaege()->get();
-
-        foreach ($aufschlaege as $aufschlag) {
-            $mwstSatz = $profile?->mwst_satz ?? 22.00;
-            $betrag   = $aufschlag->berechneBetrag($artikelNettoSumme);
-
-            $beschreibung = $aufschlag->bezeichnung;
-            if ($aufschlag->istProzentual()) {
-                $beschreibung .= sprintf(' (%.2f%%)', $aufschlag->wert);
-            }
-
-            $rechnung->positionen()->create([
-                'position'     => $position++,
-                'beschreibung' => $beschreibung,
-                'anzahl'       => 1,
-                'einheit'      => 'Stk',
-                'einzelpreis'  => $betrag,
-                'mwst_satz'    => $mwstSatz,
             ]);
         }
 
@@ -449,7 +371,6 @@ class Rechnung extends Model
                 'rechnung_id'     => $rechnung->id,
                 'rechnung_nummer' => $rechnungNummer,
                 'anzahl_eintraege' => $timelineEintraege->count(),
-                'timeline_ids'    => $timelineEintraege->pluck('id')->toArray(),
             ]);
         }
 
@@ -458,26 +379,14 @@ class Rechnung extends Model
 
     /**
      * Formatiert Timeline-Einträge zu einem Leistungsdaten-String.
-     * 
-     * Format: 
-     * - Leer: "Jahr/anno YYYY"
-     * - Ein Datum: "DD.MM.YYYY"
-     * - Zeitraum: "DD.MM.YYYY - DD.MM.YYYY"
-     * - Mehrere: "DD.MM.YYYY, DD.MM.YYYY, DD.MM.YYYY"
-     * 
-     * @param \Illuminate\Support\Collection $timelineEintraege
-     * @param int|null $jahr Optional: Jahr für Fallback (default: aktuelles Jahr)
-     * @return string
      */
     protected static function formatLeistungsdaten($timelineEintraege, ?int $jahr = null): string
     {
-        // Wenn keine Timeline-Einträge: "Jahr/anno YYYY"
         if ($timelineEintraege->isEmpty()) {
             $jahr = $jahr ?? now()->year;
             return "Jahr/anno {$jahr}";
         }
 
-        // Datumsangaben sammeln und sortieren
         $daten = $timelineEintraege
             ->pluck('datum')
             ->map(fn($datum) => \Carbon\Carbon::parse($datum))
@@ -485,18 +394,14 @@ class Rechnung extends Model
             ->unique()
             ->values();
 
-        // Wenn nur ein Datum: einfach ausgeben
         if ($daten->count() === 1) {
             return $daten->first()->format('d.m.Y');
         }
 
-        // Bei mehreren Daten: prüfen, ob sie einen zusammenhängenden Zeitraum bilden
-        // Wenn die Daten innerhalb von 7 Tagen liegen, als Zeitraum darstellen
         $erstesDatum = $daten->first();
         $letztesDatum = $daten->last();
         $differenzTage = $erstesDatum->diffInDays($letztesDatum);
 
-        // Wenn weniger als 8 Tage Unterschied und mehr als 3 Einträge: als Zeitraum
         if ($differenzTage <= 7 && $daten->count() >= 3) {
             return sprintf(
                 '%s - %s',
@@ -505,7 +410,6 @@ class Rechnung extends Model
             );
         }
 
-        // Ansonsten: alle Daten einzeln auflisten (max. 10, dann "...")
         if ($daten->count() > 10) {
             $gezeigt = $daten->take(10)
                 ->map(fn($d) => $d->format('d.m.Y'))
@@ -547,5 +451,44 @@ class Rechnung extends Model
     public function scopeYear($query, int $year)
     {
         return $query->where('jahr', $year);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 🏷️ ACCESSORS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Formatierte Rechnungsnummer (z.B. "2025/0042")
+     */
+    public function getRechnungsnummerAttribute(): string
+    {
+        return sprintf('%d/%04d', $this->jahr, $this->laufnummer);
+    }
+
+    /**
+     * Status-Badge für UI
+     */
+    public function getStatusBadgeAttribute(): string
+    {
+        return match($this->status) {
+            'draft'     => '<span class="badge bg-secondary">Entwurf</span>',
+            'sent'      => '<span class="badge bg-info">Versendet</span>',
+            'paid'      => '<span class="badge bg-success">Bezahlt</span>',
+            'cancelled' => '<span class="badge bg-danger">Storniert</span>',
+            default     => '<span class="badge bg-light text-dark">' . $this->status . '</span>',
+        };
+    }
+
+    /**
+     * Aufschlag-Info für UI
+     */
+    public function getAufschlagInfoAttribute(): string
+    {
+        if (!$this->aufschlag_prozent || $this->aufschlag_prozent == 0) {
+            return 'Kein Aufschlag';
+        }
+
+        $typ = $this->aufschlag_typ === 'individuell' ? 'Individuell' : 'Global';
+        return sprintf('%s: %+.2f%%', $typ, $this->aufschlag_prozent);
     }
 }

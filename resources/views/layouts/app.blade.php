@@ -113,8 +113,11 @@
                             <i class="bi bi-map"></i> Touren
                         </a>
                     </li>
-
-
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('preis-aufschlaege*') ? 'active fw-bold' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
+                            <i class="bi bi-percent"></i> Preis-Aufschläge
+                        </a>
+                    </li>
                 </ul>
 
                 {{-- 🔹 Benutzerbereich (rechts) --}}
