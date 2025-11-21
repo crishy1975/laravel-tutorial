@@ -142,64 +142,59 @@ class RechnungController extends Controller
         ]);
     }
 
-
     /**
-     * Formular: Neue Rechnung anlegen.
-     */
-    /**
-     * Neue Rechnung sofort anlegen und direkt ins Bearbeitungsformular springen.
+     * Neue Rechnung aus einem Gebäude erstellen.
+     * 
+     * Diese Methode erstellt automatisch eine Rechnung inkl.:
+     * - Rechnungsempfänger & Postadresse (Snapshot)
+     * - Gebäude-Informationen (Snapshot)
+     * - FatturaPA-Profile (Snapshot)
+     * - Alle aktiven Artikel als Rechnungspositionen
      */
     public function create(Request $request)
     {
-        // Neue Instanz
-        $rechnung = new Rechnung();
-
-        // Falls von einem Gebäude aus aufgerufen (?gebaeude_id=...)
-        if ($request->filled('gebaeude_id')) {
-            $rechnung->gebaeude_id = $request->integer('gebaeude_id');
-
-            // Optional: Hier könntest du später Daten aus dem Gebäude in die Rechnung übernehmen
-            // (Kunde, Adresse, Beschreibung, etc.)
-            //
-            // $gebaeude = Gebaeude::find($rechnung->gebaeude_id);
-            // if ($gebaeude) {
-            //     $rechnung->kunde_id = $gebaeude->kunde_id;
-            //     // weitere Felder...
-            // }
+        // Gebäude-ID ist Pflicht für die automatische Rechnungserstellung
+        if (!$request->filled('gebaeude_id')) {
+            return redirect()
+                ->route('rechnung.index')
+                ->with('error', 'Bitte wählen Sie zuerst ein Gebäude aus.');
         }
 
-        // Standard-/Pflichtwerte setzen
-        $rechnung->status         = 'draft';          // Entwurf
-        $rechnung->typ_rechnung   = 'rechnung';       // Standard: Rechnung (kein Gutschrift)
-        $rechnung->rechnungsdatum = now();            // Heute
-        $rechnung->jahr           = now()->year;     // Aktuelles Jahr
-        $rechnung->laufnummer     = 1;                // Vorläufige Laufnummer (wird später gesetzt)
-        $rechnung->re_name = 'Rechnungsempfänger noch nicht gewählt';
-        $rechnung->post_name = 'Postadresse noch nicht gewählt';
-        // WICHTIG:
-        // Falls deine Tabelle `rechnungen` noch weitere NOT NULL-Felder ohne Default hat,
-        // musst du diese hier sinnvoll befüllen, sonst gibt es einen SQL-Fehler beim save().
-        // z.B.:
-        // $rechnung->waehrung = 'EUR';
-        // $rechnung->sprache  = 'de';
+        try {
+            // Gebäude laden
+            $gebaeude = Gebaeude::findOrFail($request->integer('gebaeude_id'));
 
-        // Speichern in der Datenbank
-        $rechnung->save();
+            // Prüfen, ob Gebäude die nötigen Daten hat
+            if (!$gebaeude->rechnungsempfaenger_id || !$gebaeude->postadresse_id) {
+                return redirect()
+                    ->route('gebaeude.edit', $gebaeude->id)
+                    ->with('error', 'Bitte hinterlegen Sie zuerst einen Rechnungsempfänger und eine Postadresse für dieses Gebäude.');
+            }
 
-        // Optional: Falls du nach dem Speichern eine Rechnungsnummer generierst
-        // (z.B. basierend auf ID + Jahr), kannst du das hier tun:
-        //
-        // if (!$rechnung->nummern) {
-        //     $rechnung->nummern = 'R-' . now()->year . '-' . str_pad($rechnung->id, 5, '0', STR_PAD_LEFT);
-        //     $rechnung->save();
-        // }
+            // Rechnung automatisch aus Gebäude erstellen
+            // Diese Methode übernimmt automatisch:
+            // - Alle aktiven Artikel
+            // - Rechnungsempfänger & Postadresse (Snapshot)
+            // - FatturaPA-Daten
+            // - Preisaufschläge
+            $rechnung = Rechnung::createFromGebaeude($gebaeude);
 
-        // Direkt auf das Bearbeitungsformular umleiten
-        return redirect()
-            ->route('rechnung.edit', $rechnung->id)
-            ->with('info', 'Neue Rechnung als Entwurf angelegt.');
+            // Direkt zum Bearbeitungsformular weiterleiten
+            return redirect()
+                ->route('rechnung.edit', $rechnung->id)
+                ->with('success', "Rechnung {$rechnung->nummern} wurde aus Gebäude {$gebaeude->codex} erstellt.");
+        } catch (\Exception $e) {
+            \Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
+                'gebaeude_id' => $request->integer('gebaeude_id'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Fehler beim Erstellen der Rechnung: ' . $e->getMessage());
+        }
     }
-
 
     /**
      * Neue Rechnung speichern.
@@ -209,7 +204,6 @@ class RechnungController extends Controller
         $validated = $request->validate([
             'gebaeude_id'       => 'required|exists:gebaeude,id',
             'rechnungsdatum'    => 'required|date',
-            'leistungsdatum'    => 'nullable|date',
             'zahlungsziel'      => 'nullable|date',
             'status'            => 'required|in:draft,sent,paid,overdue,cancelled',
             'bezahlt_am'        => 'nullable|date',
@@ -271,20 +265,74 @@ class RechnungController extends Controller
 
         if (!$rechnung->ist_editierbar) {
             \Log::info('Rechnung nicht editierbar');
-            return redirect()->back()->with('error', 'Diese Rechnung kann nicht mehr bearbeitet werden.');
+            return redirect()
+                ->back()
+                ->with('error', 'Diese Rechnung kann nicht mehr bearbeitet werden.');
         }
 
+        // Welche Felder dürfen aus dem Formular übernommen werden?
         $validated = $request->validate([
-            // ... deine Validation
+            // Basisdaten
+            'rechnungsdatum'     => ['required', 'date'],
+            'zahlungsziel'       => ['nullable', 'date'],
+            'status'             => ['required', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
+            'typ_rechnung'       => ['required', Rule::in(['rechnung', 'gutschrift'])],
+            'bezahlt_am'         => ['nullable', 'date'],
+
+            // Rechnungs-/Leistungsdaten (Text, kein Datum mehr)
+            'rechnungsdaten'     => ['nullable', 'string', 'max:255'],
+
+            // Fattura-Profil
+            'fattura_profile_id' => ['nullable', 'exists:fattura_profile,id'],
+
+            // FatturaPA / öffentliche Aufträge
+            'cup'                => ['nullable', 'string', 'max:20'],
+            'cig'                => ['nullable', 'string', 'max:10'],
+            'auftrag_id'         => ['nullable', 'string', 'max:50'],
+            'auftrag_datum'      => ['nullable', 'date'],
+
+            // Texte / Bemerkungen
+            'bemerkung'          => ['nullable', 'string'],
+            'bemerkung_kunde'    => ['nullable', 'string'],
+            'zahlungsbedingungen' => ['nullable', 'string'],
         ]);
 
-        \Log::info('Validation OK', ['validated_re_name' => $validated['re_name'] ?? 'NULL']);
+        \Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
 
-        $rechnung->update($validated);
-        \Log::info('Update ausgeführt', ['neue_re_name' => $rechnung->re_name]);
+        // Felder in das Modell schreiben
+        $rechnung->fill($validated);
+
+        // Falls du bei Profil-Wechsel noch Snapshot-Felder setzen willst,
+        // kannst du das hier machen:
+        if (array_key_exists('fattura_profile_id', $validated)) {
+            $profil = null;
+
+            if (!empty($validated['fattura_profile_id'])) {
+                $profil = FatturaProfile::find($validated['fattura_profile_id']);
+            }
+
+            if ($profil) {
+                $rechnung->profile_bezeichnung = $profil->bezeichnung;
+                $rechnung->mwst_satz           = $profil->mwst_satz;
+                $rechnung->split_payment       = (bool) $profil->split_payment;
+                $rechnung->ritenuta            = (bool) $profil->ritenuta;
+                $rechnung->ritenuta_prozent    = $profil->ritenuta_prozent;
+            } else {
+                // Profil entfernt → Snapshots leeren
+                $rechnung->profile_bezeichnung = null;
+                $rechnung->mwst_satz           = null;
+                $rechnung->split_payment       = false;
+                $rechnung->ritenuta            = false;
+                $rechnung->ritenuta_prozent    = null;
+            }
+        }
+
+        // Speichern
+        $rechnung->save();
+        \Log::info('Update ausgeführt', ['neue_rechnungsdaten' => $rechnung->rechnungsdaten]);
 
         $rechnung->refresh();
-        \Log::info('Nach Refresh', ['re_name' => $rechnung->re_name]);
+        \Log::info('Nach Refresh', ['status' => $rechnung->status, 'typ_rechnung' => $rechnung->typ_rechnung]);
 
         \Log::info('=== RECHNUNG UPDATE ENDE ===');
 
@@ -292,6 +340,7 @@ class RechnungController extends Controller
             ->route('rechnung.edit', $rechnung->id)
             ->with('success', 'Rechnung erfolgreich aktualisiert.');
     }
+
 
     /**
      * Rechnung löschen (nur Entwürfe).

@@ -84,7 +84,8 @@ class Rechnung extends Model
 
         // Status & Flags
         'status',
-
+        'typ_rechnung',
+        
         // Snapshot Profil
         'profile_bezeichnung',
         'mwst_satz',
@@ -188,7 +189,7 @@ class Rechnung extends Model
      */
     public function getNummernAttribute(): string
     {
-        return sprintf('%d_%04d', $this->jahr, $this->laufnummer);
+        return sprintf('%d/%04d', $this->jahr, $this->laufnummer);
     }
 
     /**
@@ -292,6 +293,21 @@ class Rechnung extends Model
         $postadresse         = $gebaeude->postadresse;
         $profile             = $gebaeude->fatturaProfile;
 
+        // ═══════════════════════════════════════════════════════════
+        // 🕒 Timeline-Einträge verarbeiten (verrechnen=true)
+        // ═══════════════════════════════════════════════════════════
+        
+        // Alle Timeline-Einträge mit verrechnen=true laden (sortiert nach Datum)
+        $timelineEintraege = \App\Models\Timeline::where('gebaeude_id', $gebaeude->id)
+            ->where('verrechnen', true)
+            ->whereNull('deleted_at') // Nur nicht gelöschte
+            ->orderBy('datum')
+            ->get();
+
+        // Leistungsdaten-String aus Timeline-Einträgen generieren
+        // Wenn keine Timeline-Einträge: "Jahr/anno YYYY"
+        $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
+
         // Basisdaten für die neue Rechnung (Snapshot der aktuellen Daten)
         $rechnung = new self(array_merge([
             'jahr'                    => $jahr,
@@ -301,8 +317,8 @@ class Rechnung extends Model
             'postadresse_id'          => $postadresse->id,
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
             'rechnungsdatum'          => now(),
-            // NEU: Leistungsdaten als String, z.B. identisch mit dem Rechnungsdatum
-            'leistungsdaten'          => now()->toDateString(),
+            // Leistungsdaten aus Timeline-Einträgen (oder "Jahr/anno YYYY")
+            'leistungsdaten'          => $leistungsdaten,
             'zahlungsziel'            => now()->addDays(30),
             'status'                  => 'draft',
 
@@ -414,7 +430,92 @@ class Rechnung extends Model
         // Abschließende Neuberechnung aller Summen
         $rechnung->recalculate();
 
+        // ═══════════════════════════════════════════════════════════
+        // 🕒 Timeline-Einträge als verrechnet markieren
+        // ═══════════════════════════════════════════════════════════
+        
+        if ($timelineEintraege->isNotEmpty()) {
+            $rechnungNummer = sprintf('%d/%04d', $rechnung->jahr, $rechnung->laufnummer);
+            
+            foreach ($timelineEintraege as $timeline) {
+                $timeline->update([
+                    'verrechnen'                => false,
+                    'verrechnet_am'             => now()->toDateString(),
+                    'verrechnet_mit_rn_nummer'  => $rechnungNummer,
+                ]);
+            }
+            
+            \Log::info('Timeline-Einträge als verrechnet markiert', [
+                'rechnung_id'     => $rechnung->id,
+                'rechnung_nummer' => $rechnungNummer,
+                'anzahl_eintraege' => $timelineEintraege->count(),
+                'timeline_ids'    => $timelineEintraege->pluck('id')->toArray(),
+            ]);
+        }
+
         return $rechnung;
+    }
+
+    /**
+     * Formatiert Timeline-Einträge zu einem Leistungsdaten-String.
+     * 
+     * Format: 
+     * - Leer: "Jahr/anno YYYY"
+     * - Ein Datum: "DD.MM.YYYY"
+     * - Zeitraum: "DD.MM.YYYY - DD.MM.YYYY"
+     * - Mehrere: "DD.MM.YYYY, DD.MM.YYYY, DD.MM.YYYY"
+     * 
+     * @param \Illuminate\Support\Collection $timelineEintraege
+     * @param int|null $jahr Optional: Jahr für Fallback (default: aktuelles Jahr)
+     * @return string
+     */
+    protected static function formatLeistungsdaten($timelineEintraege, ?int $jahr = null): string
+    {
+        // Wenn keine Timeline-Einträge: "Jahr/anno YYYY"
+        if ($timelineEintraege->isEmpty()) {
+            $jahr = $jahr ?? now()->year;
+            return "Jahr/anno {$jahr}";
+        }
+
+        // Datumsangaben sammeln und sortieren
+        $daten = $timelineEintraege
+            ->pluck('datum')
+            ->map(fn($datum) => \Carbon\Carbon::parse($datum))
+            ->sort()
+            ->unique()
+            ->values();
+
+        // Wenn nur ein Datum: einfach ausgeben
+        if ($daten->count() === 1) {
+            return $daten->first()->format('d.m.Y');
+        }
+
+        // Bei mehreren Daten: prüfen, ob sie einen zusammenhängenden Zeitraum bilden
+        // Wenn die Daten innerhalb von 7 Tagen liegen, als Zeitraum darstellen
+        $erstesDatum = $daten->first();
+        $letztesDatum = $daten->last();
+        $differenzTage = $erstesDatum->diffInDays($letztesDatum);
+
+        // Wenn weniger als 8 Tage Unterschied und mehr als 3 Einträge: als Zeitraum
+        if ($differenzTage <= 7 && $daten->count() >= 3) {
+            return sprintf(
+                '%s - %s',
+                $erstesDatum->format('d.m.Y'),
+                $letztesDatum->format('d.m.Y')
+            );
+        }
+
+        // Ansonsten: alle Daten einzeln auflisten (max. 10, dann "...")
+        if ($daten->count() > 10) {
+            $gezeigt = $daten->take(10)
+                ->map(fn($d) => $d->format('d.m.Y'))
+                ->join(', ');
+            return $gezeigt . ' ...';
+        }
+
+        return $daten
+            ->map(fn($d) => $d->format('d.m.Y'))
+            ->join(', ');
     }
 
     // ═══════════════════════════════════════════════════════════

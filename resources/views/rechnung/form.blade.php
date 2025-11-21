@@ -56,13 +56,6 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-positionen"
-                        data-bs-toggle="tab" data-bs-target="#content-positionen"
-                        type="button" role="tab">
-                        <i class="bi bi-list-ul"></i> Positionen
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="tab-vorschau"
                         data-bs-toggle="tab" data-bs-target="#content-vorschau"
                         type="button" role="tab">
@@ -95,17 +88,7 @@
                     @include('rechnung.partials._allgemein')
                 </div>
 
-                {{-- Tab 2: Adressen --}}
-                <div class="tab-pane fade" id="content-adressen" role="tabpanel">
-                    @include('rechnung.partials._adressen')
-                </div>
-
-                {{-- Tab 3: Positionen --}}
-                <div class="tab-pane fade" id="content-positionen" role="tabpanel">
-                    @include('rechnung.partials._positionen')
-                </div>
-
-                {{-- Tab 4: Vorschau --}}
+                {{-- Tab 2: Vorschau --}}
                 <div class="tab-pane fade" id="content-vorschau" role="tabpanel">
                     @include('rechnung.partials._vorschau')
                 </div>
