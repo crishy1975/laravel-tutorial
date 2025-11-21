@@ -136,7 +136,7 @@ Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('timeline.destroy');
 
-    // NEU: Verrechnen-Status eines Timeline-Eintrags toggeln
+// NEU: Verrechnen-Status eines Timeline-Eintrags toggeln
 Route::patch('/timeline/{id}/verrechnen', [TimelineController::class, 'toggleVerrechnen'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')
@@ -177,46 +177,78 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 
-/* ==================== Rechnungen ==================== */
-Route::middleware(['auth', 'verified'])
-    ->prefix('rechnung')
-    ->name('rechnung.')
-    ->group(function () {
-        // Liste & CRUD
-        Route::get('/',        [RechnungController::class, 'index'])->name('index');
-        Route::get('/create',  [RechnungController::class, 'create'])->name('create');
-        Route::post('/',       [RechnungController::class, 'store'])->name('store');
+Route::middleware(['auth'])->group(function () {
 
-        Route::get('/{id}',      [RechnungController::class, 'show'])
-            ->whereNumber('id')->name('show');
+    // ═══════════════════════════════════════════════════════════
+    // RECHNUNGEN - Hauptrouten
+    // ═══════════════════════════════════════════════════════════
 
-        Route::get('/{id}/edit', [RechnungController::class, 'edit'])
-            ->whereNumber('id')->name('edit');
+    // Liste aller Rechnungen
+    Route::get('/rechnung', [RechnungController::class, 'index'])
+        ->name('rechnung.index');
 
-        Route::put('/{id}',      [RechnungController::class, 'update'])
-            ->whereNumber('id')->name('update');
+    // Neue Rechnung aus Gebäude erstellen
+    // Aufruf: /rechnung/create?gebaeude_id=123
+    Route::get('/rechnung/create', [RechnungController::class, 'create'])
+        ->name('rechnung.create');
 
-        Route::delete('/{id}',   [RechnungController::class, 'destroy'])
-            ->whereNumber('id')->name('destroy');
+    // Rechnung speichern (POST nach create)
+    Route::post('/rechnung', [RechnungController::class, 'store'])
+        ->name('rechnung.store');
 
-        // 📄 Export (PDF, XML)
-        Route::get('/{id}/pdf',  [RechnungController::class, 'generatePdf'])
-            ->whereNumber('id')->name('pdf');
+    // Einzelne Rechnung anzeigen
+    Route::get('/rechnung/{id}', [RechnungController::class, 'show'])
+        ->name('rechnung.show');
 
-        Route::get('/{id}/xml',  [RechnungController::class, 'generateXml'])
-            ->whereNumber('id')->name('xml');
+    // Rechnung bearbeiten
+    Route::get('/rechnung/{id}/edit', [RechnungController::class, 'edit'])
+        ->name('rechnung.edit');
 
-        // 🧾 Positionen verwalten
-        Route::post('/{id}/position', [RechnungController::class, 'storePosition'])
-            ->whereNumber('id')->name('position.store');
+    // Rechnung aktualisieren
+    Route::put('/rechnung/{id}', [RechnungController::class, 'update'])
+        ->name('rechnung.update');
 
-        Route::put('/position/{id}', [RechnungController::class, 'updatePosition'])
-            ->whereNumber('id')->name('position.update');
+    // Rechnung löschen (nur Entwürfe)
+    Route::delete('/rechnung/{id}', [RechnungController::class, 'destroy'])
+        ->name('rechnung.destroy');
 
-        Route::delete('/position/{id}', [RechnungController::class, 'destroyPosition'])
-            ->whereNumber('id')->name('position.destroy');
-    });
+    // ═══════════════════════════════════════════════════════════
+    // RECHNUNGSPOSITIONEN
+    // ═══════════════════════════════════════════════════════════
 
+    // Neue Position hinzufügen
+    Route::post('/rechnung/{rechnungId}/position', [RechnungController::class, 'storePosition'])
+        ->name('rechnung.position.store');
+
+    // Position aktualisieren
+    Route::put('/rechnung/position/{positionId}', [RechnungController::class, 'updatePosition'])
+        ->name('rechnung.position.update');
+
+    // Position löschen
+    Route::delete('/rechnung/position/{positionId}', [RechnungController::class, 'destroyPosition'])
+        ->name('rechnung.position.destroy');
+
+    // ═══════════════════════════════════════════════════════════
+    // GEBÄUDE - Rechnung erstellen
+    // ═══════════════════════════════════════════════════════════
+
+    // Rechnung direkt aus Gebäude erstellen
+    // Aufruf: POST /gebaeude/123/rechnung
+    Route::post('/gebaeude/{id}/rechnung', [GebaeudeController::class, 'createRechnung'])
+        ->name('gebaeude.rechnung.create');
+
+    // ═══════════════════════════════════════════════════════════
+    // EXPORT (optional, wenn später implementiert)
+    // ═══════════════════════════════════════════════════════════
+
+    // PDF generieren
+    Route::get('/rechnung/{id}/pdf', [RechnungController::class, 'generatePdf'])
+        ->name('rechnung.pdf');
+
+    // FatturaPA XML generieren
+    Route::get('/rechnung/{id}/xml', [RechnungController::class, 'generateXml'])
+        ->name('rechnung.xml');
+});
 
 /* ==================== Auth Scaffolding ==================== */
 require __DIR__ . '/auth.php';

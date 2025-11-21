@@ -758,4 +758,73 @@ class GebaeudeController extends Controller
             'processed' => $processed,
         ]);
     }
+
+    /**
+     * Erstellt eine neue Rechnung aus einem Gebäude.
+     * 
+     * Diese Methode nutzt die automatische Rechnungserstellung aus dem Gebaeude-Model,
+     * welche alle aktiven Artikel, Adressen und FatturaPA-Daten übernimmt.
+     * 
+     * @param int $id Die Gebäude-ID
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function createRechnung(int $id)
+    {
+        try {
+            // Gebäude laden mit allen notwendigen Beziehungen
+            $gebaeude = Gebaeude::with([
+                'rechnungsempfaenger',
+                'postadresse',
+                'fatturaProfile',
+                'aktiveArtikel'
+            ])->findOrFail($id);
+
+            // Prüfen, ob Gebäude die nötigen Daten hat
+            if (!$gebaeude->rechnungsempfaenger_id || !$gebaeude->postadresse_id) {
+                return redirect()
+                    ->route('gebaeude.edit', $gebaeude->id)
+                    ->with('error', 'Bitte hinterlegen Sie zuerst einen Rechnungsempfänger und eine Postadresse für dieses Gebäude.');
+            }
+
+            // Prüfen, ob aktive Artikel vorhanden sind
+            if ($gebaeude->aktiveArtikel->isEmpty()) {
+                return redirect()
+                    ->route('gebaeude.edit', $gebaeude->id)
+                    ->with('warning', 'Dieses Gebäude hat keine aktiven Artikel. Bitte fügen Sie zuerst Artikel hinzu.');
+            }
+
+            // Rechnung automatisch aus Gebäude erstellen
+            // Die createFromGebaeude-Methode übernimmt automatisch:
+            // - Alle aktiven Artikel als Rechnungspositionen
+            // - Rechnungsempfänger & Postadresse (Snapshot)
+            // - Gebäude-Informationen (Snapshot)
+            // - FatturaPA-Daten
+            // - Preisaufschläge (Inflationsaufschläge)
+            $rechnung = \App\Models\Rechnung::createFromGebaeude($gebaeude);
+
+            Log::info('Rechnung aus Gebäude erstellt', [
+                'rechnung_id'    => $rechnung->id,
+                'rechnung_nr'    => $rechnung->nummern,
+                'gebaeude_id'    => $gebaeude->id,
+                'gebaeude_codex' => $gebaeude->codex,
+                'positionen'     => $rechnung->positionen->count(),
+            ]);
+
+            // Direkt zum Bearbeitungsformular der neuen Rechnung weiterleiten
+            return redirect()
+                ->route('rechnung.edit', $rechnung->id)
+                ->with('success', "Rechnung {$rechnung->nummern} wurde erfolgreich aus Gebäude {$gebaeude->codex} erstellt.");
+
+        } catch (\Exception $e) {
+            Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
+                'gebaeude_id' => $id,
+                'error'       => $e->getMessage(),
+                'trace'       => $e->getTraceAsString()
+            ]);
+
+            return redirect()
+                ->back()
+                ->with('error', 'Fehler beim Erstellen der Rechnung: ' . $e->getMessage());
+        }
+    }
 }
