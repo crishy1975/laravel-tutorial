@@ -42,7 +42,7 @@
             <i class="bi bi-house"></i> Allgemein
           </button>
         </li>
-        {{-- 🔹 Tabs-Header: neuen Tab „FatturaPA“ ergänzen --}}
+        {{-- 🔹 Tabs-Header: neuen Tab "FatturaPA" ergänzen --}}
         <li class="nav-item" role="presentation">
           <button class="nav-link" id="tab-fatturapa" data-bs-toggle="tab"
             data-bs-target="#content-fatturapa" type="button" role="tab"
@@ -81,7 +81,7 @@
         {{-- 🔹 Tabs-Navigation: neuer Tab "Artikel" mit Icon --}}
         <li class="nav-item" role="presentation">
           <button
-            class="nav-link" {{-- "active" hinzufügen, falls dieser Tab standardmäßig aktiv sein soll --}}
+            class="nav-link"
             id="tab-artikel"
             data-bs-toggle="tab"
             data-bs-target="#content-artikel"
@@ -90,6 +90,31 @@
             aria-controls="content-artikel"
             aria-selected="false">
             <i class="bi bi-receipt"></i> Artikel
+          </button>
+        </li>
+        {{-- ⭐ NEU: Tab für Preis-Aufschlag --}}
+        <li class="nav-item" role="presentation">
+          <button
+            class="nav-link"
+            id="tab-aufschlag"
+            data-bs-toggle="tab"
+            data-bs-target="#content-aufschlag"
+            type="button"
+            role="tab"
+            aria-controls="content-aufschlag"
+            aria-selected="false">
+            <i class="bi bi-percent"></i> Preis-Aufschlag
+          </button>
+        </li>
+        {{-- ⭐⭐⭐ NEU: Tab für Rechnungen --}}
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="tab-rechnungen"
+            data-bs-toggle="tab" data-bs-target="#content-rechnungen"
+            type="button" role="tab">
+            <i class="bi bi-receipt"></i> Rechnungen
+            @if(!empty($gebaeude->id))
+            <span class="badge bg-success ms-1">{{ $gebaeude->rechnungen->count() }}</span>
+            @endif
           </button>
         </li>
 
@@ -115,7 +140,7 @@
         <div class="tab-pane fade show active" id="content-allgemein" role="tabpanel">
           @include('gebaeude.partials._allgemein')
         </div>
-        {{-- 🔹 Tabs-Content: Pane für „FatturaPA“ --}}
+        {{-- 🔹 Tabs-Content: Pane für "FatturaPA" --}}
         <div class="tab-pane fade" id="content-fatturapa" role="tabpanel" aria-labelledby="tab-fatturapa">
           @include('gebaeude.partials._fatturapa')
         </div>
@@ -129,20 +154,29 @@
           @include('gebaeude.partials._touren')
         </div>
         <div class="tab-pane fade" id="content-timeline" role="tabpanel" aria-labelledby="tab-timeline">
-          {{-- Inhalt der Timeline, z. B.: --}}
-
           @include('gebaeude.partials._timeline', ['gebaeude' => $gebaeude])
         </div>
-        {{-- 🔹 Inhalt der Tabs: Pane für "Artikel"
-     Hinweis: Kein verschachteltes <form> – das Partial arbeitet per fetch/AJAX. --}}
+        {{-- 🔹 Inhalt der Tabs: Pane für "Artikel" --}}
         <div
-          class="tab-pane fade" {{-- "show active" ergänzen, wenn dieser Tab aktiv sein soll --}}
+          class="tab-pane fade"
           id="content-artikel"
           role="tabpanel"
           aria-labelledby="tab-artikel">
-
-          {{-- Artikel-Partial einbinden (editierbare Tabelle mit Add/Update/Delete Icons) --}}
           @include('gebaeude.partials._artikel', ['gebaeude' => $gebaeude])
+        </div>
+
+        {{-- ⭐ NEU: Inhalt für Preis-Aufschlag Tab (OHNE Forms!) --}}
+        <div
+          class="tab-pane fade"
+          id="content-aufschlag"
+          role="tabpanel"
+          aria-labelledby="tab-aufschlag">
+          @include('gebaeude.partials._aufschlag', ['gebaeude' => $gebaeude])
+        </div>
+        {{-- ⭐⭐⭐ NEU: Inhalt für Rechnungen Tab --}}
+        <div class="tab-pane fade" id="content-rechnungen"
+          role="tabpanel" aria-labelledby="tab-rechnungen">
+          @include('gebaeude.partials._rechnungen', ['gebaeude' => $gebaeude])
         </div>
       </div>
 
@@ -168,6 +202,11 @@
     </form>
   </div>
 </div>
+
+{{-- ⭐⭐⭐ WICHTIG: Modals AUSSERHALB des Hauptformulars! ⭐⭐⭐ --}}
+@if(!empty($gebaeude->id))
+@include('gebaeude.partials._aufschlag_modals', ['gebaeude' => $gebaeude])
+@endif
 
 @endsection
 

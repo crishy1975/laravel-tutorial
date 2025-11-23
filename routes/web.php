@@ -105,6 +105,18 @@ Route::middleware(['auth', 'verified'])
             ->name('gebaeude.faellig.recalcAll');
     });
 
+// Gebäude Aufschlag-Routes (DIREKT danach, NICHT in einer Gruppe!)
+Route::post('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'setAufschlag'])
+    ->middleware(['auth'])
+    ->name('gebaeude.aufschlag.set');
+
+Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'removeAufschlag'])
+    ->middleware(['auth'])
+    ->name('gebaeude.aufschlag.remove');
+
+Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufschlag'])
+    ->name('gebaeude.aufschlag.get');
+
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/artikel-gebaeude/{id}',    [ArtikelGebaeudeController::class, 'update'])

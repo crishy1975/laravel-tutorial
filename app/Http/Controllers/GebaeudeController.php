@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Services\FaelligkeitsService;
 use Illuminate\Http\JsonResponse;
 use Throwable;
+use Illuminate\Support\Carbon;
 
 class GebaeudeController extends Controller
 {
@@ -162,7 +163,7 @@ class GebaeudeController extends Controller
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
                 'rechnungsempfaenger_id.required' => 'Bitte einen Rechnungsempfänger auswählen.',
                 'rechnungsempfaenger_id.exists'   => 'Der ausgewählte Rechnungsempfänger ist ungültig.',
-                'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen“ darf nicht größer sein als „Geplante Reinigungen“.',
+                'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen" darf nicht größer sein als „Geplante Reinigungen".',
             ]);
 
             // 2) Validierung Pivot (Touren)
@@ -289,7 +290,7 @@ class GebaeudeController extends Controller
      * Gebäude-Index mit Filtern und MariaDB-kompatibler Sortierung.
      */
     public function index(Request $request)
-    { 
+    {
         $codex         = trim($request->get('codex', ''));
         $gebaeude_name = trim($request->get('gebaeude_name', ''));
         $strasse       = trim($request->get('strasse', ''));
@@ -431,7 +432,7 @@ class GebaeudeController extends Controller
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
                 'rechnungsempfaenger_id.required' => 'Bitte einen Rechnungsempfänger auswählen.',
                 'rechnungsempfaenger_id.exists'   => 'Der ausgewählte Rechnungsempfänger ist ungültig.',
-                'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen“ darf nicht größer sein als „Geplante Reinigungen“.',
+                'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen" darf nicht größer sein als „Geplante Reinigungen".',
             ]);
 
             // 2) Casting / Normalisierung
@@ -739,8 +740,7 @@ class GebaeudeController extends Controller
     public function recalcFaelligAll(
         \Illuminate\Http\Request $request,
         FaelligkeitsService $svc
-    ) 
-    {
+    ) {
         // Sicherheits-Gate kannst du hier optional prüfen (Rolle etc.)
         $processed = $svc->recalcAll();
 
@@ -814,7 +814,6 @@ class GebaeudeController extends Controller
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
                 ->with('success', "Rechnung {$rechnung->nummern} wurde erfolgreich aus Gebäude {$gebaeude->codex} erstellt.");
-
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
                 'gebaeude_id' => $id,
@@ -825,6 +824,80 @@ class GebaeudeController extends Controller
             return redirect()
                 ->back()
                 ->with('error', 'Fehler beim Erstellen der Rechnung: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Setzt individuellen Aufschlag für Gebäude
+     */
+    public function setAufschlag(Request $request, Gebaeude $gebaeude)
+    {
+        $validated = $request->validate([
+            'prozent'     => 'required|numeric|min:-100|max:100',
+            'grund'       => 'nullable|string|max:255',
+            'gueltig_ab'  => 'nullable|date',
+            'gueltig_bis' => 'nullable|date|after:gueltig_ab',
+        ]);
+
+        $gebaeude->setAufschlag(
+            $validated['prozent'],
+            $validated['grund'] ?? null,
+            isset($validated['gueltig_ab']) ? Carbon::parse($validated['gueltig_ab']) : null,
+            isset($validated['gueltig_bis']) ? Carbon::parse($validated['gueltig_bis']) : null
+        );
+
+        return redirect()
+            ->route('gebaeude.edit', $gebaeude->id)
+            ->with('success', 'Individueller Aufschlag wurde erfolgreich gesetzt.');
+    }
+
+    /**
+     * Entfernt individuellen Aufschlag
+     */
+    public function removeAufschlag(Gebaeude $gebaeude)
+    {
+        $gebaeude->entferneIndividuellenAufschlag();
+
+        return redirect()
+            ->route('gebaeude.edit', $gebaeude->id)
+            ->with('success', 'Individueller Aufschlag wurde entfernt. Es gilt wieder der globale Aufschlag.');
+    }
+
+    /**
+     * ⭐ NEU: Gibt Aufschlag für ein Gebäude und Jahr zurück (für JavaScript/AJAX)
+     * 
+     * Route: GET /gebaeude/{id}/aufschlag?jahr=2025
+     * 
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getAufschlag(Request $request, int $id)
+    {
+        try {
+            $gebaeude = Gebaeude::findOrFail($id);
+            $jahr = $request->integer('jahr', now()->year);
+            
+            $aufschlag = $gebaeude->getAufschlagProzent($jahr);
+            $hatIndividuell = $gebaeude->hatIndividuellenAufschlag();
+            
+            return response()->json([
+                'ok'              => true,
+                'aufschlag'       => $aufschlag,
+                'jahr'            => $jahr,
+                'ist_individuell' => $hatIndividuell,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Fehler beim Abrufen des Aufschlags', [
+                'gebaeude_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Fehler beim Abrufen des Aufschlags',
+                'error'   => $e->getMessage()
+            ], 500);
         }
     }
 }

@@ -97,6 +97,8 @@
             </button>
 
             <div class="collapse navbar-collapse" id="navbarNav">
+                {{-- Ersetze den <ul class="navbar-nav me-auto"> Bereich in resources/views/layouts/app.blade.php --}}
+
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {{ request()->is('gebaeude*') ? 'active fw-bold' : '' }}" href="{{ url('/gebaeude') }}">
@@ -113,6 +115,13 @@
                             <i class="bi bi-map"></i> Touren
                         </a>
                     </li>
+                    {{-- ⭐ NEU: Rechnungen --}}
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('rechnung*') ? 'active fw-bold' : '' }}" href="{{ url('/rechnung') }}">
+                            <i class="bi bi-file-text"></i> Rechnungen
+                        </a>
+                    </li>
+                    {{-- Preis-Aufschläge --}}
                     <li class="nav-item">
                         <a class="nav-link {{ request()->is('preis-aufschlaege*') ? 'active fw-bold' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
                             <i class="bi bi-percent"></i> Preis-Aufschläge

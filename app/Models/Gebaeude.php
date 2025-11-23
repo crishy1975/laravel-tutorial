@@ -37,8 +37,18 @@ class Gebaeude extends Model
         'gemachte_reinigungen',
         'faellig',
         'rechnung_schreiben',
-        'm01', 'm02', 'm03', 'm04', 'm05', 'm06',
-        'm07', 'm08', 'm09', 'm10', 'm11', 'm12',
+        'm01',
+        'm02',
+        'm03',
+        'm04',
+        'm05',
+        'm06',
+        'm07',
+        'm08',
+        'm09',
+        'm10',
+        'm11',
+        'm12',
         'select_tour',
         'bemerkung_buchhaltung',
         'cup',
@@ -60,10 +70,18 @@ class Gebaeude extends Model
         'rechnung_schreiben'   => 'boolean',
         'geplante_reinigungen' => 'integer',
         'gemachte_reinigungen' => 'integer',
-        'm01' => 'boolean', 'm02' => 'boolean', 'm03' => 'boolean',
-        'm04' => 'boolean', 'm05' => 'boolean', 'm06' => 'boolean',
-        'm07' => 'boolean', 'm08' => 'boolean', 'm09' => 'boolean',
-        'm10' => 'boolean', 'm11' => 'boolean', 'm12' => 'boolean',
+        'm01' => 'boolean',
+        'm02' => 'boolean',
+        'm03' => 'boolean',
+        'm04' => 'boolean',
+        'm05' => 'boolean',
+        'm06' => 'boolean',
+        'm07' => 'boolean',
+        'm08' => 'boolean',
+        'm09' => 'boolean',
+        'm10' => 'boolean',
+        'm11' => 'boolean',
+        'm12' => 'boolean',
     ];
 
     // ═══════════════════════════════════════════════════════════
@@ -133,7 +151,7 @@ class Gebaeude extends Model
             ->where('gueltig_ab', '<=', now())
             ->where(function ($q) {
                 $q->whereNull('gueltig_bis')
-                  ->orWhere('gueltig_bis', '>=', now());
+                    ->orWhere('gueltig_bis', '>=', now());
             })
             ->latest('gueltig_ab');
     }
@@ -212,7 +230,7 @@ class Gebaeude extends Model
     ): GebaeudeAufschlag {
         // Alte Aufschläge beenden (gueltig_bis auf gestern setzen)
         $gestern = now()->subDay();
-        
+
         GebaeudeAufschlag::where('gebaeude_id', $this->id)
             ->whereNull('gueltig_bis')
             ->orWhere('gueltig_bis', '>', $gestern)
@@ -251,7 +269,7 @@ class Gebaeude extends Model
     public function berechnePreisMitAufschlag(float $basispreis, ?int $jahr = null): float
     {
         $prozent = $this->getAufschlagProzent($jahr);
-        
+
         if ($prozent == 0) {
             return $basispreis;
         }
@@ -288,7 +306,7 @@ class Gebaeude extends Model
     {
         $basis = $this->artikel_summe_aktiv;
         $prozent = $this->getAufschlagProzent();
-        
+
         $aufschlag = round($basis * ($prozent / 100), 2);
         return round($basis + $aufschlag, 2);
     }
@@ -340,9 +358,20 @@ class Gebaeude extends Model
 
         static::query()
             ->select([
-                'id', 'faellig',
-                'm01', 'm02', 'm03', 'm04', 'm05', 'm06',
-                'm07', 'm08', 'm09', 'm10', 'm11', 'm12',
+                'id',
+                'faellig',
+                'm01',
+                'm02',
+                'm03',
+                'm04',
+                'm05',
+                'm06',
+                'm07',
+                'm08',
+                'm09',
+                'm10',
+                'm11',
+                'm12',
             ])
             ->chunkById(500, function ($chunk) use ($today, &$changed) {
                 foreach ($chunk as $g) {
@@ -375,4 +404,114 @@ class Gebaeude extends Model
     {
         return Rechnung::createFromGebaeude($this, $overrides);
     }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔧 NEUE METHODE für Gebaeude Model
+// ═══════════════════════════════════════════════════════════════════════════
+// Diese Methode in App\Models\Gebaeude.php einfügen!
+
+    /**
+     * ⭐ NEU: Berechnet kumulativen Aufschlag von basis_jahr bis ziel_jahr
+     * 
+     * Beispiel:
+     * - basis_jahr = 2021, ziel_jahr = 2024
+     * - 2022: +3%, 2023: +4%, 2024: +3%
+     * - Kumulative Berechnung: 100 * 1.03 * 1.04 * 1.03 = 110.35
+     * 
+     * @param int $basisJahr Startjahr
+     * @param int $zielJahr Endjahr
+     * @return float Kumulativer Aufschlagsfaktor (z.B. 1.1035 = +10.35%)
+     */
+    public function getKumulativerAufschlagFaktor(int $basisJahr, int $zielJahr): float
+    {
+        // Wenn basis_jahr >= ziel_jahr → kein Aufschlag
+        if ($basisJahr >= $zielJahr) {
+            return 1.0;
+        }
+
+        $faktor = 1.0;
+
+        // Für jedes Jahr zwischen basis_jahr und ziel_jahr
+        for ($jahr = $basisJahr + 1; $jahr <= $zielJahr; $jahr++) {
+            $aufschlag = $this->getAufschlagProzent($jahr);
+
+            // Faktor multiplizieren: z.B. 1.0 * 1.03 * 1.04 * 1.03
+            $faktor *= (1 + $aufschlag / 100);
+        }
+
+        return $faktor;
+    }
+
+    /**
+     * ⭐ NEU: Berechnet Preis mit kumulativem Aufschlag
+     * 
+     * @param float $basisPreis Original-Preis
+     * @param int $basisJahr Ab welchem Jahr gilt dieser Preis
+     * @param int|null $zielJahr Bis zu welchem Jahr berechnen (default: aktuelles Jahr)
+     * @return float Berechneter Preis
+     */
+    public function berechnePreisMitKumulativerErhoehung(
+        float $basisPreis,
+        int $basisJahr,
+        ?int $zielJahr = null
+    ): float {
+        $zielJahr = $zielJahr ?? now()->year;
+
+        $faktor = $this->getKumulativerAufschlagFaktor($basisJahr, $zielJahr);
+
+        return round($basisPreis * $faktor, 2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 📊 BEISPIEL-NUTZUNG
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /*
+// Beispiel 1: Artikel von 2021
+$artikel->basis_preis = 100.00;
+$artikel->basis_jahr = 2021;
+
+// Heute ist 2024
+$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+    $artikel->basis_preis,
+    $artikel->basis_jahr
+);
+
+// Berechnung:
+// 2022: 100 * 1.03 = 103.00
+// 2023: 103 * 1.04 = 107.12
+// 2024: 107.12 * 1.03 = 110.33
+// → Ergebnis: 110.33 €
+
+// Beispiel 2: Neuer Artikel von 2024
+$artikel->basis_preis = 100.00;
+$artikel->basis_jahr = 2024;
+
+// Heute ist 2024
+$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+    $artikel->basis_preis,
+    $artikel->basis_jahr
+);
+
+// Berechnung:
+// basis_jahr (2024) >= aktuelles Jahr (2024)
+// → Faktor = 1.0
+// → Ergebnis: 100.00 € (keine Erhöhung!)
+
+// Beispiel 3: Artikel von 2024, berechnet für 2026
+$artikel->basis_preis = 100.00;
+$artikel->basis_jahr = 2024;
+
+// Berechne für 2026
+$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+    $artikel->basis_preis,
+    $artikel->basis_jahr,
+    2026
+);
+
+// Berechnung:
+// 2025: 100 * 1.03 = 103.00
+// 2026: 103 * 1.05 = 108.15
+// → Ergebnis: 108.15 €
+*/
 }

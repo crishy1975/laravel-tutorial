@@ -17,6 +17,7 @@ class ArtikelGebaeude extends Model
         'aktiv',
         'basis_preis',
         'reihenfolge',
+        'basis_jahr',
     ];
 
     protected $casts = [

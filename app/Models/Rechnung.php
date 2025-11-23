@@ -238,20 +238,23 @@ class Rechnung extends Model
         ]);
 
         // ═══════════════════════════════════════════════════════════
-        // 📋 RECHNUNG ERSTELLEN (Snapshot)
+        // 📄 RECHNUNG ERSTELLEN
         // ═══════════════════════════════════════════════════════════
 
         $rechnung = new self(array_merge([
             'jahr'                    => $jahr,
             'laufnummer'              => $laufnummer,
             'gebaeude_id'             => $gebaeude->id,
-            'rechnungsempfaenger_id'  => $rechnungsempfaenger->id,
-            'postadresse_id'          => $postadresse->id,
+            'rechnungsempfaenger_id'  => $gebaeude->rechnungsempfaenger_id,
+            'postadresse_id'          => $gebaeude->postadresse_id,
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
-            'rechnungsdatum'          => now(),
+
+            // Rechnungsdaten
+            'rechnungsdatum'          => now()->toDateString(),
             'leistungsdaten'          => $leistungsdaten,
-            'zahlungsziel'            => now()->addDays(30),
+            'zahlungsziel'            => now()->addDays(30)->toDateString(),
             'status'                  => 'draft',
+            'typ_rechnung'            => 'rechnung',
 
             // Snapshot Rechnungsempfänger
             're_name'                 => $rechnungsempfaenger->name,
@@ -490,5 +493,16 @@ class Rechnung extends Model
 
         $typ = $this->aufschlag_typ === 'individuell' ? 'Individuell' : 'Global';
         return sprintf('%s: %+.2f%%', $typ, $this->aufschlag_prozent);
+    }
+
+    /**
+     * Prüft, ob die Rechnung editierbar ist.
+     * Nur Rechnungen mit Status 'draft' können bearbeitet werden.
+     * 
+     * @return bool
+     */
+    public function getIstEditierbarAttribute(): bool
+    {
+        return $this->status === 'draft';
     }
 }
