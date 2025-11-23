@@ -1,20 +1,42 @@
 {{-- resources/views/gebaeude/partials/_artikel.blade.php --}}
-{{-- Editierbare Tabelle für artikel_gebaeude mit Drag&Drop-Sortierung und "Nur aktive anzeigen".
-   Create-Schutz: ohne Gebäude-ID (create-Seite) sind Eingaben/JS-Aktionen deaktiviert. --}}
+{{-- ⭐ FINALE VERSION mit:
+   1. basis_jahr = AKTUELLES Jahr (nicht nächstes!)
+   2. Kumulative Erhöhungen seit basis_jahr
+   3. basis_jahr als Tooltip (nicht sichtbar)
+--}}
 
 @php
   /** @var \App\Models\Gebaeude $gebaeude */
   $hasId = isset($gebaeude) && $gebaeude?->exists;
+  $aktuellesJahr = now()->year;
+  $naechstesJahr = $aktuellesJahr + 1;
 
-  // Summe der aktiven Positionen nur rechnen, wenn eine ID vorhanden ist
   if ($hasId) {
-      $serverSumAktiv = (float) ($gebaeude->artikel_summe_aktiv
-          ?? \App\Models\ArtikelGebaeude::where('gebaeude_id', $gebaeude->id)
-              ->where('aktiv', true)
-              ->selectRaw('COALESCE(SUM(anzahl * einzelpreis),0) as total')
-              ->value('total'));
+      // Aufschlag-Info für Banner
+      $aufschlagNaechstesJahr = $gebaeude->getAufschlagProzent($naechstesJahr);
+      $hatIndividuell = $gebaeude->hatIndividuellenAufschlag();
+      
+      // Summe berechnen (mit kumulativer Erhöhung pro Artikel)
+      $serverSumAktiv = 0.0;
+      foreach (($gebaeude->artikel ?? []) as $artikel) {
+          if (!$artikel->aktiv) continue;
+          
+          $basisJahr = $artikel->basis_jahr ?? $aktuellesJahr;
+          $basisPreis = $artikel->basis_preis ?? $artikel->einzelpreis;
+          
+          // ⭐ KUMULATIVE Erhöhung seit basis_jahr
+          $preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+              $basisPreis,
+              $basisJahr,
+              $aktuellesJahr
+          );
+          
+          $serverSumAktiv += (float)$artikel->anzahl * $preis;
+      }
   } else {
       $serverSumAktiv = 0.0;
+      $aufschlagNaechstesJahr = 0;
+      $hatIndividuell = false;
   }
 
   // Datensätze nur laden, wenn ID vorhanden
@@ -40,6 +62,28 @@
         </div>
       </div>
     </div>
+    
+    {{-- ⭐ Aufschlag-Info-Banner --}}
+    @if($hasId && $aufschlagNaechstesJahr != 0)
+    <div class="alert alert-info py-2 px-3 mt-2 mb-0 d-flex align-items-center gap-2">
+      <i class="bi bi-info-circle"></i>
+      <div class="small">
+        <strong>Preis-Aufschlag ab {{ $naechstesJahr }}:</strong> 
+        @if($aufschlagNaechstesJahr > 0)
+          <span class="text-success">+{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
+        @else
+          <span class="text-danger">{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
+        @endif
+        @if($hatIndividuell)
+          <span class="badge bg-warning text-dark ms-1">Individuell</span>
+        @else
+          <span class="badge bg-primary ms-1">Global</span>
+        @endif
+        <span class="text-muted">| Neue Preise gelten ab {{ $aktuellesJahr }}</span>
+      </div>
+    </div>
+    @endif
+    
     <hr class="mt-2 mb-0">
   </div>
 
@@ -81,7 +125,8 @@
               <input type="number" class="form-control text-end" id="new-anzahl" step="0.01" min="0" value="1" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="number" class="form-control text-end" id="new-einzelpreis" step="0.01" min="0" value="0.00" {{ $hasId ? '' : 'disabled' }}>
+              <input type="number" class="form-control text-end" id="new-einzelpreis" step="0.01" min="0" value="0.00" 
+                     title="Basispreis ab {{ $aktuellesJahr }}" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
               <input type="text" class="form-control text-end" id="new-gesamtpreis" value="0,00" disabled>
@@ -98,37 +143,69 @@
             </td>
           </tr>
 
-          {{-- Bestehende Datensätze (nur bei vorhandener ID) --}}
+          {{-- Bestehende Datensätze --}}
           @foreach($artikelListe as $p)
-            @php $rowTotal = (float)$p->anzahl * (float)$p->einzelpreis; @endphp
-            <tr data-id="{{ $p->id }}" draggable="true" data-aktiv="{{ $p->aktiv ? '1' : '0' }}">
+            @php 
+              $basisJahr = $p->basis_jahr ?? $aktuellesJahr;
+              $basisPreis = $p->basis_preis ?? $p->einzelpreis;
+              
+              // ⭐ KUMULATIVE Erhöhung berechnen
+              $anzeigePreis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+                  $basisPreis,
+                  $basisJahr,
+                  $aktuellesJahr
+              );
+              
+              $rowTotal = (float)$p->anzahl * $anzeigePreis;
+              
+              // Tooltip-Text erstellen
+              $tooltip = "Basispreis: " . number_format($basisPreis, 2, ',', '.') . " € (seit {$basisJahr})";
+              if ($anzeigePreis != $basisPreis) {
+                  $jahre = $aktuellesJahr - $basisJahr;
+                  $tooltip .= " | Erhöht über {$jahre} Jahr(e)";
+              }
+            @endphp
+            <tr data-id="{{ $p->id }}" 
+                draggable="true" 
+                data-aktiv="{{ $p->aktiv ? '1' : '0' }}"
+                data-basis-preis="{{ $basisPreis }}"
+                data-basis-jahr="{{ $basisJahr }}"
+                data-aktuelles-jahr="{{ $aktuellesJahr }}">
               <td class="text-center" style="cursor: move;">
-                {{-- Griff zum Ziehen --}}
                 <i class="bi bi-grip-vertical text-muted" data-role="drag-handle" title="Ziehen zum Sortieren"></i>
               </td>
               <td>
                 <input type="text" class="form-control" data-field="beschreibung" value="{{ $p->beschreibung }}" {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
-                <input type="number" class="form-control text-end" data-field="anzahl" step="0.01" min="0" value="{{ number_format((float)$p->anzahl, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
+                <input type="number" class="form-control text-end" data-field="anzahl" step="0.01" min="0" 
+                       value="{{ number_format((float)$p->anzahl, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
-                <input type="number" class="form-control text-end" data-field="einzelpreis" step="0.01" min="0" value="{{ number_format((float)$p->einzelpreis, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
+                {{-- ⭐ Tooltip statt sichtbarem Text --}}
+                <input type="number" class="form-control text-end" data-field="einzelpreis" step="0.01" min="0" 
+                       value="{{ number_format($anzeigePreis, 2, '.', '') }}" 
+                       title="{{ $tooltip }}"
+                       {{ $hasId ? '' : 'disabled' }}>
               </td>
               <td>
-                <input type="text" class="form-control text-end" data-field="gesamtpreis" value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
+                <input type="text" class="form-control text-end" data-field="gesamtpreis" 
+                       value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
               </td>
               <td>
                 <div class="form-check form-switch m-0">
-                  <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }} {{ $hasId ? '' : 'disabled' }}>
+                  <input class="form-check-input" type="checkbox" data-field="aktiv" 
+                         {{ $p->aktiv ? 'checked' : '' }} {{ $hasId ? '' : 'disabled' }}>
                 </div>
               </td>
               <td class="text-end">
                 <div class="btn-group">
-                  <button type="button" class="btn btn-sm btn-primary d-none" data-role="btn-save" title="Speichern" {{ $hasId ? '' : 'disabled' }}>
+                  <button type="button" class="btn btn-sm btn-primary d-none" data-role="btn-save" 
+                          title="Speichern" {{ $hasId ? '' : 'disabled' }}>
                     <i class="bi bi-save2"></i>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger" data-role="btn-delete" title="Löschen" {{ $hasId ? '' : 'disabled' }}>
+                  <button type="button" class="btn btn-sm btn-outline-danger" data-role="btn-delete" 
+                          title="Löschen" {{ $hasId ? '' : 'disabled' }}>
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
@@ -152,9 +229,10 @@
   </div>
 </div>
 
-{{-- Data-Container für JS (Routen nur setzen, wenn ID existiert) --}}
+{{-- Data-Container für JS --}}
 <div id="artikel-root"
      data-csrf="{{ csrf_token() }}"
+     data-aktuelles-jahr="{{ $aktuellesJahr }}"
      data-route-store="{{ $hasId ? route('gebaeude.artikel.store', $gebaeude->id) : '' }}"
      data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
      data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
@@ -164,9 +242,9 @@
 @verbatim
 <script>
 (function(){
-  // Root-Element mit Routen & CSRF
   var root = document.getElementById('artikel-root');
   var CSRF = (root && root.dataset && root.dataset.csrf) || '';
+  var AKTUELLES_JAHR = parseInt((root && root.dataset && root.dataset.aktuellesJahr) || '0');
   var ROUTE_STORE   = (root && root.dataset && root.dataset.routeStore)   || '';
   var ROUTE_UPDATE0 = (root && root.dataset && root.dataset.routeUpdate0) || '';
   var ROUTE_DELETE0 = (root && root.dataset && root.dataset.routeDelete0) || '';
@@ -177,12 +255,8 @@
   var sumFoot   = document.getElementById('art-summe-foot');
   var onlyActive = document.getElementById('art-only-active');
 
-  // Früh raus auf Create-Seite (ohne Store-Route keine Aktionen)
-  if (!ROUTE_STORE) {
-    return;
-  }
+  if (!ROUTE_STORE) return;
 
-  // Hilfsfunktionen für Zahlenformat / Parsing
   function euro(v){
     var n = Number.isFinite(+v) ? +v : 0;
     return n.toLocaleString('de-DE', {
@@ -196,13 +270,11 @@
     return Number.isFinite(x) ? x : 0;
   }
 
-  // Prüfen, ob Zeile als "aktiv" markiert ist
   function isActive(tr){
     var cb = tr.querySelector('[data-field="aktiv"]');
     return cb ? cb.checked : false;
   }
 
-  // Nur aktive Zeilen anzeigen, wenn Schalter gesetzt
   function applyActiveFilter(){
     var showOnly = onlyActive && onlyActive.checked;
     (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
@@ -211,134 +283,55 @@
     });
   }
 
-  // Gesamtpreis je Zeile (Anzahl * Einzelpreis) neu berechnen
-  function recalcRowTotal(tr){
-    var qEl = tr.querySelector('[data-field="anzahl"]');
-    var pEl = tr.querySelector('[data-field="einzelpreis"]');
-    var qty   = parseNum(qEl && qEl.value);
-    var price = parseNum(pEl && pEl.value);
-    var total = qty * price;
-    var totEl = tr.querySelector('[data-field="gesamtpreis"]');
-    if (totEl) {
-      totEl.value = euro(total);
+  if (onlyActive){
+    onlyActive.addEventListener('change', applyActiveFilter);
+  }
+
+  function markDirty(tr, dirty){
+    var btnSave = tr.querySelector('[data-role="btn-save"]');
+    if (!btnSave) return;
+    if (dirty) {
+      btnSave.classList.remove('d-none');
+    } else {
+      btnSave.classList.add('d-none');
     }
   }
 
-  // Summe aller aktiven Positionen berechnen
-  // Wichtig: immer nur "aktive" Zeilen, unabhängig vom Filter
+  function recalcRowTotal(tr){
+    var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
+    var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
+    var total  = anzahl * preis;
+
+    var inp = tr.querySelector('[data-field="gesamtpreis"]');
+    if (inp) {
+      inp.value = euro(total);
+    }
+  }
+
   function recalcSum(){
     var sum = 0;
-
     (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
-      if (!isActive(tr)) {
-        // Inaktive Positionen nie mitrechnen
-        return;
-      }
-      var qty   = parseNum((tr.querySelector('[data-field="anzahl"]')      || {}).value);
-      var price = parseNum((tr.querySelector('[data-field="einzelpreis"]') || {}).value);
-      sum += qty * price;
+      if (!isActive(tr)) return;
+      var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
+      var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
+      sum += (anzahl * preis);
     });
 
-    // Neue Zeile (noch nicht gespeichert) nur berücksichtigen,
-    // wenn aktiv angehakt ist – für die Anzeige im Kopf
-    var newActive = document.getElementById('new-aktiv');
-    var addNew = 0;
-    if (newActive && newActive.checked) {
-      var newQty   = parseNum((document.getElementById('new-anzahl')      || {}).value);
-      var newPrice = parseNum((document.getElementById('new-einzelpreis') || {}).value);
-      addNew = newQty * newPrice;
-    }
-
-    if (sumHead) {
-      sumHead.textContent = euro(sum + addNew);
-    }
-    if (sumFoot) {
-      // Fuß-Summe: nur gespeicherte aktive Zeilen
-      sumFoot.value = euro(sum);
-    }
+    if (sumHead) sumHead.textContent = euro(sum);
+    if (sumFoot) sumFoot.value = euro(sum);
   }
 
-  // Zeile als "dirty" (= Änderungen vorhanden) oder "clean" markieren
-  function markDirty(tr, dirty){
-    var ind    = tr.querySelector('[data-role="dirty-indicator"]');
-    var btnSave = tr.querySelector('[data-role="btn-save"]');
-
-    if (dirty) {
-      if (ind) {
-        ind.classList.remove('bi-circle', 'text-muted');
-        ind.classList.add('bi-record-fill', 'text-warning');
-        ind.title = 'Änderungen nicht gespeichert';
-      }
-      if (btnSave) {
-        btnSave.classList.remove('d-none');
-      }
-      tr.classList.add('table-warning');
-    } else {
-      if (ind) {
-        ind.classList.remove('bi-record-fill', 'text-warning');
-        ind.classList.add('bi-circle', 'text-muted');
-        ind.title = 'Keine Änderungen';
-      }
-      if (btnSave) {
-        btnSave.classList.add('d-none');
-      }
-      tr.classList.remove('table-warning');
-    }
-  }
-
-  // Elemente der Eingabezeile "Neu"
-  var newQtyEl    = document.getElementById('new-anzahl');
-  var newPriceEl  = document.getElementById('new-einzelpreis');
-  var newTotEl    = document.getElementById('new-gesamtpreis');
-  var newAktivEl  = document.getElementById('new-aktiv');
-
-  // Gesamtpreis der neuen Zeile berechnen + Summe aktualisieren
-  function recalcNewTotal(){
-    var tot = parseNum(newQtyEl && newQtyEl.value) * parseNum(newPriceEl && newPriceEl.value);
-    if (newTotEl) {
-      newTotEl.value = euro(tot);
-    }
-    recalcSum();
-  }
-
-  // Filter + neue Zeile bei Eingabe/Änderung aktualisieren
-  [newQtyEl, newPriceEl, newAktivEl, onlyActive].forEach(function(el){
-    if (!el) return;
-    el.addEventListener('input', function(){
-      applyActiveFilter();
-      recalcNewTotal();
-    });
-  });
-
-  // Initiale Anzeige
-  applyActiveFilter();
-  recalcNewTotal();
-
-  // ENTER in der "Neu"-Zeile löst Hinzufügen aus
-  ['new-beschreibung', 'new-anzahl', 'new-einzelpreis'].forEach(function(id){
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('keydown', function(e){
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        var b = document.getElementById('btn-add-art');
-        if (b) b.click();
-      }
-    });
-  });
-
-  // Artikel hinzufügen (POST auf ROUTE_STORE)
+  // ⭐ Neuen Artikel hinzufügen
   var btnAdd = document.getElementById('btn-add-art');
   if (btnAdd){
     btnAdd.addEventListener('click', async function(){
-      var beschrEl = document.getElementById('new-beschreibung');
-      var beschr   = (beschrEl && beschrEl.value || '').trim();
-      var anzahl   = parseNum(newQtyEl   && newQtyEl.value);
-      var preis    = parseNum(newPriceEl && newPriceEl.value);
-      var aktiv    = (newAktivEl && newAktivEl.checked) ? 1 : 0;
+      var beschr = (document.getElementById('new-beschreibung').value || '').trim();
+      var anzahl = parseNum(document.getElementById('new-anzahl').value);
+      var preis  = parseNum(document.getElementById('new-einzelpreis').value);
+      var aktiv  = document.getElementById('new-aktiv').checked;
 
-      if (!beschr){
-        alert('Bitte eine Beschreibung eingeben.');
+      if (!beschr) {
+        alert('Bitte Beschreibung eingeben!');
         return;
       }
 
@@ -354,21 +347,23 @@
             beschreibung: beschr,
             anzahl: anzahl,
             einzelpreis: preis,
+            basis_preis: preis,
+            basis_jahr: AKTUELLES_JAHR,  // ⭐ AKTUELLES Jahr!
             aktiv: aktiv
           })
         });
 
         var isJson = (res.headers.get('content-type') || '').includes('application/json');
-        if (isJson){
-          var json = await res.json();
-          if (!res.ok || json.ok === false){
-            throw new Error(json.message || 'Fehler beim Hinzufügen.');
-          }
-        } else if (!res.ok){
-          throw new Error('Fehler beim Hinzufügen (HTTP ' + res.status + ').');
+        var json = null;
+
+        if (isJson) {
+          json = await res.json();
         }
 
-        // Nach erfolgreichem Hinzufügen: Seite neu laden → neue Zeile sichtbar
+        if (!res.ok || (json && json.ok === false)) {
+          throw new Error((json && json.message) || 'Fehler beim Speichern.');
+        }
+
         window.location.reload();
       } catch (err){
         console.error(err);
@@ -377,41 +372,46 @@
     });
   }
 
-  // Gemeinsame Funktion zum Speichern einer bestehenden Zeile (Update)
-  async function saveRow(tr) {
+  var newAnzahl = document.getElementById('new-anzahl');
+  var newPreis  = document.getElementById('new-einzelpreis');
+  var newTotal  = document.getElementById('new-gesamtpreis');
+
+  function updateNewRow(){
+    var a = parseNum(newAnzahl.value);
+    var p = parseNum(newPreis.value);
+    if (newTotal) newTotal.value = euro(a * p);
+  }
+
+  if (newAnzahl) newAnzahl.addEventListener('input', updateNewRow);
+  if (newPreis)  newPreis.addEventListener('input', updateNewRow);
+
+  // ⭐ Zeile speichern
+  async function saveRow(tr){
     var id = tr.getAttribute('data-id');
+    if (!id) return;
 
-    // Feld-Refs aus der Zeile
-    var beschrEl = tr.querySelector('[data-field="beschreibung"]');
-    var anzahlEl = tr.querySelector('[data-field="anzahl"]');
-    var preisEl  = tr.querySelector('[data-field="einzelpreis"]');
-    var aktivCb  = tr.querySelector('[data-field="aktiv"]');
-
-    var beschr = (beschrEl && beschrEl.value || '').trim();
-    var anzahl = parseNum(anzahlEl && anzahlEl.value);
-    var preis  = parseNum(preisEl  && preisEl.value);
-    var aktiv  = (aktivCb && aktivCb.checked) ? 1 : 0;
-
-    if (!beschr) {
-      alert('Beschreibung darf nicht leer sein.');
-      return;
-    }
+    var beschr = (tr.querySelector('[data-field="beschreibung"]').value || '').trim();
+    var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
+    var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
+    var cb     = tr.querySelector('[data-field="aktiv"]');
+    var aktiv  = cb ? cb.checked : false;
 
     var url = ROUTE_UPDATE0.replace(/\/0$/, '/' + id);
 
     try {
       var res = await fetch(url, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-TOKEN': CSRF,
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          _method: 'PUT',
           beschreibung: beschr,
           anzahl: anzahl,
           einzelpreis: preis,
+          basis_preis: preis,
+          basis_jahr: AKTUELLES_JAHR,  // ⭐ AKTUELLES Jahr!
           aktiv: aktiv
         })
       });
@@ -426,56 +426,47 @@
         throw new Error('Fehler beim Speichern (HTTP ' + res.status + ').');
       }
 
-      // Erfolgreich gespeichert → Zeile wieder "clean"
+      // ⭐ Data-Attribute aktualisieren
+      tr.setAttribute('data-basis-preis', preis);
+      tr.setAttribute('data-basis-jahr', AKTUELLES_JAHR);
+
       markDirty(tr, false);
       recalcRowTotal(tr);
       recalcSum();
     } catch (err) {
       console.error(err);
       alert('Fehler beim Speichern: ' + err.message);
-      // Fehler wird nach außen gereicht, damit Aufrufer ggf. zurücksetzen kann
       throw err;
     }
   }
 
-  // Event-Handler für Eingaben in bestehenden Zeilen (ohne aktiv)
   if (tbody){
     tbody.addEventListener('input', function(e){
       var inp = e.target;
       var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
       if (!tr) return;
 
-      // Änderung bei Anzahl/Einzelpreis → Zeilensumme neu
       if (inp.matches && inp.matches('[data-field="anzahl"], [data-field="einzelpreis"]')) {
         recalcRowTotal(tr);
       }
 
-      // Jede Eingabe → Zeile als "dirty" markieren und Summe neu
       markDirty(tr, true);
       recalcSum();
     });
 
-    // Änderung von "aktiv" direkt speichern
     tbody.addEventListener('change', async function(e){
       var inp = e.target;
       var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
       if (!tr) return;
 
-      // FALL: aktiv-Checkbox geändert
       if (inp.matches && inp.matches('[data-field="aktiv"]')) {
         var cb = inp;
-        // Vorheriger Zustand (Checkbox wurde gerade getoggelt)
         var previousChecked = !cb.checked;
 
         try {
-          // Sofort speichern (PUT)
           await saveRow(tr);
-
-          // Nach erfolgreichem Speichern Filter anwenden (Zeile kann verschwinden)
           applyActiveFilter();
-          // Summe wird in saveRow() schon neu berechnet
         } catch (err) {
-          // Bei Fehler: Zustand der Checkbox zurücksetzen + Filter/Summe neu
           cb.checked = previousChecked;
           applyActiveFilter();
           recalcSum();
@@ -483,11 +474,9 @@
 
         return;
       }
-
-      // andere change-Events aktuell nicht nötig, aber Hook vorhanden
     });
 
-    // Drag & Drop für Sortierung
+    // Drag & Drop
     var dragSrc = null;
 
     tbody.addEventListener('dragstart', function(e){
@@ -527,7 +516,6 @@
         tbody.insertBefore(dragSrc, target.nextSibling);
       }
 
-      // Neue Reihenfolge der sichtbaren Zeilen an Server senden
       var ids = [];
       (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
         if (tr.style.display !== 'none') {
@@ -561,7 +549,6 @@
       }
     });
 
-    // Klick-Events für Speichern/Löschen
     tbody.addEventListener('click', async function(e){
       var btnDel  = e.target.closest ? e.target.closest('[data-role="btn-delete"]') : null;
       var btnSave = e.target.closest ? e.target.closest('[data-role="btn-save"]')   : null;
@@ -569,7 +556,6 @@
       if (!tr) return;
       var id = tr.getAttribute('data-id');
 
-      // Löschen
       if (btnDel){
         if (!confirm('Diese Position wirklich löschen?')) return;
         var url = ROUTE_DELETE0.replace(/\/0$/, '/' + id);
@@ -604,18 +590,16 @@
         return;
       }
 
-      // Speichern-Button (manuelles Speichern bei anderen Änderungen)
       if (btnSave){
         try {
           await saveRow(tr);
         } catch (err) {
-          // Fehler schon in saveRow behandelt (alert)
+          // Fehler schon behandelt
         }
       }
     });
   }
 
-  // Initiale Summenberechnung
   recalcSum();
 })();
 </script>

@@ -16,23 +16,17 @@ class RechnungController extends Controller
     /**
      * Liste aller Rechnungen mit Filter.
      */
-    /**
-     * Liste aller Rechnungen mit Filter.
-     */
     public function index(Request $request)
     {
         // ------------------------------
         // 1. Filterwerte aus Request holen
         // ------------------------------
-        $nummer = $request->input('nummer');   // "Nummer" = Darstellung wie 2025/0001
-        $codex  = $request->input('codex');    // Gebäudecodex
-        $suche  = $request->input('suche');    // Gebäude / Empfänger / Postadresse
+        $nummer = $request->input('nummer');
+        $codex  = $request->input('codex');
+        $suche  = $request->input('suche');
 
-        // Standard: aktuelles Jahr, 01.01. - 31.12.
         $year = Carbon::now()->year;
 
-        // Falls der User nichts schickt, verwenden wir die Jahresgrenzen.
-        // Falls er Werte schickt, werden diese übernommen.
         $datumVon = $request->input('datum_von')
             ?: Carbon::create($year, 1, 1)->format('Y-m-d');
 
@@ -42,25 +36,13 @@ class RechnungController extends Controller
         // ------------------------------
         // 2. Basis-Query aufbauen
         // ------------------------------
-        $query = Rechnung::query()
-            // Gebäude gleich mitladen, um N+1 zu vermeiden (Snapshot-Felder hast du aber ohnehin)
-            ->with('gebaeude');
+        $query = Rechnung::query()->with('gebaeude');
 
         // ------------------------------
         // 3. Filter: Rechnungsnummer
-        //
-        // Deine "Nummer" ist ein Accessor:
-        //   getNummernAttribute() => "jahr/laufnummer"
-        // In der DB sind die Felder: jahr, laufnummer
-        //
-        // Wir simulieren die gleiche Darstellung in SQL:
-        //   CONCAT(jahr, '/', LPAD(laufnummer, 4, '0'))
-        //
-        // Hinweis: funktioniert so in MySQL/MariaDB (bei dir der Fall).
         // ------------------------------
         if (!empty($nummer)) {
             $like = '%' . $nummer . '%';
-
             $query->whereRaw(
                 "CONCAT(jahr, '/', LPAD(laufnummer, 4, '0')) LIKE ?",
                 [$like]
@@ -69,17 +51,11 @@ class RechnungController extends Controller
 
         // ------------------------------
         // 4. Filter: Codex
-        //    -> Snapshot-Feld an Rechnung: geb_codex
-        //    -> zusätzlich sicherheitshalber über Relation gebaeude.codex
         // ------------------------------
         if (!empty($codex)) {
             $like = '%' . $codex . '%';
-
             $query->where(function ($q) use ($like) {
-                // Snapshot am Rechnungseintrag
                 $q->where('geb_codex', 'like', $like)
-
-                    // ODER Codex im verknüpften Gebäude
                     ->orWhereHas('gebaeude', function ($sub) use ($like) {
                         $sub->where('codex', 'like', $like);
                     });
@@ -88,17 +64,9 @@ class RechnungController extends Controller
 
         // ------------------------------
         // 5. Filter: Suche
-        //    in:
-        //    - Gebäudename  (Snapshot: geb_name)
-        //    - Rechnungsempfänger (Snapshot: re_name)
-        //    - Postadresse  (Snapshot: post_name)
-        //
-        // Optional könntest du hier auch Strasse/Ort mit aufnehmen, aber
-        // du wolltest explizit Name-Felder.
         // ------------------------------
         if (!empty($suche)) {
             $like = '%' . $suche . '%';
-
             $query->where(function ($q) use ($like) {
                 $q->where('geb_name', 'like', $like)
                     ->orWhere('re_name', 'like', $like)
@@ -107,9 +75,7 @@ class RechnungController extends Controller
         }
 
         // ------------------------------
-        // 6. Filter: Datum (Rechnungsdatum)
-        //    - Spalte: rechnungsdatum
-        //    - Standard: aktuelles Jahr (datum_von/bis oben)
+        // 6. Filter: Datum
         // ------------------------------
         if (!empty($datumVon) && !empty($datumBis)) {
             $query->whereBetween('rechnungsdatum', [$datumVon, $datumBis]);
@@ -121,7 +87,6 @@ class RechnungController extends Controller
 
         // ------------------------------
         // 7. Sortierung & Pagination
-        //    - neueste Rechnungen zuerst
         // ------------------------------
         $rechnungen = $query
             ->orderByDesc('rechnungsdatum')
@@ -129,8 +94,6 @@ class RechnungController extends Controller
 
         // ------------------------------
         // 8. View zurückgeben
-        //    - Filterwerte wieder mitgeben, damit sie im View
-        //      in den Inputs vorausgefüllt werden
         // ------------------------------
         return view('rechnung.index', [
             'rechnungen' => $rechnungen,
@@ -144,16 +107,9 @@ class RechnungController extends Controller
 
     /**
      * Neue Rechnung aus einem Gebäude erstellen.
-     * 
-     * Diese Methode erstellt automatisch eine Rechnung inkl.:
-     * - Rechnungsempfänger & Postadresse (Snapshot)
-     * - Gebäude-Informationen (Snapshot)
-     * - FatturaPA-Profile (Snapshot)
-     * - Alle aktiven Artikel als Rechnungspositionen
      */
     public function create(Request $request)
     {
-        // Gebäude-ID ist Pflicht für die automatische Rechnungserstellung
         if (!$request->filled('gebaeude_id')) {
             return redirect()
                 ->route('rechnung.index')
@@ -161,25 +117,16 @@ class RechnungController extends Controller
         }
 
         try {
-            // Gebäude laden
             $gebaeude = Gebaeude::findOrFail($request->integer('gebaeude_id'));
 
-            // Prüfen, ob Gebäude die nötigen Daten hat
             if (!$gebaeude->rechnungsempfaenger_id || !$gebaeude->postadresse_id) {
                 return redirect()
                     ->route('gebaeude.edit', $gebaeude->id)
                     ->with('error', 'Bitte hinterlegen Sie zuerst einen Rechnungsempfänger und eine Postadresse für dieses Gebäude.');
             }
 
-            // Rechnung automatisch aus Gebäude erstellen
-            // Diese Methode übernimmt automatisch:
-            // - Alle aktiven Artikel
-            // - Rechnungsempfänger & Postadresse (Snapshot)
-            // - FatturaPA-Daten
-            // - Preisaufschläge
             $rechnung = Rechnung::createFromGebaeude($gebaeude);
 
-            // Direkt zum Bearbeitungsformular weiterleiten
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
                 ->with('success', "Rechnung {$rechnung->nummern} wurde aus Gebäude {$gebaeude->codex} erstellt.");
@@ -208,22 +155,15 @@ class RechnungController extends Controller
             'status'            => 'required|in:draft,sent,paid,overdue,cancelled',
             'bezahlt_am'        => 'nullable|date',
             'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
-
-            // FatturaPA
             'cup'               => 'nullable|string|max:20',
             'cig'               => 'nullable|string|max:10',
             'auftrag_id'        => 'nullable|string|max:50',
             'auftrag_datum'     => 'nullable|date',
-
-            // Bemerkungen
             'bemerkung'         => 'nullable|string',
             'bemerkung_kunde'   => 'nullable|string',
         ]);
 
-        // Gebäude laden
         $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])->findOrFail($validated['gebaeude_id']);
-
-        // Rechnung automatisch aus Gebäude erstellen
         $rechnung = $gebaeude->createRechnung($validated);
 
         return redirect()
@@ -237,7 +177,6 @@ class RechnungController extends Controller
     public function show($id)
     {
         $rechnung = Rechnung::with(['positionen', 'gebaeude'])->findOrFail($id);
-
         return view('rechnung.show', compact('rechnung'));
     }
 
@@ -295,6 +234,10 @@ class RechnungController extends Controller
             'bemerkung'          => ['nullable', 'string'],
             'bemerkung_kunde'    => ['nullable', 'string'],
             'zahlungsbedingungen' => ['nullable', 'string'],
+
+            // ⭐ NEU: Preis-Aufschlag (readonly, nur zur Info)
+            'aufschlag_prozent'  => ['nullable', 'numeric', 'min:-100', 'max:100'],
+            'aufschlag_typ'      => ['nullable', 'string', 'in:global,individuell,keiner'],
         ]);
 
         \Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
@@ -302,8 +245,7 @@ class RechnungController extends Controller
         // Felder in das Modell schreiben
         $rechnung->fill($validated);
 
-        // Falls du bei Profil-Wechsel noch Snapshot-Felder setzen willst,
-        // kannst du das hier machen:
+        // Falls du bei Profil-Wechsel noch Snapshot-Felder setzen willst
         if (array_key_exists('fattura_profile_id', $validated)) {
             $profil = null;
 
@@ -318,7 +260,6 @@ class RechnungController extends Controller
                 $rechnung->ritenuta            = (bool) $profil->ritenuta;
                 $rechnung->ritenuta_prozent    = $profil->ritenuta_prozent;
             } else {
-                // Profil entfernt → Snapshots leeren
                 $rechnung->profile_bezeichnung = null;
                 $rechnung->mwst_satz           = null;
                 $rechnung->split_payment       = false;
@@ -341,17 +282,11 @@ class RechnungController extends Controller
             ->with('success', 'Rechnung erfolgreich aktualisiert.');
     }
 
-
-    /**
-     * Rechnung löschen (nur Entwürfe).
-     */
     /**
      * Rechnung löschen (nur Entwürfe).
      */
     public function destroy($id)
     {
-        // Auch gelöschte Rechnungen laden, falls nötig:
-        // hier reicht findOrFail, weil wir nur aktive Entwürfe löschen.
         $rechnung = Rechnung::findOrFail($id);
 
         if (!$rechnung->ist_editierbar) {
@@ -360,18 +295,10 @@ class RechnungController extends Controller
                 ->with('error', 'Nur Entwürfe können gelöscht werden.');
         }
 
-        // Lesbare Rechnungsnummer merken (Accessor "nummern": jahr/laufnummer)
         $nummer = $rechnung->nummern;
 
-        // Wenn die Positionen ggf. Foreign Keys auf rechnungen.id haben,
-        // sollten wir die Positionen vor der Rechnung löschen.
-        // Falls du ON DELETE CASCADE in der DB hast, kannst du den Block weglassen.
         \DB::transaction(function () use ($rechnung) {
-            // Positionen löschen
-            // (falls RechnungPosition kein SoftDeletes benutzt, ist das ein Hard-Delete)
             $rechnung->positionen()->delete();
-
-            // Rechnung wirklich aus der DB entfernen (kein SoftDelete)
             $rechnung->forceDelete();
         });
 
@@ -379,7 +306,6 @@ class RechnungController extends Controller
             ->route('rechnung.index')
             ->with('success', "Rechnung {$nummer} wurde endgültig gelöscht.");
     }
-
 
     // ═══════════════════════════════════════════════════════════
     // 🧾 POSITIONEN VERWALTEN
@@ -407,7 +333,6 @@ class RechnungController extends Controller
             'position'     => 'nullable|integer|min:1',
         ]);
 
-        // Position automatisch ermitteln, falls nicht angegeben
         if (!isset($validated['position'])) {
             $maxPos = $rechnung->positionen()->max('position') ?? 0;
             $validated['position'] = $maxPos + 1;
@@ -483,9 +408,6 @@ class RechnungController extends Controller
         $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
 
         // TODO: PDF-Generierung implementieren
-        // Beispiel mit DomPDF:
-        // $pdf = PDF::loadView('rechnung.pdf', compact('rechnung'));
-        // return $pdf->download("rechnung-{$rechnung->nummern}.pdf");
 
         return redirect()
             ->back()
