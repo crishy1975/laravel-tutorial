@@ -10,14 +10,23 @@
           <div class="col-md-6">
             <h5 class="mb-3">
               <i class="bi bi-receipt"></i> 
-              @if($rechnung->exists)
-                Rechnung {{ $rechnung->nummern }}
+              @if($rechnung->exists && $rechnung->rechnungsnummer)
+                @if($rechnung->typ_rechnung === 'gutschrift')
+                  Gutschrift {{ $rechnung->rechnungsnummer }}
+                @else
+                  Rechnung {{ $rechnung->rechnungsnummer }}
+                @endif
               @else
-                Rechnungsvorschau
+                @if($rechnung->typ_rechnung === 'gutschrift')
+                  Gutschrift-Vorschau
+                @else
+                  Rechnungsvorschau
+                @endif
               @endif
             </h5>
+            <p class="mb-1"><strong>Typ:</strong> {{ $rechnung->typ_rechnung === 'gutschrift' ? 'Gutschrift' : 'Rechnung' }}</p>
             <p class="mb-1"><strong>Rechnungsdatum:</strong> {{ $rechnung->rechnungsdatum?->format('d.m.Y') ?? '-' }}</p>
-            <p class="mb-1"><strong>Leistungsdatum:</strong> {{ $rechnung->leistungsdatum?->format('d.m.Y') ?? '-' }}</p>
+            <p class="mb-1"><strong>Leistungsdaten:</strong> {{ $rechnung->leistungsdaten ?? '-' }}</p>
             <p class="mb-1"><strong>Zahlungsziel:</strong> {{ $rechnung->zahlungsziel?->format('d.m.Y') ?? '-' }}</p>
             <p class="mb-0"><strong>Status:</strong> {!! $rechnung->status_badge ?? '<span class="badge bg-secondary">Entwurf</span>' !!}</p>
           </div>

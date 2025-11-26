@@ -129,7 +129,7 @@ class RechnungController extends Controller
 
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
-                ->with('success', "Rechnung {$rechnung->nummern} wurde aus Gebäude {$gebaeude->codex} erstellt.");
+                ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebäude {$gebaeude->codex} erstellt.");
         } catch (\Exception $e) {
             \Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
                 'gebaeude_id' => $request->integer('gebaeude_id'),
@@ -152,8 +152,10 @@ class RechnungController extends Controller
             'gebaeude_id'       => 'required|exists:gebaeude,id',
             'rechnungsdatum'    => 'required|date',
             'zahlungsziel'      => 'nullable|date',
-            'status'            => 'required|in:draft,sent,paid,overdue,cancelled',
+            'status'            => 'nullable|in:draft,sent,paid,overdue,cancelled',
+            'typ_rechnung'      => 'required|in:rechnung,gutschrift',
             'bezahlt_am'        => 'nullable|date',
+            'leistungsdaten'    => 'nullable|string|max:255',
             'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
             'cup'               => 'nullable|string|max:20',
             'cig'               => 'nullable|string|max:10',
@@ -163,12 +165,17 @@ class RechnungController extends Controller
             'bemerkung_kunde'   => 'nullable|string',
         ]);
 
+        // Status default auf 'draft' setzen wenn nicht vorhanden
+        if (!isset($validated['status'])) {
+            $validated['status'] = 'draft';
+        }
+
         $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])->findOrFail($validated['gebaeude_id']);
         $rechnung = $gebaeude->createRechnung($validated);
 
         return redirect()
             ->route('rechnung.edit', $rechnung->id)
-            ->with('success', "Rechnung {$rechnung->nummern} erfolgreich angelegt.");
+            ->with('success', "Rechnung {$rechnung->rechnungsnummer} erfolgreich angelegt.");
     }
 
     /**
@@ -214,12 +221,12 @@ class RechnungController extends Controller
             // Basisdaten
             'rechnungsdatum'     => ['required', 'date'],
             'zahlungsziel'       => ['nullable', 'date'],
-            'status'             => ['required', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
+            'status'             => ['nullable', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
             'typ_rechnung'       => ['required', Rule::in(['rechnung', 'gutschrift'])],
             'bezahlt_am'         => ['nullable', 'date'],
 
-            // Rechnungs-/Leistungsdaten (Text, kein Datum mehr)
-            'rechnungsdaten'     => ['nullable', 'string', 'max:255'],
+            // Leistungsdaten (Text, kein Datum mehr)
+            'leistungsdaten'     => ['nullable', 'string', 'max:255'],
 
             // Fattura-Profil
             'fattura_profile_id' => ['nullable', 'exists:fattura_profile,id'],
@@ -242,6 +249,7 @@ class RechnungController extends Controller
 
         \Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
 
+        // Status bleibt unverändert wenn nicht mitgesendet (da Feld disabled ist)
         // Felder in das Modell schreiben
         $rechnung->fill($validated);
 
@@ -270,7 +278,7 @@ class RechnungController extends Controller
 
         // Speichern
         $rechnung->save();
-        \Log::info('Update ausgeführt', ['neue_rechnungsdaten' => $rechnung->rechnungsdaten]);
+        \Log::info('Update ausgeführt', ['neue_leistungsdaten' => $rechnung->leistungsdaten]);
 
         $rechnung->refresh();
         \Log::info('Nach Refresh', ['status' => $rechnung->status, 'typ_rechnung' => $rechnung->typ_rechnung]);
@@ -295,7 +303,7 @@ class RechnungController extends Controller
                 ->with('error', 'Nur Entwürfe können gelöscht werden.');
         }
 
-        $nummer = $rechnung->nummern;
+        $nummer = $rechnung->rechnungsnummer;
 
         \DB::transaction(function () use ($rechnung) {
             $rechnung->positionen()->delete();

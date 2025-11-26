@@ -9,7 +9,15 @@
         <div class="card-header bg-white">
             <h4 class="mb-0">
                 <i class="bi bi-receipt"></i>
-                {{ $rechnung->exists ? "Rechnung {$rechnung->nummern} bearbeiten" : 'Neue Rechnung' }}
+                @if($rechnung->exists)
+                    @if($rechnung->typ_rechnung === 'gutschrift')
+                        Gutschrift {{ $rechnung->rechnungsnummer }} bearbeiten
+                    @else
+                        Rechnung {{ $rechnung->rechnungsnummer }} bearbeiten
+                    @endif
+                @else
+                    Neue Rechnung
+                @endif
 
                 @if($rechnung->exists)
                 <span class="ms-2">{!! $rechnung->status_badge !!}</span>

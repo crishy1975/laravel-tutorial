@@ -12,6 +12,7 @@ use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\ArtikelGebaeudeController;
 use App\Http\Controllers\RechnungController;
 use App\Http\Controllers\PreisAufschlagController;
+use App\Http\Controllers\UnternehmensprofilController;
 
 // Home / Dashboard Redirect
 Route::get('/', fn() => redirect()->route('gebaeude.index'))
@@ -267,6 +268,30 @@ Route::middleware(['auth'])->prefix('preis-aufschlaege')->name('preis-aufschlaeg
     Route::delete('/global/{id}', [PreisAufschlagController::class, 'destroyGlobal'])->name('destroy-global');
     Route::post('/preview', [PreisAufschlagController::class, 'preview'])->name('preview');
 });
+
+// ══════════════════════════════════════════════════════════
+// UNTERNEHMENSPROFIL
+// ══════════════════════════════════════════════════════════  
+
+Route::prefix('einstellungen')->name('unternehmensprofil.')->middleware(['auth'])->group(function () {
+    // Übersicht
+    Route::get('/profil', [UnternehmensprofilController::class, 'index'])
+        ->name('index');
+    
+    // Bearbeiten
+    Route::get('/profil/bearbeiten', [UnternehmensprofilController::class, 'bearbeiten'])
+        ->name('bearbeiten');
+    
+    // Speichern
+    Route::put('/profil', [UnternehmensprofilController::class, 'speichern'])
+        ->name('speichern');
+    
+    // SMTP Test
+    Route::post('/profil/smtp-test', [UnternehmensprofilController::class, 'smtpTesten'])
+        ->name('smtp.testen');
+});
+
+
 
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';
