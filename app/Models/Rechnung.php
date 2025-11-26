@@ -15,6 +15,7 @@ use App\Models\ArtikelGebaeude;
 use App\Models\Adresse;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
+use App\Enums\Zahlungsbedingung;  // ← NEU
 
 class Rechnung extends Model
 {
@@ -86,12 +87,21 @@ class Rechnung extends Model
         // FatturaPA
         'cup',
         'cig',
+        'codice_commessa',
         'auftrag_id',
         'auftrag_datum',
 
         // NEU: Aufschlag-Tracking
         'aufschlag_prozent',
         'aufschlag_typ',
+
+        // Sonstige
+        'bemerkung',
+        'bemerkung_kunde',
+        'zahlungsbedingungen',  // ← NEU
+        'pdf_pfad',
+        'xml_pfad',
+        'externe_referenz',
     ];
 
     protected $casts = [
@@ -111,6 +121,7 @@ class Rechnung extends Model
         'split_payment'       => 'boolean',
         'ritenuta'            => 'boolean',
         'aufschlag_prozent'   => 'decimal:2',
+        'zahlungsbedingungen' => Zahlungsbedingung::class,  // ← NEU
     ];
 
     // ═══════════════════════════════════════════════════════════
@@ -242,31 +253,37 @@ class Rechnung extends Model
             ->gueltig(now())
             ->first();
 
+        // Aufschlag-Tracking
         $aufschlagProzent = 0.0;
         $aufschlagTyp = 'keiner';
 
         if ($gebaeudeAufschlag) {
-            // Gebäude hat individuellen Aufschlag - diesen verwenden
+            // Individueller Aufschlag (überschreibt globale Aufschläge)
             $aufschlagProzent = (float) $gebaeudeAufschlag->prozent;
             $aufschlagTyp = 'individuell';
-        } elseif ($alleAufschlaege->isNotEmpty()) {
-            // Kumulative Berechnung aller globalen Aufschläge
-            $aufschlagProzent = $alleAufschlaege->sum('prozent');
-            $aufschlagTyp = 'global';
-        }
 
-        \Log::info('Rechnung erstellen - Kumulativer Aufschlag', [
-            'gebaeude_id'       => $gebaeude->id,
-            'basis_jahr'        => $basisJahr,
-            'aktuelles_jahr'    => $jahr,
-            'anzahl_aufschlaege' => $alleAufschlaege->count(),
-            'aufschlaege_detail' => $alleAufschlaege->map(fn($a) => [
-                'jahr' => $a->jahr,
-                'prozent' => $a->prozent
-            ])->toArray(),
-            'aufschlag_gesamt'  => $aufschlagProzent,
-            'aufschlag_typ'     => $aufschlagTyp,
-        ]);
+            \Log::info('Individueller Aufschlag verwendet', [
+                'gebaeude_id' => $gebaeude->id,
+                'prozent'     => $aufschlagProzent,
+            ]);
+        } elseif ($alleAufschlaege->isNotEmpty()) {
+            // KUMULATIVER AUFSCHLAG: Alle Jahre multiplizieren
+            $faktor = 1.0;
+            foreach ($alleAufschlaege as $aufschlag) {
+                $faktor *= (1 + ((float) $aufschlag->prozent / 100));
+            }
+
+            // Gesamtprozent berechnen: (Faktor - 1) * 100
+            $aufschlagProzent = round(($faktor - 1) * 100, 2);
+            $aufschlagTyp = 'global';
+
+            \Log::info('Kumulativer Aufschlag berechnet', [
+                'gebaeude_id' => $gebaeude->id,
+                'jahre'       => $alleAufschlaege->pluck('jahr')->toArray(),
+                'faktor'      => $faktor,
+                'prozent'     => $aufschlagProzent,
+            ]);
+        }
 
         // ═══════════════════════════════════════════════════════════
         // 📄 RECHNUNG ERSTELLEN
@@ -280,10 +297,12 @@ class Rechnung extends Model
             'postadresse_id'          => $gebaeude->postadresse_id,
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
 
-            // Rechnungsdaten
+            // Datumsfelder
             'rechnungsdatum'          => now()->toDateString(),
             'leistungsdaten'          => $leistungsdaten,
             'zahlungsziel'            => now()->addDays(30)->toDateString(),
+
+            // Status
             'status'                  => 'draft',
             'typ_rechnung'            => 'rechnung',
 
@@ -325,6 +344,7 @@ class Rechnung extends Model
             // FatturaPA
             'cup'                     => $gebaeude->cup,
             'cig'                     => $gebaeude->cig,
+            'codice_commessa'        => $gebaeude->codice_commessa,
             'auftrag_id'              => $gebaeude->auftrag_id,
             'auftrag_datum'           => $gebaeude->auftrag_datum,
 
@@ -536,5 +556,252 @@ class Rechnung extends Model
     public function getIstEditierbarAttribute(): bool
     {
         return $this->status === 'draft';
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 💰 ZAHLUNGSBEDINGUNG & FÄLLIGKEIT
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Zahlungsbedingung als deutschen Text.
+     * 
+     * @return string
+     */
+    public function getZahlungsbedingungenLabelAttribute(): string
+    {
+        return $this->zahlungsbedingungen?->label() ?? 'Nicht gesetzt';
+    }
+
+    /**
+     * Anzahl Tage der Zahlungsbedingung.
+     * 
+     * @return int
+     */
+    public function getZahlungsbedingungenTageAttribute(): int
+    {
+        return $this->zahlungsbedingungen?->tage() ?? 30;
+    }
+
+    /**
+     * Badge für Zahlungsbedingung (für UI).
+     * 
+     * @return string HTML Badge
+     */
+    public function getZahlungsbedingungenBadgeAttribute(): string
+    {
+        if (!$this->zahlungsbedingungen) {
+            return '<span class="badge bg-secondary">Nicht gesetzt</span>';
+        }
+
+        $class = $this->zahlungsbedingungen->badgeClass();
+        $label = $this->zahlungsbedingungen->label();
+
+        return "<span class=\"badge {$class}\">{$label}</span>";
+    }
+
+    /**
+     * Ist die Rechnung bereits als bezahlt markiert?
+     * 
+     * @return bool
+     */
+    public function istAlsBezahltMarkiert(): bool
+    {
+        return $this->zahlungsbedingungen === Zahlungsbedingung::BEZAHLT;
+    }
+
+    /**
+     * Berechnet das Fälligkeitsdatum basierend auf Zahlungsbedingung.
+     * 
+     * Falls bereits ein zahlungsziel gesetzt ist, wird dieses verwendet.
+     * Ansonsten: rechnungsdatum + Zahlungsbedingung-Tage.
+     * 
+     * @return Carbon|null
+     */
+    public function getFaelligkeitsdatumAttribute(): ?Carbon
+    {
+        // Falls manuell gesetzt
+        if ($this->zahlungsziel) {
+            return $this->zahlungsziel;
+        }
+
+        // Falls kein Rechnungsdatum
+        if (!$this->rechnungsdatum) {
+            return null;
+        }
+
+        // Berechne aus Zahlungsbedingung
+        $tage = $this->zahlungsbedingungen_tage;
+
+        return $this->rechnungsdatum->copy()->addDays($tage);
+    }
+
+    /**
+     * Ist die Rechnung überfällig?
+     * 
+     * @return bool
+     */
+    public function istUeberfaellig(): bool
+    {
+        // Bereits bezahlt? → Nicht überfällig
+        if ($this->istAlsBezahltMarkiert()) {
+            return false;
+        }
+
+        // Status 'paid' → Nicht überfällig
+        if ($this->status === 'paid') {
+            return false;
+        }
+
+        $faelligkeit = $this->faelligkeitsdatum;
+
+        if (!$faelligkeit) {
+            return false;
+        }
+
+        return $faelligkeit->isPast();
+    }
+
+    /**
+     * Tage bis Fälligkeit (negativ = überfällig).
+     * 
+     * @return int|null
+     */
+    public function getTagebisFaelligkeitAttribute(): ?int
+    {
+        $faelligkeit = $this->faelligkeitsdatum;
+
+        if (!$faelligkeit) {
+            return null;
+        }
+
+        return now()->startOfDay()->diffInDays($faelligkeit->startOfDay(), false);
+    }
+
+    /**
+     * Fälligkeits-Status als Badge.
+     * 
+     * @return string HTML Badge
+     */
+    public function getFaelligkeitsStatusBadgeAttribute(): string
+    {
+        if ($this->istAlsBezahltMarkiert() || $this->status === 'paid') {
+            return '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Bezahlt</span>';
+        }
+
+        if ($this->status === 'cancelled') {
+            return '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Storniert</span>';
+        }
+
+        if ($this->istUeberfaellig()) {
+            $tage = abs($this->tage_bis_faelligkeit);
+            return "<span class=\"badge bg-danger\"><i class=\"bi bi-exclamation-triangle\"></i> Überfällig ({$tage} Tage)</span>";
+        }
+
+        $tage = $this->tage_bis_faelligkeit;
+        
+        if ($tage === null) {
+            return '<span class="badge bg-secondary">Keine Fälligkeit</span>';
+        }
+
+        if ($tage <= 7) {
+            return "<span class=\"badge bg-warning text-dark\"><i class=\"bi bi-clock\"></i> Fällig in {$tage} Tagen</span>";
+        }
+
+        return "<span class=\"badge bg-info\"><i class=\"bi bi-calendar\"></i> Fällig in {$tage} Tagen</span>";
+    }
+
+    /**
+     * Markiert Rechnung als bezahlt.
+     * 
+     * @param Carbon|null $bezahltAm
+     * @return void
+     */
+    public function markiereAlsBezahlt(?Carbon $bezahltAm = null): void
+    {
+        $this->zahlungsbedingungen = Zahlungsbedingung::BEZAHLT;
+        $this->status = 'paid';
+        $this->bezahlt_am = $bezahltAm ?? now();
+        $this->save();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 📊 ZUSÄTZLICHE SCOPES FÜR ZAHLUNGSBEDINGUNG
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Scope: Nur bezahlte Rechnungen.
+     */
+    public function scopeBezahlt($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('status', 'paid')
+              ->orWhere('zahlungsbedingungen', Zahlungsbedingung::BEZAHLT->value);
+        });
+    }
+
+    /**
+     * Scope: Nur unbezahlte Rechnungen.
+     */
+    public function scopeUnbezahlt($query)
+    {
+        return $query->where('status', '!=', 'paid')
+                     ->where(function ($q) {
+                         $q->whereNull('zahlungsbedingungen')
+                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+                     });
+    }
+
+    /**
+     * Scope: Überfällige Rechnungen.
+     */
+    public function scopeUeberfaellig($query)
+    {
+        return $query->where('status', '!=', 'paid')
+                     ->where('status', '!=', 'cancelled')
+                     ->where(function ($q) {
+                         $q->whereNull('zahlungsbedingungen')
+                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+                     })
+                     ->where(function ($q) {
+                         $q->whereDate('zahlungsziel', '<', now())
+                           ->orWhere(function ($q2) {
+                               $q2->whereNull('zahlungsziel')
+                                  ->whereDate('rechnungsdatum', '<', now()->subDays(30));
+                           });
+                     });
+    }
+
+    /**
+     * Scope: Bald fällig (innerhalb X Tagen).
+     */
+    public function scopeBaldFaellig($query, int $tage = 7)
+    {
+        $bis = now()->addDays($tage);
+        
+        return $query->where('status', '!=', 'paid')
+                     ->where('status', '!=', 'cancelled')
+                     ->where(function ($q) {
+                         $q->whereNull('zahlungsbedingungen')
+                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+                     })
+                     ->where(function ($q) use ($bis) {
+                         $q->whereBetween('zahlungsziel', [now(), $bis])
+                           ->orWhere(function ($q2) use ($bis) {
+                               $q2->whereNull('zahlungsziel')
+                                  ->whereBetween(DB::raw('DATE_ADD(rechnungsdatum, INTERVAL 30 DAY)'), [now(), $bis]);
+                           });
+                     });
+    }
+
+    /**
+     * Scope: Offene Rechnungen (sent, aber nicht paid).
+     */
+    public function scopeOffen($query)
+    {
+        return $query->where('status', 'sent')
+                     ->where(function ($q) {
+                         $q->whereNull('zahlungsbedingungen')
+                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+                     });
     }
 }

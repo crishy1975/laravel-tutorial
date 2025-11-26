@@ -1,110 +1,127 @@
 {{-- Reines Feld-Partial für Gebäude: für create & edit nutzbar --}}
 <div class="row g-3">
 
-  {{-- Codex + Gebäudename --}}
-  {{-- Codex (nur Buchstaben-Präfix auswählen; Vorschläge aus bestehenden Codizes) --}}
+  {{-- 🏢 Codex + Gebäudename --}}
   <div class="col-md-3">
-    <div class="form-floating">
-      <input
-        type="text"
-        id="codex"
-        name="codex"
-        placeholder=" "
-        class="form-control @error('codex') is-invalid @enderror"
-        value="{{ old('codex', $gebaeude->codex) }}"
-        list="codexPrefixList" {{-- verbindet mit der Datalist --}}
-        autocomplete="off"
-        spellcheck="false">
-      <label for="codex">Codex</label>
-      @error('codex') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="codex" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-tag"></i> Codex
+    </label>
+    <input
+      type="text"
+      id="codex"
+      name="codex"
+      class="form-control form-control-sm @error('codex') is-invalid @enderror"
+      value="{{ old('codex', $gebaeude->codex) }}"
+      list="codexPrefixList"
+      autocomplete="off"
+      spellcheck="false">
+    @error('codex') <div class="invalid-feedback">{{ $message }}</div> @enderror
 
-    {{-- 🔽 Vorschläge: value = Präfix, label = Hinweis (Straße, Ort) --}}
+    {{-- 📽 Vorschläge: value = Präfix, label = Hinweis (Straße, Ort) --}}
     <datalist id="codexPrefixList">
       @foreach(($codexPrefixTips ?? []) as $item)
-      @php
-      $prefix = $item['prefix'];
-      $hint = $item['hint'];
-      @endphp
-      {{-- label wird in vielen Browsern als Beschreibung angezeigt; value landet im Input --}}
-      <option value="{{ $prefix }}" label="{{ $hint }}"></option>
+        @php
+          $prefix = $item['prefix'];
+          $hint = $item['hint'];
+        @endphp
+        <option value="{{ $prefix }}" label="{{ $hint }}"></option>
       @endforeach
     </datalist>
+    <small class="text-muted">z.B. gam, via, etc.</small>
   </div>
 
-  
-
   <div class="col-md-9">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('gebaeude_name') is-invalid @enderror"
-        id="gebaeude_name" name="gebaeude_name" placeholder=" "
-        value="{{ old('gebaeude_name', $gebaeude->gebaeude_name ?? '') }}">
-      <label for="gebaeude_name">Gebäudename</label>
-      @error('gebaeude_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="gebaeude_name" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-building"></i> Gebäudename
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('gebaeude_name') is-invalid @enderror"
+      id="gebaeude_name" 
+      name="gebaeude_name"
+      value="{{ old('gebaeude_name', $gebaeude->gebaeude_name ?? '') }}">
+    @error('gebaeude_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Straße + Hausnummer --}}
+  {{-- 📍 Straße + Hausnummer --}}
   <div class="col-md-9">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('strasse') is-invalid @enderror"
-        id="strasse" name="strasse" placeholder=" "
-        value="{{ old('strasse', $gebaeude->strasse ?? '') }}">
-      <label for="strasse">Straße</label>
-      @error('strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="strasse" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-signpost-2"></i> Straße
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('strasse') is-invalid @enderror"
+      id="strasse" 
+      name="strasse"
+      value="{{ old('strasse', $gebaeude->strasse ?? '') }}">
+    @error('strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
   <div class="col-md-3">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('hausnummer') is-invalid @enderror"
-        id="hausnummer" name="hausnummer" placeholder=" "
-        value="{{ old('hausnummer', $gebaeude->hausnummer ?? '') }}">
-      <label for="hausnummer">Nr.</label>
-      @error('hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="hausnummer" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-123"></i> Nr.
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('hausnummer') is-invalid @enderror"
+      id="hausnummer" 
+      name="hausnummer"
+      value="{{ old('hausnummer', $gebaeude->hausnummer ?? '') }}">
+    @error('hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Land + PLZ + Ort --}}
+  {{-- 🌍 Land + PLZ + Ort --}}
   <div class="col-md-4">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('land') is-invalid @enderror"
-        id="land" name="land" placeholder=" "
-        value="{{ old('land', $gebaeude->land ?? '') }}">
-      <label for="land">Land</label>
-      @error('land') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="land" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-globe-europe-africa"></i> Land
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('land') is-invalid @enderror"
+      id="land" 
+      name="land"
+      value="{{ old('land', $gebaeude->land ?? '') }}">
+    @error('land') <div class="invalid-feedback">{{ $message }}</div> @enderror
+    <small class="text-muted">z.B. Italien, Deutschland</small>
   </div>
 
   <div class="col-md-2">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('plz') is-invalid @enderror"
-        id="plz" name="plz" placeholder=" "
-        value="{{ old('plz', $gebaeude->plz ?? '') }}">
-      <label for="plz">PLZ</label>
-      @error('plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="plz" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-mailbox"></i> PLZ
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('plz') is-invalid @enderror"
+      id="plz" 
+      name="plz"
+      value="{{ old('plz', $gebaeude->plz ?? '') }}">
+    @error('plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
   <div class="col-md-6">
-    <div class="form-floating">
-      <input type="text" class="form-control @error('wohnort') is-invalid @enderror"
-        id="wohnort" name="wohnort" placeholder=" "
-        value="{{ old('wohnort', $gebaeude->wohnort ?? '') }}">
-      <label for="wohnort">Ort</label>
-      @error('wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="wohnort" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-geo-alt"></i> Ort
+    </label>
+    <input 
+      type="text" 
+      class="form-control form-control-sm @error('wohnort') is-invalid @enderror"
+      id="wohnort" 
+      name="wohnort"
+      value="{{ old('wohnort', $gebaeude->wohnort ?? '') }}">
+    @error('wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Bemerkung --}}
+  {{-- 📝 Bemerkung --}}
   <div class="col-12">
-    <div class="form-floating">
-      <textarea class="form-control @error('bemerkung') is-invalid @enderror"
-        id="bemerkung" name="bemerkung" placeholder=" "
-        style="height: 100px">{{ old('bemerkung', $gebaeude->bemerkung ?? '') }}</textarea>
-      <label for="bemerkung">Bemerkung</label>
-      @error('bemerkung') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+    <label for="bemerkung" class="form-label small mb-1 fw-semibold">
+      <i class="bi bi-chat-left-text"></i> Bemerkung
+    </label>
+    <textarea 
+      class="form-control form-control-sm @error('bemerkung') is-invalid @enderror"
+      id="bemerkung" 
+      name="bemerkung"
+      rows="3">{{ old('bemerkung', $gebaeude->bemerkung ?? '') }}</textarea>
+    @error('bemerkung') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
 </div>

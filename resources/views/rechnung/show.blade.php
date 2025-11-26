@@ -7,8 +7,12 @@
   {{-- Header mit Aktionen --}}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>
-      <i class="bi bi-receipt"></i> Rechnung {{ $rechnung->nummern }}
+      <i class="bi bi-receipt"></i> Rechnung {{ $rechnung->rechnungsnummer }}
       <span class="ms-2">{!! $rechnung->status_badge !!}</span>
+      {{-- ⭐ NEU: Zahlungsbedingungen Badge --}}
+      @if($rechnung->zahlungsbedingungen)
+        <span class="ms-2">{!! $rechnung->zahlungsbedingungen_badge !!}</span>
+      @endif
     </h3>
     
     <div class="btn-group">
@@ -31,6 +35,34 @@
           <i class="bi bi-file-earmark-code"></i> FatturaPA XML
         </a>
       @endif
+
+      {{-- ⭐ NEU: Aktions-Buttons --}}
+      @if($rechnung->status === 'draft')
+        <button type="button" 
+                id="btn-send"
+                class="btn btn-info"
+                data-send-url="{{ route('rechnung.send', $rechnung->id) }}">
+          <i class="bi bi-send"></i> Versenden
+        </button>
+      @endif
+
+      @if(!$rechnung->istAlsBezahltMarkiert() && $rechnung->status !== 'paid')
+        <button type="button" 
+                id="btn-mark-bezahlt"
+                class="btn btn-success"
+                data-mark-url="{{ route('rechnung.mark-bezahlt', $rechnung->id) }}">
+          <i class="bi bi-check-circle"></i> Als bezahlt markieren
+        </button>
+      @endif
+
+      @if($rechnung->status !== 'cancelled')
+        <button type="button" 
+                id="btn-cancel"
+                class="btn btn-outline-danger"
+                data-cancel-url="{{ route('rechnung.cancel', $rechnung->id) }}">
+          <i class="bi bi-x-circle"></i> Stornieren
+        </button>
+      @endif
     </div>
   </div>
 
@@ -40,6 +72,73 @@
       <i class="bi bi-check-circle"></i> {{ session('success') }}
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
+  @endif
+
+  @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show">
+      <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  @endif
+
+  {{-- ⭐ NEU: Fälligkeits-Warnung (wenn überfällig) --}}
+  @if($rechnung->istUeberfaellig())
+    <div class="alert alert-danger">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <strong>Achtung!</strong> Diese Rechnung ist seit {{ abs($rechnung->tage_bis_faelligkeit) }} Tagen überfällig!
+      @if($rechnung->faelligkeitsdatum)
+        <br><small>Fällig war am: {{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}</small>
+      @endif
+    </div>
+  @endif
+
+  {{-- ⭐ NEU: Zahlungsinformationen (prominente Box) --}}
+  @if($rechnung->zahlungsbedingungen)
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }}">
+        <div class="card-header bg-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }} text-white">
+          <h6 class="mb-0">
+            <i class="bi bi-{{ $rechnung->istAlsBezahltMarkiert() ? 'check-circle' : 'calendar-check' }}"></i> 
+            Zahlungsinformationen
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <strong>Zahlungsbedingungen:</strong><br>
+                  {!! $rechnung->zahlungsbedingungen_badge !!}
+                </div>
+                
+                @if($rechnung->zahlungsziel)
+                <div class="col-md-4">
+                  <strong>Zahlungsziel:</strong><br>
+                  {{ $rechnung->zahlungsziel->format('d.m.Y') }}
+                  @if(!$rechnung->istAlsBezahltMarkiert())
+                    <br><small class="text-muted">({{ $rechnung->tage_bis_faelligkeit > 0 ? 'noch ' . $rechnung->tage_bis_faelligkeit . ' Tage' : abs($rechnung->tage_bis_faelligkeit) . ' Tage überfällig' }})</small>
+                  @endif
+                </div>
+                @endif
+
+                @if($rechnung->bezahlt_am)
+                <div class="col-md-4">
+                  <strong>Bezahlt am:</strong><br>
+                  {{ $rechnung->bezahlt_am->format('d.m.Y') }}
+                  <br><span class="badge bg-success">✓ Bezahlt</span>
+                </div>
+                @endif
+              </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+              {!! $rechnung->faelligkeits_status_badge !!}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   @endif
 
   {{-- Vorschau-Tab wiederverwenden --}}
@@ -118,4 +217,101 @@
   @endif
 
 </div>
+
+{{-- ⭐ NEU: JavaScript für Aktions-Buttons (OHNE verschachtelte Forms!) --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token() }}';
+
+    // Als bezahlt markieren
+    const btnMarkBezahlt = document.getElementById('btn-mark-bezahlt');
+    if (btnMarkBezahlt) {
+        btnMarkBezahlt.addEventListener('click', function() {
+            if (!confirm('Rechnung als bezahlt markieren?')) return;
+            
+            const url = this.getAttribute('data-mark-url');
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Fehler beim Markieren als bezahlt');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Netzwerkfehler');
+            });
+        });
+    }
+
+    // Versenden
+    const btnSend = document.getElementById('btn-send');
+    if (btnSend) {
+        btnSend.addEventListener('click', function() {
+            if (!confirm('Rechnung versenden?')) return;
+            
+            const url = this.getAttribute('data-send-url');
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Fehler beim Versenden');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Netzwerkfehler');
+            });
+        });
+    }
+
+    // Stornieren
+    const btnCancel = document.getElementById('btn-cancel');
+    if (btnCancel) {
+        btnCancel.addEventListener('click', function() {
+            if (!confirm('Rechnung wirklich stornieren? Dieser Vorgang kann nicht rückgängig gemacht werden!')) return;
+            
+            const url = this.getAttribute('data-cancel-url');
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Fehler beim Stornieren');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Netzwerkfehler');
+            });
+        });
+    }
+});
+</script>
 @endsection

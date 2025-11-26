@@ -24,10 +24,38 @@
                 @endif
               @endif
             </h5>
+            
             <p class="mb-1"><strong>Typ:</strong> {{ $rechnung->typ_rechnung === 'gutschrift' ? 'Gutschrift' : 'Rechnung' }}</p>
             <p class="mb-1"><strong>Rechnungsdatum:</strong> {{ $rechnung->rechnungsdatum?->format('d.m.Y') ?? '-' }}</p>
             <p class="mb-1"><strong>Leistungsdaten:</strong> {{ $rechnung->leistungsdaten ?? '-' }}</p>
+            
+            {{-- ⭐ NEU: Zahlungsbedingungen --}}
+            @if($rechnung->zahlungsbedingungen)
+            <p class="mb-1">
+              <strong>Zahlungsbedingungen:</strong> 
+              {!! $rechnung->zahlungsbedingungen_badge !!}
+            </p>
+            @endif
+            
             <p class="mb-1"><strong>Zahlungsziel:</strong> {{ $rechnung->zahlungsziel?->format('d.m.Y') ?? '-' }}</p>
+            
+            {{-- ⭐ NEU: Fälligkeitsstatus --}}
+            @if($rechnung->faelligkeitsdatum && !$rechnung->istAlsBezahltMarkiert())
+            <p class="mb-1">
+              <strong>Fälligkeit:</strong> 
+              {!! $rechnung->faelligkeits_status_badge !!}
+            </p>
+            @endif
+            
+            {{-- ⭐ NEU: Bezahlt-Status --}}
+            @if($rechnung->bezahlt_am)
+            <p class="mb-1">
+              <strong>Bezahlt am:</strong> 
+              {{ $rechnung->bezahlt_am->format('d.m.Y') }}
+              <span class="badge bg-success ms-2">✓ Bezahlt</span>
+            </p>
+            @endif
+            
             <p class="mb-0"><strong>Status:</strong> {!! $rechnung->status_badge ?? '<span class="badge bg-secondary">Entwurf</span>' !!}</p>
           </div>
           <div class="col-md-6 text-md-end">
@@ -42,6 +70,70 @@
       </div>
     </div>
   </div>
+
+  {{-- ⭐ NEU: Zahlungsinformationen (prominente Box) - nur wenn Rechnung existiert --}}
+  @if($rechnung->exists && $rechnung->zahlungsbedingungen)
+  <div class="col-12">
+    <div class="card border-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }}">
+      <div class="card-header bg-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }} text-white">
+        <h6 class="mb-0">
+          <i class="bi bi-{{ $rechnung->istAlsBezahltMarkiert() ? 'check-circle' : 'calendar-check' }}"></i> 
+          Zahlungsinformationen
+        </h6>
+      </div>
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <strong>Zahlungsbedingungen:</strong><br>
+                {!! $rechnung->zahlungsbedingungen_badge !!}
+                <br><small class="text-muted">{{ $rechnung->zahlungsbedingungen_label }}</small>
+              </div>
+              
+              @if($rechnung->zahlungsziel)
+              <div class="col-md-4">
+                <strong>Zahlungsziel:</strong><br>
+                {{ $rechnung->zahlungsziel->format('d.m.Y') }}
+                @if(!$rechnung->istAlsBezahltMarkiert())
+                  <br><small class="text-muted">
+                    @if($rechnung->tage_bis_faelligkeit > 0)
+                      <i class="bi bi-hourglass-split"></i> noch {{ $rechnung->tage_bis_faelligkeit }} Tage
+                    @elseif($rechnung->tage_bis_faelligkeit < 0)
+                      <i class="bi bi-exclamation-triangle text-danger"></i> {{ abs($rechnung->tage_bis_faelligkeit) }} Tage überfällig
+                    @else
+                      <i class="bi bi-clock-history"></i> heute fällig
+                    @endif
+                  </small>
+                @endif
+              </div>
+              @endif
+
+              @if($rechnung->bezahlt_am)
+              <div class="col-md-4">
+                <strong>Bezahlt am:</strong><br>
+                {{ $rechnung->bezahlt_am->format('d.m.Y') }}
+                <br><span class="badge bg-success">✓ Bezahlt</span>
+              </div>
+              @endif
+            </div>
+          </div>
+          <div class="col-md-4 text-md-end">
+            {!! $rechnung->faelligkeits_status_badge !!}
+          </div>
+        </div>
+
+        {{-- ⭐ Überfällig-Warnung --}}
+        @if($rechnung->istUeberfaellig())
+        <div class="alert alert-danger mt-3 mb-0">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <strong>Achtung!</strong> Diese Rechnung ist seit <strong>{{ abs($rechnung->tage_bis_faelligkeit) }} Tagen</strong> überfällig!
+        </div>
+        @endif
+      </div>
+    </div>
+  </div>
+  @endif
 
   {{-- Adressen nebeneinander --}}
   <div class="col-lg-6">
@@ -236,7 +328,7 @@
   </div>
 
   {{-- FatturaPA --}}
-  @if($rechnung->cup || $rechnung->cig || $rechnung->auftrag_id)
+  @if($rechnung->cup || $rechnung->cig || $rechnung->codice_commessa || $rechnung->auftrag_id)
     <div class="col-12">
       <div class="card border-warning">
         <div class="card-header bg-warning">
@@ -252,6 +344,11 @@
             @if($rechnung->cig)
               <div class="col-md-3">
                 <strong>CIG:</strong> {{ $rechnung->cig }}
+              </div>
+            @endif
+            @if($rechnung->codice_commessa)
+              <div class="col-md-3">
+                <strong>Codice Commessa:</strong> {{ $rechnung->codice_commessa }}
               </div>
             @endif
             @if($rechnung->auftrag_id)

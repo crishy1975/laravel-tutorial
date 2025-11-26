@@ -6,6 +6,7 @@ use App\Models\Rechnung;
 use App\Models\Gebaeude;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
+use App\Enums\Zahlungsbedingung;  // ← NEU
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,9 @@ class RechnungController extends Controller
 
         $datumBis = $request->input('datum_bis')
             ?: Carbon::create($year, 12, 31)->format('Y-m-d');
+
+        // ⭐ NEU: Status-Filter
+        $statusFilter = $request->input('status_filter');
 
         // ------------------------------
         // 2. Basis-Query aufbauen
@@ -86,22 +90,58 @@ class RechnungController extends Controller
         }
 
         // ------------------------------
-        // 7. Sortierung & Pagination
+        // ⭐ NEU: 7. Filter: Zahlungsstatus
+        // ------------------------------
+        if (!empty($statusFilter)) {
+            switch ($statusFilter) {
+                case 'unbezahlt':
+                    $query->unbezahlt();
+                    break;
+                case 'bezahlt':
+                    $query->bezahlt();
+                    break;
+                case 'ueberfaellig':
+                    $query->ueberfaellig();
+                    break;
+                case 'bald_faellig':
+                    $query->baldFaellig(7);
+                    break;
+                case 'offen':
+                    $query->offen();
+                    break;
+            }
+        }
+
+        // ------------------------------
+        // 8. Sortierung & Pagination
         // ------------------------------
         $rechnungen = $query
             ->orderByDesc('rechnungsdatum')
             ->paginate(25);
 
         // ------------------------------
-        // 8. View zurückgeben
+        // ⭐ NEU: Statistiken berechnen
+        // ------------------------------
+        $stats = [
+            'unbezahlt_anzahl' => Rechnung::unbezahlt()->count(),
+            'unbezahlt_summe' => Rechnung::unbezahlt()->sum('zahlbar_betrag'),
+            'ueberfaellig_anzahl' => Rechnung::ueberfaellig()->count(),
+            'ueberfaellig_summe' => Rechnung::ueberfaellig()->sum('zahlbar_betrag'),
+            'bald_faellig_anzahl' => Rechnung::baldFaellig(7)->count(),
+        ];
+
+        // ------------------------------
+        // 9. View zurückgeben
         // ------------------------------
         return view('rechnung.index', [
-            'rechnungen' => $rechnungen,
-            'nummer'     => $nummer,
-            'codex'      => $codex,
-            'suche'      => $suche,
-            'datumVon'   => $datumVon,
-            'datumBis'   => $datumBis,
+            'rechnungen'    => $rechnungen,
+            'nummer'        => $nummer,
+            'codex'         => $codex,
+            'suche'         => $suche,
+            'datumVon'      => $datumVon,
+            'datumBis'      => $datumBis,
+            'statusFilter'  => $statusFilter,  // ← NEU
+            'stats'         => $stats,         // ← NEU
         ]);
     }
 
@@ -149,25 +189,32 @@ class RechnungController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'gebaeude_id'       => 'required|exists:gebaeude,id',
-            'rechnungsdatum'    => 'required|date',
-            'zahlungsziel'      => 'nullable|date',
-            'status'            => 'nullable|in:draft,sent,paid,overdue,cancelled',
-            'typ_rechnung'      => 'required|in:rechnung,gutschrift',
-            'bezahlt_am'        => 'nullable|date',
-            'leistungsdaten'    => 'nullable|string|max:255',
+            'gebaeude_id'        => 'required|exists:gebaeude,id',
+            'rechnungsdatum'     => 'required|date',
+            'zahlungsbedingungen' => 'nullable|in:sofort,netto_7,netto_14,netto_30,netto_60,netto_90,netto_120',
+            'zahlungsziel'       => 'nullable|date',
+            'status'             => 'nullable|in:draft,sent,paid,overdue,cancelled',
+            'typ_rechnung'       => 'required|in:rechnung,gutschrift',
+            'bezahlt_am'         => 'nullable|date',
+            'leistungsdaten'     => 'nullable|string|max:255',
             'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
-            'cup'               => 'nullable|string|max:20',
-            'cig'               => 'nullable|string|max:10',
-            'auftrag_id'        => 'nullable|string|max:50',
-            'auftrag_datum'     => 'nullable|date',
-            'bemerkung'         => 'nullable|string',
-            'bemerkung_kunde'   => 'nullable|string',
+            'cup'                => 'nullable|string|max:20',
+            'cig'                => 'nullable|string|max:10',
+            'codice_commessa'    => 'nullable|string|max:100',  // ⭐ NEU
+            'auftrag_id'         => 'nullable|string|max:50',
+            'auftrag_datum'      => 'nullable|date',
+            'bemerkung'          => 'nullable|string',
+            'bemerkung_kunde'    => 'nullable|string',
         ]);
 
         // Status default auf 'draft' setzen wenn nicht vorhanden
         if (!isset($validated['status'])) {
             $validated['status'] = 'draft';
+        }
+
+        // ⭐ NEU: Zahlungsbedingungen Default
+        if (!isset($validated['zahlungsbedingungen'])) {
+            $validated['zahlungsbedingungen'] = 'netto_30';
         }
 
         $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])->findOrFail($validated['gebaeude_id']);
@@ -195,8 +242,11 @@ class RechnungController extends Controller
         $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
         $gebaeude_liste = Gebaeude::orderBy('codex')->get();
         $profile = FatturaProfile::all();
+        
+        // ⭐ NEU: Zahlungsbedingungen für Dropdown
+        $zahlungsbedingungen = Zahlungsbedingung::options();
 
-        return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile'));
+        return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile', 'zahlungsbedingungen'));
     }
 
     /**
@@ -220,6 +270,7 @@ class RechnungController extends Controller
         $validated = $request->validate([
             // Basisdaten
             'rechnungsdatum'     => ['required', 'date'],
+            'zahlungsbedingungen' => ['nullable', 'in:sofort,netto_7,netto_14,netto_30,netto_60,netto_90,netto_120,bezahlt'],
             'zahlungsziel'       => ['nullable', 'date'],
             'status'             => ['nullable', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
             'typ_rechnung'       => ['required', Rule::in(['rechnung', 'gutschrift'])],
@@ -234,13 +285,13 @@ class RechnungController extends Controller
             // FatturaPA / öffentliche Aufträge
             'cup'                => ['nullable', 'string', 'max:20'],
             'cig'                => ['nullable', 'string', 'max:10'],
+            'codice_commessa'    => ['nullable', 'string', 'max:100'],  // ⭐ NEU
             'auftrag_id'         => ['nullable', 'string', 'max:50'],
             'auftrag_datum'      => ['nullable', 'date'],
 
             // Texte / Bemerkungen
             'bemerkung'          => ['nullable', 'string'],
             'bemerkung_kunde'    => ['nullable', 'string'],
-            'zahlungsbedingungen' => ['nullable', 'string'],
 
             // ⭐ NEU: Preis-Aufschlag (readonly, nur zur Info)
             'aufschlag_prozent'  => ['nullable', 'numeric', 'min:-100', 'max:100'],
@@ -313,6 +364,80 @@ class RechnungController extends Controller
         return redirect()
             ->route('rechnung.index')
             ->with('success', "Rechnung {$nummer} wurde endgültig gelöscht.");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 💰 NEU: ZAHLUNGS-AKTIONEN
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Rechnung als bezahlt markieren.
+     */
+    public function markAsBezahlt(Request $request, $id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        if ($rechnung->istAlsBezahltMarkiert()) {
+            return redirect()
+                ->back()
+                ->with('info', 'Rechnung ist bereits als bezahlt markiert.');
+        }
+
+        $validated = $request->validate([
+            'bezahlt_am' => 'nullable|date',
+        ]);
+
+        $bezahltAm = isset($validated['bezahlt_am']) 
+            ? Carbon::parse($validated['bezahlt_am']) 
+            : null;
+
+        $rechnung->markiereAlsBezahlt($bezahltAm);
+
+        return redirect()
+            ->back()
+            ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde als bezahlt markiert.");
+    }
+
+    /**
+     * Rechnung versenden (Status: sent).
+     */
+    public function send($id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        if ($rechnung->status !== 'draft') {
+            return redirect()
+                ->back()
+                ->with('error', 'Nur Entwürfe können versendet werden.');
+        }
+
+        $rechnung->update(['status' => 'sent']);
+
+        // TODO: Hier PDF generieren und per E-Mail versenden
+
+        return redirect()
+            ->back()
+            ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde versendet.");
+    }
+
+    /**
+     * Rechnung stornieren.
+     */
+    public function cancel($id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        if ($rechnung->status === 'cancelled') {
+            return redirect()
+                ->back()
+                ->with('info', 'Rechnung ist bereits storniert.');
+        }
+
+        $rechnung->update(['status' => 'cancelled']);
+
+        return redirect()
+            ->back()
+            ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde storniert.");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -434,5 +559,33 @@ class RechnungController extends Controller
         return redirect()
             ->back()
             ->with('error', 'XML-Export noch nicht implementiert.');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 📊 NEU: AJAX HELPERS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * AJAX: Zahlungsziel automatisch berechnen.
+     */
+    public function calculateZahlungsziel(Request $request)
+    {
+        $validated = $request->validate([
+            'rechnungsdatum' => 'required|date',
+            'zahlungsbedingungen' => 'required|in:sofort,netto_7,netto_14,netto_30,netto_60,netto_90,netto_120',
+        ]);
+
+        $rechnungsdatum = Carbon::parse($validated['rechnungsdatum']);
+        $zahlungsbedingung = Zahlungsbedingung::from($validated['zahlungsbedingungen']);
+        
+        $zahlungsziel = $rechnungsdatum->copy()->addDays($zahlungsbedingung->tage());
+
+        return response()->json([
+            'ok' => true,
+            'zahlungsziel' => $zahlungsziel->format('Y-m-d'),
+            'zahlungsziel_formatiert' => $zahlungsziel->format('d.m.Y'),
+            'tage' => $zahlungsbedingung->tage(),
+            'label' => $zahlungsbedingung->label(),
+        ]);
     }
 }
