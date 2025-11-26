@@ -153,6 +153,7 @@ class GebaeudeController extends Controller
                 'bemerkung_buchhaltung'      => 'nullable|string',
                 'cup'                         => 'nullable|string|max:20',
                 'cig'                         => 'nullable|string|max:10',
+                'codice_commessa'            => 'nullable|string|max:100',  // ⭐ NEU
                 'auftrag_id'                  => 'nullable|string|max:50',
                 'auftrag_datum'               => 'nullable|date',
                 // ✅ richtige Tabelle & Spalte:
@@ -422,6 +423,7 @@ class GebaeudeController extends Controller
                 'bemerkung_buchhaltung'      => 'nullable|string',
                 'cup'                         => 'nullable|string|max:20',
                 'cig'                         => 'nullable|string|max:10',
+                'codice_commessa'            => 'nullable|string|max:100',  // ⭐ NEU
                 'auftrag_id'                  => 'nullable|string|max:50',
                 'auftrag_datum'               => 'nullable|date',
                 // ✅ richtige Tabelle & Spalte:

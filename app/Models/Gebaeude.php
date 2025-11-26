@@ -53,6 +53,7 @@ class Gebaeude extends Model
         'bemerkung_buchhaltung',
         'cup',
         'cig',
+        'codice_commessa',
         'auftrag_id',
         'auftrag_datum',
         'fattura_profile_id',

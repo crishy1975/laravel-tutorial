@@ -86,8 +86,7 @@ Route::middleware(['auth', 'verified'])
         Route::delete('/{id}',   [GebaeudeController::class, 'destroy'])
             ->whereNumber('id')->name('destroy');
 
-        // 🔗 Touren: Bulk-Attach (für dein Modal in gebaeude.index)
-        // (Route-Name exakt wie in deinen Views: ge baeude.touren.bulkAttach)
+        // 🔗 Touren: Bulk-Attach
         Route::post('/touren/bulk-attach', [GebaeudeController::class, 'bulkAttachTour'])
             ->name('touren.bulkAttach');
 
@@ -97,13 +96,23 @@ Route::middleware(['auth', 'verified'])
 
         Route::post('/{id}/artikel/reorder', [ArtikelGebaeudeController::class, 'reorder'])
             ->whereNumber('id')->name('artikel.reorder');
+
+        // Reinigungen zurücksetzen
         Route::post('/reset-gemachte-reinigungen', [GebaeudeController::class, 'resetGemachteReinigungen'])
             ->name('resetGemachteReinigungen');
+
+        // Fälligkeit berechnen
         Route::post('/{id}/faellig/recalc', [GebaeudeController::class, 'recalcFaelligkeit'])
             ->whereNumber('id')
             ->name('faellig.recalc');
+
         Route::post('/faellig/recalc-all', [GebaeudeController::class, 'recalcFaelligAll'])
-            ->name('gebaeude.faellig.recalcAll');
+            ->name('faellig.recalcAll');
+
+        // Rechnung aus Gebäude erstellen
+        Route::post('/{id}/rechnung', [GebaeudeController::class, 'createRechnung'])
+            ->whereNumber('id')
+            ->name('rechnung.create');
     });
 
 // Gebäude Aufschlag-Routes (DIREKT danach, NICHT in einer Gruppe!)
@@ -116,6 +125,7 @@ Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'remo
     ->name('gebaeude.aufschlag.remove');
 
 Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufschlag'])
+    ->middleware(['auth'])
     ->name('gebaeude.aufschlag.get');
 
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
@@ -135,12 +145,12 @@ Route::post('/gebaeude/{id}/timeline', [TimelineController::class, 'timelineStor
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('gebaeude.timeline.store');
 
-// Löschen eines Timeline-Eintrags (View nutzt: timeline.destroy)
+// Löschen eines Timeline-Eintrags
 Route::delete('/timeline/{id}', [TimelineController::class, 'destroy'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')->name('timeline.destroy');
 
-// Verrechnen-Flag eines Timeline-Eintrags toggeln (AJAX)
+// Verrechnen-Flag toggeln (AJAX)
 Route::patch('/timeline/{id}/verrechnen', [TimelineController::class, 'toggleVerrechnen'])
     ->middleware(['auth', 'verified'])
     ->whereNumber('id')
@@ -166,13 +176,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // 🔗 Tour ⇄ Gebäude: NUR Pivot löschen
 
     // Einzel-Detach (eine Verknüpfung entfernen)
-    // View: route('tour.gebaeude.detach', ['tour' => $tour->id, 'gebaeude' => $g->id])
     Route::delete('/tour/{tour}/gebaeude/{gebaeude}', [TourController::class, 'detach'])
         ->whereNumber('tour')->whereNumber('gebaeude')
         ->name('tour.gebaeude.detach');
 
     // Bulk-Detach (mehrere Verknüpfungen gleichzeitig)
-    // View: route('tour.gebaeude.bulkDetach', $tour->id)
     Route::delete('/tour/{tour}/gebaeude', [TourController::class, 'bulkDetach'])
         ->whereNumber('tour')
         ->name('tour.gebaeude.bulkDetach');
@@ -184,77 +192,71 @@ Route::middleware(['auth', 'verified'])->group(function () {
 // ══════════════════════════════════════════════════════════
 // RECHNUNGEN
 // ══════════════════════════════════════════════════════════
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth'])->prefix('rechnung')->name('rechnung.')->group(function () {
 
     // ═══════════════════════════════════════════════════════════
     // RECHNUNGEN - Hauptrouten
     // ═══════════════════════════════════════════════════════════
 
     // Liste aller Rechnungen
-    Route::get('/rechnung', [RechnungController::class, 'index'])
-        ->name('rechnung.index');
+    Route::get('/', [RechnungController::class, 'index'])->name('index');
 
     // Neue Rechnung aus Gebäude erstellen
-    // Aufruf: /rechnung/create?gebaeude_id=123
-    Route::get('/rechnung/create', [RechnungController::class, 'create'])
-        ->name('rechnung.create');
+    Route::get('/create', [RechnungController::class, 'create'])->name('create');
 
     // Rechnung speichern (POST nach create)
-    Route::post('/rechnung', [RechnungController::class, 'store'])
-        ->name('rechnung.store');
+    Route::post('/', [RechnungController::class, 'store'])->name('store');
 
     // Einzelne Rechnung anzeigen
-    Route::get('/rechnung/{id}', [RechnungController::class, 'show'])
-        ->name('rechnung.show');
+    Route::get('/{id}', [RechnungController::class, 'show'])->name('show');
 
     // Rechnung bearbeiten
-    Route::get('/rechnung/{id}/edit', [RechnungController::class, 'edit'])
-        ->name('rechnung.edit');
+    Route::get('/{id}/edit', [RechnungController::class, 'edit'])->name('edit');
 
     // Rechnung aktualisieren
-    Route::put('/rechnung/{id}', [RechnungController::class, 'update'])
-        ->name('rechnung.update');
+    Route::put('/{id}', [RechnungController::class, 'update'])->name('update');
 
     // Rechnung löschen (nur Entwürfe)
-    Route::delete('/rechnung/{id}', [RechnungController::class, 'destroy'])
-        ->name('rechnung.destroy');
+    Route::delete('/{id}', [RechnungController::class, 'destroy'])->name('destroy');
+
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ ZAHLUNGS-AKTIONEN
+    // ═══════════════════════════════════════════════════════════
+
+    // Rechnung als bezahlt markieren
+    Route::post('/{id}/mark-bezahlt', [RechnungController::class, 'markAsBezahlt'])->name('mark-bezahlt');
+
+    // Rechnung senden (E-Mail)
+    Route::post('/{id}/send', [RechnungController::class, 'send'])->name('send');
+
+    // Rechnung stornieren
+    Route::post('/{id}/cancel', [RechnungController::class, 'cancel'])->name('cancel');
+
+    // Zahlungsziel berechnen (AJAX)
+    Route::post('/calculate-zahlungsziel', [RechnungController::class, 'calculateZahlungsziel'])->name('calculate-zahlungsziel');
 
     // ═══════════════════════════════════════════════════════════
     // RECHNUNGSPOSITIONEN
     // ═══════════════════════════════════════════════════════════
 
     // Neue Position hinzufügen
-    Route::post('/rechnung/{rechnungId}/position', [RechnungController::class, 'storePosition'])
-        ->name('rechnung.position.store');
+    Route::post('/{rechnungId}/position', [RechnungController::class, 'storePosition'])->name('position.store');
 
     // Position aktualisieren
-    Route::put('/rechnung/position/{positionId}', [RechnungController::class, 'updatePosition'])
-        ->name('rechnung.position.update');
+    Route::put('/position/{positionId}', [RechnungController::class, 'updatePosition'])->name('position.update');
 
     // Position löschen
-    Route::delete('/rechnung/position/{positionId}', [RechnungController::class, 'destroyPosition'])
-        ->name('rechnung.position.destroy');
-
-    // ═══════════════════════════════════════════════════════════
-    // GEBÄUDE - Rechnung erstellen
-    // ═══════════════════════════════════════════════════════════
-
-    // Rechnung direkt aus Gebäude erstellen
-    // Aufruf: POST /gebaeude/123/rechnung
-    Route::post('/gebaeude/{id}/rechnung', [GebaeudeController::class, 'createRechnung'])
-        ->name('gebaeude.rechnung.create');
+    Route::delete('/position/{positionId}', [RechnungController::class, 'destroyPosition'])->name('position.destroy');
 
     // ═══════════════════════════════════════════════════════════
     // EXPORT (optional, wenn später implementiert)
     // ═══════════════════════════════════════════════════════════
 
     // PDF generieren
-    Route::get('/rechnung/{id}/pdf', [RechnungController::class, 'generatePdf'])
-        ->name('rechnung.pdf');
+    Route::get('/{id}/pdf', [RechnungController::class, 'generatePdf'])->name('pdf');
 
     // FatturaPA XML generieren
-    Route::get('/rechnung/{id}/xml', [RechnungController::class, 'generateXml'])
-        ->name('rechnung.xml');
+    Route::get('/{id}/xml', [RechnungController::class, 'generateXml'])->name('xml');
 });
 
 
@@ -290,8 +292,6 @@ Route::prefix('einstellungen')->name('unternehmensprofil.')->middleware(['auth']
     Route::post('/profil/smtp-test', [UnternehmensprofilController::class, 'smtpTesten'])
         ->name('smtp.testen');
 });
-
-
 
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';
