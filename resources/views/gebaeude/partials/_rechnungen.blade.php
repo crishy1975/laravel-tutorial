@@ -20,9 +20,9 @@
                         Gesamt: {{ $gebaeude->rechnungen->count() }} Rechnungen
                     </small>
                 </div>
-                <a href="{{ route('gebaeude.rechnung.create', $gebaeude->id) }}" 
+                <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
                    class="btn btn-success">
-                    <i class="bi bi-plus-lg"></i> Neue Rechnung
+                    <i class="bi bi-plus-circle"></i> Neue Rechnung
                 </a>
             </div>
         </div>
@@ -35,9 +35,9 @@
                         <i class="bi bi-info-circle"></i>
                         Noch keine Rechnungen für dieses Gebäude erstellt.
                     </div>
-                    <a href="{{ route('gebaeude.rechnung.create', $gebaeude->id) }}" 
+                    <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
                        class="btn btn-primary">
-                        <i class="bi bi-plus-lg"></i> Erste Rechnung erstellen
+                        <i class="bi bi-plus-circle"></i> Erste Rechnung erstellen
                     </a>
                 </div>
             </div>

@@ -126,6 +126,7 @@ $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31
                 <thead class="table-light">
                     <tr>
                         <th>Nummer</th>
+                        <th>Typ</th>
                         <th>Datum</th>
                         <th>Codex</th>
                         <th>Gebäude</th>
@@ -137,11 +138,20 @@ $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31
                 <tbody>
                     @foreach($rechnungen as $rechnung)
                     <tr data-rechnung-id="{{ $rechnung->id }}">
-                        {{-- Nummer (Accessor: nummern => "jahr/laufnummer") --}}
+                        {{-- Nummer (Accessor: rechnungsnummer => "jahr/laufnummer") --}}
                         <td>
                             <span class="fw-semibold">
-                                {{ $rechnung->nummern }}
+                                {{ $rechnung->rechnungsnummer }}
                             </span>
+                        </td>
+
+                        {{-- Typ (Rechnung oder Gutschrift) --}}
+                        <td>
+                            @if($rechnung->typ_rechnung === 'gutschrift')
+                                <span class="badge bg-danger">Gutschrift</span>
+                            @else
+                                <span class="badge bg-primary">Rechnung</span>
+                            @endif
                         </td>
 
                         {{-- Datum (Rechnungsdatum) --}}
@@ -175,9 +185,17 @@ $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31
                         </td>
 
 
-                        {{-- Zahlbar / Betrag (Snapshot-Feld) --}}
+                        {{-- Zahlbar / Betrag (Snapshot-Feld) - NEGATIV bei Gutschrift --}}
                         <td class="text-end">
-                            {{ number_format($rechnung->zahlbar_betrag ?? 0, 2, ',', '.') }} €
+                            @php
+                                $betrag = $rechnung->zahlbar_betrag ?? 0;
+                                if ($rechnung->typ_rechnung === 'gutschrift') {
+                                    $betrag = -1 * abs($betrag);
+                                }
+                            @endphp
+                            <span class="{{ $rechnung->typ_rechnung === 'gutschrift' ? 'text-danger' : '' }}">
+                                {{ number_format($betrag, 2, ',', '.') }} €
+                            </span>
                         </td>
 
                         {{-- Status --}}

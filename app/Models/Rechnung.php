@@ -75,7 +75,7 @@ class Rechnung extends Model
         // Status & Flags
         'status',
         'typ_rechnung',
-        
+
         // Snapshot Profil
         'profile_bezeichnung',
         'mwst_satz',
@@ -187,7 +187,7 @@ class Rechnung extends Model
      * Features:
      * - Kopiert Snapshots von Gebäude, Adressen, FatturaPA-Profil
      * - Übernimmt aktive Artikel als Positionen
-     * - ⭐ WICHTIG: Wendet automatisch Preis-Aufschlag auf Einzelpreise an
+     * - ⭐ WICHTIG: Wendet KUMULATIV alle Preis-Aufschläge seit Basisjahr an
      * - Markiert Timeline-Einträge als verrechnet
      * - Berechnet Leistungsdaten aus Timeline
      * 
@@ -215,7 +215,7 @@ class Rechnung extends Model
         // ═══════════════════════════════════════════════════════════
         // 🕒 Timeline-Einträge verarbeiten
         // ═══════════════════════════════════════════════════════════
-        
+
         $timelineEintraege = \App\Models\Timeline::where('gebaeude_id', $gebaeude->id)
             ->where('verrechnen', true)
             ->whereNull('deleted_at')
@@ -225,16 +225,47 @@ class Rechnung extends Model
         $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
 
         // ═══════════════════════════════════════════════════════════
-        // 💰 PREIS-AUFSCHLAG ERMITTELN
+        // 💰 PREIS-AUFSCHLAG ERMITTELN (KUMULATIV)
         // ═══════════════════════════════════════════════════════════
-        
-        $aufschlagProzent = $gebaeude->getAufschlagProzent($jahr);
-        $aufschlagTyp = $gebaeude->hatIndividuellenAufschlag() ? 'individuell' : 'global';
 
-        \Log::info('Rechnung erstellen - Aufschlag', [
-            'gebaeude_id'      => $gebaeude->id,
-            'aufschlag_prozent' => $aufschlagProzent,
-            'aufschlag_typ'    => $aufschlagTyp,
+        // Basisjahr für Preise (erstes Jahr mit Aufschlag)
+        $basisJahr = \App\Models\PreisAufschlag::min('jahr') ?? $jahr;
+
+        // Alle Aufschläge vom Basisjahr bis zum aktuellen Jahr sammeln
+        $alleAufschlaege = \App\Models\PreisAufschlag::where('jahr', '>=', $basisJahr)
+            ->where('jahr', '<=', $jahr)
+            ->orderBy('jahr')
+            ->get();
+
+        // Gebäude-spezifischen Aufschlag für aktuelles Jahr prüfen
+        $gebaeudeAufschlag = \App\Models\GebaeudeAufschlag::fuerGebaeude($gebaeude->id)
+            ->gueltig(now())
+            ->first();
+
+        $aufschlagProzent = 0.0;
+        $aufschlagTyp = 'keiner';
+
+        if ($gebaeudeAufschlag) {
+            // Gebäude hat individuellen Aufschlag - diesen verwenden
+            $aufschlagProzent = (float) $gebaeudeAufschlag->prozent;
+            $aufschlagTyp = 'individuell';
+        } elseif ($alleAufschlaege->isNotEmpty()) {
+            // Kumulative Berechnung aller globalen Aufschläge
+            $aufschlagProzent = $alleAufschlaege->sum('prozent');
+            $aufschlagTyp = 'global';
+        }
+
+        \Log::info('Rechnung erstellen - Kumulativer Aufschlag', [
+            'gebaeude_id'       => $gebaeude->id,
+            'basis_jahr'        => $basisJahr,
+            'aktuelles_jahr'    => $jahr,
+            'anzahl_aufschlaege' => $alleAufschlaege->count(),
+            'aufschlaege_detail' => $alleAufschlaege->map(fn($a) => [
+                'jahr' => $a->jahr,
+                'prozent' => $a->prozent
+            ])->toArray(),
+            'aufschlag_gesamt'  => $aufschlagProzent,
+            'aufschlag_typ'     => $aufschlagTyp,
         ]);
 
         // ═══════════════════════════════════════════════════════════
@@ -323,21 +354,22 @@ class Rechnung extends Model
 
         foreach ($artikelListe as $artikel) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
-            
-            // ⭐ HIER: Preis mit Aufschlag berechnen
+
+            // ⭐ HIER: Preis mit kumulativem Aufschlag berechnen
             $originalPreis = (float) $artikel->einzelpreis;
             $einzelpreisAngepasst = $originalPreis;
-            
+
             if ($aufschlagProzent != 0) {
                 $aufschlagBetrag = round($originalPreis * ($aufschlagProzent / 100), 2);
                 $einzelpreisAngepasst = round($originalPreis + $aufschlagBetrag, 2);
-                
-                \Log::debug('Preis angepasst', [
+
+                \Log::debug('Preis angepasst (kumulativ)', [
                     'artikel'         => $artikel->beschreibung,
                     'original'        => $originalPreis,
                     'aufschlag'       => $aufschlagBetrag,
                     'neu'             => $einzelpreisAngepasst,
                     'prozent'         => $aufschlagProzent,
+                    'jahre'           => $alleAufschlaege->pluck('jahr')->toArray(),
                 ]);
             }
 
@@ -346,7 +378,7 @@ class Rechnung extends Model
                 'beschreibung'         => $artikel->beschreibung,
                 'anzahl'               => $artikel->anzahl,
                 'einheit'              => 'Stk',
-                'einzelpreis'          => $einzelpreisAngepasst, // ⭐ Angepasster Preis
+                'einzelpreis'          => $einzelpreisAngepasst, // ⭐ Angepasster Preis (kumulativ)
                 'mwst_satz'            => $mwstSatz,
                 'artikel_gebaeude_id'  => $artikel->id,
             ]);
@@ -358,10 +390,10 @@ class Rechnung extends Model
         // ═══════════════════════════════════════════════════════════
         // 🕒 Timeline-Einträge als verrechnet markieren
         // ═══════════════════════════════════════════════════════════
-        
+
         if ($timelineEintraege->isNotEmpty()) {
             $rechnungNummer = sprintf('%d/%04d', $rechnung->jahr, $rechnung->laufnummer);
-            
+
             foreach ($timelineEintraege as $timeline) {
                 $timeline->update([
                     'verrechnen'                => false,
@@ -369,7 +401,7 @@ class Rechnung extends Model
                     'verrechnet_mit_rn_nummer'  => $rechnungNummer,
                 ]);
             }
-            
+
             \Log::info('Timeline-Einträge als verrechnet markiert', [
                 'rechnung_id'     => $rechnung->id,
                 'rechnung_nummer' => $rechnungNummer,
@@ -473,7 +505,7 @@ class Rechnung extends Model
      */
     public function getStatusBadgeAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'draft'     => '<span class="badge bg-secondary">Entwurf</span>',
             'sent'      => '<span class="badge bg-info">Versendet</span>',
             'paid'      => '<span class="badge bg-success">Bezahlt</span>',
