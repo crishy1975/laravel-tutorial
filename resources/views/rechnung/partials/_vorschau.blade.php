@@ -392,4 +392,7 @@
     </div>
   @endif
 
+  {{-- ⭐ NEU: FatturaPA XML --}}
+  @include('rechnung.partials._fattura_xml')
+
 </div>

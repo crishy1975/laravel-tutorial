@@ -293,5 +293,57 @@ Route::prefix('einstellungen')->name('unternehmensprofil.')->middleware(['auth']
         ->name('smtp.testen');
 });
 
+// ═══════════════════════════════════════════════════════════
+// 🧾 FATTURAPA ROUTES
+// ═══════════════════════════════════════════════════════════
+// Diese Routes in routes/web.php einfügen (im RechnungController-Bereich)!
+
+// FatturaPA XML Management
+Route::prefix('rechnung/{id}')->name('rechnung.')->group(function () {
+    
+    // XML Generierung
+    Route::post('xml/generate', [RechnungController::class, 'generateXml'])
+        ->name('xml.generate');
+    
+    // XML Regenerierung (überschreibt altes)
+    Route::post('xml/regenerate', [RechnungController::class, 'regenerateXml'])
+        ->name('xml.regenerate');
+    
+    // XML Preview (ohne Speichern)
+    Route::get('xml/preview', [RechnungController::class, 'previewXml'])
+        ->name('xml.preview');
+    
+    // XML Download
+    Route::get('xml/download', [RechnungController::class, 'downloadXml'])
+        ->name('xml.download');
+    
+    // XML Logs anzeigen
+    Route::get('xml/logs', [RechnungController::class, 'xmlLogs'])
+        ->name('xml.logs');
+    
+    // Debug-Info
+    Route::get('xml/debug', [RechnungController::class, 'debugXml'])
+        ->name('xml.debug');
+});
+
+// FatturaXmlLog Management (direkt über Log-ID)
+Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
+    
+    // Download über Log-ID
+    Route::get('{logId}/download', [RechnungController::class, 'downloadXmlByLog'])
+        ->name('download');
+    
+    // Log löschen
+    Route::delete('{logId}', [RechnungController::class, 'deleteXmlLog'])
+        ->name('delete');
+});
+
+
+
+
+
+
+
+
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';
