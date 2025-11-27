@@ -11,6 +11,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Carbon;
+use App\Services\FatturaXmlGenerator;
+use App\Models\FatturaXmlLog;
+use Illuminate\Support\Facades\Storage;
 
 class RechnungController extends Controller
 {
@@ -242,7 +245,7 @@ class RechnungController extends Controller
         $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
         $gebaeude_liste = Gebaeude::orderBy('codex')->get();
         $profile = FatturaProfile::all();
-        
+
         // ⭐ NEU: Zahlungsbedingungen für Dropdown
         $zahlungsbedingungen = Zahlungsbedingung::options();
 
@@ -387,8 +390,8 @@ class RechnungController extends Controller
             'bezahlt_am' => 'nullable|date',
         ]);
 
-        $bezahltAm = isset($validated['bezahlt_am']) 
-            ? Carbon::parse($validated['bezahlt_am']) 
+        $bezahltAm = isset($validated['bezahlt_am'])
+            ? Carbon::parse($validated['bezahlt_am'])
             : null;
 
         $rechnung->markiereAlsBezahlt($bezahltAm);
@@ -547,19 +550,6 @@ class RechnungController extends Controller
             ->with('error', 'PDF-Export noch nicht implementiert.');
     }
 
-    /**
-     * FatturaPA XML generieren (TODO).
-     */
-    public function generateXml($id)
-    {
-        $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
-
-        // TODO: XML-Generierung für FatturaPA
-
-        return redirect()
-            ->back()
-            ->with('error', 'XML-Export noch nicht implementiert.');
-    }
 
     // ═══════════════════════════════════════════════════════════
     // 📊 NEU: AJAX HELPERS
@@ -577,7 +567,7 @@ class RechnungController extends Controller
 
         $rechnungsdatum = Carbon::parse($validated['rechnungsdatum']);
         $zahlungsbedingung = Zahlungsbedingung::from($validated['zahlungsbedingungen']);
-        
+
         $zahlungsziel = $rechnungsdatum->copy()->addDays($zahlungsbedingung->tage());
 
         return response()->json([
@@ -587,5 +577,263 @@ class RechnungController extends Controller
             'tage' => $zahlungsbedingung->tage(),
             'label' => $zahlungsbedingung->label(),
         ]);
+    }
+
+
+    // ═══════════════════════════════════════════════════════════
+    // 🧾 FATTURAPA XML GENERATION
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Generiert FatturaPA XML für eine Rechnung.
+     * 
+     * Route: POST /rechnung/{id}/xml/generate
+     */
+    public function generateXml(int $id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        // Prüfe ob Rechnung bereits ein XML hat
+        $existingLog = FatturaXmlLog::where('rechnung_id', $rechnung->id)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->first();
+
+        if ($existingLog) {
+            return back()->with('warning', sprintf(
+                'Es existiert bereits ein XML für diese Rechnung (Progressivo: %s). Möchten Sie ein neues generieren?',
+                $existingLog->progressivo_invio
+            ));
+        }
+
+        try {
+            $generator = new FatturaXmlGenerator();
+            $log = $generator->generate($rechnung);
+
+            return redirect()
+                ->route('rechnung.show', $id)
+                ->with('success', sprintf(
+                    'FatturaPA XML erfolgreich generiert! Progressivo: %s',
+                    $log->progressivo_invio
+                ));
+        } catch (\Exception $e) {
+            Log::error('Fehler bei XML-Generierung', [
+                'rechnung_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Fehler bei XML-Generierung: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Regeneriert XML (überschreibt vorheriges).
+     * 
+     * Route: POST /rechnung/{id}/xml/regenerate
+     */
+    public function regenerateXml(int $id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        try {
+            // Alte Logs als "superseded" markieren
+            FatturaXmlLog::where('rechnung_id', $rechnung->id)
+                ->whereNotIn('status', [
+                    FatturaXmlLog::STATUS_SENT,
+                    FatturaXmlLog::STATUS_DELIVERED,
+                    FatturaXmlLog::STATUS_ACCEPTED,
+                ])
+                ->update([
+                    'status' => 'superseded',
+                    'status_detail' => 'Durch neue XML-Generierung ersetzt',
+                ]);
+
+            $generator = new FatturaXmlGenerator();
+            $log = $generator->generate($rechnung);
+
+            return redirect()
+                ->route('rechnung.show', $id)
+                ->with('success', sprintf(
+                    'FatturaPA XML neu generiert! Progressivo: %s',
+                    $log->progressivo_invio
+                ));
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'error' => 'Fehler bei XML-Regenerierung: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Zeigt XML-Preview an (ohne zu speichern).
+     * 
+     * Route: GET /rechnung/{id}/xml/preview
+     */
+    public function previewXml(int $id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        try {
+            $generator = new FatturaXmlGenerator();
+            $xmlString = $generator->preview($rechnung);
+
+            // Als Download mit XML-Header
+            return response($xmlString, 200)
+                ->header('Content-Type', 'application/xml; charset=UTF-8')
+                ->header('Content-Disposition', 'inline; filename="preview.xml"');
+        } catch (\Exception $e) {
+            return back()->withErrors([
+                'error' => 'Fehler bei Preview: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Lädt XML-Datei herunter.
+     * 
+     * Route: GET /rechnung/{id}/xml/download
+     * Route: GET /fattura-xml/{logId}/download
+     */
+    public function downloadXml(int $id)
+    {
+        // Neuestes erfolgreiches XML für diese Rechnung
+        $log = FatturaXmlLog::where('rechnung_id', $id)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->latest()
+            ->firstOrFail();
+
+        return $log->downloadXml();
+    }
+
+    /**
+     * Lädt XML-Datei direkt über Log-ID herunter.
+     * 
+     * Route: GET /fattura-xml/{logId}/download
+     */
+    public function downloadXmlByLog(int $logId)
+    {
+        $log = FatturaXmlLog::findOrFail($logId);
+
+        if (!$log->xmlExists()) {
+            abort(404, 'XML-Datei nicht gefunden');
+        }
+
+        return $log->downloadXml();
+    }
+
+    /**
+     * Zeigt alle XML-Logs für eine Rechnung.
+     * 
+     * Route: GET /rechnung/{id}/xml/logs
+     */
+    public function xmlLogs(int $id)
+    {
+        $rechnung = Rechnung::with('positionen')->findOrFail($id);
+
+        $logs = FatturaXmlLog::where('rechnung_id', $rechnung->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('rechnung.xml-logs', compact('rechnung', 'logs'));
+    }
+
+    /**
+     * Löscht ein XML-Log (und Datei).
+     * 
+     * Route: DELETE /fattura-xml/{logId}
+     */
+    public function deleteXmlLog(int $logId)
+    {
+        $log = FatturaXmlLog::findOrFail($logId);
+
+        // Prüfe ob bereits gesendet
+        if (in_array($log->status, [
+            FatturaXmlLog::STATUS_SENT,
+            FatturaXmlLog::STATUS_DELIVERED,
+            FatturaXmlLog::STATUS_ACCEPTED,
+        ])) {
+            return back()->withErrors([
+                'error' => 'XML wurde bereits versendet und kann nicht gelöscht werden!'
+            ]);
+        }
+
+        $rechnungId = $log->rechnung_id;
+
+        // Dateien löschen
+        if ($log->xmlExists()) {
+            Storage::delete($log->xml_file_path);
+        }
+
+        if ($log->p7mExists()) {
+            Storage::delete($log->p7m_file_path);
+        }
+
+        $log->delete();
+
+        return redirect()
+            ->route('rechnung.show', $rechnungId)
+            ->with('success', 'XML-Log gelöscht');
+    }
+
+    /**
+     * Zeigt Debug-Info für XML-Generierung.
+     * 
+     * Route: GET /rechnung/{id}/xml/debug
+     */
+    public function debugXml(int $id)
+    {
+        $rechnung = Rechnung::with([
+            'positionen',
+            'rechnungsempfaenger',
+            'postadresse',
+            'fatturaProfile',
+        ])->findOrFail($id);
+
+        $profil = \App\Models\Unternehmensprofil::first();
+
+        $generator = new FatturaXmlGenerator();
+
+        $debug = [
+            'rechnung' => [
+                'id' => $rechnung->id,
+                'nummer' => $rechnung->rechnungsnummer,
+                'datum' => $rechnung->rechnungsdatum?->format('Y-m-d'),
+                'positionen_count' => $rechnung->positionen->count(),
+                'netto' => $rechnung->netto_summe,
+                'brutto' => $rechnung->brutto_summe,
+            ],
+            'empfaenger' => [
+                'name' => $rechnung->re_name,
+                'codice_univoco' => $rechnung->re_codice_univoco,
+                'pec' => $rechnung->re_pec,
+                'mwst_nummer' => $rechnung->re_mwst_nummer,
+            ],
+            'profil' => [
+                'ragione_sociale' => $profil?->ragione_sociale,
+                'partita_iva' => $profil?->partita_iva_numeric,
+                'ist_konfiguriert' => $profil?->istFatturapaKonfiguriert(),
+                'fehlende_felder' => $profil?->fehlendeFelderFatturaPA() ?? [],
+            ],
+            'config' => [
+                'formato' => config('fattura.trasmissione.formato_trasmissione'),
+                'modalita_pagamento' => config('fattura.defaults.modalita_pagamento'),
+                'validate_xsd' => config('fattura.xml.validate_xsd'),
+            ],
+        ];
+
+        return response()->json($debug, 200, [], JSON_PRETTY_PRINT);
     }
 }

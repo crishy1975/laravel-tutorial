@@ -3,7 +3,7 @@
 
 @section('content')
 <div class="container-fluid py-4">
-  
+
   {{-- Header mit Aktionen --}}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>
@@ -14,22 +14,22 @@
         <span class="ms-2">{!! $rechnung->zahlungsbedingungen_badge !!}</span>
       @endif
     </h3>
-    
+
     <div class="btn-group">
       <a href="{{ route('rechnung.index') }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Zurück
       </a>
-      
+
       @if($rechnung->ist_editierbar)
         <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-primary">
           <i class="bi bi-pencil"></i> Bearbeiten
         </a>
       @endif
-      
+
       <a href="{{ route('rechnung.pdf', $rechnung->id) }}" class="btn btn-outline-danger" target="_blank">
         <i class="bi bi-file-pdf"></i> PDF
       </a>
-      
+
       @if($rechnung->fattura_profile_id)
         <a href="{{ route('rechnung.xml', $rechnung->id) }}" class="btn btn-outline-success">
           <i class="bi bi-file-earmark-code"></i> FatturaPA XML
@@ -38,7 +38,7 @@
 
       {{-- ⭐ NEU: Aktions-Buttons --}}
       @if($rechnung->status === 'draft')
-        <button type="button" 
+        <button type="button"
                 id="btn-send"
                 class="btn btn-info"
                 data-send-url="{{ route('rechnung.send', $rechnung->id) }}">
@@ -47,7 +47,7 @@
       @endif
 
       @if(!$rechnung->istAlsBezahltMarkiert() && $rechnung->status !== 'paid')
-        <button type="button" 
+        <button type="button"
                 id="btn-mark-bezahlt"
                 class="btn btn-success"
                 data-mark-url="{{ route('rechnung.mark-bezahlt', $rechnung->id) }}">
@@ -56,7 +56,7 @@
       @endif
 
       @if($rechnung->status !== 'cancelled')
-        <button type="button" 
+        <button type="button"
                 id="btn-cancel"
                 class="btn btn-outline-danger"
                 data-cancel-url="{{ route('rechnung.cancel', $rechnung->id) }}">
@@ -92,57 +92,18 @@
     </div>
   @endif
 
-  {{-- ⭐ NEU: Zahlungsinformationen (prominente Box) --}}
-  @if($rechnung->zahlungsbedingungen)
-  <div class="row mb-4">
-    <div class="col-12">
-      <div class="card border-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }}">
-        <div class="card-header bg-{{ $rechnung->istUeberfaellig() ? 'danger' : ($rechnung->istAlsBezahltMarkiert() ? 'success' : 'warning') }} text-white">
-          <h6 class="mb-0">
-            <i class="bi bi-{{ $rechnung->istAlsBezahltMarkiert() ? 'check-circle' : 'calendar-check' }}"></i> 
-            Zahlungsinformationen
-          </h6>
-        </div>
-        <div class="card-body">
-          <div class="row align-items-center">
-            <div class="col-md-8">
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <strong>Zahlungsbedingungen:</strong><br>
-                  {!! $rechnung->zahlungsbedingungen_badge !!}
-                </div>
-                
-                @if($rechnung->zahlungsziel)
-                <div class="col-md-4">
-                  <strong>Zahlungsziel:</strong><br>
-                  {{ $rechnung->zahlungsziel->format('d.m.Y') }}
-                  @if(!$rechnung->istAlsBezahltMarkiert())
-                    <br><small class="text-muted">({{ $rechnung->tage_bis_faelligkeit > 0 ? 'noch ' . $rechnung->tage_bis_faelligkeit . ' Tage' : abs($rechnung->tage_bis_faelligkeit) . ' Tage überfällig' }})</small>
-                  @endif
-                </div>
-                @endif
+  {{-- 
+    ⭐ WICHTIG: Zahlungsinformationen-Box ist BEREITS in _vorschau.blade.php!
+    ❌ Nicht hier nochmal einfügen - sonst ist sie doppelt!
+  --}}
 
-                @if($rechnung->bezahlt_am)
-                <div class="col-md-4">
-                  <strong>Bezahlt am:</strong><br>
-                  {{ $rechnung->bezahlt_am->format('d.m.Y') }}
-                  <br><span class="badge bg-success">✓ Bezahlt</span>
-                </div>
-                @endif
-              </div>
-            </div>
-            <div class="col-md-4 text-md-end">
-              {!! $rechnung->faelligkeits_status_badge !!}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  @endif
-
-  {{-- Vorschau-Tab wiederverwenden --}}
+  {{-- Vorschau-Tab wiederverwenden (inkl. Zahlungsinfo + FatturaPA XML!) --}}
   @include('rechnung.partials._vorschau')
+
+  {{-- 
+    ⭐ WICHTIG: FatturaPA XML ist BEREITS in _vorschau.blade.php eingebunden!
+    ❌ NICHT hier nochmal einbinden: @include('rechnung.partials._fattura_xml')
+  --}}
 
   {{-- Zusätzliche Informationen --}}
   <div class="row mt-4">
@@ -199,12 +160,12 @@
                 <strong>{{ $rechnung->gebaeude->codex }}</strong> - {{ $rechnung->gebaeude->gebaeude_name }}
                 <br>
                 <small class="text-muted">
-                  {{ $rechnung->gebaeude->strasse }} {{ $rechnung->gebaeude->hausnummer }}, 
+                  {{ $rechnung->gebaeude->strasse }} {{ $rechnung->gebaeude->hausnummer }},
                   {{ $rechnung->gebaeude->plz }} {{ $rechnung->gebaeude->wohnort }}
                 </small>
               </div>
               <div class="col-md-4 text-end">
-                <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}" 
+                <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}"
                    class="btn btn-sm btn-outline-info">
                   <i class="bi bi-building"></i> Gebäude öffnen
                 </a>
@@ -228,9 +189,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnMarkBezahlt) {
         btnMarkBezahlt.addEventListener('click', function() {
             if (!confirm('Rechnung als bezahlt markieren?')) return;
-            
+
             const url = this.getAttribute('data-mark-url');
-            
+
             fetch(url, {
                 method: 'POST',
                 headers: {
@@ -258,9 +219,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnSend) {
         btnSend.addEventListener('click', function() {
             if (!confirm('Rechnung versenden?')) return;
-            
+
             const url = this.getAttribute('data-send-url');
-            
+
             fetch(url, {
                 method: 'POST',
                 headers: {
@@ -288,9 +249,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnCancel) {
         btnCancel.addEventListener('click', function() {
             if (!confirm('Rechnung wirklich stornieren? Dieser Vorgang kann nicht rückgängig gemacht werden!')) return;
-            
+
             const url = this.getAttribute('data-cancel-url');
-            
+
             fetch(url, {
                 method: 'POST',
                 headers: {
