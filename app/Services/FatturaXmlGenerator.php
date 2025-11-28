@@ -133,9 +133,8 @@ class FatturaXmlGenerator
             $errors[] = 'Rechnungsempfänger fehlt';
         }
 
-        if (!$this->rechnung->re_codice_univoco && !$this->rechnung->re_pec) {
-            $errors[] = 'Codice Univoco ODER PEC erforderlich';
-        }
+        // ⭐ ENTFERNT: Codice und PEC sind BEIDE optional!
+        // Ohne beide → 0000000 (Manuelle Abholung im SDI-Portal)
 
         if ($this->rechnung->positionen->isEmpty()) {
             $errors[] = 'Rechnung hat keine Positionen';
@@ -186,19 +185,25 @@ class FatturaXmlGenerator
         $codice = $this->rechnung->re_codice_univoco;
 
         // ⭐ KORRIGIERT:
+        // - Leer oder NULL → 0000000 (PEC-Versand)
         // - 6 Zeichen = PA → Code verwenden
         // - 7 Zeichen = Privat → Code verwenden
-        // - Leer/PEC = 0000000 (7 Nullen für PEC-Versand)
+        // - Andere Länge → 0000000 (PEC-Versand)
         
-        if ($codice) {
-            $len = strlen($codice);
-            
-            if ($len === 6 || $len === 7) {
-                return strtoupper($codice);
-            }
+        // Explizit prüfen: leer, null, oder nur Leerzeichen
+        if (!$codice || trim($codice) === '') {
+            return '0000000';  // PEC-Versand
         }
 
-        // Fallback für PEC-Versand (wenn kein Code oder PEC verwendet wird)
+        $codice = trim($codice);
+        $len = strlen($codice);
+        
+        // 6 oder 7 Zeichen → verwenden
+        if ($len === 6 || $len === 7) {
+            return strtoupper($codice);
+        }
+
+        // Andere Länge → PEC-Versand
         return '0000000';
     }
 
@@ -464,14 +469,33 @@ class FatturaXmlGenerator
     /**
      * ⭐ NEU: Erstellt Causale (2.1.1.11) - Zweisprachige Leistungsbeschreibung
      * 
-     * Format:
+     * Priorität:
+     * 1. Manuelle Überschreibung ($rechnung->fattura_causale)
+     * 2. Automatische Generierung aus Rechnung-Daten
+     * 
+     * Format (automatisch):
      * Reinigungsarbeiten / Servizi di pulizia
      * Leistungszeitraum: Januar 2025 / Periodo: gennaio 2025
-     * Objekt: Via Roma 123, 39100 Bolzano / Oggetto: Via Roma 123, 39100 Bolzano
+     * Objekt: Bürogebäude (Via Roma 123, 39100 Bolzano) / Oggetto: Bürogebäude (Via Roma 123, 39100 Bolzano)
      * 
      * Max 200 Zeichen pro Causale (kann mehrfach vorkommen)
      */
     protected function buildCausale(): ?string
+    {
+        // ⭐ 1. PRIORITÄT: Manuelle Causale (falls vom Benutzer bearbeitet)
+        if ($this->rechnung->fattura_causale) {
+            return substr(trim($this->rechnung->fattura_causale), 0, 200);
+        }
+
+        // ⭐ 2. Automatische Generierung aus Rechnung
+        return $this->generateCausale();
+    }
+
+    /**
+     * ⭐ Generiert automatische Causale aus Rechnung-Daten
+     * Diese Methode kann auch vom Rechnung Model aufgerufen werden!
+     */
+    public function generateCausale(): ?string
     {
         $teile = [];
 
@@ -487,32 +511,27 @@ class FatturaXmlGenerator
             );
         }
 
-        // 3. Gebäude-Adresse (falls vorhanden)
-        if ($this->rechnung->geb_strasse && $this->rechnung->geb_wohnort) {
-            $adresse = sprintf(
-                '%s %s, %s %s',
-                $this->rechnung->geb_strasse,
-                $this->rechnung->geb_hausnummer ?: '',
-                $this->rechnung->geb_plz ?: '',
-                $this->rechnung->geb_wohnort
+        // 3. Gebäude-Info (Name + Adresse)
+        if ($this->rechnung->geb_name && $this->rechnung->geb_adresse) {
+            $teile[] = sprintf(
+                'Objekt: %s (%s) / Oggetto: %s (%s)',
+                $this->rechnung->geb_name,
+                $this->rechnung->geb_adresse,
+                $this->rechnung->geb_name,
+                $this->rechnung->geb_adresse
             );
-            
-            // Gebäude-Name falls vorhanden
-            if ($this->rechnung->geb_name) {
-                $teile[] = sprintf(
-                    'Objekt: %s (%s) / Oggetto: %s (%s)',
-                    $this->rechnung->geb_name,
-                    trim($adresse),
-                    $this->rechnung->geb_name,
-                    trim($adresse)
-                );
-            } else {
-                $teile[] = sprintf(
-                    'Objekt: %s / Oggetto: %s',
-                    trim($adresse),
-                    trim($adresse)
-                );
-            }
+        } elseif ($this->rechnung->geb_adresse) {
+            $teile[] = sprintf(
+                'Objekt: %s / Oggetto: %s',
+                $this->rechnung->geb_adresse,
+                $this->rechnung->geb_adresse
+            );
+        } elseif ($this->rechnung->geb_name) {
+            $teile[] = sprintf(
+                'Objekt: %s / Oggetto: %s',
+                $this->rechnung->geb_name,
+                $this->rechnung->geb_name
+            );
         }
 
         // 4. Kunden-Bemerkung (falls vorhanden und Platz ist)
