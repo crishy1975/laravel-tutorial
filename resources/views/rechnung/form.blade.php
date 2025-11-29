@@ -39,6 +39,13 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         @endif
+        
+        @if(session('warning'))
+        <div class="alert alert-warning alert-dismissible fade show mt-3 mx-3">
+            <i class="bi bi-exclamation-circle"></i> {{ session('warning') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        @endif
 
         {{-- Validierungsfehler --}}
         @if($errors->any())
@@ -63,13 +70,22 @@
                         <i class="bi bi-file-text"></i> Allgemein
                     </button>
                 </li>
+                {{-- ⭐ FatturaPA Tab (nur wenn Rechnung existiert) --}}
+                @if($rechnung->exists && $rechnung->fattura_profile_id)
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-vorschau"
-                        data-bs-toggle="tab" data-bs-target="#content-vorschau"
+                    <button class="nav-link" id="tab-fattura"
+                        data-bs-toggle="tab" data-bs-target="#content-fattura"
                         type="button" role="tab">
-                        <i class="bi bi-eye"></i> Vorschau
+                        <i class="bi bi-file-earmark-code"></i> FatturaPA
+                        @php
+                            $xmlLogCount = \App\Models\FatturaXmlLog::where('rechnung_id', $rechnung->id)->count();
+                        @endphp
+                        @if($xmlLogCount > 0)
+                            <span class="badge bg-success ms-1">{{ $xmlLogCount }}</span>
+                        @endif
                     </button>
                 </li>
+                @endif
             </ul>
         </div>
 
@@ -96,36 +112,52 @@
                     @include('rechnung.partials._allgemein')
                 </div>
 
-                {{-- Tab 2: Vorschau --}}
-                <div class="tab-pane fade" id="content-vorschau" role="tabpanel">
-                    @include('rechnung.partials._vorschau')
+                {{-- ⭐ Tab 2: FatturaPA (nur wenn Rechnung existiert) --}}
+                @if($rechnung->exists && $rechnung->fattura_profile_id)
+                <div class="tab-pane fade" id="content-fattura" role="tabpanel">
+                    @include('rechnung.partials._fattura_xml')
                 </div>
+                @endif
 
             </div>
 
             {{-- Footer --}}
-            <div class="card-footer bg-white text-end">
-                @if(!$rechnung->exists || $rechnung->ist_editierbar)
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-save"></i>
-                    {{ $rechnung->exists ? 'Änderungen speichern' : 'Rechnung anlegen' }}
-                </button>
-                @endif
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    {{-- PDF Buttons (links) --}}
+                    @if($rechnung->exists)
+                        <a href="{{ route('rechnung.pdf.download', $rechnung->id) }}" class="btn btn-outline-danger">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                        </a>
+                        <a href="{{ route('rechnung.pdf.preview', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
+                            <i class="bi bi-eye"></i> PDF Vorschau
+                        </a>
+                    @endif
+                </div>
+                
+                <div>
+                    {{-- Speichern & Navigation (rechts) --}}
+                    @if(!$rechnung->exists || $rechnung->ist_editierbar)
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i>
+                        {{ $rechnung->exists ? 'Änderungen speichern' : 'Rechnung anlegen' }}
+                    </button>
+                    @endif
 
-                <a href="{{ route('rechnung.index') }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left"></i> Zurück
-                </a>
-
-                @if($rechnung->exists)
-                <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-info">
-                    <i class="bi bi-eye"></i> Ansehen
-                </a>
-                @endif
+                    <a href="{{ route('rechnung.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Zurück
+                    </a>
+                </div>
             </div>
         </form>
 
     </div>
 </div>
+
+{{-- ═══════════════════════════════════════════════════════════
+     Keine separaten Modals nötig - JavaScript mit confirm() in _fattura_xml
+═══════════════════════════════════════════════════════════ --}}
+
 @endsection
 
 @push('scripts')
@@ -139,19 +171,11 @@
             });
         });
 
-        // Tab wiederherstellen NUR wenn KEINE Success-Message
-        const hasSuccessMessage = document.querySelector('.alert-success');
-
-        if (!hasSuccessMessage) {
-            // Normaler Seitenaufruf: Tab wiederherstellen
-            const lastTab = localStorage.getItem('activeRechnungTab');
-            if (lastTab) {
-                const triggerEl = document.querySelector(`#rechnungTabs button[data-bs-target="${lastTab}"]`);
-                if (triggerEl) new bootstrap.Tab(triggerEl).show();
-            }
-        } else {
-            // Nach Speichern: Immer zum ersten Tab (Allgemein)
-            localStorage.setItem('activeRechnungTab', '#content-allgemein');
+        // ⭐ KORRIGIERT: Tab IMMER wiederherstellen (auch nach Success-Message)
+        const lastTab = localStorage.getItem('activeRechnungTab');
+        if (lastTab) {
+            const triggerEl = document.querySelector(`#rechnungTabs button[data-bs-target="${lastTab}"]`);
+            if (triggerEl) new bootstrap.Tab(triggerEl).show();
         }
     });
 </script>

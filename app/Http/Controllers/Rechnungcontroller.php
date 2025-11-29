@@ -15,6 +15,7 @@ use App\Services\FatturaXmlGenerator;
 use App\Models\FatturaXmlLog;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 
 class RechnungController extends Controller
 {
@@ -617,7 +618,7 @@ class RechnungController extends Controller
             $log = $generator->generate($rechnung);
 
             return redirect()
-                ->route('rechnung.show', $id)
+                ->route('rechnung.edit', $id)
                 ->with('success', sprintf(
                     'FatturaPA XML erfolgreich generiert! Progressivo: %s',
                     $log->progressivo_invio
@@ -660,7 +661,7 @@ class RechnungController extends Controller
             $log = $generator->generate($rechnung);
 
             return redirect()
-                ->route('rechnung.show', $id)
+                ->route('rechnung.edit', $id)
                 ->with('success', sprintf(
                     'FatturaPA XML neu generiert! Progressivo: %s',
                     $log->progressivo_invio
@@ -785,7 +786,7 @@ class RechnungController extends Controller
         $log->delete();
 
         return redirect()
-            ->route('rechnung.show', $rechnungId)
+            ->route('rechnung.edit', $rechnungId)
             ->with('success', 'XML-Log gelöscht');
     }
 
