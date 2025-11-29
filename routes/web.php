@@ -362,7 +362,9 @@ Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard
     ->name('rechnung.logs.dashboard');
 
 
-
+// E-Mail Versand
+Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])
+    ->name('rechnung.email.send');
 
 
 
