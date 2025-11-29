@@ -25,7 +25,7 @@ class Unternehmensprofil extends Model
         'geschaeftsfuehrer',
         'handelsregister',
         'registergericht',
-        
+
         // Adresse
         'strasse',
         'hausnummer',
@@ -34,7 +34,7 @@ class Unternehmensprofil extends Model
         'ort',
         'bundesland',
         'land',
-        
+
         // Kontakt
         'telefon',
         'telefon_mobil',
@@ -42,17 +42,17 @@ class Unternehmensprofil extends Model
         'email',
         'email_buchhaltung',
         'website',
-        
+
         // Steuern
         'steuernummer',
         'umsatzsteuer_id',
-        
+
         // Bank
         'bank_name',
         'iban',
         'bic',
         'kontoinhaber',
-        
+
         // E-Mail Versand (Normal)
         'smtp_host',
         'smtp_port',
@@ -66,7 +66,7 @@ class Unternehmensprofil extends Model
         'email_bcc',
         'email_signatur',
         'email_fusszeile',
-        
+
         // PEC E-Mail Versand
         'pec_smtp_host',
         'pec_smtp_port',
@@ -81,7 +81,7 @@ class Unternehmensprofil extends Model
         'pec_email_signatur',
         'pec_email_fusszeile',
         'pec_aktiv',
-        
+
         // PDF/Briefkopf
         'logo_pfad',
         'logo_rechnung_pfad',
@@ -96,7 +96,7 @@ class Unternehmensprofil extends Model
         'farbe_akzent',
         'schriftart',
         'schriftgroesse',
-        
+
         // Rechnungen
         'rechnungsnummer_praefix',
         'rechnungsnummer_startjahr',
@@ -107,7 +107,7 @@ class Unternehmensprofil extends Model
         'rechnung_einleitung',
         'rechnung_schlusstext',
         'rechnung_agb_text',
-        
+
         // FatturaPA (italienisch)
         'ragione_sociale',
         'partita_iva',
@@ -118,7 +118,7 @@ class Unternehmensprofil extends Model
         'rea_numero',
         'capitale_sociale',
         'stato_liquidazione',
-        
+
         // System
         'waehrung',
         'sprache',
@@ -171,14 +171,14 @@ class Unternehmensprofil extends Model
     public static function aktivOderFehler(): self
     {
         $profil = self::aktiv();
-        
+
         if (!$profil) {
             throw new \RuntimeException(
                 'Kein aktives Unternehmensprofil gefunden. ' .
-                'Bitte zuerst ein Profil in den Einstellungen erstellen.'
+                    'Bitte zuerst ein Profil in den Einstellungen erstellen.'
             );
         }
-        
+
         return $profil;
     }
 
@@ -192,11 +192,11 @@ class Unternehmensprofil extends Model
     public function getVollstaendigerFirmennameAttribute(): string
     {
         $parts = [$this->firmenname];
-        
+
         if ($this->firma_zusatz) {
             $parts[] = $this->firma_zusatz;
         }
-        
+
         return implode(' ', $parts);
     }
 
@@ -208,17 +208,17 @@ class Unternehmensprofil extends Model
         $parts = [
             $this->strasse . ' ' . $this->hausnummer,
         ];
-        
+
         if ($this->adresszusatz) {
             $parts[] = $this->adresszusatz;
         }
-        
+
         $parts[] = $this->postleitzahl . ' ' . $this->ort;
-        
+
         if ($this->bundesland) {
             $parts[] = $this->bundesland;
         }
-        
+
         return implode("\n", $parts);
     }
 
@@ -230,19 +230,19 @@ class Unternehmensprofil extends Model
         $zeilen = [
             $this->firmenname,
         ];
-        
+
         if ($this->firma_zusatz) {
             $zeilen[] = $this->firma_zusatz;
         }
-        
+
         $zeilen[] = $this->strasse . ' ' . $this->hausnummer;
-        
+
         if ($this->adresszusatz) {
             $zeilen[] = $this->adresszusatz;
         }
-        
+
         $zeilen[] = $this->postleitzahl . ' ' . $this->ort;
-        
+
         return $zeilen;
     }
 
@@ -291,9 +291,9 @@ class Unternehmensprofil extends Model
      */
     public function hatSmtpKonfiguration(): bool
     {
-        return !empty($this->smtp_host) 
-            && !empty($this->smtp_port) 
-            && !empty($this->smtp_benutzername) 
+        return !empty($this->smtp_host)
+            && !empty($this->smtp_port)
+            && !empty($this->smtp_benutzername)
             && !empty($this->smtp_passwort);
     }
 
@@ -302,9 +302,9 @@ class Unternehmensprofil extends Model
      */
     public function hatPecSmtpKonfiguration(): bool
     {
-        return !empty($this->pec_smtp_host) 
-            && !empty($this->pec_smtp_port) 
-            && !empty($this->pec_smtp_benutzername) 
+        return !empty($this->pec_smtp_host)
+            && !empty($this->pec_smtp_port)
+            && !empty($this->pec_smtp_benutzername)
             && !empty($this->pec_smtp_passwort);
     }
 
@@ -314,15 +314,15 @@ class Unternehmensprofil extends Model
     public function getEmailSignaturVollstaendigAttribute(): string
     {
         $parts = [];
-        
+
         if ($this->email_signatur) {
             $parts[] = $this->email_signatur;
         }
-        
+
         if ($this->email_fusszeile) {
             $parts[] = $this->email_fusszeile;
         }
-        
+
         return implode("\n\n", $parts);
     }
 
@@ -332,15 +332,15 @@ class Unternehmensprofil extends Model
     public function getPecEmailSignaturVollstaendigAttribute(): string
     {
         $parts = [];
-        
+
         if ($this->pec_email_signatur) {
             $parts[] = $this->pec_email_signatur;
         }
-        
+
         if ($this->pec_email_fusszeile) {
             $parts[] = $this->pec_email_fusszeile;
         }
-        
+
         return implode("\n\n", $parts);
     }
 
@@ -356,7 +356,7 @@ class Unternehmensprofil extends Model
         if (!$this->logo_pfad) {
             return null;
         }
-        
+
         return Storage::url($this->logo_pfad);
     }
 
@@ -366,11 +366,11 @@ class Unternehmensprofil extends Model
     public function getRechnungsLogoUrlAttribute(): ?string
     {
         $pfad = $this->logo_rechnung_pfad ?? $this->logo_pfad;
-        
+
         if (!$pfad) {
             return null;
         }
-        
+
         return Storage::url($pfad);
     }
 
@@ -380,20 +380,37 @@ class Unternehmensprofil extends Model
     public function getEmailLogoUrlAttribute(): ?string
     {
         $pfad = $this->logo_email_pfad ?? $this->logo_pfad;
-        
+
         if (!$pfad) {
             return null;
         }
-        
+
         return Storage::url($pfad);
     }
 
     /**
      * Hat Logo?
+     * ⭐ FIXED: Verwendet jetzt Storage::disk('public')
      */
     public function hatLogo(): bool
     {
-        return !empty($this->logo_pfad) && Storage::exists($this->logo_pfad);
+        return !empty($this->logo_pfad) && Storage::disk('public')->exists($this->logo_pfad);
+    }
+
+    /**
+     * Rechnungs-Logo vorhanden?
+     */
+    public function hatRechnungsLogo(): bool
+    {
+        return !empty($this->logo_rechnung_pfad) && Storage::disk('public')->exists($this->logo_rechnung_pfad);
+    }
+
+    /**
+     * Email-Logo vorhanden?
+     */
+    public function hatEmailLogo(): bool
+    {
+        return !empty($this->logo_email_pfad) && Storage::disk('public')->exists($this->logo_email_pfad);
     }
 
     /**
@@ -408,10 +425,10 @@ class Unternehmensprofil extends Model
         // Dateiname generieren
         $extension = $file->getClientOriginalExtension();
         $filename = 'logo_' . $typ . '_' . time() . '.' . $extension;
-        
+
         // Speichern in public/logos
         $pfad = $file->storeAs('logos', $filename, 'public');
-        
+
         // Pfad im Profil speichern
         switch ($typ) {
             case 'rechnung':
@@ -423,9 +440,9 @@ class Unternehmensprofil extends Model
             default:
                 $this->logo_pfad = $pfad;
         }
-        
+
         $this->save();
-        
+
         return $pfad;
     }
 
@@ -440,13 +457,13 @@ class Unternehmensprofil extends Model
     {
         $praefix = $this->rechnungsnummer_praefix ?? 'RE-';
         $laenge = $this->rechnungsnummer_laenge ?? 5;
-        
+
         // Höchste Laufnummer für das Jahr ermitteln
         $maxLaufnummer = \App\Models\Rechnung::where('jahr', $jahr)
             ->max('laufnummer') ?? 0;
-        
+
         $neueLaufnummer = $maxLaufnummer + 1;
-        
+
         return sprintf(
             '%s%d/%0' . $laenge . 'd',
             $praefix,
@@ -482,11 +499,11 @@ class Unternehmensprofil extends Model
     public function getPartitaIvaFormattertAttribute(): string
     {
         $numeric = $this->partita_iva_numeric;
-        
+
         if (empty($numeric)) {
             return '';
         }
-        
+
         return 'IT' . $numeric;
     }
 
@@ -502,18 +519,18 @@ class Unternehmensprofil extends Model
             'regime_fiscale',
             'pec_email',
         ];
-        
+
         foreach ($erforderlich as $feld) {
             if (empty($this->$feld)) {
                 return false;
             }
         }
-        
+
         // Partita IVA Format prüfen
         if (!preg_match('/^\d{11}$/', $this->partita_iva_numeric)) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -529,15 +546,15 @@ class Unternehmensprofil extends Model
             'regime_fiscale'   => 'Regime Fiscale (RF01-RF19)',
             'pec_email'        => 'PEC E-Mail (zertifiziert)',
         ];
-        
+
         $fehlend = [];
-        
+
         foreach ($erforderlich as $feld => $label) {
             if (empty($this->$feld)) {
                 $fehlend[$feld] = $label;
             }
         }
-        
+
         return $fehlend;
     }
 
@@ -558,13 +575,13 @@ class Unternehmensprofil extends Model
             'ort',
             'email',
         ];
-        
+
         foreach ($pflichtfelder as $feld) {
             if (empty($this->$feld)) {
                 return false;
             }
         }
-        
+
         return true;
     }
 
@@ -581,15 +598,15 @@ class Unternehmensprofil extends Model
             'ort'           => 'Ort',
             'email'         => 'E-Mail',
         ];
-        
+
         $fehlend = [];
-        
+
         foreach ($pflichtfelder as $feld => $label) {
             if (empty($this->$feld)) {
                 $fehlend[$feld] = $label;
             }
         }
-        
+
         return $fehlend;
     }
 
@@ -605,11 +622,11 @@ class Unternehmensprofil extends Model
         if (!$this->ist_aktiv) {
             return '<span class="badge bg-secondary">Inaktiv</span>';
         }
-        
+
         if (!$this->istVollstaendig()) {
             return '<span class="badge bg-warning">Unvollständig</span>';
         }
-        
+
         return '<span class="badge bg-success">Aktiv</span>';
     }
 
@@ -621,7 +638,7 @@ class Unternehmensprofil extends Model
         if (!$this->istFatturapaKonfiguriert()) {
             return '<span class="badge bg-secondary">Nicht konfiguriert</span>';
         }
-        
+
         return '<span class="badge bg-success">✓ FatturaPA bereit</span>';
     }
 
@@ -637,7 +654,7 @@ class Unternehmensprofil extends Model
         if (!$this->iban) {
             return '';
         }
-        
+
         return chunk_split($this->iban, 4, ' ');
     }
 

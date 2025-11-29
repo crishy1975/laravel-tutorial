@@ -328,13 +328,64 @@
   </div>
 
   {{-- FatturaPA --}}
-  @if($rechnung->cup || $rechnung->cig || $rechnung->codice_commessa || $rechnung->auftrag_id)
+  @if($rechnung->cup || $rechnung->cig || $rechnung->codice_commessa || $rechnung->auftrag_id || $rechnung->fattura_causale)
     <div class="col-12">
       <div class="card border-warning">
         <div class="card-header bg-warning">
           <h6 class="mb-0"><i class="bi bi-file-earmark-text"></i> FatturaPA-Daten</h6>
         </div>
         <div class="card-body">
+          
+          {{-- ⭐ NEU: Causale (prominent an erster Stelle) --}}
+          @if($rechnung->fattura_causale)
+          <div class="mb-4">
+            <h6 class="text-muted mb-2">
+              <i class="bi bi-file-text"></i>
+              Causale (Leistungsbeschreibung)
+            </h6>
+            <div class="alert alert-light border mb-0">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <small class="text-muted">
+                  @php
+                    $istManuell = $rechnung->fattura_causale !== \App\Models\Rechnung::generateCausaleStatic($rechnung);
+                  @endphp
+                  @if($istManuell)
+                    <i class="bi bi-pencil-fill text-warning"></i> Manuell bearbeitet
+                  @else
+                    <i class="bi bi-robot"></i> Automatisch generiert
+                  @endif
+                </small>
+                <span class="badge bg-secondary">{{ strlen($rechnung->fattura_causale) }} / 200</span>
+              </div>
+              
+              <div class="bg-white border rounded p-2">
+                <code class="text-dark small">{{ $rechnung->fattura_causale }}</code>
+              </div>
+              
+              {{-- Zeige automatische Version zum Vergleich (falls manuell bearbeitet) --}}
+              @if($istManuell)
+              <details class="mt-2">
+                <summary class="text-muted small" style="cursor: pointer;">
+                  <i class="bi bi-info-circle"></i>
+                  Automatische Generierung anzeigen
+                </summary>
+                <div class="alert alert-light border mt-2 mb-0">
+                  <small class="text-muted d-block mb-1">
+                    <i class="bi bi-robot"></i>
+                    <strong>Würde automatisch generiert werden:</strong>
+                  </small>
+                  <div class="font-monospace small">
+                    {{ \App\Models\Rechnung::generateCausaleStatic($rechnung) }}
+                  </div>
+                </div>
+              </details>
+              @endif
+            </div>
+          </div>
+          @endif
+          
+          {{-- Andere FatturaPA-Felder --}}
+          @if($rechnung->cup || $rechnung->cig || $rechnung->codice_commessa || $rechnung->auftrag_id || $rechnung->auftrag_datum)
           <div class="row g-3">
             @if($rechnung->cup)
               <div class="col-md-3">
@@ -362,6 +413,7 @@
               </div>
             @endif
           </div>
+          @endif
         </div>
       </div>
     </div>

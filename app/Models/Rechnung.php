@@ -59,6 +59,7 @@ class Rechnung extends Model
         'geb_codex',
         'geb_name',
         'geb_adresse',
+        'fattura_causale',
 
         // Datumsfelder
         'rechnungsdatum',
@@ -127,6 +128,100 @@ class Rechnung extends Model
     // ═══════════════════════════════════════════════════════════
     // 🔗 RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════
+
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SCHRITT 2: Boot Method (nach $casts einfügen)
+    // ─────────────────────────────────────────────────────────────────────────
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Bei Erstellen: Automatische Causale generieren (falls leer)
+        static::creating(function ($rechnung) {
+            if (!$rechnung->fattura_causale) {
+                $rechnung->fattura_causale = static::generateCausaleStatic($rechnung);
+            }
+        });
+
+        // Ritenuta automatisch setzen (bestehende Logik)
+        static::saving(function ($rechnung) {
+            if ($rechnung->ritenuta) {
+                if (!$rechnung->ritenuta_prozent || $rechnung->ritenuta_prozent == 0) {
+                    $rechnung->ritenuta_prozent = 4.00;
+                }
+            }
+        });
+    }
+
+// ─────────────────────────────────────────────────────────────────────────
+// SCHRITT 3: Statische Methoden (am Ende der Klasse einfügen)
+// ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ⭐ Generiert Causale statisch (ULTRA-KOMPAKT)
+     * 
+     * Format:
+     * Zeitraum/Periodo: Jahr/anno 2025 - Objekt/Oggetto: Name, Adresse
+     * 
+     * Beispiel:
+     * Zeitraum/Periodo: Jahr/anno 2025 - Objekt/Oggetto: Cond. Romana, Fuchserstr. 2, 39055 Laives
+     * 
+     * @param Rechnung|object $rechnung
+     * @return string|null
+     */
+    public static function generateCausaleStatic($rechnung): ?string
+    {
+        $teile = [];
+
+        // 1. Leistungszeitraum (falls vorhanden)
+        if ($rechnung->leistungsdaten ?? null) {
+            $teile[] = sprintf(
+                'Zeitraum/Periodo: %s',
+                $rechnung->leistungsdaten
+            );
+        }
+
+        // 2. Gebäude-Info (kompakt: Objekt/Oggetto mit Komma)
+        $name = $rechnung->geb_name ?? null;
+        $adresse = $rechnung->geb_adresse ?? null;
+
+        if ($name && $adresse) {
+            // Name + Adresse mit Komma getrennt
+            $teile[] = sprintf(
+                'Objekt/Oggetto: %s, %s',
+                $name,
+                $adresse
+            );
+        } elseif ($adresse) {
+            // Nur Adresse
+            $teile[] = sprintf(
+                'Objekt/Oggetto: %s',
+                $adresse
+            );
+        } elseif ($name) {
+            // Nur Name
+            $teile[] = sprintf(
+                'Objekt/Oggetto: %s',
+                $name
+            );
+        }
+
+        // Zusammenfügen mit Separator " - "
+        $causale = implode(' - ', $teile);
+
+        // Max 200 Zeichen (SDI-Limit)
+        return substr($causale, 0, 200) ?: null;
+    }
+
+    /**
+     * Regeneriert die Causale basierend auf aktuellen Daten
+     */
+    public function regenerateCausale(): void
+    {
+        $this->fattura_causale = static::generateCausaleStatic($this);
+        $this->save();
+    }
 
     public function gebaeude(): BelongsTo
     {
@@ -698,7 +793,7 @@ class Rechnung extends Model
         }
 
         $tage = $this->tage_bis_faelligkeit;
-        
+
         if ($tage === null) {
             return '<span class="badge bg-secondary">Keine Fälligkeit</span>';
         }
@@ -735,7 +830,7 @@ class Rechnung extends Model
     {
         return $query->where(function ($q) {
             $q->where('status', 'paid')
-              ->orWhere('zahlungsbedingungen', Zahlungsbedingung::BEZAHLT->value);
+                ->orWhere('zahlungsbedingungen', Zahlungsbedingung::BEZAHLT->value);
         });
     }
 
@@ -745,10 +840,10 @@ class Rechnung extends Model
     public function scopeUnbezahlt($query)
     {
         return $query->where('status', '!=', 'paid')
-                     ->where(function ($q) {
-                         $q->whereNull('zahlungsbedingungen')
-                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
-                     });
+            ->where(function ($q) {
+                $q->whereNull('zahlungsbedingungen')
+                    ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+            });
     }
 
     /**
@@ -757,18 +852,18 @@ class Rechnung extends Model
     public function scopeUeberfaellig($query)
     {
         return $query->where('status', '!=', 'paid')
-                     ->where('status', '!=', 'cancelled')
-                     ->where(function ($q) {
-                         $q->whereNull('zahlungsbedingungen')
-                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
-                     })
-                     ->where(function ($q) {
-                         $q->whereDate('zahlungsziel', '<', now())
-                           ->orWhere(function ($q2) {
-                               $q2->whereNull('zahlungsziel')
-                                  ->whereDate('rechnungsdatum', '<', now()->subDays(30));
-                           });
-                     });
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) {
+                $q->whereNull('zahlungsbedingungen')
+                    ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+            })
+            ->where(function ($q) {
+                $q->whereDate('zahlungsziel', '<', now())
+                    ->orWhere(function ($q2) {
+                        $q2->whereNull('zahlungsziel')
+                            ->whereDate('rechnungsdatum', '<', now()->subDays(30));
+                    });
+            });
     }
 
     /**
@@ -777,20 +872,20 @@ class Rechnung extends Model
     public function scopeBaldFaellig($query, int $tage = 7)
     {
         $bis = now()->addDays($tage);
-        
+
         return $query->where('status', '!=', 'paid')
-                     ->where('status', '!=', 'cancelled')
-                     ->where(function ($q) {
-                         $q->whereNull('zahlungsbedingungen')
-                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
-                     })
-                     ->where(function ($q) use ($bis) {
-                         $q->whereBetween('zahlungsziel', [now(), $bis])
-                           ->orWhere(function ($q2) use ($bis) {
-                               $q2->whereNull('zahlungsziel')
-                                  ->whereBetween(DB::raw('DATE_ADD(rechnungsdatum, INTERVAL 30 DAY)'), [now(), $bis]);
-                           });
-                     });
+            ->where('status', '!=', 'cancelled')
+            ->where(function ($q) {
+                $q->whereNull('zahlungsbedingungen')
+                    ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+            })
+            ->where(function ($q) use ($bis) {
+                $q->whereBetween('zahlungsziel', [now(), $bis])
+                    ->orWhere(function ($q2) use ($bis) {
+                        $q2->whereNull('zahlungsziel')
+                            ->whereBetween(DB::raw('DATE_ADD(rechnungsdatum, INTERVAL 30 DAY)'), [now(), $bis]);
+                    });
+            });
     }
 
     /**
@@ -799,9 +894,9 @@ class Rechnung extends Model
     public function scopeOffen($query)
     {
         return $query->where('status', 'sent')
-                     ->where(function ($q) {
-                         $q->whereNull('zahlungsbedingungen')
-                           ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
-                     });
+            ->where(function ($q) {
+                $q->whereNull('zahlungsbedingungen')
+                    ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
+            });
     }
 }

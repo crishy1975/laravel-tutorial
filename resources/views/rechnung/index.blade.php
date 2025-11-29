@@ -220,7 +220,7 @@ $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31
                         <td class="text-end">
                             <div class="btn-group btn-group-sm" role="group">
                                 {{-- Anzeigen --}}
-                                <a href="{{ route('rechnung.show', $rechnung->id) }}"
+                                <a href="{{ route('rechnung.edit', $rechnung->id) }}"
                                     class="btn btn-outline-secondary"
                                     title="Details anzeigen">
                                     <i class="bi bi-eye"></i>

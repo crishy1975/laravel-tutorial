@@ -167,188 +167,112 @@
                     {{-- Zweite Zeile: Zahlungsbedingungen / Zahlungsziel / Status --}}
                     <div class="col-md-4 col-6">
                         <label class="form-label small mb-1">Zahlungsbedingungen</label>
-                        <select name="zahlungsbedingungen" id="zahlungsbedingungen"
-                                class="form-select form-select-sm @error('zahlungsbedingungen') is-invalid @enderror"
+                        <select name="zahlungsbedingungen" class="form-select form-select-sm @error('zahlungsbedingungen') is-invalid @enderror"
                                 {{ $readonly ? 'disabled' : '' }}>
-                            <option value="">-- Bitte wählen --</option>
-                            @foreach($zahlungsbedingungen as $value => $label)
-                                <option value="{{ $value }}" 
-                                    data-tage="{{ \App\Enums\Zahlungsbedingung::from($value)->tage() }}"
-                                    {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen?->value) == $value ? 'selected' : '' }}>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
+                            <option value="">Keine</option>
+                            <option value="netto_7" {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen) === 'netto_7' ? 'selected' : '' }}>Netto 7 Tage</option>
+                            <option value="netto_10" {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen) === 'netto_10' ? 'selected' : '' }}>Netto 10 Tage</option>
+                            <option value="netto_14" {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen) === 'netto_14' ? 'selected' : '' }}>Netto 14 Tage</option>
+                            <option value="netto_30" {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen) === 'netto_30' ? 'selected' : '' }}>Netto 30 Tage</option>
+                            <option value="sofort" {{ old('zahlungsbedingungen', $rechnung->zahlungsbedingungen) === 'sofort' ? 'selected' : '' }}>Sofort</option>
                         </select>
                         @error('zahlungsbedingungen') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="col-md-4 col-6">
-                        <label class="form-label small mb-1">
-                            Zahlungsziel <small class="text-muted">(auto)</small>
-                        </label>
-                        <input type="date" name="zahlungsziel" id="zahlungsziel"
+                        <label class="form-label small mb-1">Zahlungsziel</label>
+                        <input type="date" name="zahlungsziel"
                                class="form-control form-control-sm @error('zahlungsziel') is-invalid @enderror"
                                value="{{ old('zahlungsziel', $rechnung->zahlungsziel?->toDateString()) }}"
                                {{ $readonly ? 'disabled' : '' }}>
                         @error('zahlungsziel') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
-                    @if($rechnung->exists)
-                        <div class="col-md-4 col-6">
-                            <label class="form-label small mb-1">Status</label>
-                            <input type="text" class="form-control form-control-sm" value="{{ $rechnung->status }}" disabled>
-                        </div>
-                    @else
-                        <div class="col-md-4 col-6"></div>
-                    @endif
+                    <div class="col-md-4 col-6">
+                        <label class="form-label small mb-1">Status</label>
+                        <select name="status" class="form-select form-select-sm @error('status') is-invalid @enderror"
+                                {{ $readonly ? 'disabled' : '' }}>
+                            <option value="entwurf" {{ old('status', $rechnung->status) === 'entwurf' ? 'selected' : '' }}>Entwurf</option>
+                            <option value="offen" {{ old('status', $rechnung->status) === 'offen' ? 'selected' : '' }}>Offen</option>
+                            <option value="versendet" {{ old('status', $rechnung->status) === 'versendet' ? 'selected' : '' }}>Versendet</option>
+                            <option value="bezahlt" {{ old('status', $rechnung->status) === 'bezahlt' ? 'selected' : '' }}>Bezahlt</option>
+                            <option value="storniert" {{ old('status', $rechnung->status) === 'storniert' ? 'selected' : '' }}>Storniert</option>
+                        </select>
+                        @error('status') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
 
-                    {{-- Dritte Zeile: Leistungsdaten / Bezahlt am --}}
-                    <div class="col-md-8">
-                        <label class="form-label small mb-1">Leistungsdaten</label>
+                    {{-- Dritte Zeile: Leistungsdaten --}}
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Leistungsdaten / Leistungszeitraum</label>
                         <input type="text" name="leistungsdaten"
                                class="form-control form-control-sm @error('leistungsdaten') is-invalid @enderror"
                                value="{{ old('leistungsdaten', $rechnung->leistungsdaten) }}"
-                               {{ $readonly ? 'disabled' : '' }}
-                               placeholder="z.B. Jahr/anno 2025 oder 01.05.2025 - 15.05.2025">
+                               placeholder="z.B. Januar 2025, Jahr/anno 2025"
+                               {{ $readonly ? 'disabled' : '' }}>
                         @error('leistungsdaten') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
-
-                    @if($rechnung->exists)
-                        <div class="col-md-4">
-                            <label class="form-label small mb-1">Bezahlt am</label>
-                            <input type="date" name="bezahlt_am"
-                                   class="form-control form-control-sm @error('bezahlt_am') is-invalid @enderror"
-                                   value="{{ old('bezahlt_am', $rechnung->bezahlt_am?->toDateString()) }}"
-                                   {{ $readonly ? 'disabled' : '' }}>
-                            @error('bezahlt_am') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-                    @endif
-
-                    {{-- ⭐ Status-Badges in einer kompakten Zeile --}}
-                    @if($rechnung->exists && ($rechnung->zahlungsbedingungen || $rechnung->faelligkeitsdatum))
-                        <div class="col-12">
-                            <div class="d-flex gap-2 flex-wrap align-items-center mt-1">
-                                @if($rechnung->zahlungsbedingungen)
-                                    {!! $rechnung->zahlungsbedingungen_badge !!}
-                                    @if($rechnung->faelligkeitsdatum)
-                                        <small class="text-muted">Fällig: {{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}</small>
-                                    @endif
-                                @endif
-                                @if($rechnung->zahlungsbedingungen && $rechnung->zahlungsbedingungen->value !== 'bezahlt')
-                                    {!! $rechnung->faelligkeits_status_badge !!}
-                                @endif
-                                @if($rechnung->status !== 'paid' && !$rechnung->istAlsBezahltMarkiert())
-                                    <button type="button" id="btn-mark-bezahlt" class="btn btn-success btn-sm ms-auto"
-                                            data-mark-url="{{ route('rechnung.mark-bezahlt', $rechnung->id) }}">
-                                        <i class="bi bi-check-circle"></i> Als bezahlt markieren
-                                    </button>
-                                @endif
-                            </div>
-                        </div>
-                    @endif
 
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- CARD: FatturaPA-Profil + Daten (KOMPAKT) --}}
+    {{-- CARD: MwSt, Split Payment, Ritenuta (KOMPAKT) --}}
     <div class="col-xl-5">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-warning py-2">
-                <h6 class="mb-0"><i class="bi bi-file-earmark-text"></i> FatturaPA-Profil & Daten</h6>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-success text-white py-2">
+                <h6 class="mb-0"><i class="bi bi-percent"></i> Steuern & Abzüge</h6>
             </div>
             <div class="card-body p-3">
                 <div class="row g-2">
 
-                    {{-- FatturaPA-Profil Auswahl --}}
-                    <div class="col-12">
-                        <label class="form-label small mb-1">FatturaPA-Profil</label>
-                        <select name="fattura_profile_id" id="fattura_profile_id"
-                                class="form-select form-select-sm @error('fattura_profile_id') is-invalid @enderror"
-                                {{ $readonly ? 'disabled' : '' }}>
-                            <option value="">-- Kein Profil --</option>
-                            @if(isset($profile) && $profile->isNotEmpty())
-                                @foreach($profile as $prof)
-                                    <option value="{{ $prof->id }}"
-                                        {{ old('fattura_profile_id', $rechnung->fattura_profile_id) == $prof->id ? 'selected' : '' }}
-                                        data-bezeichnung="{{ $prof->bezeichnung }}"
-                                        data-mwst="{{ $prof->mwst_satz }}"
-                                        data-split="{{ $prof->split_payment ? 1 : 0 }}"
-                                        data-ritenuta="{{ $prof->ritenuta ? 1 : 0 }}"
-                                        data-ritenuta-prozent="{{ $prof->ritenuta_prozent }}">
-                                        {{ $prof->bezeichnung }}
-                                    </option>
-                                @endforeach
-                            @endif
-                        </select>
-                        @error('fattura_profile_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="col-6">
+                        <label class="form-label small mb-1">MwSt-Satz (%)</label>
+                        <input type="number" name="mwst_satz" step="0.01"
+                               class="form-control form-control-sm @error('mwst_satz') is-invalid @enderror"
+                               value="{{ old('mwst_satz', $rechnung->mwst_satz ?? 22.00) }}"
+                               {{ $readonly ? 'disabled' : '' }}>
+                        @error('mwst_satz') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
-                    {{-- Profil-Info kompakt (inline badges) --}}
-                    <div class="col-12">
-                        <div id="profil-info" class="d-flex gap-2 flex-wrap" style="display: none !important;">
-                            <small class="badge bg-light text-dark border">
-                                <strong>MwSt:</strong> <span id="info-mwst">-</span>%
-                            </small>
-                            <small class="badge bg-light text-dark border">
-                                <strong>Split:</strong> <span id="info-split">-</span>
-                            </small>
-                            <small class="badge bg-light text-dark border">
-                                <strong>Ritenuta:</strong> <span id="info-ritenuta">-</span>
-                            </small>
+                    <div class="col-6">
+                        <label class="form-label small mb-1">&nbsp;</label>
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="split_payment" value="0">
+                            <input class="form-check-input" type="checkbox" name="split_payment" value="1"
+                                   id="split_payment"
+                                   {{ old('split_payment', $rechnung->split_payment) ? 'checked' : '' }}
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label class="form-check-label small" for="split_payment">
+                                Split Payment
+                            </label>
                         </div>
                     </div>
 
-                    {{-- CUP / CIG / Codice Commessa --}}
-                    <div class="col-4">
-                        <label class="form-label small mb-1">CUP</label>
-                        <input type="text" name="cup"
-                               class="form-control form-control-sm @error('cup') is-invalid @enderror"
-                               value="{{ old('cup', $rechnung->cup) }}"
-                               maxlength="20"
-                               {{ $readonly ? 'disabled' : '' }}>
-                        @error('cup') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div class="col-4">
-                        <label class="form-label small mb-1">CIG</label>
-                        <input type="text" name="cig"
-                               class="form-control form-control-sm @error('cig') is-invalid @enderror"
-                               value="{{ old('cig', $rechnung->cig) }}"
-                               maxlength="10"
-                               {{ $readonly ? 'disabled' : '' }}>
-                        @error('cig') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div class="col-4">
-                        <label class="form-label small mb-1">Codice Commessa</label>
-                        <input type="text" name="codice_commessa"
-                               class="form-control form-control-sm @error('codice_commessa') is-invalid @enderror"
-                               value="{{ old('codice_commessa', $rechnung->codice_commessa) }}"
-                               maxlength="100"
-                               {{ $readonly ? 'disabled' : '' }}>
-                        @error('codice_commessa') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    {{-- Auftrags-ID / Auftrags-Datum --}}
-                    <div class="col-6">
-                        <label class="form-label small mb-1">Auftrags-ID</label>
-                        <input type="text" name="auftrag_id"
-                               class="form-control form-control-sm @error('auftrag_id') is-invalid @enderror"
-                               value="{{ old('auftrag_id', $rechnung->auftrag_id) }}"
-                               maxlength="50"
-                               {{ $readonly ? 'disabled' : '' }}>
-                        @error('auftrag_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="col-12">
+                        <hr class="my-2">
                     </div>
 
                     <div class="col-6">
-                        <label class="form-label small mb-1">Auftrags-Datum</label>
-                        <input type="date" name="auftrag_datum"
-                               class="form-control form-control-sm @error('auftrag_datum') is-invalid @enderror"
-                               value="{{ old('auftrag_datum', $rechnung->auftrag_datum?->toDateString()) }}"
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="ritenuta" value="0">
+                            <input class="form-check-input" type="checkbox" name="ritenuta" value="1"
+                                   id="ritenuta"
+                                   {{ old('ritenuta', $rechnung->ritenuta) ? 'checked' : '' }}
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label class="form-check-label small" for="ritenuta">
+                                Ritenuta aktiv
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="col-6">
+                        <label class="form-label small mb-1">Ritenuta (%)</label>
+                        <input type="number" name="ritenuta_prozent" step="0.01"
+                               class="form-control form-control-sm @error('ritenuta_prozent') is-invalid @enderror"
+                               value="{{ old('ritenuta_prozent', $rechnung->ritenuta_prozent ?? 4.00) }}"
                                {{ $readonly ? 'disabled' : '' }}>
-                        @error('auftrag_datum') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        @error('ritenuta_prozent') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
                 </div>
@@ -356,102 +280,77 @@
         </div>
     </div>
 
-    {{-- JavaScript für Profil-Info und automatische Zahlungsziel-Berechnung --}}
-    @if(!$readonly && isset($profile) && $profile->isNotEmpty())
-    @verbatim
-    <script>
-        // FatturaPA-Profil Info anzeigen
-        (function () {
-            const select = document.getElementById('fattura_profile_id');
-            const info = document.getElementById('profil-info');
-            const mwstSpan = document.getElementById('info-mwst');
-            const splitSpan = document.getElementById('info-split');
-            const ritenutaSpan = document.getElementById('info-ritenuta');
-
-            if (!select || !info) return;
-
-            function renderInfo(profileId) {
-                const option = select.querySelector(`option[value="${profileId}"]`);
-                if (!profileId || !option) {
-                    info.style.display = 'none';
-                    return;
-                }
-
-                mwstSpan.textContent = option.dataset.mwst || '-';
-                splitSpan.textContent = option.dataset.split === '1' ? 'Ja' : 'Nein';
-                ritenutaSpan.textContent = option.dataset.ritenuta === '1' 
-                    ? `Ja (${option.dataset.ritenutaProzent}%)` 
-                    : 'Nein';
-                
-                info.style.display = 'flex'; // ⭐ GEÄNDERT: flex statt block
-            }
-
-            // Initial befüllen
-            renderInfo(select.value);
-
-            // Live-Update bei Änderung
-            select.addEventListener('change', function (e) {
-                renderInfo(e.target.value);
-            });
-        })();
-
-        // ⭐ NEU: Automatische Zahlungsziel-Berechnung
-        (function () {
-            const rechnungsdatum = document.getElementById('rechnungsdatum');
-            const zahlungsbedingungen = document.getElementById('zahlungsbedingungen');
-            const zahlungsziel = document.getElementById('zahlungsziel');
-
-            if (!rechnungsdatum || !zahlungsbedingungen || !zahlungsziel) return;
-
-            function calculateZahlungsziel() {
-                const datum = rechnungsdatum.value;
-                const bedingung = zahlungsbedingungen.value;
-
-                if (!datum || !bedingung) return;
-
-                const selectedOption = zahlungsbedingungen.querySelector(`option[value="${bedingung}"]`);
-                if (!selectedOption) return;
-
-                const tage = parseInt(selectedOption.dataset.tage || 0);
-                
-                // Berechne Zahlungsziel
-                const rechnungDate = new Date(datum);
-                const zahlungDate = new Date(rechnungDate);
-                zahlungDate.setDate(zahlungDate.getDate() + tage);
-
-                // Formatiere als YYYY-MM-DD
-                const year = zahlungDate.getFullYear();
-                const month = String(zahlungDate.getMonth() + 1).padStart(2, '0');
-                const day = String(zahlungDate.getDate()).padStart(2, '0');
-                
-                zahlungsziel.value = `${year}-${month}-${day}`;
-            }
-
-            // Berechne bei Änderung der Zahlungsbedingungen
-            zahlungsbedingungen.addEventListener('change', calculateZahlungsziel);
-
-            // Berechne bei Änderung des Rechnungsdatums
-            rechnungsdatum.addEventListener('change', calculateZahlungsziel);
-
-            // Initial berechnen
-            calculateZahlungsziel();
-        })();
-    </script>
-    @endverbatim
-    @endif
-
-    {{-- CARD: Summen & Ritenuta + Bemerkungen --}}
+    {{-- CARD: FatturaPA (KOMPAKT) --}}
     <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-secondary text-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-calculator"></i> Summen & Bemerkungen
-                </h6>
+        <div class="card border-warning border-0 shadow-sm">
+            <div class="card-header bg-warning py-2">
+                <h6 class="mb-0"><i class="bi bi-file-earmark-text"></i> FatturaPA-Daten</h6>
             </div>
-            <div class="card-body">
-                <div class="row g-3 align-items-center">
+            <div class="card-body p-3">
+                <div class="row g-2">
 
-                    {{-- Summen (readonly, werden automatisch berechnet) --}}
+                    <div class="col-md-3">
+                        <div class="form-floating">
+                            <input type="text" name="cup"
+                                   class="form-control @error('cup') is-invalid @enderror"
+                                   value="{{ old('cup', $rechnung->cup) }}"
+                                   placeholder="CUP"
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label>CUP (optional)</label>
+                            @error('cup') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="form-floating">
+                            <input type="text" name="cig"
+                                   class="form-control @error('cig') is-invalid @enderror"
+                                   value="{{ old('cig', $rechnung->cig) }}"
+                                   placeholder="CIG"
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label>CIG (optional)</label>
+                            @error('cig') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="form-floating">
+                            <input type="text" name="codice_commessa"
+                                   class="form-control @error('codice_commessa') is-invalid @enderror"
+                                   value="{{ old('codice_commessa', $rechnung->codice_commessa) }}"
+                                   placeholder="Codice Commessa"
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label>Codice Commessa</label>
+                            @error('codice_commessa') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="form-floating">
+                            <input type="text" name="auftrag_id"
+                                   class="form-control @error('auftrag_id') is-invalid @enderror"
+                                   value="{{ old('auftrag_id', $rechnung->auftrag_id) }}"
+                                   placeholder="Auftrags-ID"
+                                   {{ $readonly ? 'disabled' : '' }}>
+                            <label>Auftrags-ID</label>
+                            @error('auftrag_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- CARD: Summen (nur Anzeige) --}}
+    <div class="col-12">
+        <div class="card border-primary border-0 shadow-sm">
+            <div class="card-header bg-primary text-white py-2">
+                <h6 class="mb-0"><i class="bi bi-calculator"></i> Summen (Berechnet)</h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+
                     <div class="col-md-3">
                         <div class="form-floating">
                             <input type="text"
@@ -525,6 +424,79 @@
                                       {{ $readonly ? 'disabled' : '' }}>{{ old('bemerkung_kunde', $rechnung->bemerkung_kunde) }}</textarea>
                             <label>Bemerkung auf Rechnung (für Kunde sichtbar)</label>
                             @error('bemerkung_kunde') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
+                    {{-- ⭐ NEU: FatturaPA Causale --}}
+                    <div class="col-12">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white py-2">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-file-text"></i> 
+                                    FatturaPA Causale (Leistungsbeschreibung)
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                
+                                {{-- Vorschau der automatischen Causale --}}
+                                @if(!old('fattura_causale', $rechnung->fattura_causale ?? null))
+                                    <div class="alert alert-light border mb-3">
+                                        <small class="text-muted d-block mb-2">
+                                            <i class="bi bi-robot"></i> 
+                                            <strong>Wird automatisch generiert:</strong>
+                                        </small>
+                                        <div class="font-monospace small">
+                                            @if($rechnung->exists)
+                                                {{ \App\Models\Rechnung::generateCausaleStatic($rechnung) }}
+                                            @else
+                                                <span class="text-muted">Causale wird nach dem Speichern generiert...</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                                {{-- Manuelle Eingabe --}}
+                                <div class="form-floating mb-2">
+                                    <textarea 
+                                        name="fattura_causale" 
+                                        id="fattura_causale"
+                                        class="form-control font-monospace @error('fattura_causale') is-invalid @enderror" 
+                                        style="height: 100px"
+                                        maxlength="200"
+                                        placeholder="Leer lassen für automatische Generierung..."
+                                        {{ $readonly ? 'disabled' : '' }}
+                                    >{{ old('fattura_causale', $rechnung->fattura_causale ?? '') }}</textarea>
+                                    <label for="fattura_causale">
+                                        <i class="bi bi-pencil"></i>
+                                        Eigene Beschreibung (optional)
+                                    </label>
+                                    @error('fattura_causale')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle"></i>
+                                        Max. 200 Zeichen. Leer = automatisch aus Leistungsdaten + Gebäude
+                                    </small>
+                                    <small class="text-muted">
+                                        <span id="causale-counter">{{ strlen(old('fattura_causale', $rechnung->fattura_causale ?? '')) }}</span> / 200
+                                    </small>
+                                </div>
+                                
+                                {{-- Aktionen --}}
+                                @if(!$readonly)
+                                <div class="d-flex gap-2 mt-3">
+                                    @if($rechnung->exists && $rechnung->fattura_causale)
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-reset-causale">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                            Auf automatisch zurücksetzen
+                                        </button>
+                                    @endif
+                                </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
 
@@ -633,6 +605,40 @@
                 .catch(function (err) {
                     alert('Netzwerkfehler: ' + err);
                 });
+            });
+        }
+
+        // ⭐ NEU: Causale - Zeichenzähler
+        var causaleTextarea = document.getElementById('fattura_causale');
+        var causaleCounter = document.getElementById('causale-counter');
+        if (causaleTextarea && causaleCounter) {
+            function updateCausaleCounter() {
+                var length = causaleTextarea.value.length;
+                causaleCounter.textContent = length;
+                
+                // Farbe ändern
+                causaleCounter.parentElement.classList.remove('text-danger', 'text-warning');
+                if (length > 180) {
+                    causaleCounter.parentElement.classList.add('text-danger', 'fw-bold');
+                } else if (length > 150) {
+                    causaleCounter.parentElement.classList.add('text-warning', 'fw-bold');
+                }
+            }
+            
+            causaleTextarea.addEventListener('input', updateCausaleCounter);
+            updateCausaleCounter();
+        }
+        
+        // ⭐ NEU: Causale - Zurücksetzen-Button
+        var btnResetCausale = document.getElementById('btn-reset-causale');
+        if (btnResetCausale && causaleTextarea) {
+            btnResetCausale.addEventListener('click', function() {
+                if (confirm('Manuelle Causale löschen und automatisch generieren lassen?')) {
+                    causaleTextarea.value = '';
+                    if (typeof updateCausaleCounter === 'function') {
+                        updateCausaleCounter();
+                    }
+                }
             });
         }
     });

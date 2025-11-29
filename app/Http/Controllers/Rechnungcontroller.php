@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use App\Services\FatturaXmlGenerator;
 use App\Models\FatturaXmlLog;
 use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RechnungController extends Controller
 {
@@ -836,4 +837,111 @@ class RechnungController extends Controller
 
         return response()->json($debug, 200, [], JSON_PRETTY_PRINT);
     }
+
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 📄 PDF-GENERIERUNG FÜR RECHNUNGEN
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // INTEGRATION IN: app/Http/Controllers/RechnungController.php
+    //
+    // ═══════════════════════════════════════════════════════════════════════════
+
+
+
+
+    public function downloadPdf(int $id)
+    {
+        $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])
+            ->findOrFail($id);
+
+        // ⭐ Unternehmensprofil laden
+        $unternehmen = \App\Models\Unternehmensprofil::first();
+
+        // PDF generieren
+        $pdf = Pdf::loadView('rechnung.pdf', [
+            'rechnung' => $rechnung,
+            'unternehmen' => $unternehmen, // ⭐ NEU
+        ])
+            ->setPaper('a4', 'portrait')
+            ->setOption('defaultFont', 'DejaVu Sans');
+
+        // Dateiname (Schrägstriche ersetzen für Dateisystem)
+        $filename = sprintf(
+            'Rechnung_%s_%s.pdf',
+            str_replace(['/', '\\'], '-', $rechnung->rechnungsnummer), // ⭐ Schrägstriche ersetzen
+            $rechnung->rechnungsdatum->format('Y-m-d')
+        );
+
+        // Download
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Zeigt PDF im Browser (Preview)
+     * 
+     * @param int $id Rechnungs-ID
+     * @return \Illuminate\Http\Response
+     */
+    public function previewPdf(int $id)
+    {
+        $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])
+            ->findOrFail($id);
+
+        // ⭐ Unternehmensprofil laden
+        $unternehmen = \App\Models\Unternehmensprofil::first();
+
+        // PDF generieren
+        $pdf = Pdf::loadView('rechnung.pdf', [
+            'rechnung' => $rechnung,
+            'unternehmen' => $unternehmen, // ⭐ NEU
+        ])
+            ->setPaper('a4', 'portrait')
+            ->setOption('defaultFont', 'DejaVu Sans');
+
+        // Im Browser anzeigen
+        return $pdf->stream('rechnung.pdf');
+    }
+
+    /**
+     * PDF als Email versenden
+     * 
+     * @param int $id Rechnungs-ID
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function sendPdfEmail(int $id)
+    {
+        $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])
+            ->findOrFail($id);
+
+        // Validierung
+        if (!$rechnung->post_email) {
+            return back()->with('error', 'Keine Email-Adresse hinterlegt!');
+        }
+
+        // PDF generieren
+        $pdf = Pdf::loadView('rechnung.pdf', [
+            'rechnung' => $rechnung,
+        ])
+            ->setPaper('a4', 'portrait')
+            ->setOption('defaultFont', 'DejaVu Sans');
+
+        $filename = sprintf(
+            'Rechnung_%s.pdf',
+            $rechnung->rechnungsnummer
+        );
+
+        // Email versenden (Beispiel mit Laravel Mail)
+        \Mail::to($rechnung->post_email)->send(
+            new \App\Mail\RechnungMail($rechnung, $pdf->output(), $filename)
+        );
+
+        return back()->with('success', 'Rechnung per Email versendet!');
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ENDE DER CONTROLLER-METHODEN
+    // ═══════════════════════════════════════════════════════════════════════════
+
 }
