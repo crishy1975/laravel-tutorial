@@ -18,6 +18,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use App\Models\RechnungLog;
 use App\Enums\RechnungLogTyp;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\RechnungMail;
 
 class RechnungController extends Controller
 {
@@ -373,10 +375,6 @@ class RechnungController extends Controller
             ->with('success', "Rechnung {$nummer} wurde endgültig gelöscht.");
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 💰 NEU: ZAHLUNGS-AKTIONEN
-    // ═══════════════════════════════════════════════════════════
-
     /**
      * Rechnung als bezahlt markieren.
      */
@@ -447,10 +445,7 @@ class RechnungController extends Controller
             ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde storniert.");
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🧾 POSITIONEN VERWALTEN
-    // ═══════════════════════════════════════════════════════════
-
+ 
     /**
      * Neue Position zu Rechnung hinzufügen.
      */
@@ -986,6 +981,191 @@ class RechnungController extends Controller
 
         return back()->with('success', 'Rechnung per Email versendet!');
     }
+
+    public function sendEmail(Request $request, int $id)
+    {
+        $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])->findOrFail($id);
+
+        $validated = $request->validate([
+            'typ'        => ['required', 'in:email,pec'],
+            'empfaenger' => ['nullable', 'email'],
+            'pec'        => ['nullable', 'email'],
+            'betreff'    => ['required', 'string', 'max:255'],
+            'nachricht'  => ['nullable', 'string', 'max:5000'],
+            'attach_pdf' => ['nullable', 'in:0,1'],
+            'attach_xml' => ['nullable', 'in:0,1'],
+            'copy_me'    => ['nullable', 'in:0,1'],
+        ]);
+
+        $typ = $validated['typ'];
+        $empfaenger = $typ === 'pec' ? $validated['pec'] : $validated['empfaenger'];
+
+        if (!$empfaenger) {
+            return back()->with('error', 'Bitte ' . ($typ === 'pec' ? 'PEC' : 'E-Mail') . '-Adresse eingeben.');
+        }
+
+        try {
+            // Anhänge sammeln
+            $attachments = [];
+
+            // PDF anhängen
+            if ($validated['attach_pdf'] ?? false) {
+                $pdfPath = $this->generatePdfForEmail($rechnung);
+                if ($pdfPath) {
+                    $attachments[] = [
+                        'path' => $pdfPath,
+                        'name' => 'Rechnung_' . $rechnung->rechnungsnummer . '.pdf',
+                        'mime' => 'application/pdf',
+                    ];
+                }
+            }
+
+            // XML anhängen
+            if ($validated['attach_xml'] ?? false) {
+                $xmlLog = FatturaXmlLog::where('rechnung_id', $rechnung->id)
+                    ->whereIn('status', [
+                        FatturaXmlLog::STATUS_GENERATED,
+                        FatturaXmlLog::STATUS_SIGNED,
+                    ])
+                    ->latest()
+                    ->first();
+
+                if ($xmlLog && $xmlLog->xml_file_path && Storage::exists($xmlLog->xml_file_path)) {
+                    $attachments[] = [
+                        'path' => Storage::path($xmlLog->xml_file_path),
+                        'name' => $xmlLog->xml_filename,
+                        'mime' => 'application/xml',
+                    ];
+                }
+            }
+
+            // E-Mail senden
+            $mailData = [
+                'rechnung'   => $rechnung,
+                'betreff'    => $validated['betreff'],
+                'nachricht'  => $validated['nachricht'] ?? '',
+                'attachments' => $attachments,
+            ];
+
+            // Mailer auswählen (PEC oder Standard)
+            $mailer = $typ === 'pec' ? 'pec' : config('mail.default');
+
+            Mail::mailer($mailer)
+                ->to($empfaenger)
+                ->send(new RechnungMail($mailData));
+
+            // Kopie an mich
+            if ($validated['copy_me'] ?? false) {
+                $currentUserEmail = auth()->user()->email ?? config('mail.from.address');
+                if ($currentUserEmail) {
+                    Mail::mailer(config('mail.default'))
+                        ->to($currentUserEmail)
+                        ->send(new RechnungMail($mailData));
+                }
+            }
+
+            // Temporäre PDF löschen
+            if (isset($pdfPath) && file_exists($pdfPath)) {
+                @unlink($pdfPath);
+            }
+
+            // ⭐ In RechnungLog eintragen
+            $logTyp = $typ === 'pec' ? RechnungLogTyp::PEC_VERSANDT : RechnungLogTyp::EMAIL_VERSANDT;
+
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: $logTyp,
+                beschreibung: sprintf(
+                    'Rechnung per %s versandt an: %s',
+                    $typ === 'pec' ? 'PEC' : 'E-Mail',
+                    $empfaenger
+                ),
+                metadata: [
+                    'empfaenger' => $empfaenger,
+                    'betreff'    => $validated['betreff'],
+                    'typ'        => $typ,
+                    'attach_pdf' => (bool)($validated['attach_pdf'] ?? false),
+                    'attach_xml' => (bool)($validated['attach_xml'] ?? false),
+                ]
+            );
+
+            // Status aktualisieren wenn noch draft
+            if ($rechnung->status === 'draft') {
+                $rechnung->update(['status' => 'sent']);
+
+                RechnungLog::statusGeaendert(
+                    rechnungId: $rechnung->id,
+                    alterStatus: 'draft',
+                    neuerStatus: 'sent'
+                );
+            }
+
+            return back()->with('success', sprintf(
+                'Rechnung erfolgreich per %s versandt an: %s',
+                $typ === 'pec' ? 'PEC' : 'E-Mail',
+                $empfaenger
+            ));
+        } catch (\Exception $e) {
+            Log::error('E-Mail Versand fehlgeschlagen', [
+                'rechnung_id' => $id,
+                'empfaenger'  => $empfaenger,
+                'typ'         => $typ,
+                'error'       => $e->getMessage(),
+            ]);
+
+            // Fehler loggen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::EMAIL_FEHLER,
+                beschreibung: sprintf(
+                    'E-Mail Versand fehlgeschlagen: %s',
+                    $e->getMessage()
+                ),
+                metadata: [
+                    'empfaenger' => $empfaenger,
+                    'typ'        => $typ,
+                    'error'      => $e->getMessage(),
+                ]
+            );
+
+            return back()->with('error', 'E-Mail Versand fehlgeschlagen: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generiert PDF temporär für E-Mail-Anhang.
+     */
+    private function generatePdfForEmail(Rechnung $rechnung): ?string
+    {
+        try {
+            $pdf = Pdf::loadView('rechnung.pdf', [
+                'rechnung' => $rechnung,
+            ]);
+
+            $tempPath = storage_path('app/temp/rechnung_' . $rechnung->id . '_' . time() . '.pdf');
+
+            // Temp-Verzeichnis erstellen falls nicht vorhanden
+            if (!file_exists(dirname($tempPath))) {
+                mkdir(dirname($tempPath), 0755, true);
+            }
+
+            $pdf->save($tempPath);
+
+            return $tempPath;
+        } catch (\Exception $e) {
+            Log::error('PDF Generierung für E-Mail fehlgeschlagen', [
+                'rechnung_id' => $rechnung->id,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+
+
+
+
+
 
 
     // ═══════════════════════════════════════════════════════════════════════════
