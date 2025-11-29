@@ -493,57 +493,55 @@ class FatturaXmlGenerator
 
     /**
      * ⭐ Generiert automatische Causale aus Rechnung-Daten
-     * Diese Methode kann auch vom Rechnung Model aufgerufen werden!
+     * 
+     * Format (ULTRA-KOMPAKT):
+     * Zeitraum/Periodo: Jahr/anno 2025 - Objekt/Oggetto: Name, Adresse
+     * 
+     * Beispiel:
+     * Zeitraum/Periodo: Jahr/anno 2025 - Objekt/Oggetto: Cond. Romana, Fuchserstr. 2, 39055 Laives
      */
     public function generateCausale(): ?string
     {
         $teile = [];
 
-        // 1. Leistungsart (Deutsch / Italienisch)
-        $teile[] = 'Reinigungsarbeiten / Servizi di pulizia';
-
-        // 2. Leistungszeitraum (falls vorhanden)
+        // 1. Leistungszeitraum (falls vorhanden)
         if ($this->rechnung->leistungsdaten) {
             $teile[] = sprintf(
-                'Zeitraum: %s / Periodo: %s',
-                $this->rechnung->leistungsdaten,
+                'Zeitraum/Periodo: %s',
                 $this->rechnung->leistungsdaten
             );
         }
 
-        // 3. Gebäude-Info (Name + Adresse)
+        // 2. Gebäude-Info (kompakt: Objekt/Oggetto mit Komma)
         if ($this->rechnung->geb_name && $this->rechnung->geb_adresse) {
+            // Name + Adresse mit Komma getrennt
             $teile[] = sprintf(
-                'Objekt: %s (%s) / Oggetto: %s (%s)',
-                $this->rechnung->geb_name,
-                $this->rechnung->geb_adresse,
+                'Objekt/Oggetto: %s, %s',
                 $this->rechnung->geb_name,
                 $this->rechnung->geb_adresse
             );
         } elseif ($this->rechnung->geb_adresse) {
+            // Nur Adresse
             $teile[] = sprintf(
-                'Objekt: %s / Oggetto: %s',
-                $this->rechnung->geb_adresse,
+                'Objekt/Oggetto: %s',
                 $this->rechnung->geb_adresse
             );
         } elseif ($this->rechnung->geb_name) {
+            // Nur Name
             $teile[] = sprintf(
-                'Objekt: %s / Oggetto: %s',
-                $this->rechnung->geb_name,
+                'Objekt/Oggetto: %s',
                 $this->rechnung->geb_name
             );
         }
 
-        // 4. Kunden-Bemerkung (falls vorhanden und Platz ist)
-        if ($this->rechnung->bemerkung_kunde) {
-            $teile[] = $this->rechnung->bemerkung_kunde;
-        }
-
-        // Zusammenfügen mit " - " und auf 200 Zeichen kürzen
+        // Zusammenfügen mit Separator " - "
         $causale = implode(' - ', $teile);
-        
+
+        // Max 200 Zeichen (SDI-Limit)
         return substr($causale, 0, 200) ?: null;
     }
+
+
 
     protected function buildDatiOrdineAcquisto(DOMElement $parent): void
     {

@@ -117,7 +117,7 @@
                 </a>
 
                 @if($rechnung->exists)
-                <a href="{{ route('rechnung.show', $rechnung->id) }}" class="btn btn-outline-info">
+                <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-info">
                     <i class="bi bi-eye"></i> Ansehen
                 </a>
                 @endif
