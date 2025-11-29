@@ -86,6 +86,29 @@
                     </button>
                 </li>
                 @endif
+                {{-- ⭐ Log-Tab (nur wenn Rechnung existiert) --}}
+                @if($rechnung->exists)
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-logs"
+                        data-bs-toggle="tab" data-bs-target="#content-logs"
+                        type="button" role="tab">
+                        <i class="bi bi-clock-history"></i> Log
+                        @php
+                            $logCount = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)->count();
+                            $offeneErinnerungen = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)
+                                ->offeneErinnerungen()->count();
+                        @endphp
+                        @if($logCount > 0)
+                            <span class="badge bg-secondary ms-1">{{ $logCount }}</span>
+                        @endif
+                        @if($offeneErinnerungen > 0)
+                            <span class="badge bg-warning ms-1" title="Offene Erinnerungen">
+                                <i class="bi bi-bell"></i> {{ $offeneErinnerungen }}
+                            </span>
+                        @endif
+                    </button>
+                </li>
+                @endif
             </ul>
         </div>
 
@@ -116,6 +139,13 @@
                 @if($rechnung->exists && $rechnung->fattura_profile_id)
                 <div class="tab-pane fade" id="content-fattura" role="tabpanel">
                     @include('rechnung.partials._fattura_xml')
+                </div>
+                @endif
+
+                {{-- ⭐ Tab 3: Log-System (nur wenn Rechnung existiert) --}}
+                @if($rechnung->exists)
+                <div class="tab-pane fade" id="content-logs" role="tabpanel">
+                    @include('rechnung.partials._logs')
                 </div>
                 @endif
 
