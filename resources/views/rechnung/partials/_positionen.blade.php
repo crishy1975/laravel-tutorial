@@ -140,11 +140,21 @@
         </div>
       </div>
 
-      {{-- Info-Box --}}
+      {{-- ⭐ INFO-BOXEN FÜR REVERSE CHARGE & SPLIT PAYMENT --}}
+      @if($rechnung->reverse_charge)
+        <div class="alert alert-warning mt-3">
+          <i class="bi bi-exclamation-triangle"></i>
+          <strong>Reverse Charge aktiv:</strong> 
+          Umkehrung der Steuerschuldnerschaft (Art. 17 DPR 633/72).
+          Die MwSt ist vom Leistungsempfänger zu entrichten.
+        </div>
+      @endif
+
       @if($rechnung->split_payment)
         <div class="alert alert-info mt-3">
           <i class="bi bi-info-circle"></i>
-          <strong>Split Payment aktiv:</strong> Die MwSt wird separat behandelt.
+          <strong>Split Payment aktiv:</strong> 
+          Die MwSt wird separat behandelt und direkt vom öffentlichen Auftraggeber an das Finanzamt abgeführt.
         </div>
       @endif
 
