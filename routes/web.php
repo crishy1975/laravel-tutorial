@@ -320,7 +320,46 @@ Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
         ->name('delete');
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RECHNUNG LOG ROUTES
+// In routes/web.php einfügen
+// ═══════════════════════════════════════════════════════════════════════════
 
+use App\Http\Controllers\RechnungLogController;
+
+// Log-Übersicht für eine Rechnung
+Route::get('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'index'])
+    ->name('rechnung.logs.index');
+
+// Neuen Log-Eintrag erstellen
+Route::post('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'store'])
+    ->name('rechnung.logs.store');
+
+// Log-Eintrag aktualisieren
+Route::put('/rechnung/logs/{log}', [RechnungLogController::class, 'update'])
+    ->name('rechnung.logs.update');
+
+// Log-Eintrag löschen
+Route::delete('/rechnung/logs/{log}', [RechnungLogController::class, 'destroy'])
+    ->name('rechnung.logs.destroy');
+
+// Erinnerung als erledigt markieren
+Route::post('/rechnung/logs/{log}/erledigt', [RechnungLogController::class, 'erinnerungErledigt'])
+    ->name('rechnung.logs.erledigt');
+
+// Quick-Actions
+Route::post('/rechnung/{rechnung}/logs/telefonat', [RechnungLogController::class, 'quickTelefonat'])
+    ->name('rechnung.logs.telefonat');
+
+Route::post('/rechnung/{rechnung}/logs/notiz', [RechnungLogController::class, 'quickNotiz'])
+    ->name('rechnung.logs.notiz');
+
+Route::post('/rechnung/{rechnung}/logs/mitteilung', [RechnungLogController::class, 'quickMitteilung'])
+    ->name('rechnung.logs.mitteilung');
+
+// Dashboard (globale Übersicht)
+Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard'])
+    ->name('rechnung.logs.dashboard');
 
 
 

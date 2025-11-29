@@ -16,6 +16,8 @@ use App\Models\FatturaXmlLog;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use App\Models\RechnungLog;
+use App\Enums\RechnungLogTyp;
 
 class RechnungController extends Controller
 {
@@ -586,11 +588,6 @@ class RechnungController extends Controller
     // 🧾 FATTURAPA XML GENERATION
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * Generiert FatturaPA XML für eine Rechnung.
-     * 
-     * Route: POST /rechnung/{id}/xml/generate
-     */
     public function generateXml(int $id)
     {
         $rechnung = Rechnung::findOrFail($id);
@@ -617,6 +614,18 @@ class RechnungController extends Controller
             $generator = new FatturaXmlGenerator();
             $log = $generator->generate($rechnung);
 
+            // ⭐ NEU: Automatisch in RechnungLog eintragen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_ERSTELLT,
+                beschreibung: "FatturaPA XML generiert: {$log->progressivo_invio}",
+                metadata: [
+                    'progressivo' => $log->progressivo_invio,
+                    'dateiname' => $log->xml_filename ?? null,
+                    'fattura_xml_log_id' => $log->id,
+                ]
+            );
+
             return redirect()
                 ->route('rechnung.edit', $id)
                 ->with('success', sprintf(
@@ -628,6 +637,16 @@ class RechnungController extends Controller
                 'rechnung_id' => $id,
                 'error' => $e->getMessage(),
             ]);
+
+            // ⭐ NEU: Fehler auch in RechnungLog eintragen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_FEHLER,
+                beschreibung: "XML-Generierung fehlgeschlagen: {$e->getMessage()}",
+                metadata: [
+                    'error' => $e->getMessage(),
+                ]
+            );
 
             return back()->withErrors([
                 'error' => 'Fehler bei XML-Generierung: ' . $e->getMessage()
@@ -660,6 +679,19 @@ class RechnungController extends Controller
             $generator = new FatturaXmlGenerator();
             $log = $generator->generate($rechnung);
 
+            // ⭐ NEU: Automatisch in RechnungLog eintragen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_ERSTELLT,
+                beschreibung: "FatturaPA XML neu generiert: {$log->progressivo_invio}",
+                metadata: [
+                    'progressivo' => $log->progressivo_invio,
+                    'dateiname' => $log->xml_filename ?? null,
+                    'fattura_xml_log_id' => $log->id,
+                    'ist_regeneriert' => true,
+                ]
+            );
+
             return redirect()
                 ->route('rechnung.edit', $id)
                 ->with('success', sprintf(
@@ -667,6 +699,21 @@ class RechnungController extends Controller
                     $log->progressivo_invio
                 ));
         } catch (\Exception $e) {
+            Log::error('Fehler bei XML-Regenerierung', [
+                'rechnung_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            // ⭐ NEU: Fehler auch in RechnungLog eintragen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_FEHLER,
+                beschreibung: "XML-Regenerierung fehlgeschlagen: {$e->getMessage()}",
+                metadata: [
+                    'error' => $e->getMessage(),
+                ]
+            );
+
             return back()->withErrors([
                 'error' => 'Fehler bei XML-Regenerierung: ' . $e->getMessage()
             ]);
