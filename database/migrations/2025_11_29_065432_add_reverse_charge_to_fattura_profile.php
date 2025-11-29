@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('rechnungen', function (Blueprint $table) {
+        Schema::table('fattura_profile', function (Blueprint $table) {
             // Reverse Charge Flag hinzufügen (nach split_payment)
-            if (!Schema::hasColumn('rechnungen', 'reverse_charge')) {
+            if (!Schema::hasColumn('fattura_profile', 'reverse_charge')) {
                 $table->boolean('reverse_charge')->default(false)->after('split_payment');
             }
         });
@@ -24,8 +24,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('rechnungen', function (Blueprint $table) {
-            if (Schema::hasColumn('rechnungen', 'reverse_charge')) {
+        Schema::table('fattura_profile', function (Blueprint $table) {
+            if (Schema::hasColumn('fattura_profile', 'reverse_charge')) {
                 $table->dropColumn('reverse_charge');
             }
         });

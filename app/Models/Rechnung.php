@@ -15,7 +15,7 @@ use App\Models\ArtikelGebaeude;
 use App\Models\Adresse;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
-use App\Enums\Zahlungsbedingung;  // ← NEU
+use App\Enums\Zahlungsbedingung;
 
 class Rechnung extends Model
 {
@@ -82,6 +82,7 @@ class Rechnung extends Model
         'profile_bezeichnung',
         'mwst_satz',
         'split_payment',
+        'reverse_charge',
         'ritenuta',
         'ritenuta_prozent',
 
@@ -99,7 +100,7 @@ class Rechnung extends Model
         // Sonstige
         'bemerkung',
         'bemerkung_kunde',
-        'zahlungsbedingungen',  // ← NEU
+        'zahlungsbedingungen',
         'pdf_pfad',
         'xml_pfad',
         'externe_referenz',
@@ -120,9 +121,10 @@ class Rechnung extends Model
         'mwst_satz'           => 'decimal:2',
         'ritenuta_prozent'    => 'decimal:2',
         'split_payment'       => 'boolean',
+        'reverse_charge'      => 'boolean',
         'ritenuta'            => 'boolean',
         'aufschlag_prozent'   => 'decimal:2',
-        'zahlungsbedingungen' => Zahlungsbedingung::class,  // ← NEU
+        'zahlungsbedingungen' => Zahlungsbedingung::class,
     ];
 
     // ═══════════════════════════════════════════════════════════
@@ -131,7 +133,7 @@ class Rechnung extends Model
 
 
     // ─────────────────────────────────────────────────────────────────────────
-    // SCHRITT 2: Boot Method (nach $casts einfügen)
+    // ⭐ BOOT METHOD - KORRIGIERT mit automatischer Zahlungsziel-Berechnung
     // ─────────────────────────────────────────────────────────────────────────
     protected static function boot()
     {
@@ -142,16 +144,91 @@ class Rechnung extends Model
             if (!$rechnung->fattura_causale) {
                 $rechnung->fattura_causale = static::generateCausaleStatic($rechnung);
             }
+            
+            // ⭐ NEU: Zahlungsziel automatisch setzen wenn nicht vorhanden
+            if (!$rechnung->zahlungsziel && $rechnung->rechnungsdatum) {
+                $rechnung->zahlungsziel = static::berechneZahlungsziel(
+                    $rechnung->rechnungsdatum,
+                    $rechnung->zahlungsbedingungen
+                );
+            }
         });
 
-        // Ritenuta automatisch setzen (bestehende Logik)
+        // ⭐ KORRIGIERT: Beim Speichern automatisch Zahlungsziel & Status aktualisieren
         static::saving(function ($rechnung) {
+            // Ritenuta automatisch setzen (bestehende Logik)
             if ($rechnung->ritenuta) {
                 if (!$rechnung->ritenuta_prozent || $rechnung->ritenuta_prozent == 0) {
                     $rechnung->ritenuta_prozent = 4.00;
                 }
             }
+            
+            // ⭐ NEU: Wenn Zahlungsbedingungen geändert wurden → Zahlungsziel neu berechnen
+            if ($rechnung->isDirty('zahlungsbedingungen') && $rechnung->rechnungsdatum) {
+                $neueZahlungsbedingung = $rechnung->zahlungsbedingungen;
+                
+                // Wenn "bezahlt" → Zahlungsziel = heute, Status = paid
+                if ($neueZahlungsbedingung === Zahlungsbedingung::BEZAHLT) {
+                    $rechnung->status = 'paid';
+                    
+                    // Bezahlt_am setzen falls nicht schon gesetzt
+                    if (!$rechnung->bezahlt_am) {
+                        $rechnung->bezahlt_am = now();
+                    }
+                    
+                    // Zahlungsziel auf bezahlt_am setzen
+                    $rechnung->zahlungsziel = $rechnung->bezahlt_am;
+                    
+                    \Log::info('Rechnung als bezahlt markiert', [
+                        'rechnung_id' => $rechnung->id,
+                        'bezahlt_am'  => $rechnung->bezahlt_am,
+                    ]);
+                } else {
+                    // Normales Zahlungsziel berechnen
+                    $rechnung->zahlungsziel = static::berechneZahlungsziel(
+                        $rechnung->rechnungsdatum,
+                        $neueZahlungsbedingung
+                    );
+                }
+            }
+            
+            // ⭐ NEU: Wenn Rechnungsdatum geändert wurde UND nicht "bezahlt" → Zahlungsziel neu berechnen
+            if ($rechnung->isDirty('rechnungsdatum') && $rechnung->zahlungsbedingungen !== Zahlungsbedingung::BEZAHLT) {
+                $rechnung->zahlungsziel = static::berechneZahlungsziel(
+                    $rechnung->rechnungsdatum,
+                    $rechnung->zahlungsbedingungen
+                );
+            }
         });
+    }
+
+    /**
+     * ⭐ NEU: Berechnet das Zahlungsziel basierend auf Rechnungsdatum und Zahlungsbedingung
+     * 
+     * @param Carbon|string|null $rechnungsdatum
+     * @param Zahlungsbedingung|string|null $zahlungsbedingung
+     * @return Carbon|null
+     */
+    public static function berechneZahlungsziel($rechnungsdatum, $zahlungsbedingung): ?Carbon
+    {
+        if (!$rechnungsdatum) {
+            return null;
+        }
+        
+        // Carbon-Instanz sicherstellen
+        if (!$rechnungsdatum instanceof Carbon) {
+            $rechnungsdatum = Carbon::parse($rechnungsdatum);
+        }
+        
+        // Zahlungsbedingung zu Enum konvertieren falls String
+        if (is_string($zahlungsbedingung)) {
+            $zahlungsbedingung = Zahlungsbedingung::tryFrom($zahlungsbedingung);
+        }
+        
+        // Tage aus Zahlungsbedingung ermitteln
+        $tage = $zahlungsbedingung?->tage() ?? 30; // Default: 30 Tage
+        
+        return $rechnungsdatum->copy()->addDays($tage);
     }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -381,6 +458,16 @@ class Rechnung extends Model
         }
 
         // ═══════════════════════════════════════════════════════════
+        // ⭐ ZAHLUNGSBEDINGUNGEN DEFAULT
+        // ═══════════════════════════════════════════════════════════
+        
+        $zahlungsbedingungen = $overrides['zahlungsbedingungen'] ?? Zahlungsbedingung::NETTO_30;
+        $rechnungsdatum = Carbon::parse($overrides['rechnungsdatum'] ?? now());
+        
+        // ⭐ Zahlungsziel automatisch berechnen
+        $zahlungsziel = static::berechneZahlungsziel($rechnungsdatum, $zahlungsbedingungen);
+
+        // ═══════════════════════════════════════════════════════════
         // 📄 RECHNUNG ERSTELLEN
         // ═══════════════════════════════════════════════════════════
 
@@ -393,9 +480,10 @@ class Rechnung extends Model
             'fattura_profile_id'      => $gebaeude->fattura_profile_id,
 
             // Datumsfelder
-            'rechnungsdatum'          => now()->toDateString(),
+            'rechnungsdatum'          => $rechnungsdatum->toDateString(),
             'leistungsdaten'          => $leistungsdaten,
-            'zahlungsziel'            => now()->addDays(30)->toDateString(),
+            'zahlungsziel'            => $zahlungsziel->toDateString(),  // ⭐ Automatisch berechnet
+            'zahlungsbedingungen'     => $zahlungsbedingungen,           // ⭐ NEU
 
             // Status
             'status'                  => 'draft',
@@ -447,6 +535,7 @@ class Rechnung extends Model
             'profile_bezeichnung'     => $profile?->bezeichnung,
             'mwst_satz'               => $profile?->mwst_satz ?? 22.00,
             'split_payment'           => $profile?->split_payment ?? false,
+            'reverse_charge'          => $profile?->reverse_charge ?? false,
             'ritenuta'                => $profile?->ritenuta ?? false,
             'ritenuta_prozent'        => $profile?->ritenuta ? 4.00 : null,
 
