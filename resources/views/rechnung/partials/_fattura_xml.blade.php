@@ -1,5 +1,6 @@
 {{-- resources/views/rechnung/partials/_fattura_xml.blade.php --}}
 {{-- ⭐ MIT E-MAIL-VERSAND FUNKTION --}}
+{{-- ⭐ Nutzt Sprachdatei: lang/de/email.php --}}
 
 @php
     use App\Models\FatturaXmlLog;
@@ -35,6 +36,23 @@
     // Standard-Empfänger ermitteln
     $defaultEmail = $rechnung->re_email ?? $rechnung->rechnungsempfaenger?->email ?? '';
     $defaultPec = $rechnung->re_pec ?? '';
+    
+    // ⭐ Standard-E-Mail-Nachricht aus Sprachdatei
+    // Fallback falls Sprachdatei nicht gefunden wird
+    $standardNachrichtKey = 'email.rechnung.standard_nachricht';
+    $standardNachricht = __($standardNachrichtKey, ['nummer' => $rechnung->rechnungsnummer]);
+    
+    // Fallback wenn Sprachdatei nicht gefunden (Key wird zurückgegeben)
+    if ($standardNachricht === $standardNachrichtKey) {
+        $standardNachricht = "Gentili Signore e Signori,
+Sehr geehrte Damen und Herren,
+
+in allegato la nostra fattura n. {$rechnung->rechnungsnummer}.
+Anbei erhalten Sie unsere Rechnung Nr. {$rechnung->rechnungsnummer}.
+
+Cordiali saluti
+Mit freundlichen Grüßen";
+    }
 @endphp
 
 {{-- Nur anzeigen wenn FatturaPA-Profil zugeordnet ist --}}
@@ -80,7 +98,7 @@
                                class="btn btn-outline-secondary w-100"
                                target="_blank">
                                 <i class="bi bi-eye"></i>
-                                Preview
+                                Vorschau
                             </a>
                         </div>
                         <div class="col-md-3">
@@ -152,7 +170,7 @@
                             <a href="{{ route('rechnung.xml.download', $rechnung->id) }}" 
                                class="btn btn-success w-100">
                                 <i class="bi bi-download"></i>
-                                XML herunterladen
+                                Herunterladen
                             </a>
                         </div>
                         <div class="col-md-4">
@@ -160,7 +178,7 @@
                                class="btn btn-outline-secondary w-100"
                                target="_blank">
                                 <i class="bi bi-eye"></i>
-                                Preview
+                                Vorschau
                             </a>
                         </div>
                         <div class="col-md-4">
@@ -252,20 +270,16 @@
                         <input type="text" 
                                class="form-control" 
                                id="email_betreff" 
-                               value="Rechnung {{ $rechnung->rechnungsnummer }} - {{ $rechnung->re_name }}">
+                               value="Fattura {{ $rechnung->rechnungsnummer }} - {{ $rechnung->re_name }}">
                     </div>
                     
-                    {{-- Nachricht --}}
+                    {{-- Nachricht (aus Sprachdatei mit Fallback) --}}
                     <div class="col-12">
                         <label class="form-label">Nachricht</label>
                         <textarea class="form-control" 
                                   id="email_nachricht" 
-                                  rows="4"
-                                  placeholder="Optionale Nachricht an den Empfänger...">Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unsere Rechnung Nr. {{ $rechnung->rechnungsnummer }}.
-
-Mit freundlichen Grüßen</textarea>
+                                  rows="6"
+                                  placeholder="Nachricht eingeben...">{{ $standardNachricht }}</textarea>
                     </div>
                     
                     {{-- Anhänge auswählen --}}
@@ -276,7 +290,8 @@ Mit freundlichen Grüßen</textarea>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="attach_pdf" checked>
                                     <label class="form-check-label" for="attach_pdf">
-                                        <i class="bi bi-file-earmark-pdf text-danger"></i> PDF-Rechnung
+                                        <i class="bi bi-file-earmark-pdf text-danger"></i> 
+                                        PDF-Rechnung
                                     </label>
                                 </div>
                             </div>
@@ -285,7 +300,8 @@ Mit freundlichen Grüßen</textarea>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="attach_xml">
                                     <label class="form-check-label" for="attach_xml">
-                                        <i class="bi bi-file-earmark-code text-success"></i> FatturaPA XML
+                                        <i class="bi bi-file-earmark-code text-success"></i> 
+                                        FatturaPA XML
                                     </label>
                                 </div>
                             </div>
@@ -294,7 +310,8 @@ Mit freundlichen Grüßen</textarea>
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="attach_copy_me">
                                     <label class="form-check-label" for="attach_copy_me">
-                                        <i class="bi bi-person"></i> Kopie an mich
+                                        <i class="bi bi-person"></i> 
+                                        Kopie an mich
                                     </label>
                                 </div>
                             </div>
@@ -323,7 +340,7 @@ Mit freundlichen Grüßen</textarea>
                         </button>
                     </div>
                     @endif
-                    <div class="col-md-4">
+                    <div class="col-md-{{ $defaultPec ? '4' : '8' }}">
                         <button type="button" 
                                 class="btn btn-outline-secondary w-100"
                                 onclick="previewEmail()">
@@ -333,10 +350,10 @@ Mit freundlichen Grüßen</textarea>
                     </div>
                 </div>
                 
-                {{-- Letzte Versendungen --}}
+                {{-- Versand-Historie --}}
                 @if($emailLogs->count() > 0)
-                    <hr class="my-4">
-                    <h6 class="text-muted mb-3">
+                <div class="mt-4 pt-3 border-top">
+                    <h6 class="mb-2">
                         <i class="bi bi-clock-history"></i> Letzte Versendungen
                     </h6>
                     <div class="table-responsive">
@@ -346,23 +363,30 @@ Mit freundlichen Grüßen</textarea>
                                     <th>Datum</th>
                                     <th>Typ</th>
                                     <th>Empfänger</th>
-                                    <th>Benutzer</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($emailLogs as $log)
-                                    <tr>
-                                        <td class="small">{{ $log->created_at->format('d.m.Y H:i') }}</td>
-                                        <td>{!! $log->typ_badge !!}</td>
-                                        <td class="small">
-                                            {{ $log->metadata['empfaenger'] ?? $log->kontakt_email ?? '-' }}
-                                        </td>
-                                        <td class="small">{{ $log->benutzer_name }}</td>
-                                    </tr>
+                                <tr>
+                                    <td class="small">{{ $log->created_at->format('d.m.Y H:i') }}</td>
+                                    <td>
+                                        @if($log->typ === RechnungLogTyp::PEC_VERSANDT->value)
+                                            <span class="badge bg-success">PEC</span>
+                                        @else
+                                            <span class="badge bg-primary">E-Mail</span>
+                                        @endif
+                                    </td>
+                                    <td class="small">{{ $log->metadata['empfaenger'] ?? '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-success">✓ Gesendet</span>
+                                    </td>
+                                </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
+                </div>
                 @endif
                 
             </div>
@@ -370,13 +394,16 @@ Mit freundlichen Grüßen</textarea>
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
-        CARD 3: PROFIL & EMPFÄNGER INFO (Kompakt)
+        CARD 3: PROFIL-INFO
     ═══════════════════════════════════════════════════════════ --}}
     @if($rechnung->fatturaProfile)
     <div class="col-md-6">
         <div class="card border-info h-100">
             <div class="card-header bg-info text-white py-2">
-                <h6 class="mb-0"><i class="bi bi-person-badge"></i> FatturaPA-Profil</h6>
+                <h6 class="mb-0">
+                    <i class="bi bi-person-badge"></i> 
+                    FatturaPA-Profil
+                </h6>
             </div>
             <div class="card-body small">
                 <table class="table table-sm table-borderless mb-0">
@@ -400,10 +427,16 @@ Mit freundlichen Grüßen</textarea>
     </div>
     @endif
 
+    {{-- ═══════════════════════════════════════════════════════════
+        CARD 4: EMPFÄNGER SDI-DATEN
+    ═══════════════════════════════════════════════════════════ --}}
     <div class="col-md-6">
         <div class="card border-secondary h-100">
             <div class="card-header bg-secondary text-white py-2">
-                <h6 class="mb-0"><i class="bi bi-building"></i> Empfänger SDI-Daten</h6>
+                <h6 class="mb-0">
+                    <i class="bi bi-building"></i> 
+                    Empfänger SDI-Daten
+                </h6>
             </div>
             <div class="card-body small">
                 <table class="table table-sm table-borderless mb-0">
@@ -422,7 +455,7 @@ Mit freundlichen Grüßen</textarea>
                         <td>{{ $rechnung->re_pec ?: '-' }}</td>
                     </tr>
                     <tr>
-                        <th>MwSt-Nummer:</th>
+                        <th>P.IVA:</th>
                         <td>{{ $rechnung->re_mwst_nummer ?: '-' }}</td>
                     </tr>
                 </table>
@@ -440,23 +473,18 @@ const csrfToken = '{{ csrf_token() }}';
 const rechnungId = {{ $rechnung->id }};
 const sendEmailUrl = '{{ route('rechnung.email.send', $rechnung->id) }}';
 
-/**
- * Hilfsfunktion: Erstellt und submittet ein dynamisches Form
- */
 function submitDynamicForm(url, method, additionalData = {}) {
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = url;
     form.style.display = 'none';
     
-    // CSRF Token
     var csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = '_token';
     csrfInput.value = csrfToken;
     form.appendChild(csrfInput);
     
-    // Method Spoofing
     if (method && method !== 'POST') {
         var methodInput = document.createElement('input');
         methodInput.type = 'hidden';
@@ -465,7 +493,6 @@ function submitDynamicForm(url, method, additionalData = {}) {
         form.appendChild(methodInput);
     }
     
-    // Zusätzliche Daten
     for (const [key, value] of Object.entries(additionalData)) {
         var input = document.createElement('input');
         input.type = 'hidden';
@@ -478,39 +505,21 @@ function submitDynamicForm(url, method, additionalData = {}) {
     form.submit();
 }
 
-/**
- * XML generieren (erstmalig)
- */
 function generateXml(url) {
-    if (!confirm('FatturaPA XML jetzt generieren?')) {
-        return;
-    }
+    if (!confirm('FatturaPA XML jetzt generieren?')) return;
     submitDynamicForm(url, 'POST');
 }
 
-/**
- * XML neu generieren
- */
 function regenerateXml(url) {
-    if (!confirm('XML neu generieren?\n\nDas alte XML wird als "superseded" markiert und ein neues XML mit neuer Progressivo-Nummer generiert.')) {
-        return;
-    }
+    if (!confirm('XML neu generieren?\n\nDas alte XML wird als "superseded" markiert.')) return;
     submitDynamicForm(url, 'POST');
 }
 
-/**
- * XML löschen
- */
 function deleteXml(url) {
-    if (!confirm('XML wirklich löschen?\n\nDas XML und alle zugehörigen Dateien werden unwiderruflich gelöscht!')) {
-        return;
-    }
+    if (!confirm('XML wirklich löschen?')) return;
     submitDynamicForm(url, 'DELETE');
 }
 
-/**
- * E-Mail senden
- */
 function sendEmail(typ) {
     var empfaenger = document.getElementById('email_empfaenger').value;
     var pec = document.getElementById('email_pec').value;
@@ -520,26 +529,14 @@ function sendEmail(typ) {
     var attachXml = document.getElementById('attach_xml') ? document.getElementById('attach_xml').checked : false;
     var copyMe = document.getElementById('attach_copy_me').checked;
     
-    // Validierung
-    if (typ === 'pec' && !pec) {
-        alert('Bitte PEC-Adresse eingeben!');
-        return;
-    }
-    if (typ === 'email' && !empfaenger) {
-        alert('Bitte E-Mail-Adresse eingeben!');
-        return;
-    }
-    if (!betreff) {
-        alert('Bitte Betreff eingeben!');
-        return;
-    }
+    if (typ === 'pec' && !pec) { alert('Bitte PEC-Adresse eingeben!'); return; }
+    if (typ === 'email' && !empfaenger) { alert('Bitte E-Mail-Adresse eingeben!'); return; }
+    if (!betreff) { alert('Bitte Betreff eingeben!'); return; }
     
     var zielAdresse = typ === 'pec' ? pec : empfaenger;
     var typLabel = typ === 'pec' ? 'PEC' : 'E-Mail';
     
-    if (!confirm('Rechnung per ' + typLabel + ' senden an:\n\n' + zielAdresse + '\n\nFortfahren?')) {
-        return;
-    }
+    if (!confirm('Rechnung per ' + typLabel + ' senden an:\n\n' + zielAdresse + '\n\nFortfahren?')) return;
     
     submitDynamicForm(sendEmailUrl, 'POST', {
         typ: typ,
@@ -553,9 +550,6 @@ function sendEmail(typ) {
     });
 }
 
-/**
- * E-Mail Vorschau
- */
 function previewEmail() {
     var betreff = document.getElementById('email_betreff').value;
     var nachricht = document.getElementById('email_nachricht').value;
@@ -563,20 +557,11 @@ function previewEmail() {
     var attachXml = document.getElementById('attach_xml') ? document.getElementById('attach_xml').checked : false;
     
     var anhaenge = [];
-    if (attachPdf) anhaenge.push('PDF-Rechnung');
-    if (attachXml) anhaenge.push('FatturaPA XML');
+    if (attachPdf) anhaenge.push('PDF');
+    if (attachXml) anhaenge.push('XML');
     
-    var preview = '═══════════════════════════════════\n';
-    preview += 'E-MAIL VORSCHAU\n';
-    preview += '═══════════════════════════════════\n\n';
-    preview += 'Betreff: ' + betreff + '\n\n';
-    preview += '───────────────────────────────────\n';
-    preview += nachricht + '\n';
-    preview += '───────────────────────────────────\n\n';
-    preview += 'Anhänge: ' + (anhaenge.length > 0 ? anhaenge.join(', ') : 'Keine');
-    
-    alert(preview);
+    alert('═══════════════════════════════════\nE-MAIL VORSCHAU\n═══════════════════════════════════\n\nBetreff: ' + betreff + '\n\n───────────────────────────────────\n' + nachricht + '\n───────────────────────────────────\n\nAnhänge: ' + (anhaenge.length > 0 ? anhaenge.join(', ') : 'Keine'));
 }
 </script>
 
-@endif {{-- Ende: nur wenn fattura_profile_id --}}
+@endif

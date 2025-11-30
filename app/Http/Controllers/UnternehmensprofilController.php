@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Unternehmensprofil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Unternehmensprofil Controller
@@ -51,7 +53,9 @@ class UnternehmensprofilController extends Controller
     public function speichern(Request $request)
     {
         $validated = $request->validate([
-            // Firmendaten
+            // ═══════════════════════════════════════════════════════════
+            // FIRMENDATEN
+            // ═══════════════════════════════════════════════════════════
             'firmenname' => 'required|string|max:255',
             'firma_zusatz' => 'nullable|string|max:255',
             'geschaeftsfuehrer' => 'nullable|string|max:255',
@@ -75,19 +79,25 @@ class UnternehmensprofilController extends Controller
             'email_buchhaltung' => 'nullable|email|max:255',
             'website' => 'nullable|url|max:255',
             
-            // Steuern
+            // ═══════════════════════════════════════════════════════════
+            // STEUERN
+            // ═══════════════════════════════════════════════════════════
             'steuernummer' => 'nullable|string|max:255',
             'umsatzsteuer_id' => 'nullable|string|max:255',
             
-            // Bank
+            // ═══════════════════════════════════════════════════════════
+            // BANK
+            // ═══════════════════════════════════════════════════════════
             'bank_name' => 'nullable|string|max:255',
             'iban' => 'nullable|string|max:34',
             'bic' => 'nullable|string|max:11',
             'kontoinhaber' => 'nullable|string|max:255',
             
-            // E-Mail Versand
+            // ═══════════════════════════════════════════════════════════
+            // E-MAIL VERSAND (NORMAL SMTP)
+            // ═══════════════════════════════════════════════════════════
             'smtp_host' => 'nullable|string|max:255',
-            'smtp_port' => 'nullable|integer',
+            'smtp_port' => 'nullable|integer|min:1|max:65535',
             'smtp_verschluesselung' => 'nullable|string|in:tls,ssl,none',
             'smtp_benutzername' => 'nullable|string|max:255',
             'smtp_passwort' => 'nullable|string|max:255',
@@ -99,7 +109,26 @@ class UnternehmensprofilController extends Controller
             'email_signatur' => 'nullable|string',
             'email_fusszeile' => 'nullable|string',
             
-            // PDF/Design
+            // ═══════════════════════════════════════════════════════════
+            // PEC E-MAIL VERSAND (ZERTIFIZIERT ITALIEN)
+            // ═══════════════════════════════════════════════════════════
+            'pec_aktiv' => 'nullable|boolean',
+            'pec_smtp_host' => 'nullable|string|max:255',
+            'pec_smtp_port' => 'nullable|integer|min:1|max:65535',
+            'pec_smtp_verschluesselung' => 'nullable|string|in:tls,ssl,none',
+            'pec_smtp_benutzername' => 'nullable|string|max:255',
+            'pec_smtp_passwort' => 'nullable|string|max:255',
+            'pec_email_absender' => 'nullable|email|max:255',
+            'pec_email_absender_name' => 'nullable|string|max:255',
+            'pec_email_antwort_an' => 'nullable|email|max:255',
+            'pec_email_cc' => 'nullable|string|max:500',
+            'pec_email_bcc' => 'nullable|string|max:500',
+            'pec_email_signatur' => 'nullable|string',
+            'pec_email_fusszeile' => 'nullable|string',
+            
+            // ═══════════════════════════════════════════════════════════
+            // PDF/DESIGN
+            // ═══════════════════════════════════════════════════════════
             'logo_breite' => 'nullable|integer|min:50|max:1000',
             'logo_hoehe' => 'nullable|integer|min:50|max:1000',
             'briefkopf_text' => 'nullable|string',
@@ -111,7 +140,9 @@ class UnternehmensprofilController extends Controller
             'schriftart' => 'nullable|string|max:50',
             'schriftgroesse' => 'nullable|integer|min:6|max:20',
             
-            // Rechnungen
+            // ═══════════════════════════════════════════════════════════
+            // RECHNUNGEN
+            // ═══════════════════════════════════════════════════════════
             'rechnungsnummer_praefix' => 'nullable|string|max:10',
             'rechnungsnummer_startjahr' => 'nullable|integer|min:2020|max:2099',
             'rechnungsnummer_laenge' => 'nullable|integer|min:1|max:10',
@@ -122,7 +153,9 @@ class UnternehmensprofilController extends Controller
             'rechnung_schlusstext' => 'nullable|string',
             'rechnung_agb_text' => 'nullable|string',
             
-            // FatturaPA
+            // ═══════════════════════════════════════════════════════════
+            // FATTURAPA
+            // ═══════════════════════════════════════════════════════════
             'ragione_sociale' => 'nullable|string|max:255',
             'partita_iva' => 'nullable|string|max:11',
             'codice_fiscale' => 'nullable|string|max:16',
@@ -133,7 +166,9 @@ class UnternehmensprofilController extends Controller
             'capitale_sociale' => 'nullable|numeric|min:0',
             'stato_liquidazione' => 'nullable|in:LN,LS',
             
-            // System
+            // ═══════════════════════════════════════════════════════════
+            // SYSTEM
+            // ═══════════════════════════════════════════════════════════
             'waehrung' => 'nullable|string|max:3',
             'sprache' => 'nullable|string|max:2',
             'zeitzone' => 'nullable|string|max:50',
@@ -144,6 +179,11 @@ class UnternehmensprofilController extends Controller
             'standard_mwst_satz' => 'nullable|numeric|min:0|max:100',
             'notizen' => 'nullable|string',
         ]);
+
+        // Boolean-Felder korrekt behandeln (Checkbox sendet nur wenn aktiv)
+        $validated['pec_aktiv'] = $request->has('pec_aktiv');
+        $validated['ist_kleinunternehmer'] = $request->has('ist_kleinunternehmer');
+        $validated['mwst_ausweisen'] = $request->has('mwst_ausweisen');
 
         // Profil laden oder neu erstellen
         $profil = Unternehmensprofil::aktiv() ?? new Unternehmensprofil();
@@ -191,7 +231,7 @@ class UnternehmensprofilController extends Controller
         };
 
         if ($profil->$feldname) {
-            Storage::delete($profil->$feldname);
+            Storage::disk('public')->delete($profil->$feldname);
             $profil->$feldname = null;
             $profil->save();
         }
@@ -211,15 +251,89 @@ class UnternehmensprofilController extends Controller
         }
 
         try {
-            // Test-E-Mail an die Haupt-E-Mail senden
-            \Mail::raw('Dies ist eine Test-E-Mail von Ihrer FatturaPA-Anwendung.', function ($message) use ($profil) {
-                $message->to($profil->email)
-                    ->subject('SMTP-Test - FatturaPA System');
-            });
+            // Dynamische Mail-Konfiguration setzen
+            config([
+                'mail.mailers.dynamic' => [
+                    'transport' => 'smtp',
+                    'host' => $profil->smtp_host,
+                    'port' => $profil->smtp_port,
+                    'encryption' => $profil->smtp_verschluesselung === 'none' ? null : $profil->smtp_verschluesselung,
+                    'username' => $profil->smtp_benutzername,
+                    'password' => $profil->smtp_passwort,
+                ],
+                'mail.from.address' => $profil->email_absender ?? $profil->email,
+                'mail.from.name' => $profil->email_absender_name ?? $profil->firmenname,
+            ]);
+
+            // Test-E-Mail senden
+            Mail::mailer('dynamic')->raw(
+                'Dies ist eine Test-E-Mail von Ihrer Anwendung. Wenn Sie diese E-Mail erhalten, funktioniert die SMTP-Konfiguration korrekt.',
+                function ($message) use ($profil) {
+                    $message->to($profil->email)
+                        ->subject('SMTP-Test - ' . config('app.name'));
+                }
+            );
+
+            Log::info('SMTP-Test erfolgreich', ['email' => $profil->email]);
 
             return back()->with('success', 'Test-E-Mail erfolgreich versendet! Prüfen Sie Ihren Posteingang.');
         } catch (\Exception $e) {
+            Log::error('SMTP-Test fehlgeschlagen', [
+                'error' => $e->getMessage(),
+                'host' => $profil->smtp_host,
+            ]);
+            
             return back()->with('error', 'SMTP-Test fehlgeschlagen: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * PEC SMTP-Verbindung testen.
+     */
+    public function pecSmtpTesten(Request $request)
+    {
+        $profil = Unternehmensprofil::aktivOderFehler();
+        
+        if (!$profil->hatPecSmtpKonfiguration()) {
+            return back()->with('error', 'PEC SMTP-Konfiguration ist unvollständig.');
+        }
+
+        try {
+            // Dynamische PEC Mail-Konfiguration setzen
+            config([
+                'mail.mailers.pec_test' => [
+                    'transport' => 'smtp',
+                    'host' => $profil->pec_smtp_host,
+                    'port' => $profil->pec_smtp_port,
+                    'encryption' => $profil->pec_smtp_verschluesselung === 'none' ? null : $profil->pec_smtp_verschluesselung,
+                    'username' => $profil->pec_smtp_benutzername,
+                    'password' => $profil->pec_smtp_passwort,
+                ],
+            ]);
+
+            // Test-E-Mail senden
+            Mail::mailer('pec_test')->raw(
+                'Dies ist eine PEC Test-E-Mail. Wenn Sie diese E-Mail erhalten, funktioniert die PEC-Konfiguration korrekt.',
+                function ($message) use ($profil) {
+                    $message->from(
+                        $profil->pec_email_absender ?? $profil->pec_email,
+                        $profil->pec_email_absender_name ?? $profil->firmenname
+                    );
+                    $message->to($profil->pec_email_absender ?? $profil->pec_email)
+                        ->subject('PEC-Test - ' . config('app.name'));
+                }
+            );
+
+            Log::info('PEC SMTP-Test erfolgreich', ['pec_email' => $profil->pec_email]);
+
+            return back()->with('success', 'PEC Test-E-Mail erfolgreich versendet!');
+        } catch (\Exception $e) {
+            Log::error('PEC SMTP-Test fehlgeschlagen', [
+                'error' => $e->getMessage(),
+                'host' => $profil->pec_smtp_host,
+            ]);
+            
+            return back()->with('error', 'PEC SMTP-Test fehlgeschlagen: ' . $e->getMessage());
         }
     }
 
@@ -246,7 +360,9 @@ class UnternehmensprofilController extends Controller
         $profil = Unternehmensprofil::aktivOderFehler();
         
         $data = $profil->toArray();
+        // Sensitive Daten entfernen
         unset($data['id'], $data['created_at'], $data['updated_at']);
+        unset($data['smtp_passwort'], $data['pec_smtp_passwort']);
         
         $filename = 'unternehmensprofil_' . date('Y-m-d_His') . '.json';
         
@@ -271,6 +387,9 @@ class UnternehmensprofilController extends Controller
         if (!$data) {
             return back()->with('error', 'Ungültige JSON-Datei.');
         }
+
+        // Sensitive Felder nicht überschreiben wenn leer
+        unset($data['smtp_passwort'], $data['pec_smtp_passwort']);
 
         // Aktuelles Profil deaktivieren
         Unternehmensprofil::where('ist_aktiv', true)->update(['ist_aktiv' => false]);

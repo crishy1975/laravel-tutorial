@@ -180,13 +180,17 @@
                 </div>
             </div>
         </form>
+        {{-- ═══════════════════════════════════════════════════════════════
+             ENDE DES HAUPTFORMULARS
+        ═══════════════════════════════════════════════════════════════ --}}
 
     </div>
 </div>
 
-{{-- ═══════════════════════════════════════════════════════════
-     Keine separaten Modals nötig - JavaScript mit confirm() in _fattura_xml
-═══════════════════════════════════════════════════════════ --}}
+{{-- ⭐⭐⭐ KRITISCH: Modals AUSSERHALB des Hauptformulars einbinden! ⭐⭐⭐ --}}
+{{-- Diese Zeile rendert alle Modals die via @push('modals') hinzugefügt wurden --}}
+{{-- Ohne diese Zeile funktionieren die Buttons in _logs.blade.php NICHT! --}}
+@stack('modals')
 
 @endsection
 
@@ -201,7 +205,7 @@
             });
         });
 
-        // ⭐ KORRIGIERT: Tab IMMER wiederherstellen (auch nach Success-Message)
+        // ⭐ Tab wiederherstellen (auch nach Success-Message)
         const lastTab = localStorage.getItem('activeRechnungTab');
         if (lastTab) {
             const triggerEl = document.querySelector(`#rechnungTabs button[data-bs-target="${lastTab}"]`);

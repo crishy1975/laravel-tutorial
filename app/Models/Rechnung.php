@@ -739,7 +739,7 @@ class Rechnung extends Model
      */
     public function getIstEditierbarAttribute(): bool
     {
-        return $this->status === 'draft';
+        return true;
     }
 
     // ═══════════════════════════════════════════════════════════

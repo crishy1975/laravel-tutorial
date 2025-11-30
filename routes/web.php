@@ -252,29 +252,49 @@ Route::middleware(['auth'])->prefix('preis-aufschlaege')->name('preis-aufschlaeg
 // routes/web.php
 // ⭐ Unternehmensprofil Routes hinzufügen
 
-Route::prefix('einstellungen/unternehmen')->name('unternehmensprofil.')->group(function () {
-
+// ═══════════════════════════════════════════════════════════════════════════
+// UNTERNEHMENSPROFIL
+// ═══════════════════════════════════════════════════════════════════════════
+Route::prefix('einstellungen/profil')->name('unternehmensprofil.')->group(function () {
+    
     // Übersicht
     Route::get('/', [UnternehmensprofilController::class, 'index'])
         ->name('index');
-
-    // Bearbeiten (GET)
+    
+    // Bearbeiten
     Route::get('/bearbeiten', [UnternehmensprofilController::class, 'bearbeiten'])
         ->name('bearbeiten');
-
-    // Speichern (POST)
+    
+    // Speichern
     Route::post('/speichern', [UnternehmensprofilController::class, 'speichern'])
         ->name('speichern');
-
-    // Logo-Upload (POST)
+    
+    // Logo
     Route::post('/logo/hochladen', [UnternehmensprofilController::class, 'logoHochladen'])
         ->name('logo.hochladen');
-
-    // Logo löschen (DELETE)
     Route::delete('/logo/loeschen', [UnternehmensprofilController::class, 'logoLoeschen'])
         ->name('logo.loeschen');
+    
+    // SMTP Testen
+    Route::get('/smtp/testen', [UnternehmensprofilController::class, 'smtpTesten'])
+        ->name('smtp.testen');
+    Route::get('/pec-smtp/testen', [UnternehmensprofilController::class, 'pecSmtpTesten'])
+        ->name('pec-smtp.testen');
+    
+    // Backup/Import
+    Route::post('/duplizieren', [UnternehmensprofilController::class, 'duplizieren'])
+        ->name('duplizieren');
+    Route::get('/exportieren', [UnternehmensprofilController::class, 'exportieren'])
+        ->name('exportieren');
+    Route::post('/importieren', [UnternehmensprofilController::class, 'importieren'])
+        ->name('importieren');
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RECHNUNG E-MAIL VERSAND
+// ═══════════════════════════════════════════════════════════════════════════
+Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])
+    ->name('rechnung.email.send');
 // ═══════════════════════════════════════════════════════════
 // 🧾 FATTURAPA ROUTES
 // ═══════════════════════════════════════════════════════════
