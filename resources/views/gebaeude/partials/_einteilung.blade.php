@@ -116,6 +116,8 @@
   {{-- =========================== --}}
   {{-- 🔘 Globale Aktionen (unten) --}}
   {{-- =========================== --}}
+  {{-- ⭐ NUR anzeigen wenn Gebäude bereits existiert (hat ID) --}}
+  @if(!empty($gebaeude->id))
   <div class="col-12">
     <div class="d-flex align-items-center justify-content-end gap-3">
       {{-- Fälligkeit (nur dieses Gebäude) neu berechnen --}}
@@ -134,16 +136,25 @@
       </button>
     </div>
   </div>
+  @else
+  <div class="col-12">
+    <div class="alert alert-info mb-0">
+      <i class="bi bi-info-circle"></i>
+      Die Fälligkeits-Aktionen stehen erst nach dem Speichern des Gebäudes zur Verfügung.
+    </div>
+  </div>
+  @endif
 
 </div>
 
-{{-- Datenträger: CSRF + Routen für JS --}}
+{{-- ⭐ Datenträger NUR wenn Gebäude existiert --}}
+@if(!empty($gebaeude->id))
 <div
   id="einteilung-root"
   data-csrf="{{ csrf_token() }}"
   {{-- Pro-Gebäude-Neuberechnung (JSON): --}}
   data-route-recalc="{{ route('gebaeude.faellig.recalc', $gebaeude->id) }}"
-  {{-- Globales Zurücksetzen „gemachte_reinigungen“ (Redirect/Flash): --}}
+  {{-- Globales Zurücksetzen „gemachte_reinigungen" (Redirect/Flash): --}}
   data-route-reset="{{ route('gebaeude.resetGemachteReinigungen') }}">
 </div>
 
@@ -220,7 +231,7 @@
   }
 
   /* ---------------------------------
-   * B) ALLE „gemachte_reinigungen“ global auf 0 setzen
+   * B) ALLE „gemachte_reinigungen" global auf 0 setzen
    *     - klassischer Redirect/Flash: kein JSON notwendig
    * --------------------------------- */
   if (btnReset) {
@@ -229,7 +240,7 @@
         alert('Route für Reset nicht gefunden.');
         return;
       }
-      if (!confirm('Alle „gemachte Reinigungen“ wirklich auf 0 setzen? Diese Aktion betrifft ALLE Gebäude.')) {
+      if (!confirm('Alle „gemachte Reinigungen" wirklich auf 0 setzen? Diese Aktion betrifft ALLE Gebäude.')) {
         return;
       }
 
@@ -252,3 +263,4 @@
 })();
 </script>
 @endverbatim
+@endif
