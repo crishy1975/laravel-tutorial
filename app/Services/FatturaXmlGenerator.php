@@ -22,8 +22,10 @@ use Exception;
  * - Element-Reihenfolge: Causale NACH ImportoTotaleDocumento
  * - Element-Reihenfolge: IstitutoFinanziario → IBAN → BIC
  * - "Art" Element entfernt (ungültig in FatturaPA)
- * - faelligkeitsdatum statt zahlungsziel
+ * - faelligkeitsdatum (Accessor für zahlungsziel)
  * - IdPaese: convertToIsoCode() für alle Länder-Felder
+ * - DatiOrdineAcquisto: IdDocumento ist PFLICHT + korrekte Reihenfolge
+ * - auftrag_id statt auftrag_nummer
  */
 class FatturaXmlGenerator
 {
@@ -598,26 +600,58 @@ class FatturaXmlGenerator
         return substr($causale, 0, 200) ?: null;
     }
 
+    /**
+     * ⭐ KORRIGIERT: DatiOrdineAcquisto mit korrekter Element-Reihenfolge
+     * 
+     * Korrekte Reihenfolge laut XSD Schema:
+     * 1. RiferimentoNumeroLinea (optional, kann mehrfach vorkommen)
+     * 2. IdDocumento (PFLICHTFELD wenn DatiOrdineAcquisto existiert!)
+     * 3. Data (optional)
+     * 4. NumItem (optional)
+     * 5. CodiceCommessaConvenzione (optional)
+     * 6. CodiceCUP (optional) ← MUSS NACH IdDocumento!
+     * 7. CodiceCIG (optional) ← MUSS NACH CodiceCUP!
+     */
     protected function buildDatiOrdineAcquisto(DOMElement $parent): void
     {
+        // Nur erstellen wenn mindestens CUP, CIG oder Codice Commessa vorhanden
         if (!$this->rechnung->cup && !$this->rechnung->cig && !$this->rechnung->codice_commessa) {
             return;
         }
 
         $datiOrdine = $this->createElement('DatiOrdineAcquisto', $parent);
 
+        // 1. RiferimentoNumeroLinea (optional)
         $this->addElement('RiferimentoNumeroLinea', $datiOrdine, '1');
 
+        // 2. IdDocumento (PFLICHTFELD!)
+        // ⭐ FIX: IdDocumento ist PFLICHT wenn DatiOrdineAcquisto existiert!
+        // Verwende auftrag_id oder Rechnungsnummer als Fallback
+        $idDocumento = $this->rechnung->auftrag_id 
+            ?? $this->rechnung->rechnungsnummer 
+            ?? 'N/A';
+        $this->addElement('IdDocumento', $datiOrdine, $idDocumento);
+
+        // 3. Data (optional) - Auftragsdatum falls vorhanden
+        if ($this->rechnung->auftrag_datum) {
+            $this->addElement('Data', $datiOrdine, $this->formatDate($this->rechnung->auftrag_datum));
+        }
+
+        // 4. NumItem (optional, nicht implementiert)
+
+        // 5. CodiceCommessaConvenzione (optional)
+        if ($this->rechnung->codice_commessa) {
+            $this->addElement('CodiceCommessaConvenzione', $datiOrdine, $this->rechnung->codice_commessa);
+        }
+
+        // 6. CodiceCUP (optional) - MUSS NACH IdDocumento und CodiceCommessaConvenzione!
         if ($this->rechnung->cup) {
             $this->addElement('CodiceCUP', $datiOrdine, strtoupper($this->rechnung->cup));
         }
 
+        // 7. CodiceCIG (optional) - MUSS NACH CodiceCUP!
         if ($this->rechnung->cig) {
             $this->addElement('CodiceCIG', $datiOrdine, strtoupper($this->rechnung->cig));
-        }
-
-        if ($this->rechnung->codice_commessa) {
-            $this->addElement('CodiceCommessaConvenzione', $datiOrdine, $this->rechnung->codice_commessa);
         }
     }
 
@@ -716,7 +750,7 @@ class FatturaXmlGenerator
         // 3-4. DataRiferimentoTerminiPagamento, GiorniTerminiPagamento (nicht implementiert)
 
         // 5. DataScadenzaPagamento (optional)
-        // ⭐ FIX: faelligkeitsdatum statt zahlungsziel!
+        // ⭐ FIX: faelligkeitsdatum ist ein Accessor der zahlungsziel zurückgibt
         if ($this->rechnung->faelligkeitsdatum) {
             $this->addElement('DataScadenzaPagamento', $dettaglio, $this->formatDate($this->rechnung->faelligkeitsdatum));
         }
