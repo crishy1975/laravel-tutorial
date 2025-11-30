@@ -88,6 +88,20 @@
     $nettobetrag = number_format($rechnung->netto_summe ?? $rechnung->nettobetrag ?? 0, 2, ',', '.');
     $mwstBetrag = number_format($rechnung->mwst_betrag ?? 0, 2, ',', '.');
     $mwstSatz = number_format($rechnung->mwst_satz ?? 22, 0);
+    
+    // ⭐ NEU: Bezahlt-Status prüfen
+    $istBezahlt = $rechnung->status === 'paid';
+    $bezahltAm = $rechnung->bezahlt_am ? $rechnung->bezahlt_am->format('d.m.Y') : null;
+    
+    // ⭐ NEU: Gutschrift prüfen
+    $istGutschrift = $rechnung->typ_rechnung === 'gutschrift';
+    
+    // ⭐ NEU: Labels für Gutschrift anpassen
+    if ($istGutschrift) {
+        $labelFattura = 'Nota di Credito / Gutschrift';
+        $labelNumeroFattura = 'Numero nota di credito';
+        $labelRechnungsnummer = 'Gutschriftnummer';
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="de">
@@ -133,6 +147,14 @@
                 <div style="font-size: 28px; font-weight: bold; color: #333; margin-top: 5px;">
                     {{ $rechnung->rechnungsnummer }}
                 </div>
+                {{-- ⭐ NEU: Bezahlt-Badge --}}
+                @if($istBezahlt)
+                <div style="margin-top: 10px;">
+                    <span style="display: inline-block; background-color: #28a745; color: #fff; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold;">
+                        ✓ Pagato / Bezahlt
+                    </span>
+                </div>
+                @endif
             </div>
             
             {{-- NACHRICHT --}}
@@ -143,7 +165,7 @@
             {{-- RECHNUNGSDETAILS --}}
             <div style="background-color: #ffffff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0;">
                 <h3 style="margin: 0 0 15px 0; color: #495057; font-size: 16px; border-bottom: 1px solid #e9ecef; padding-bottom: 10px;">
-                    📋 Dettagli fattura / Rechnungsdetails
+                    📋 {{ $istGutschrift ? 'Dettagli nota di credito / Gutschriftdetails' : 'Dettagli fattura / Rechnungsdetails' }}
                 </h3>
                 <table style="width: 100%; border-collapse: collapse;">
                     {{-- Rechnungsnummer --}}
@@ -162,8 +184,20 @@
                         </th>
                         <td style="padding: 8px 0; font-weight: bold; font-size: 14px;">{{ $rechnungsdatum }}</td>
                     </tr>
-                    {{-- Fälligkeitsdatum --}}
-                    @if($rechnung->faelligkeitsdatum)
+                    {{-- ⭐ NEU: Bezahlt am (wenn bezahlt) --}}
+                    @if($istBezahlt && $bezahltAm)
+                    <tr>
+                        <th style="text-align: left; padding: 8px 10px 8px 0; color: #666; font-weight: normal; width: 50%; font-size: 14px;">
+                            Pagato il<br>
+                            <span style="color: #888; font-size: 13px;">Bezahlt am</span>
+                        </th>
+                        <td style="padding: 8px 0; font-weight: bold; font-size: 14px; color: #28a745;">
+                            ✓ {{ $bezahltAm }}
+                        </td>
+                    </tr>
+                    @endif
+                    {{-- Fälligkeitsdatum (nur wenn NICHT bezahlt und NICHT Gutschrift) --}}
+                    @if($rechnung->faelligkeitsdatum && !$istBezahlt && !$istGutschrift)
                     <tr>
                         <th style="text-align: left; padding: 8px 10px 8px 0; color: #666; font-weight: normal; width: 50%; font-size: 14px;">
                             {{ $labelDataScadenza }}<br>
@@ -191,8 +225,8 @@
                     {{-- Gesamtbetrag --}}
                     <tr>
                         <th style="text-align: left; padding: 8px 10px 8px 0; color: #666; font-weight: normal; width: 50%; font-size: 14px; padding-top: 15px; border-top: 2px solid #e9ecef;">
-                            <strong>{{ $labelTotale }}</strong><br>
-                            <span style="color: #888; font-size: 13px;">{{ $labelGesamtbetrag }}</span>
+                            <strong>{{ $istGutschrift ? 'Importo credito' : $labelTotale }}</strong><br>
+                            <span style="color: #888; font-size: 13px;">{{ $istGutschrift ? 'Gutschriftbetrag' : $labelGesamtbetrag }}</span>
                         </th>
                         <td style="padding: 8px 0; font-size: 22px; color: {{ $primaryColor }}; padding-top: 15px; border-top: 2px solid #e9ecef; font-weight: bold;">
                             € {{ $gesamtbetrag }}
@@ -201,40 +235,99 @@
                 </table>
             </div>
             
-            {{-- ZAHLUNGSINFORMATIONEN --}}
-            @if(($profil->iban ?? null) || ($profil->bank_name ?? null))
-            <div style="background-color: #ffffff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                <h3 style="margin: 0 0 15px 0; color: #495057; font-size: 16px; border-bottom: 1px solid #e9ecef; padding-bottom: 10px;">
-                    💳 Modalità di pagamento / Zahlungsinformationen
-                </h3>
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                    @if($profil->bank_name ?? null)
-                    <tr>
-                        <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">Bank / Banca:</th>
-                        <td style="padding: 6px 0; font-weight: bold;">{{ $profil->bank_name }}</td>
-                    </tr>
-                    @endif
-                    @if($profil->iban ?? null)
-                    <tr>
-                        <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">IBAN:</th>
-                        <td style="padding: 6px 0; font-weight: bold; font-family: monospace;">{{ $profil->iban }}</td>
-                    </tr>
-                    @endif
-                    @if($profil->bic ?? null)
-                    <tr>
-                        <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">BIC/SWIFT:</th>
-                        <td style="padding: 6px 0; font-weight: bold; font-family: monospace;">{{ $profil->bic }}</td>
-                    </tr>
-                    @endif
-                </table>
-            </div>
+            {{-- ⭐⭐⭐ ZAHLUNGSINFORMATIONEN - MIT BEZAHLT-LOGIK ⭐⭐⭐ --}}
+            @if(!$istGutschrift)
+                @if($istBezahlt)
+                    {{-- ═══════════════════════════════════════════════════════════
+                         BEZAHLT: Bestätigung anzeigen, KEINE Bankdaten!
+                    ═══════════════════════════════════════════════════════════ --}}
+                    <div style="background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <h3 style="margin: 0 0 15px 0; color: #155724; font-size: 16px; border-bottom: 1px solid #c3e6cb; padding-bottom: 10px;">
+                            ✓ Pagato / Bezahlt
+                        </h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #155724; font-weight: normal; width: 40%;">
+                                    Stato / Status:
+                                </th>
+                                <td style="padding: 6px 0; font-weight: bold; color: #155724;">
+                                    ✓ Pagato / Bezahlt
+                                </td>
+                            </tr>
+                            @if($bezahltAm)
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #155724; font-weight: normal; width: 40%;">
+                                    Pagato il / Bezahlt am:
+                                </th>
+                                <td style="padding: 6px 0; font-weight: bold; color: #155724;">
+                                    {{ $bezahltAm }}
+                                </td>
+                            </tr>
+                            @endif
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #155724; font-weight: normal; width: 40%;">
+                                    Importo / Betrag:
+                                </th>
+                                <td style="padding: 6px 0; font-weight: bold; color: #155724;">
+                                    € {{ $gesamtbetrag }}
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #c3e6cb; font-size: 13px; color: #155724;">
+                            Grazie per il vostro pagamento!<br>
+                            Vielen Dank für Ihre Zahlung!
+                        </div>
+                    </div>
+                @elseif(($profil->iban ?? null) || ($profil->bank_name ?? null))
+                    {{-- ═══════════════════════════════════════════════════════════
+                         UNBEZAHLT: Normale Zahlungsinformationen mit Bankdaten
+                    ═══════════════════════════════════════════════════════════ --}}
+                    <div style="background-color: #ffffff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <h3 style="margin: 0 0 15px 0; color: #495057; font-size: 16px; border-bottom: 1px solid #e9ecef; padding-bottom: 10px;">
+                            💳 Modalità di pagamento / Zahlungsinformationen
+                        </h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            @if($profil->bank_name ?? null)
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">Bank / Banca:</th>
+                                <td style="padding: 6px 0; font-weight: bold;">{{ $profil->bank_name }}</td>
+                            </tr>
+                            @endif
+                            @if($profil->iban ?? null)
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">IBAN:</th>
+                                <td style="padding: 6px 0; font-weight: bold; font-family: monospace;">{{ $profil->iban }}</td>
+                            </tr>
+                            @endif
+                            @if($profil->bic ?? null)
+                            <tr>
+                                <th style="text-align: left; padding: 6px 10px 6px 0; color: #666; font-weight: normal; width: 30%;">BIC/SWIFT:</th>
+                                <td style="padding: 6px 0; font-weight: bold; font-family: monospace;">{{ $profil->bic }}</td>
+                            </tr>
+                            @endif
+                        </table>
+                    </div>
+                @endif
+            @else
+                {{-- ═══════════════════════════════════════════════════════════
+                     GUTSCHRIFT: Erstattungshinweis
+                ═══════════════════════════════════════════════════════════ --}}
+                <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <h3 style="margin: 0 0 15px 0; color: #856404; font-size: 16px; border-bottom: 1px solid #ffc107; padding-bottom: 10px;">
+                        📋 Rimborso / Erstattung
+                    </h3>
+                    <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
+                        <strong>IT:</strong> L'importo della nota di credito sarà compensato con fatture aperte o accreditato sul vostro conto.<br><br>
+                        <strong>DE:</strong> Der Gutschriftbetrag wird mit offenen Forderungen verrechnet oder auf Ihr Konto überwiesen.
+                    </p>
+                </div>
             @endif
             
             {{-- ANHÄNGE-HINWEIS --}}
             <div style="background-color: #e8f4fd; padding: 15px 20px; border-radius: 8px; margin-top: 25px;">
                 <h4 style="margin: 0 0 10px 0; color: #0056b3; font-size: 14px;">📎 {{ $labelAllegati }} / {{ $labelAnhaenge }}</h4>
                 <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-                    <li>Fattura in formato PDF / Rechnung im PDF-Format</li>
+                    <li>{{ $istGutschrift ? 'Nota di credito in formato PDF / Gutschrift im PDF-Format' : 'Fattura in formato PDF / Rechnung im PDF-Format' }}</li>
                     @if($rechnung->fattura_profile_id ?? null)
                         <li>XML FatturaPA (se allegato / falls angehängt)</li>
                     @endif

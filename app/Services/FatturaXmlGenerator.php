@@ -16,6 +16,14 @@ use Exception;
  * FatturaPA XML Generator Service
  * 
  * Generiert elektronische Rechnungen im italienischen FatturaPA-Format (v1.8).
+ * 
+ * ⭐ KORREKTUREN V.2025:
+ * - CausalePagamento: "Z" → "ZO" (V.2025 kompatibel)
+ * - Element-Reihenfolge: Causale NACH ImportoTotaleDocumento
+ * - Element-Reihenfolge: IstitutoFinanziario → IBAN → BIC
+ * - "Art" Element entfernt (ungültig in FatturaPA)
+ * - faelligkeitsdatum statt zahlungsziel
+ * - IdPaese: convertToIsoCode() für alle Länder-Felder
  */
 class FatturaXmlGenerator
 {
@@ -346,6 +354,12 @@ class FatturaXmlGenerator
         }
     }
 
+    /**
+     * ⭐ KORRIGIERT: IdPaese wird jetzt IMMER mit convertToIsoCode() konvertiert!
+     * 
+     * Vorher: "Italia" wurde nicht zu "IT" konvertiert
+     * Nachher: Alle Länder-Namen werden korrekt zu ISO-Codes
+     */
     protected function buildCessionarioCommittente(DOMElement $parent): void
     {
         $cessionario = $this->createElement('CessionarioCommittente', $parent);
@@ -355,11 +369,15 @@ class FatturaXmlGenerator
         if ($this->rechnung->re_mwst_nummer) {
             $idFiscale = $this->createElement('IdFiscaleIVA', $datiAnagrafici);
             
+            // Versuche Land aus MwSt-Nummer zu extrahieren (erste 2 Zeichen)
             $land = strtoupper(substr($this->rechnung->re_mwst_nummer, 0, 2));
+            
+            // ⭐ FIX: Wenn keine 2 Großbuchstaben → convertToIsoCode verwenden!
             if (!preg_match('/^[A-Z]{2}$/', $land)) {
-                $land = $this->rechnung->re_land ?: 'IT';
+                $land = $this->convertToIsoCode($this->rechnung->re_land ?: 'IT');
             }
             
+            // Nummer ohne Land-Präfix
             $nummer = preg_replace('/^[A-Z]{2}/', '', $this->rechnung->re_mwst_nummer);
             
             $this->addElement('IdPaese', $idFiscale, $land);
@@ -420,31 +438,62 @@ class FatturaXmlGenerator
         $this->buildDatiOrdineAcquisto($datiGenerali);
     }
 
+    /**
+     * ⭐ KORRIGIERT: Element-Reihenfolge laut XSD Schema
+     * 
+     * Korrekte Reihenfolge:
+     * 1. TipoDocumento
+     * 2. Divisa
+     * 3. Data
+     * 4. Numero
+     * 5. DatiRitenuta (optional)
+     * 6. DatiBollo (optional)
+     * 7. DatiCassaPrevidenziale (optional)
+     * 8. ScontoMaggiorazione (optional)
+     * 9. ImportoTotaleDocumento
+     * 10. Arrotondamento (optional)
+     * 11. Causale (optional, kann mehrfach vorkommen) ← MUSS NACH ImportoTotaleDocumento!
+     * 12. Art73 (optional)
+     */
     protected function buildDatiGeneraliDocumento(DOMElement $parent): void
     {
         $datiDoc = $this->createElement('DatiGeneraliDocumento', $parent);
 
+        // 1. TipoDocumento
         $tipoDocumento = $this->getTipoDocumento();
         $this->addElement('TipoDocumento', $datiDoc, $tipoDocumento);
+        
+        // 2. Divisa
         $this->addElement('Divisa', $datiDoc, 'EUR');
+        
+        // 3. Data
         $this->addElement('Data', $datiDoc, $this->formatDate($this->rechnung->rechnungsdatum));
+        
+        // 4. Numero
         $this->addElement('Numero', $datiDoc, $this->rechnung->rechnungsnummer);
 
+        // 5. DatiRitenuta (optional)
         if ($this->rechnung->ritenuta && $this->rechnung->ritenuta_betrag > 0) {
             $this->buildDatiRitenuta($datiDoc);
         }
 
-        // ⭐ Causale: Leistungsbeschreibung (Deutsch + Italienisch) + Gebäude-Adresse
+        // 6-8. DatiBollo, DatiCassaPrevidenziale, ScontoMaggiorazione (nicht implementiert)
+
+        // 9. ImportoTotaleDocumento - MUSS VOR Causale!
+        $this->addElement('ImportoTotaleDocumento', $datiDoc, $this->formatAmount($this->rechnung->brutto_summe));
+
+        // 10. Arrotondamento (nicht implementiert)
+
+        // 11. Causale - MUSS NACH ImportoTotaleDocumento!
         $causale = $this->buildCausale();
         if ($causale) {
             $this->addElement('Causale', $datiDoc, $causale);
         }
 
-        if ($this->rechnung->leistungsdaten) {
-            $this->addElement('Art', $datiDoc, $this->rechnung->leistungsdaten);
-        }
-
-        $this->addElement('ImportoTotaleDocumento', $datiDoc, $this->formatAmount($this->rechnung->brutto_summe));
+        // 12. Art73 (nicht implementiert)
+        
+        // ❌ ENTFERNT: "Art" ist kein gültiges FatturaPA-Element!
+        // Das alte "Art"-Element wurde komplett entfernt.
     }
 
     protected function getTipoDocumento(): string
@@ -456,6 +505,12 @@ class FatturaXmlGenerator
         return 'TD01';
     }
 
+    /**
+     * ⭐ KORRIGIERT: CausalePagamento "Z" → "ZO" (V.2025 kompatibel)
+     * 
+     * Der Code "Z" ist ab FatturaPA Version 2025 ungültig und wurde
+     * durch "ZO" (Titolo diverso dai precedenti) ersetzt.
+     */
     protected function buildDatiRitenuta(DOMElement $parent): void
     {
         $ritenuta = $this->createElement('DatiRitenuta', $parent);
@@ -463,7 +518,9 @@ class FatturaXmlGenerator
         $this->addElement('TipoRitenuta', $ritenuta, 'RT02');
         $this->addElement('ImportoRitenuta', $ritenuta, $this->formatAmount($this->rechnung->ritenuta_betrag));
         $this->addElement('AliquotaRitenuta', $ritenuta, $this->formatAmount($this->rechnung->ritenuta_prozent));
-        $this->addElement('CausalePagamento', $ritenuta, 'Z');
+        
+        // ⭐ FIX V.2025: "Z" ist ungültig → "ZO" verwenden!
+        $this->addElement('CausalePagamento', $ritenuta, 'ZO');
     }
 
     /**
@@ -540,8 +597,6 @@ class FatturaXmlGenerator
         // Max 200 Zeichen (SDI-Limit)
         return substr($causale, 0, 200) ?: null;
     }
-
-
 
     protected function buildDatiOrdineAcquisto(DOMElement $parent): void
     {
@@ -631,35 +686,68 @@ class FatturaXmlGenerator
         $this->buildDettaglioPagamento($datiPagamento);
     }
 
+    /**
+     * ⭐ KORRIGIERT: Element-Reihenfolge laut XSD Schema
+     * 
+     * Korrekte Reihenfolge:
+     * 1. Beneficiario (optional)
+     * 2. ModalitaPagamento
+     * 3. DataRiferimentoTerminiPagamento (optional)
+     * 4. GiorniTerminiPagamento (optional)
+     * 5. DataScadenzaPagamento (optional)
+     * 6. ImportoPagamento
+     * 7-11. CodUfficioPostale, etc. (optional)
+     * 12. IstitutoFinanziario (optional) ← MUSS VOR IBAN!
+     * 13. IBAN (optional)
+     * 14-15. ABI, CAB (optional)
+     * 16. BIC (optional) ← MUSS NACH IBAN!
+     * 17-21. Sconti, etc. (optional)
+     */
     protected function buildDettaglioPagamento(DOMElement $parent): void
     {
         $dettaglio = $this->createElement('DettaglioPagamento', $parent);
 
+        // 1. Beneficiario (optional, nicht implementiert)
+
+        // 2. ModalitaPagamento
         $modalita = $this->config['defaults']['modalita_pagamento'] ?? 'MP05';
         $this->addElement('ModalitaPagamento', $dettaglio, $modalita);
 
-        if ($this->rechnung->zahlungsziel) {
-            $this->addElement('DataScadenzaPagamento', $dettaglio, $this->formatDate($this->rechnung->zahlungsziel));
+        // 3-4. DataRiferimentoTerminiPagamento, GiorniTerminiPagamento (nicht implementiert)
+
+        // 5. DataScadenzaPagamento (optional)
+        // ⭐ FIX: faelligkeitsdatum statt zahlungsziel!
+        if ($this->rechnung->faelligkeitsdatum) {
+            $this->addElement('DataScadenzaPagamento', $dettaglio, $this->formatDate($this->rechnung->faelligkeitsdatum));
         }
 
+        // 6. ImportoPagamento
         $importo = $this->rechnung->ritenuta 
             ? $this->rechnung->zahlbar_betrag 
             : $this->rechnung->brutto_summe;
-
         $this->addElement('ImportoPagamento', $dettaglio, $this->formatAmount($importo));
 
+        // 7-11. CodUfficioPostale, Quietanzante-Felder (nicht implementiert)
+
+        // 12. IstitutoFinanziario - MUSS VOR IBAN!
+        if ($this->profil->bank_name) {
+            $this->addElement('IstitutoFinanziario', $dettaglio, $this->profil->bank_name);
+        }
+
+        // 13. IBAN - MUSS NACH IstitutoFinanziario!
         if ($modalita === 'MP05' && $this->profil->iban) {
             $iban = str_replace(' ', '', strtoupper($this->profil->iban));
             $this->addElement('IBAN', $dettaglio, $iban);
         }
 
+        // 14-15. ABI, CAB (nicht implementiert)
+
+        // 16. BIC - MUSS NACH IBAN!
         if ($modalita === 'MP05' && $this->profil->bic) {
             $this->addElement('BIC', $dettaglio, strtoupper($this->profil->bic));
         }
 
-        if ($this->profil->bank_name) {
-            $this->addElement('IstitutoFinanziario', $dettaglio, $this->profil->bank_name);
-        }
+        // 17-21. Sconti, Penalità, CodicePagamento (nicht implementiert)
     }
 
     // ═══════════════════════════════════════════════════════════
