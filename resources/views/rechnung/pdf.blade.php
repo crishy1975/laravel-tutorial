@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rechnung {{ $rechnung->rechnungsnummer }}</title>
+    {{-- ⭐ TITEL DYNAMISCH --}}
+    <title>{{ $rechnung->typ_rechnung === 'gutschrift' ? 'Gutschrift' : 'Rechnung' }} {{ $rechnung->rechnungsnummer }}</title>
     <style>
         /* ═══════════════════════════════════════════════════════════
            SCHWARZ-WEISS PDF (S/W-Drucker optimiert)
@@ -154,6 +155,11 @@
             padding: 2mm 0;
         }
         
+        /* ⭐ GUTSCHRIFT-TITEL (rot hervorgehoben) */
+        .invoice-title.gutschrift {
+            background: #f5f5f5;
+        }
+        
         /* CAUSALE BOX */
         .causale-box {
             border: 2px solid #000;
@@ -228,23 +234,22 @@
         
         .totals-table {
             width: 100%;
-            font-size: 8pt;
             border-collapse: collapse;
         }
         
         .totals-table td {
             padding: 1.5mm 2mm;
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #ccc;
         }
         
         .totals-table .label {
-            text-align: left;
-            font-weight: bold;
+            font-size: 7.5pt;
         }
         
         .totals-table .value {
             text-align: right;
             font-weight: bold;
+            font-size: 8pt;
         }
         
         .totals-table tr.total {
@@ -253,23 +258,21 @@
         }
         
         .totals-table tr.total td {
-            padding: 2mm;
+            padding: 2.5mm 2mm;
             font-size: 10pt;
-            font-weight: bold;
+            border-bottom: none;
         }
         
         /* INFO BOXEN */
         .info-box {
-            clear: both;
             border: 1px solid #000;
             padding: 3mm;
-            margin: 4mm 0;
+            margin-top: 5mm;
             font-size: 7.5pt;
         }
         
         .info-box h3 {
-            font-size: 9pt;
-            font-weight: bold;
+            font-size: 8pt;
             margin-bottom: 2mm;
             border-bottom: 1px solid #000;
             padding-bottom: 1mm;
@@ -278,23 +281,22 @@
         /* FOOTER */
         .footer {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 8mm;
-            border-top: 1px solid #000;
-            padding-top: 1mm;
+            bottom: 5mm;
+            left: 10mm;
+            right: 10mm;
             font-size: 6.5pt;
             text-align: center;
-            line-height: 1.3;
+            border-top: 1px solid #000;
+            padding-top: 2mm;
+            color: #333;
         }
         
-        /* MAIN CONTENT */
-        .content {
-            margin-bottom: 10mm;
+        /* PAGE BREAK */
+        .page-break {
+            page-break-before: always;
         }
         
-        /* UTILITIES */
+        /* CLEAR FIX */
         .clearfix::after {
             content: "";
             display: table;
@@ -361,7 +363,7 @@
                             @if($unternehmen->codice_fiscale)<strong>CF:</strong> {{ $unternehmen->codice_fiscale }}@endif
                         @else
                             <strong>Tel:</strong> +39 0471 123456<br>
-                            <strong>E-Mail:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e48d8a828ba4968197878cca869e">[email&#160;protected]</a><br>
+                            <strong>E-Mail:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ed84838b82ad88958c809d8188c38e8280">[email&#160;protected]</a><br>
                             <strong>P.IVA:</strong> 12345678901
                         @endif
                     </div>
@@ -381,14 +383,17 @@
                             <span class="it" style="font-style: italic; font-size: 6.5pt;">Indirizzo Postale</span>
                         </div>
                         <div class="address-content">
-                            @if($rechnung->gebaeude && $rechnung->gebaeude->postadresse)
+                            @if($rechnung->post_name)
+                                {{-- Snapshot-Daten verwenden --}}
+                                <div class="address-name">{{ $rechnung->post_name }}</div>
+                                {{ $rechnung->post_strasse }} {{ $rechnung->post_hausnummer }}<br>
+                                {{ $rechnung->post_plz }} {{ $rechnung->post_wohnort }}
+                            @elseif($rechnung->gebaeude && $rechnung->gebaeude->postadresse)
                                 <div class="address-name">{{ $rechnung->gebaeude->postadresse->name }}</div>
                                 {{ $rechnung->gebaeude->postadresse->strasse }} {{ $rechnung->gebaeude->postadresse->hausnummer }}<br>
                                 {{ $rechnung->gebaeude->postadresse->plz }} {{ $rechnung->gebaeude->postadresse->wohnort }}
                             @else
-                                <div class="address-name">Muster GmbH</div>
-                                Musterstraße 1<br>
-                                39100 Bozen
+                                <div class="address-name">-</div>
                             @endif
                         </div>
                     </div>
@@ -402,7 +407,18 @@
                             <span class="it" style="font-style: italic; font-size: 6.5pt;">Destinatario Fattura</span>
                         </div>
                         <div class="address-content">
-                            @if($rechnung->rechnungsempfaenger)
+                            @if($rechnung->re_name)
+                                {{-- Snapshot-Daten verwenden --}}
+                                <div class="address-name">{{ $rechnung->re_name }}</div>
+                                {{ $rechnung->re_strasse }} {{ $rechnung->re_hausnummer }}<br>
+                                {{ $rechnung->re_plz }} {{ $rechnung->re_wohnort }}
+                                @if($rechnung->re_steuernummer)
+                                    <br><small>CF: {{ $rechnung->re_steuernummer }}</small>
+                                @endif
+                                @if($rechnung->re_mwst_nummer)
+                                    <br><small>P.IVA: {{ $rechnung->re_mwst_nummer }}</small>
+                                @endif
+                            @elseif($rechnung->rechnungsempfaenger)
                                 <div class="address-name">{{ $rechnung->rechnungsempfaenger->name }}</div>
                                 {{ $rechnung->rechnungsempfaenger->strasse }} {{ $rechnung->rechnungsempfaenger->hausnummer }}<br>
                                 {{ $rechnung->rechnungsempfaenger->plz }} {{ $rechnung->rechnungsempfaenger->wohnort }}
@@ -411,9 +427,7 @@
                                 {{ $rechnung->gebaeude->rechnungsempfaenger->strasse }} {{ $rechnung->gebaeude->rechnungsempfaenger->hausnummer }}<br>
                                 {{ $rechnung->gebaeude->rechnungsempfaenger->plz }} {{ $rechnung->gebaeude->rechnungsempfaenger->wohnort }}
                             @else
-                                <div class="address-name">Muster GmbH</div>
-                                Musterstraße 1<br>
-                                39100 Bozen
+                                <div class="address-name">-</div>
                             @endif
                         </div>
                     </div>
@@ -423,15 +437,27 @@
                 <div class="address-col data">
                     <div class="address-box">
                         <div class="address-label">
-                            <span class="de">Rechnungsdaten</span><br>
-                            <span class="it" style="font-style: italic; font-size: 6.5pt;">Dati Fattura</span>
+                            {{-- ⭐ DYNAMISCH: Rechnungsdaten / Gutschriftdaten --}}
+                            @if($rechnung->typ_rechnung === 'gutschrift')
+                                <span class="de">Gutschriftdaten</span><br>
+                                <span class="it" style="font-style: italic; font-size: 6.5pt;">Dati Nota di Credito</span>
+                            @else
+                                <span class="de">Rechnungsdaten</span><br>
+                                <span class="it" style="font-style: italic; font-size: 6.5pt;">Dati Fattura</span>
+                            @endif
                         </div>
                         <div class="address-content">
                             <table class="invoice-data-table">
                                 <tr>
                                     <td class="label">
-                                        <span class="de">Rechnung-Nr.:</span><br>
-                                        <span class="it" style="font-style: italic; font-size: 6.5pt;">Fattura N.:</span>
+                                        {{-- ⭐ DYNAMISCH: Rechnung-Nr. / Gutschrift-Nr. --}}
+                                        @if($rechnung->typ_rechnung === 'gutschrift')
+                                            <span class="de">Gutschrift-Nr.:</span><br>
+                                            <span class="it" style="font-style: italic; font-size: 6.5pt;">N. Credito:</span>
+                                        @else
+                                            <span class="de">Rechnung-Nr.:</span><br>
+                                            <span class="it" style="font-style: italic; font-size: 6.5pt;">Fattura N.:</span>
+                                        @endif
                                     </td>
                                     <td><strong>{{ $rechnung->rechnungsnummer }}</strong></td>
                                 </tr>
@@ -451,7 +477,7 @@
                                     <td>{{ $rechnung->leistungsdatum->format('d.m.Y') }}</td>
                                 </tr>
                                 @endif
-                                @if($rechnung->faelligkeitsdatum)
+                                @if($rechnung->faelligkeitsdatum && $rechnung->typ_rechnung !== 'gutschrift')
                                 <tr>
                                     <td class="label">
                                         <span class="de">Fällig:</span><br>
@@ -460,13 +486,14 @@
                                     <td>{{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}</td>
                                 </tr>
                                 @endif
-                                @if($rechnung->causale)
+                                {{-- ⭐ KORRIGIERT: fattura_causale statt causale --}}
+                                @if($rechnung->fattura_causale)
                                 <tr>
                                     <td class="label">
                                         <span class="de">Causale:</span><br>
                                         <span class="it" style="font-style: italic; font-size: 6.5pt;">Causale:</span>
                                     </td>
-                                    <td style="font-size: 7pt;">{{ Str::limit($rechnung->causale, 50) }}</td>
+                                    <td style="font-size: 7pt;">{{ Str::limit($rechnung->fattura_causale, 50) }}</td>
                                 </tr>
                                 @endif
                             </table>
@@ -477,20 +504,28 @@
             </div>
         </div>
         
-        {{-- TITEL --}}
-        <div class="invoice-title">
-            RECHNUNG / FATTURA<br>
+        {{-- ⭐⭐⭐ TITEL DYNAMISCH: RECHNUNG vs. GUTSCHRIFT ⭐⭐⭐ --}}
+        <div class="invoice-title {{ $rechnung->typ_rechnung === 'gutschrift' ? 'gutschrift' : '' }}">
+            @if($rechnung->typ_rechnung === 'gutschrift')
+                GUTSCHRIFT / NOTA DI CREDITO<br>
+            @else
+                RECHNUNG / FATTURA<br>
+            @endif
             <span style="font-size: 12pt;">{{ $rechnung->rechnungsnummer }}</span>
         </div>
         
-        {{-- CAUSALE (Rechnungsgrund) - PROMINENT --}}
-        @if($rechnung->causale)
+        {{-- ⭐⭐⭐ CAUSALE (Rechnungsgrund) - KORRIGIERT: fattura_causale ⭐⭐⭐ --}}
+        @if($rechnung->fattura_causale)
         <div class="causale-box">
             <div class="causale-label">
-                Rechnungsgrund / Causale:
+                @if($rechnung->typ_rechnung === 'gutschrift')
+                    Gutschriftgrund / Causale Nota di Credito:
+                @else
+                    Rechnungsgrund / Causale:
+                @endif
             </div>
             <div class="causale-text">
-                {{ $rechnung->causale }}
+                {{ $rechnung->fattura_causale }}
             </div>
         </div>
         @endif
@@ -613,8 +648,14 @@
                 
                 <tr class="total">
                     <td class="label">
-                        <span class="de">GESAMTBETRAG</span><br>
-                        <span class="it" style="font-style: italic; font-size: 8pt;">IMPORTO TOTALE</span>
+                        {{-- ⭐ DYNAMISCH: GESAMTBETRAG vs. GUTSCHRIFTBETRAG --}}
+                        @if($rechnung->typ_rechnung === 'gutschrift')
+                            <span class="de">GUTSCHRIFTBETRAG</span><br>
+                            <span class="it" style="font-style: italic; font-size: 8pt;">IMPORTO CREDITO</span>
+                        @else
+                            <span class="de">GESAMTBETRAG</span><br>
+                            <span class="it" style="font-style: italic; font-size: 8pt;">IMPORTO TOTALE</span>
+                        @endif
                     </td>
                     <td class="value">{{ number_format($rechnung->brutto_summe, 2, ',', '.') }} €</td>
                 </tr>
@@ -650,50 +691,91 @@
         </div>
         @endif
         
-        {{-- ZAHLUNGSINFORMATIONEN --}}
+        {{-- ZAHLUNGSINFORMATIONEN (nur bei Rechnung, nicht bei Gutschrift) --}}
+        @if($rechnung->typ_rechnung !== 'gutschrift')
         <div class="info-box">
-            <h3>Zahlungsinformationen / Informazioni di Pagamento</h3>
-            <table style="width: 100%; font-size: 7.5pt;">
-                <tr>
-                    <td style="width: 30%; font-weight: bold;">
-                        Zahlungsziel / Scadenza:
-                    </td>
-                    <td>
-                        @if($rechnung->faelligkeitsdatum)
-                            {{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}
-                        @else
-                            {{ $rechnung->rechnungsdatum->addDays(30)->format('d.m.Y') }}
-                        @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td style="font-weight: bold;">
-                        Zahlungsart / Modalità:
-                    </td>
-                    <td>{{ $rechnung->zahlungsart ?? 'Banküberweisung / Bonifico Bancario' }}</td>
-                </tr>
-                @if($unternehmen && $unternehmen->bank_name)
-                <tr>
-                    <td style="font-weight: bold;">
-                        Bank / Banca:
-                    </td>
-                    <td>{{ $unternehmen->bank_name }}</td>
-                </tr>
-                @endif
-                @if($unternehmen && $unternehmen->iban)
-                <tr>
-                    <td style="font-weight: bold;">IBAN:</td>
-                    <td>{{ $unternehmen->iban }}</td>
-                </tr>
-                @endif
-                @if($unternehmen && $unternehmen->bic)
-                <tr>
-                    <td style="font-weight: bold;">BIC/SWIFT:</td>
-                    <td>{{ $unternehmen->bic }}</td>
-                </tr>
-                @endif
-            </table>
+            {{-- ⭐⭐⭐ BEZAHLT: Anderer Titel und Inhalt ⭐⭐⭐ --}}
+            @if($rechnung->status === 'paid' || $rechnung->istAlsBezahltMarkiert())
+                <h3 style="color: #000;">✓ Bezahlt / Pagato</h3>
+                <table style="width: 100%; font-size: 7.5pt;">
+                    <tr>
+                        <td style="width: 30%; font-weight: bold;">
+                            Status:
+                        </td>
+                        <td style="font-weight: bold;">
+                            ✓ Bezahlt / Pagato
+                        </td>
+                    </tr>
+                    @if($rechnung->bezahlt_am)
+                    <tr>
+                        <td style="font-weight: bold;">
+                            Bezahlt am / Pagato il:
+                        </td>
+                        <td>{{ $rechnung->bezahlt_am->format('d.m.Y') }}</td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td style="font-weight: bold;">
+                            Rechnungsdatum / Data fattura:
+                        </td>
+                        <td>{{ $rechnung->rechnungsdatum->format('d.m.Y') }}</td>
+                    </tr>
+                </table>
+            @else
+                {{-- ⭐ UNBEZAHLT: Normale Zahlungsinformationen mit Bankdaten --}}
+                <h3>Zahlungsinformationen / Informazioni di Pagamento</h3>
+                <table style="width: 100%; font-size: 7.5pt;">
+                    <tr>
+                        <td style="width: 30%; font-weight: bold;">
+                            Zahlungsziel / Scadenza:
+                        </td>
+                        <td>
+                            @if($rechnung->faelligkeitsdatum)
+                                {{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}
+                            @else
+                                {{ $rechnung->rechnungsdatum->addDays(30)->format('d.m.Y') }}
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">
+                            Zahlungsart / Modalità:
+                        </td>
+                        <td>{{ $rechnung->zahlungsart ?? 'Banküberweisung / Bonifico Bancario' }}</td>
+                    </tr>
+                    @if($unternehmen && $unternehmen->bank_name)
+                    <tr>
+                        <td style="font-weight: bold;">
+                            Bank / Banca:
+                        </td>
+                        <td>{{ $unternehmen->bank_name }}</td>
+                    </tr>
+                    @endif
+                    @if($unternehmen && $unternehmen->iban)
+                    <tr>
+                        <td style="font-weight: bold;">IBAN:</td>
+                        <td>{{ $unternehmen->iban }}</td>
+                    </tr>
+                    @endif
+                    @if($unternehmen && $unternehmen->bic)
+                    <tr>
+                        <td style="font-weight: bold;">BIC/SWIFT:</td>
+                        <td>{{ $unternehmen->bic }}</td>
+                    </tr>
+                    @endif
+                </table>
+            @endif
         </div>
+        @else
+        {{-- Bei Gutschrift: Erstattungshinweis --}}
+        <div class="info-box">
+            <h3>Erstattungshinweis / Informazioni Rimborso</h3>
+            <p style="line-height: 1.4; font-size: 7.5pt;">
+                <strong>DE:</strong> Der Gutschriftbetrag wird mit offenen Forderungen verrechnet oder auf Ihr Konto überwiesen.<br>
+                <strong>IT:</strong> L'importo della nota di credito sarà compensato con fatture aperte o accreditato sul vostro conto.
+            </p>
+        </div>
+        @endif
         
         {{-- ITALIENISCHE PFLICHTFELDER (CUP, CIG, etc.) --}}
         @if($rechnung->cup || $rechnung->cig || $rechnung->codice_commessa || $rechnung->auftrag_id)
@@ -747,15 +829,10 @@
             @if($unternehmen->partita_iva) · P.IVA: {{ $unternehmen->partita_iva }}@endif
             @if($unternehmen->telefon) · Tel: {{ $unternehmen->telefon }}@endif
             @if($unternehmen->email) · {{ $unternehmen->email }}@endif
-
         @else
-            Meisterbetrieb Resch GmbH · Musterstraße 123, 39100 Bozen · P.IVA: 12345678901 · Tel: +39 0471 123456 · info@resch.it
+            Meisterbetrieb Resch GmbH · Musterstraße 123, 39100 Bozen · P.IVA: 12345678901
         @endif
-    </div>  
+    </div>
+    
 </body>
 </html>
-
-{{-- ═══════════════════════════════════════════════════════════
-   ENDE DER DATEI
-    ═══════════════════════════════════════════════════════════ --}}
-{{-- Vergleiche mit resources/views/rechnung/show.blade.php --}}
