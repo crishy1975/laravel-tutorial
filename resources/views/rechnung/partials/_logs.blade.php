@@ -1,5 +1,6 @@
 {{-- resources/views/rechnung/partials/_logs.blade.php --}}
 {{-- Log-System Tab für Rechnungsformular --}}
+{{-- ⭐ WICHTIG: Das Modal wird über @push('modals') AUSSERHALB des Hauptforms eingebunden! --}}
 
 @php
     use App\Models\RechnungLog;
@@ -229,17 +230,16 @@
 
 </div>
 
-{{-- ═══════════════════════════════════════════════════════════
-    MODAL: Neuer Log-Eintrag
-═══════════════════════════════════════════════════════════ --}}
-<div class="modal fade" id="modalNeuerLog" tabindex="-1">
+{{-- ⭐⭐⭐ MODAL WIRD ÜBER @push AUSSERHALB DES HAUPTFORMS EINGEBUNDEN ⭐⭐⭐ --}}
+@push('modals')
+<div class="modal fade" id="modalNeuerLog" tabindex="-1" aria-labelledby="modalLogTitel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="modalLogTitel">
                     <i class="bi bi-plus-circle"></i> Neuer Eintrag
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="log_typ" value="">
@@ -278,7 +278,7 @@
                 <div class="mb-3">
                     <label class="form-label">Beschreibung <span class="text-danger">*</span></label>
                     <textarea class="form-control" id="log_beschreibung" rows="4" 
-                              placeholder="Details eingeben..." required></textarea>
+                              placeholder="Details eingeben..."></textarea>
                 </div>
                 
                 {{-- Kontakt-Person --}}
@@ -329,19 +329,22 @@
         </div>
     </div>
 </div>
+@endpush
 
-{{-- ═══════════════════════════════════════════════════════════
-    JAVASCRIPT
-═══════════════════════════════════════════════════════════ --}}
+{{-- ⭐⭐⭐ JAVASCRIPT ÜBER @push EINBINDEN ⭐⭐⭐ --}}
+@push('scripts')
 <script>
-const csrfToken = '{{ csrf_token() }}';
-const rechnungId = {{ $rechnung->id }};
-const storeUrl = '{{ route("rechnung.logs.store", $rechnung->id) }}';
+const logCsrfToken = '{{ csrf_token() }}';
+const logRechnungId = {{ $rechnung->id }};
+const logStoreUrl = '{{ route("rechnung.logs.store", $rechnung->id) }}';
 
 /**
  * Modal öffnen und Typ vorbelegen
  */
 function openLogModal(typ) {
+    console.log('openLogModal aufgerufen mit Typ:', typ);
+    
+    // Felder zurücksetzen
     document.getElementById('log_typ').value = typ;
     document.getElementById('log_typ_select').value = typ;
     document.getElementById('log_beschreibung').value = '';
@@ -401,8 +404,14 @@ function openLogModal(typ) {
         '<i class="bi bi-plus-circle"></i> ' + (labels[typ] || 'Neuer Eintrag');
     
     // Modal öffnen
-    const modal = new bootstrap.Modal(document.getElementById('modalNeuerLog'));
-    modal.show();
+    const modalElement = document.getElementById('modalNeuerLog');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        console.error('Modal #modalNeuerLog nicht gefunden!');
+        alert('Fehler: Modal konnte nicht geöffnet werden.');
+    }
 }
 
 /**
@@ -430,14 +439,14 @@ function saveLog() {
     // Form erstellen und submitten
     const form = document.createElement('form');
     form.method = 'POST';
-    form.action = storeUrl;
+    form.action = logStoreUrl;
     form.style.display = 'none';
     
     // CSRF Token
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = '_token';
-    csrfInput.value = csrfToken;
+    csrfInput.value = logCsrfToken;
     form.appendChild(csrfInput);
     
     // Daten
@@ -471,7 +480,7 @@ function deleteLog(logId) {
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = '_token';
-    csrfInput.value = csrfToken;
+    csrfInput.value = logCsrfToken;
     form.appendChild(csrfInput);
     
     const methodInput = document.createElement('input');
@@ -496,10 +505,11 @@ function markErinnerungErledigt(logId) {
     const csrfInput = document.createElement('input');
     csrfInput.type = 'hidden';
     csrfInput.name = '_token';
-    csrfInput.value = csrfToken;
+    csrfInput.value = logCsrfToken;
     form.appendChild(csrfInput);
     
     document.body.appendChild(form);
     form.submit();
 }
 </script>
+@endpush
