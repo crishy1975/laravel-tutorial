@@ -24,6 +24,8 @@ class Rechnung extends Model
     protected $table = 'rechnungen';
 
     protected $fillable = [
+        'legacy_id',          // ⭐ NEU
+        'legacy_progressivo', // ⭐ NEU
         'jahr',
         'laufnummer',
         'gebaeude_id',
@@ -144,7 +146,7 @@ class Rechnung extends Model
             if (!$rechnung->fattura_causale) {
                 $rechnung->fattura_causale = static::generateCausaleStatic($rechnung);
             }
-            
+
             // ⭐ NEU: Zahlungsziel automatisch setzen wenn nicht vorhanden
             if (!$rechnung->zahlungsziel && $rechnung->rechnungsdatum) {
                 $rechnung->zahlungsziel = static::berechneZahlungsziel(
@@ -162,23 +164,23 @@ class Rechnung extends Model
                     $rechnung->ritenuta_prozent = 4.00;
                 }
             }
-            
+
             // ⭐ NEU: Wenn Zahlungsbedingungen geändert wurden → Zahlungsziel neu berechnen
             if ($rechnung->isDirty('zahlungsbedingungen') && $rechnung->rechnungsdatum) {
                 $neueZahlungsbedingung = $rechnung->zahlungsbedingungen;
-                
+
                 // Wenn "bezahlt" → Zahlungsziel = heute, Status = paid
                 if ($neueZahlungsbedingung === Zahlungsbedingung::BEZAHLT) {
                     $rechnung->status = 'paid';
-                    
+
                     // Bezahlt_am setzen falls nicht schon gesetzt
                     if (!$rechnung->bezahlt_am) {
                         $rechnung->bezahlt_am = now();
                     }
-                    
+
                     // Zahlungsziel auf bezahlt_am setzen
                     $rechnung->zahlungsziel = $rechnung->bezahlt_am;
-                    
+
                     \Log::info('Rechnung als bezahlt markiert', [
                         'rechnung_id' => $rechnung->id,
                         'bezahlt_am'  => $rechnung->bezahlt_am,
@@ -191,7 +193,7 @@ class Rechnung extends Model
                     );
                 }
             }
-            
+
             // ⭐ NEU: Wenn Rechnungsdatum geändert wurde UND nicht "bezahlt" → Zahlungsziel neu berechnen
             if ($rechnung->isDirty('rechnungsdatum') && $rechnung->zahlungsbedingungen !== Zahlungsbedingung::BEZAHLT) {
                 $rechnung->zahlungsziel = static::berechneZahlungsziel(
@@ -214,20 +216,20 @@ class Rechnung extends Model
         if (!$rechnungsdatum) {
             return null;
         }
-        
+
         // Carbon-Instanz sicherstellen
         if (!$rechnungsdatum instanceof Carbon) {
             $rechnungsdatum = Carbon::parse($rechnungsdatum);
         }
-        
+
         // Zahlungsbedingung zu Enum konvertieren falls String
         if (is_string($zahlungsbedingung)) {
             $zahlungsbedingung = Zahlungsbedingung::tryFrom($zahlungsbedingung);
         }
-        
+
         // Tage aus Zahlungsbedingung ermitteln
         $tage = $zahlungsbedingung?->tage() ?? 30; // Default: 30 Tage
-        
+
         return $rechnungsdatum->copy()->addDays($tage);
     }
 
@@ -460,10 +462,10 @@ class Rechnung extends Model
         // ═══════════════════════════════════════════════════════════
         // ⭐ ZAHLUNGSBEDINGUNGEN DEFAULT
         // ═══════════════════════════════════════════════════════════
-        
+
         $zahlungsbedingungen = $overrides['zahlungsbedingungen'] ?? Zahlungsbedingung::NETTO_30;
         $rechnungsdatum = Carbon::parse($overrides['rechnungsdatum'] ?? now());
-        
+
         // ⭐ Zahlungsziel automatisch berechnen
         $zahlungsziel = static::berechneZahlungsziel($rechnungsdatum, $zahlungsbedingungen);
 
