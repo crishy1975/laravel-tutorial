@@ -14,6 +14,8 @@ class Adresse extends Model
     protected $table = 'adressen'; // Tabellenname im Plural
 
     protected $fillable = [
+        'legacy_id',      // ⭐ NEU
+        'legacy_mid',     // ⭐ NEU
         'name',
         'strasse',
         'hausnummer',

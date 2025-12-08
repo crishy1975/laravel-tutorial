@@ -10,6 +10,8 @@ class ArtikelGebaeude extends Model
     protected $table = 'artikel_gebaeude';
 
     protected $fillable = [
+        'legacy_id',      // ⭐ NEU
+        'legacy_mid',     // ⭐ NEU
         'gebaeude_id',
         'beschreibung',
         'anzahl',

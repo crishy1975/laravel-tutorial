@@ -14,6 +14,8 @@ class RechnungPosition extends Model
     protected $table = 'rechnung_positionen';
 
     protected $fillable = [
+        'legacy_id',         // ⭐ NEU
+        'legacy_artikel_id', // ⭐ NEU
         'rechnung_id',
         'artikel_gebaeude_id',
         'position',

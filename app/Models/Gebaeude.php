@@ -19,6 +19,8 @@ class Gebaeude extends Model
     protected $table = 'gebaeude';
 
     protected $fillable = [
+        'legacy_id',      // ⭐ NEU
+        'legacy_mid',     // ⭐ NEU
         'codex',
         'postadresse_id',
         'rechnungsempfaenger_id',
