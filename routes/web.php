@@ -13,6 +13,8 @@ use App\Http\Controllers\ArtikelGebaeudeController;
 use App\Http\Controllers\RechnungController;
 use App\Http\Controllers\PreisAufschlagController;
 use App\Http\Controllers\UnternehmensprofilController;
+use App\Http\Controllers\ReinigungsplanungController;
+
 
 // Home / Dashboard Redirect
 Route::get('/', fn() => redirect()->route('gebaeude.index'))
@@ -221,6 +223,7 @@ Route::prefix('rechnung')->name('rechnung.')->middleware(['auth'])->group(functi
     Route::get('/{id}/xml', [RechnungController::class, 'generateXml'])->name('xml');
     Route::get('/{id}/xml/download', [RechnungController::class, 'downloadXml'])->name('xml.download');
     Route::post('/{id}/xml/send', [RechnungController::class, 'sendXml'])->name('xml.send');
+    Route::post('/{id}/mark-sent', [App\Http\Controllers\RechnungController::class, 'markAsSent'])->name('mark-sent');
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -386,7 +389,12 @@ Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard
 Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])
     ->name('rechnung.email.send');
 
-
+// Reinigungsplanung
+Route::prefix('reinigungsplanung')->name('reinigungsplanung.')->group(function () {
+    Route::get('/', [ReinigungsplanungController::class, 'index'])->name('index');
+    Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
+    Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
+});
 
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';

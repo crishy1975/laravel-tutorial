@@ -429,6 +429,10 @@ class AccessImportService
             $typ = 'gutschrift';
         }
 
+        // ⭐⭐⭐ NEU: Fattura-Profil aus mTypKunde mappen ⭐⭐⭐
+        $mTypKunde = (int) $item->mTypKunde;
+        $profilMapping = $this->mapFatturaProfil($mTypKunde);
+
         $data = [
             'legacy_id'              => $legacyId,
             'legacy_progressivo'     => $progressivo,
@@ -444,7 +448,16 @@ class AccessImportService
             'mwst_betrag'            => (float) $item->MwStr ?: 0,
             'brutto_summe'           => (float) $item->Betrag ?: 0,
             'ritenuta_betrag'        => (float) $item->Rit ?: 0,
-            'mwst_satz'              => (float) $item->mMwStSatz ?: 22,
+            
+            // ⭐⭐⭐ NEU: Fattura-Profil Felder aus Mapping ⭐⭐⭐
+            'fattura_profile_id'     => $profilMapping['fattura_profile_id'],
+            'profile_bezeichnung'    => $profilMapping['profile_bezeichnung'],
+            'mwst_satz'              => $profilMapping['mwst_satz'],
+            'split_payment'          => $profilMapping['split_payment'],
+            'reverse_charge'         => $profilMapping['reverse_charge'],
+            'ritenuta'               => $profilMapping['ritenuta'],
+            'ritenuta_prozent'       => $profilMapping['ritenuta_prozent'],
+            
             'fattura_causale'        => (string) $item->Causale ?: null,
             'cig'                    => (string) $item->{'FatturaPAAbfrage.CIG'} ?: null,
             'auftrag_id'             => (string) $item->OrdineId ?: null,
@@ -487,6 +500,8 @@ class AccessImportService
             Log::info('[DRY-RUN] Würde Rechnung importieren', [
                 'legacy_id' => $legacyId,
                 'nummer' => "$jahr/$laufnummer",
+                'profil' => $profilMapping['profile_bezeichnung'],
+                'mTypKunde' => $mTypKunde,
             ]);
             $this->stats['rechnungen']['imported']++;
             return 1;
@@ -697,5 +712,140 @@ class AccessImportService
             'id' => $id,
             'message' => $message,
         ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 🧾 FATTURA-PROFIL MAPPING
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Mappt mTypKunde auf Fattura-Profil-Daten
+     * 
+     * Access-Tabelle TypKunde:
+     * id | beschreibung              | Ritenuta | typMwst | typRechnung
+     * 1  | Kondominium               | Ja       | 7 (4%)  | 1 (normal)
+     * 2  | Öffentliches Gebäude      | Nein     | 11 (0%) | 2 (split)
+     * 3  | Privat Kunde              | Nein     | 7 (4%)  | 1 (normal)
+     * 4  | Firmen Kunde              | Nein     | 11 (0%)| 1 (normal)
+     * 5  | Sanierung                 | Nein     | 7 (4%)  | 1 (normal)
+     * 7  | 22% MwSt. Split Payment   | Nein     | 9 (22%)| 2 (split)
+     * 8  | FirmenKunde 22% MwSt      | Nein     | 8 (22%)| 1 (normal)
+     * 9  | Kondominium 22%           | Ja       | 8 (22%)| 1 (normal)
+     * 
+     * typRechnung: 1 = normale Rechnung, 2 = Split Payment (PA)
+     * typMwst: 7 = 4%, 8 = 22%, 9 = 22%, 11 = 0% (Reverse Charge)
+     * 
+     * @param int $mTypKunde
+     * @return array
+     */
+    protected function mapFatturaProfil(int $mTypKunde): array
+    {
+        // Mapping-Tabelle: mTypKunde (Access) → fattura_profile (Laravel)
+        // 
+        // Access TypKunde:                    → Laravel fattura_profile:
+        // 1 Kondominium (Rit, 4%)             → 4 Kondominium (10%, ritenuta)
+        // 2 Öffentliches Gebäude (0%, Split)  → 3 Öffentlich (22%, split_payment)
+        // 3 Privat Kunde (4%)                 → 2 Privatkunde (10%)
+        // 4 Firmen Kunde (0%, RC)             → 1 Firma, Reverse Charge (0%, RC)
+        // 5 Sanierung (4%)                    → 1 Firma, Reverse Charge (0%, RC)
+        // 7 22% MwSt. Split Payment           → 3 Öffentlich (22%, split_payment)
+        // 8 FirmenKunde 22% MwSt              → 6 Firma, 22% (22%)
+        // 9 Kondominium 22% (Rit)             → 5 Kondominium Gewerblich (22%, ritenuta)
+        //
+        $mapping = [
+            // mTypKunde 1: Kondominium → Profil 4 (Kondominium, 10%, ritenuta)
+            1 => [
+                'fattura_profile_id'  => 4,
+                'profile_bezeichnung' => 'Kondominium',
+                'mwst_satz'           => 10.00,
+                'split_payment'       => false,
+                'reverse_charge'      => false,
+                'ritenuta'            => true,
+                'ritenuta_prozent'    => 4.00,
+            ],
+            // mTypKunde 2: Öffentliches Gebäude → Profil 3 (Öffentlich, 22%, split_payment)
+            2 => [
+                'fattura_profile_id'  => 3,
+                'profile_bezeichnung' => 'Öffentlich',
+                'mwst_satz'           => 22.00,
+                'split_payment'       => true,
+                'reverse_charge'      => false,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 3: Privat Kunde → Profil 2 (Privatkunde, 10%)
+            3 => [
+                'fattura_profile_id'  => 2,
+                'profile_bezeichnung' => 'Privatkunde',
+                'mwst_satz'           => 10.00,
+                'split_payment'       => false,
+                'reverse_charge'      => false,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 4: Firmen Kunde → Profil 1 (Firma, Reverse Charge, 0%)
+            4 => [
+                'fattura_profile_id'  => 1,
+                'profile_bezeichnung' => 'Firma, Reverse Charge',
+                'mwst_satz'           => 0.00,
+                'split_payment'       => false,
+                'reverse_charge'      => true,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 5: Sanierung → Profil 1 (Firma, Reverse Charge, 0%)
+            5 => [
+                'fattura_profile_id'  => 1,
+                'profile_bezeichnung' => 'Firma, Reverse Charge',
+                'mwst_satz'           => 0.00,
+                'split_payment'       => false,
+                'reverse_charge'      => true,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 7: 22% MwSt. Split Payment → Profil 3 (Öffentlich, 22%, split_payment)
+            7 => [
+                'fattura_profile_id'  => 3,
+                'profile_bezeichnung' => 'Öffentlich',
+                'mwst_satz'           => 22.00,
+                'split_payment'       => true,
+                'reverse_charge'      => false,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 8: FirmenKunde 22% MwSt → Profil 6 (Firma, 22%)
+            8 => [
+                'fattura_profile_id'  => 6,
+                'profile_bezeichnung' => 'Firma, 22%',
+                'mwst_satz'           => 22.00,
+                'split_payment'       => false,
+                'reverse_charge'      => false,
+                'ritenuta'            => false,
+                'ritenuta_prozent'    => 0.00,
+            ],
+            // mTypKunde 9: Kondominium 22% → Profil 5 (Kondominium Gewerblich, 22%, ritenuta)
+            9 => [
+                'fattura_profile_id'  => 5,
+                'profile_bezeichnung' => 'Kondominium Gewerblich',
+                'mwst_satz'           => 22.00,
+                'split_payment'       => false,
+                'reverse_charge'      => false,
+                'ritenuta'            => true,
+                'ritenuta_prozent'    => 4.00,
+            ],
+        ];
+
+        // Default-Profil falls nicht gefunden
+        $default = [
+            'fattura_profile_id'  => null,
+            'profile_bezeichnung' => 'Unbekannt',
+            'mwst_satz'           => 22.00,
+            'split_payment'       => false,
+            'reverse_charge'      => false,
+            'ritenuta'            => false,
+            'ritenuta_prozent'    => 0.00,
+        ];
+
+        return $mapping[$mTypKunde] ?? $default;
     }
 }

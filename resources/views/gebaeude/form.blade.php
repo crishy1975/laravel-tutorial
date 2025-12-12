@@ -15,17 +15,35 @@
       </h4>
     </div>
 
-    {{-- ✅ Erfolgsmeldung anzeigen --}}
+    {{-- ✅ Erfolgsmeldung --}}
     @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
-      <i class="bi bi-check-circle"></i>
+    <div class="alert alert-success alert-dismissible fade show mt-3 mx-3" role="alert">
+      <i class="bi bi-check-circle-fill me-2"></i>
       {{ session('success') }}
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     @endif
 
+    {{-- ⚠️ Warnung --}}
+    @if(session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show mt-3 mx-3" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{ session('warning') }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
+    {{-- ❌ Fehler --}}
+    @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show mt-3 mx-3" role="alert">
+      <i class="bi bi-x-circle-fill me-2"></i>
+      {{ session('error') }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     @if(session('error_detail'))
-    <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert">
+    <div class="alert alert-warning alert-dismissible fade show mt-2 mx-3" role="alert">
       <i class="bi bi-info-circle"></i>
       {{ session('error_detail') }}
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>

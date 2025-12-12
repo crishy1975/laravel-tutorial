@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    {{-- ✅ CSRF für AJAX/FETCH/AXIOS --}}
+    {{-- CSRF für AJAX/FETCH/AXIOS --}}
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- Dynamischer Titel --}}
@@ -17,15 +17,181 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
 
-    {{-- Optional: eigenes CSS --}}
     <style>
         body {
-            background-color: #f8f9fa;
+            background-color: #f5f5f5;
+            min-height: 100vh;
         }
 
-        .navbar-brand {
+        /* ═══════════════════════════════════════════════════════════
+           NAVIGATION - Schlicht Dunkel
+           ═══════════════════════════════════════════════════════════ */
+        .navbar-custom {
+            background-color: #2d2d2d;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-custom .navbar-brand {
             font-weight: 600;
-            letter-spacing: 0.5px;
+            color: #fff !important;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-custom .navbar-brand i {
+            font-size: 1.3rem;
+        }
+
+        /* Nav Links */
+        .navbar-custom .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+            font-weight: 500;
+            padding: 0.5rem 0.9rem !important;
+            border-radius: 4px;
+            margin: 0 2px;
+            transition: all 0.15s ease;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: #fff !important;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-custom .nav-link.active {
+            color: #fff !important;
+            background-color: #444;
+        }
+
+        /* Dropdown */
+        .navbar-custom .dropdown-menu {
+            background-color: #363636;
+            border: 1px solid #444;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            padding: 0.4rem;
+            min-width: 200px;
+        }
+
+        .navbar-custom .dropdown-item {
+            color: rgba(255, 255, 255, 0.85);
+            border-radius: 4px;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-custom .dropdown-item:hover {
+            background-color: #444;
+            color: #fff;
+        }
+
+        .navbar-custom .dropdown-item.active {
+            background-color: #505050;
+            color: #fff;
+        }
+
+        .navbar-custom .dropdown-item i {
+            width: 18px;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .navbar-custom .dropdown-divider {
+            border-color: #444;
+            margin: 0.3rem 0;
+        }
+
+        /* Badge */
+        .nav-badge {
+            background-color: #dc3545;
+            color: #fff;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 10px;
+            margin-left: 0.3rem;
+            font-weight: 600;
+        }
+
+        .dropdown-badge {
+            background-color: #ffc107;
+            color: #000;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 10px;
+            margin-left: auto;
+            font-weight: 600;
+        }
+
+        /* User Area */
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .user-info i {
+            font-size: 1.1rem;
+        }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+
+        .btn-logout:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            color: #fff;
+        }
+
+        /* Mobile */
+        .navbar-custom .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .navbar-custom .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        @media (max-width: 991.98px) {
+            .navbar-custom .navbar-collapse {
+                padding-top: 0.75rem;
+                border-top: 1px solid #444;
+                margin-top: 0.75rem;
+            }
+
+            .navbar-custom .nav-link {
+                padding: 0.6rem 0.75rem !important;
+            }
+
+            .navbar-custom .dropdown-menu {
+                background-color: #3a3a3a;
+                border: none;
+                box-shadow: none;
+                padding-left: 1rem;
+            }
+
+            .user-info {
+                margin-top: 0.75rem;
+                padding-top: 0.75rem;
+                border-top: 1px solid #444;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           CONTENT & FOOTER
+           ═══════════════════════════════════════════════════════════ */
+        .main-content {
+            padding-bottom: 2rem;
         }
 
         footer {
@@ -33,13 +199,16 @@
             padding: 1rem;
             margin-top: 2rem;
             color: #6c757d;
+            font-size: 0.85rem;
         }
 
+        /* ═══════════════════════════════════════════════════════════
+           SELECT2
+           ═══════════════════════════════════════════════════════════ */
         .select2-container {
             width: 100% !important;
         }
 
-        /* Select2 exakt wie Bootstrap .form-select */
         .select2-container--bootstrap-5 .select2-selection {
             border: 1px solid #ced4da !important;
             border-radius: 0.375rem !important;
@@ -75,107 +244,144 @@
             border-radius: 0.375rem;
         }
 
-        /* Kein „x“ zum Leeren anzeigen */
         .select2-selection__clear {
             display: none !important;
         }
     </style>
 
+    @stack('styles')
+
 </head>
 
 <body>
 
-    {{-- 🔹 Navigation --}}
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    {{-- NAVIGATION --}}
+    <nav class="navbar navbar-expand-lg navbar-custom mb-4">
         <div class="container">
+            {{-- Brand --}}
             <a class="navbar-brand" href="/">
-                <i class="bi bi-house-door"></i> UschiWeb
+                <i class="bi bi-building"></i>
+                UschiWeb
             </a>
 
+            {{-- Mobile Toggler --}}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <div class="collapse navbar-collapse" id="navbarNav">
-                {{-- Ersetze den <ul class="navbar-nav me-auto"> Bereich in resources/views/layouts/app.blade.php --}}
-
                 <ul class="navbar-nav me-auto">
+                    
+                    {{-- Stammdaten --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('gebaeude*') || request()->is('adresse*') || request()->is('tour*') ? 'active' : '' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-folder"></i> Stammdaten
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ request()->is('gebaeude*') ? 'active' : '' }}" href="{{ url('/gebaeude') }}">
+                                    <i class="bi bi-building"></i> Gebäude
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('adresse*') ? 'active' : '' }}" href="{{ url('/adresse') }}">
+                                    <i class="bi bi-person-lines-fill"></i> Adressen
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('tour*') ? 'active' : '' }}" href="{{ url('/tour') }}">
+                                    <i class="bi bi-signpost-split"></i> Touren
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    {{-- Reinigungsplanung --}}
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->is('gebaeude*') ? 'active fw-bold' : '' }}" href="{{ url('/gebaeude') }}">
-                            <i class="bi bi-building"></i> Gebäude
+                        <a class="nav-link {{ request()->is('reinigungsplanung*') ? 'active' : '' }}" 
+                           href="{{ route('reinigungsplanung.index') }}">
+                            <i class="bi bi-calendar-check"></i> Reinigung
+                            @php
+                                $offeneReinigungen = \App\Models\Gebaeude::where('faellig', true)->count();
+                            @endphp
+                            @if($offeneReinigungen > 0)
+                                <span class="nav-badge">{{ $offeneReinigungen }}</span>
+                            @endif
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('adresse*') ? 'active fw-bold' : '' }}" href="{{ url('/adresse') }}">
-                            <i class="bi bi-person-lines-fill"></i> Adressen
+
+                    {{-- Finanzen --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') ? 'active' : '' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-wallet2"></i> Finanzen
                         </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ request()->is('rechnung*') ? 'active' : '' }}" href="{{ url('/rechnung') }}">
+                                    <i class="bi bi-file-text"></i> Rechnungen
+                                    @php
+                                        $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
+                                    @endphp
+                                    @if($offeneRechnungen > 0)
+                                        <span class="dropdown-badge">{{ $offeneRechnungen }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('preis-aufschlaege*') ? 'active' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
+                                    <i class="bi bi-percent"></i> Preis-Aufschläge
+                                </a>
+                            </li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('tour*') ? 'active fw-bold' : '' }}" href="{{ url('/tour') }}">
-                            <i class="bi bi-map"></i> Touren
-                        </a>
-                    </li>
-                    {{-- ⭐ NEU: Rechnungen --}}
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('rechnung*') ? 'active fw-bold' : '' }}" href="{{ url('/rechnung') }}">
-                            <i class="bi bi-file-text"></i> Rechnungen
-                        </a>
-                    </li>
-                    {{-- Preis-Aufschläge --}}
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('preis-aufschlaege*') ? 'active fw-bold' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
-                            <i class="bi bi-percent"></i> Preis-Aufschläge
-                        </a>
-                    </li>
+
                 </ul>
 
-                {{-- 🔹 Benutzerbereich (rechts) --}}
-                <ul class="navbar-nav ms-auto">
+                {{-- Benutzer --}}
+                <div class="user-info">
                     @auth
-                    <li class="nav-item d-flex align-items-center me-2">
-                        <i class="bi bi-person-circle text-light me-1"></i>
-                        <span class="text-light small">{{ Auth::user()->name }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <form method="POST" action="{{ route('logout') }}">
+                        <i class="bi bi-person-circle"></i>
+                        <span class="d-none d-md-inline">{{ Auth::user()->name }}</span>
+                        <form method="POST" action="{{ route('logout') }}" class="d-inline ms-2">
                             @csrf
-                            <button class="btn btn-outline-light btn-sm">
-                                <i class="bi bi-box-arrow-right"></i> Logout
+                            <button type="submit" class="btn-logout">
+                                <i class="bi bi-box-arrow-right"></i>
+                                <span class="d-none d-sm-inline">Logout</span>
                             </button>
                         </form>
-                    </li>
                     @endauth
 
                     @guest
-                    <li class="nav-item">
-                        <a class="btn btn-outline-light btn-sm" href="{{ route('login') }}">
+                        <a class="btn-logout" href="{{ route('login') }}">
                             <i class="bi bi-box-arrow-in-right"></i> Login
                         </a>
-                    </li>
                     @endguest
-                </ul>
+                </div>
             </div>
         </div>
     </nav>
 
-    {{-- 🔹 Hauptinhalt --}}
-    <main class="container">
+    {{-- Hauptinhalt --}}
+    <main class="container main-content">
         @yield('content')
     </main>
 
-    {{-- 🔹 Footer --}}
+    {{-- Footer --}}
     <footer>
-        <small>&copy; {{ date('Y') }} Resch GmbH Meisterbetrieb – UschiWeb</small>
+        <small>&copy; {{ date('Y') }} Resch GmbH Meisterbetrieb — UschiWeb</small>
     </footer>
 
     {{-- Bootstrap JS --}}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    {{-- jQuery & Select2 müssen VOR den Scripts der Seiten kommen --}}
+    {{-- jQuery & Select2 --}}
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.full.min.js"></script>
 
-    {{-- 🔹 Globale Select2-Initialisierung --}}
+    {{-- Select2 Init --}}
     <script>
         function initSelect2(scope) {
             const $root = scope ? $(scope) : $(document);
@@ -205,7 +411,6 @@
         document.addEventListener('shown.bs.modal', e => initSelect2(e.target));
     </script>
 
-    {{-- 🔹 Jetzt die Seitenskripte (z. B. updateEditLink) --}}
     @stack('scripts')
 
 </body>
