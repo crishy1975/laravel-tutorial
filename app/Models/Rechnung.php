@@ -362,9 +362,28 @@ class Rechnung extends Model
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🏭 FACTORY: Rechnung aus Gebäude erstellen
-    // ═══════════════════════════════════════════════════════════
+
+
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════════
+     * ⭐ KORRIGIERTE createFromGebaeude METHODE
+     * ══════════════════════════════════════════════════════════════════════════════
+     * 
+     * PROBLEM VORHER:
+     * - Der Code berechnete einen globalen Aufschlag für ALLE Artikel
+     * - Das basis_jahr des einzelnen Artikels wurde ignoriert
+     * - Artikel mit basis_jahr=2025 bekamen trotzdem den Aufschlag für 2025
+     * 
+     * LÖSUNG:
+     * - Für JEDEN Artikel wird der Aufschlag individuell berechnet
+     * - Basierend auf dessen basis_jahr und basis_preis
+     * - Verwendet $gebaeude->berechnePreisMitKumulativerErhoehung()
+     * 
+     * ERSETZE in app/Models/Rechnung.php die Methode createFromGebaeude() 
+     * (ca. Zeilen 383-619) mit dem folgenden Code:
+     * ══════════════════════════════════════════════════════════════════════════════
+     */
 
     /**
      * Erstellt eine Rechnung aus einem Gebäude.
@@ -372,7 +391,7 @@ class Rechnung extends Model
      * Features:
      * - Kopiert Snapshots von Gebäude, Adressen, FatturaPA-Profil
      * - Übernimmt aktive Artikel als Positionen
-     * - ⭐ WICHTIG: Wendet KUMULATIV alle Preis-Aufschläge seit Basisjahr an
+     * - ⭐ KORRIGIERT: Wendet Preis-Aufschläge PRO ARTIKEL basierend auf dessen basis_jahr an
      * - Markiert Timeline-Einträge als verrechnet
      * - Berechnet Leistungsdaten aus Timeline
      * 
@@ -410,54 +429,21 @@ class Rechnung extends Model
         $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
 
         // ═══════════════════════════════════════════════════════════
-        // 💰 PREIS-AUFSCHLAG ERMITTELN (KUMULATIV)
+        // 💰 AUFSCHLAG-TYP ERMITTELN (für Tracking)
         // ═══════════════════════════════════════════════════════════
 
-        // Basisjahr für Preise (erstes Jahr mit Aufschlag)
-        $basisJahr = \App\Models\PreisAufschlag::min('jahr') ?? $jahr;
-
-        // Alle Aufschläge vom Basisjahr bis zum aktuellen Jahr sammeln
-        $alleAufschlaege = \App\Models\PreisAufschlag::where('jahr', '>=', $basisJahr)
-            ->where('jahr', '<=', $jahr)
-            ->orderBy('jahr')
-            ->get();
-
-        // Gebäude-spezifischen Aufschlag für aktuelles Jahr prüfen
+        // Prüfen ob individueller Aufschlag existiert
         $gebaeudeAufschlag = \App\Models\GebaeudeAufschlag::fuerGebaeude($gebaeude->id)
             ->gueltig(now())
             ->first();
 
-        // Aufschlag-Tracking
-        $aufschlagProzent = 0.0;
-        $aufschlagTyp = 'keiner';
-
+        $aufschlagTyp = 'global';
         if ($gebaeudeAufschlag) {
-            // Individueller Aufschlag (überschreibt globale Aufschläge)
-            $aufschlagProzent = (float) $gebaeudeAufschlag->prozent;
             $aufschlagTyp = 'individuell';
-
-            \Log::info('Individueller Aufschlag verwendet', [
-                'gebaeude_id' => $gebaeude->id,
-                'prozent'     => $aufschlagProzent,
-            ]);
-        } elseif ($alleAufschlaege->isNotEmpty()) {
-            // KUMULATIVER AUFSCHLAG: Alle Jahre multiplizieren
-            $faktor = 1.0;
-            foreach ($alleAufschlaege as $aufschlag) {
-                $faktor *= (1 + ((float) $aufschlag->prozent / 100));
-            }
-
-            // Gesamtprozent berechnen: (Faktor - 1) * 100
-            $aufschlagProzent = round(($faktor - 1) * 100, 2);
-            $aufschlagTyp = 'global';
-
-            \Log::info('Kumulativer Aufschlag berechnet', [
-                'gebaeude_id' => $gebaeude->id,
-                'jahre'       => $alleAufschlaege->pluck('jahr')->toArray(),
-                'faktor'      => $faktor,
-                'prozent'     => $aufschlagProzent,
-            ]);
         }
+
+        // ⭐ HINWEIS: aufschlag_prozent wird später aus den tatsächlichen 
+        //            Artikel-Aufschlägen berechnet (Durchschnitt/Max)
 
         // ═══════════════════════════════════════════════════════════
         // ⭐ ZAHLUNGSBEDINGUNGEN DEFAULT
@@ -466,7 +452,7 @@ class Rechnung extends Model
         $zahlungsbedingungen = $overrides['zahlungsbedingungen'] ?? Zahlungsbedingung::NETTO_30;
         $rechnungsdatum = Carbon::parse($overrides['rechnungsdatum'] ?? now());
 
-        // ⭐ Zahlungsziel automatisch berechnen
+        // Zahlungsziel automatisch berechnen
         $zahlungsziel = static::berechneZahlungsziel($rechnungsdatum, $zahlungsbedingungen);
 
         // ═══════════════════════════════════════════════════════════
@@ -484,8 +470,8 @@ class Rechnung extends Model
             // Datumsfelder
             'rechnungsdatum'          => $rechnungsdatum->toDateString(),
             'leistungsdaten'          => $leistungsdaten,
-            'zahlungsziel'            => $zahlungsziel->toDateString(),  // ⭐ Automatisch berechnet
-            'zahlungsbedingungen'     => $zahlungsbedingungen,           // ⭐ NEU
+            'zahlungsziel'            => $zahlungsziel->toDateString(),
+            'zahlungsbedingungen'     => $zahlungsbedingungen,
 
             // Status
             'status'                  => 'draft',
@@ -529,7 +515,7 @@ class Rechnung extends Model
             // FatturaPA
             'cup'                     => $gebaeude->cup,
             'cig'                     => $gebaeude->cig,
-            'codice_commessa'        => $gebaeude->codice_commessa,
+            'codice_commessa'         => $gebaeude->codice_commessa,
             'auftrag_id'              => $gebaeude->auftrag_id,
             'auftrag_datum'           => $gebaeude->auftrag_datum,
 
@@ -541,15 +527,15 @@ class Rechnung extends Model
             'ritenuta'                => $profile?->ritenuta ?? false,
             'ritenuta_prozent'        => $profile?->ritenuta ? 4.00 : null,
 
-            // Aufschlag-Tracking
-            'aufschlag_prozent'       => $aufschlagProzent,
+            // Aufschlag-Typ (wird unten aktualisiert)
+            'aufschlag_prozent'       => 0.0,
             'aufschlag_typ'           => $aufschlagTyp,
         ], $overrides));
 
         $rechnung->save();
 
         // ═══════════════════════════════════════════════════════════
-        // 📦 POSITIONEN ERSTELLEN (mit angepassten Preisen)
+        // 📦 POSITIONEN ERSTELLEN (⭐ KORRIGIERT: Pro Artikel basis_jahr!)
         // ═══════════════════════════════════════════════════════════
 
         $artikelListe = $gebaeude->aktiveArtikel()
@@ -557,37 +543,55 @@ class Rechnung extends Model
             ->get();
 
         $position = 1;
+        $totalAufschlag = 0.0;
+        $artikelMitAufschlag = 0;
 
         foreach ($artikelListe as $artikel) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
 
-            // ⭐ HIER: Preis mit kumulativem Aufschlag berechnen
-            $originalPreis = (float) $artikel->einzelpreis;
-            $einzelpreisAngepasst = $originalPreis;
+            // ⭐ KORRIGIERT: Preis mit kumulativem Aufschlag basierend auf ARTIKEL basis_jahr
+            $basisPreis = (float) ($artikel->basis_preis ?? $artikel->einzelpreis);
+            $artikelBasisJahr = (int) ($artikel->basis_jahr ?? $jahr);
 
-            if ($aufschlagProzent != 0) {
-                $aufschlagBetrag = round($originalPreis * ($aufschlagProzent / 100), 2);
-                $einzelpreisAngepasst = round($originalPreis + $aufschlagBetrag, 2);
+            // Berechne den angepassten Preis für diesen Artikel
+            $einzelpreisAngepasst = $gebaeude->berechnePreisMitKumulativerErhoehung(
+                $basisPreis,
+                $artikelBasisJahr,
+                $jahr
+            );
 
-                \Log::debug('Preis angepasst (kumulativ)', [
-                    'artikel'         => $artikel->beschreibung,
-                    'original'        => $originalPreis,
-                    'aufschlag'       => $aufschlagBetrag,
-                    'neu'             => $einzelpreisAngepasst,
-                    'prozent'         => $aufschlagProzent,
-                    'jahre'           => $alleAufschlaege->pluck('jahr')->toArray(),
-                ]);
+            // Aufschlag-Tracking
+            $aufschlagBetrag = $einzelpreisAngepasst - $basisPreis;
+            if ($aufschlagBetrag > 0 && $basisPreis > 0) {
+                $prozent = ($aufschlagBetrag / $basisPreis) * 100;
+                $totalAufschlag += $prozent;
+                $artikelMitAufschlag++;
             }
+
+            \Log::debug('Preis angepasst (pro Artikel basis_jahr)', [
+                'artikel'          => $artikel->beschreibung,
+                'basis_preis'      => $basisPreis,
+                'basis_jahr'       => $artikelBasisJahr,
+                'ziel_jahr'        => $jahr,
+                'neu'              => $einzelpreisAngepasst,
+                'aufschlag_betrag' => $aufschlagBetrag,
+            ]);
 
             $rechnung->positionen()->create([
                 'position'             => $position++,
                 'beschreibung'         => $artikel->beschreibung,
                 'anzahl'               => $artikel->anzahl,
                 'einheit'              => 'Stk',
-                'einzelpreis'          => $einzelpreisAngepasst, // ⭐ Angepasster Preis (kumulativ)
+                'einzelpreis'          => $einzelpreisAngepasst,
                 'mwst_satz'            => $mwstSatz,
                 'artikel_gebaeude_id'  => $artikel->id,
             ]);
+        }
+
+        // ⭐ Durchschnittlichen Aufschlag speichern (für Tracking)
+        if ($artikelMitAufschlag > 0) {
+            $durchschnittsAufschlag = round($totalAufschlag / $artikelMitAufschlag, 2);
+            $rechnung->update(['aufschlag_prozent' => $durchschnittsAufschlag]);
         }
 
         // Abschließende Neuberechnung aller Summen
@@ -617,6 +621,10 @@ class Rechnung extends Model
 
         return $rechnung;
     }
+
+
+
+
 
     /**
      * Formatiert Timeline-Einträge zu einem Leistungsdaten-String.

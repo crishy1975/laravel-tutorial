@@ -3,20 +3,20 @@
 namespace App\Enums;
 
 /**
- * Enum für Rechnungs-Log Typen
+ * Enum fuer Rechnungs-Log Typen
  * 
  * Kategorien:
  * - DOKUMENT: XML, PDF, Mahnung
  * - VERSAND: Email, Post, PEC
  * - KOMMUNIKATION: Telefon, Mitteilung
- * - STATUS: Änderungen am Rechnungsstatus
- * - ZAHLUNG: Zahlungseingänge
+ * - STATUS: Aenderungen am Rechnungsstatus
+ * - ZAHLUNG: Zahlungseingaenge
  * - SYSTEM: Automatische Aktionen
  */
 enum RechnungLogTyp: string
 {
     // ═══════════════════════════════════════════════════════════
-    // 📄 DOKUMENTE
+    // DOKUMENTE
     // ═══════════════════════════════════════════════════════════
     
     case XML_ERSTELLT = 'xml_erstellt';
@@ -35,7 +35,7 @@ enum RechnungLogTyp: string
     case MAHNUNG_VERSANDT = 'mahnung_versandt';
     
     // ═══════════════════════════════════════════════════════════
-    // 📧 VERSAND
+    // VERSAND
     // ═══════════════════════════════════════════════════════════
     
     case EMAIL_VERSANDT = 'email_versandt';
@@ -49,7 +49,7 @@ enum RechnungLogTyp: string
     case POST_VERSANDT = 'post_versandt';
     
     // ═══════════════════════════════════════════════════════════
-    // 📞 KOMMUNIKATION
+    // KOMMUNIKATION
     // ═══════════════════════════════════════════════════════════
     
     case TELEFONAT = 'telefonat';
@@ -64,7 +64,7 @@ enum RechnungLogTyp: string
     case RUECKRUF_ERLEDIGT = 'rueckruf_erledigt';
     
     // ═══════════════════════════════════════════════════════════
-    // 🔄 STATUS-ÄNDERUNGEN
+    // STATUS-AENDERUNGEN
     // ═══════════════════════════════════════════════════════════
     
     case STATUS_ENTWURF = 'status_entwurf';
@@ -72,9 +72,10 @@ enum RechnungLogTyp: string
     case STATUS_BEZAHLT = 'status_bezahlt';
     case STATUS_STORNIERT = 'status_storniert';
     case STATUS_UEBERFAELLIG = 'status_ueberfaellig';
+    case STATUS_GEAENDERT = 'status_geaendert';  // NEU: Allgemeine Status-Aenderung
     
     // ═══════════════════════════════════════════════════════════
-    // 💰 ZAHLUNGEN
+    // ZAHLUNGEN
     // ═══════════════════════════════════════════════════════════
     
     case ZAHLUNG_EINGEGANGEN = 'zahlung_eingegangen';
@@ -83,7 +84,7 @@ enum RechnungLogTyp: string
     case ZAHLUNG_ERINNERUNG = 'zahlung_erinnerung';
     
     // ═══════════════════════════════════════════════════════════
-    // ⚙️ SYSTEM / SONSTIGES
+    // SYSTEM / SONSTIGES
     // ═══════════════════════════════════════════════════════════
     
     case RECHNUNG_ERSTELLT = 'rechnung_erstellt';
@@ -99,11 +100,11 @@ enum RechnungLogTyp: string
     case EXPORT = 'export';
 
     // ═══════════════════════════════════════════════════════════
-    // 🏷️ LABELS & ICONS
+    // LABELS & ICONS
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Deutsches Label für Anzeige
+     * Deutsches Label fuer Anzeige
      */
     public function label(): string
     {
@@ -138,26 +139,27 @@ enum RechnungLogTyp: string
             // Kommunikation
             self::TELEFONAT => 'Telefonat',
             self::TELEFONAT_EINGEHEND => 'Anruf erhalten',
-            self::TELEFONAT_AUSGEHEND => 'Anruf getätigt',
+            self::TELEFONAT_AUSGEHEND => 'Anruf getaetigt',
             self::TELEFONAT_VERPASST => 'Anruf verpasst',
             
             self::MITTEILUNG_KUNDE => 'Mitteilung vom Kunden',
             self::MITTEILUNG_INTERN => 'Interne Notiz',
             
-            self::RUECKRUF_ANGEFORDERT => 'Rückruf angefordert',
-            self::RUECKRUF_ERLEDIGT => 'Rückruf erledigt',
+            self::RUECKRUF_ANGEFORDERT => 'Rueckruf angefordert',
+            self::RUECKRUF_ERLEDIGT => 'Rueckruf erledigt',
             
             // Status
             self::STATUS_ENTWURF => 'Status: Entwurf',
             self::STATUS_VERSENDET => 'Status: Versendet',
             self::STATUS_BEZAHLT => 'Status: Bezahlt',
             self::STATUS_STORNIERT => 'Status: Storniert',
-            self::STATUS_UEBERFAELLIG => 'Status: Überfällig',
+            self::STATUS_UEBERFAELLIG => 'Status: Ueberfaellig',
+            self::STATUS_GEAENDERT => 'Status geaendert',  // NEU
             
             // Zahlungen
             self::ZAHLUNG_EINGEGANGEN => 'Zahlung eingegangen',
             self::ZAHLUNG_TEILWEISE => 'Teilzahlung eingegangen',
-            self::ZAHLUNG_RUECKBUCHUNG => 'Rückbuchung',
+            self::ZAHLUNG_RUECKBUCHUNG => 'Rueckbuchung',
             self::ZAHLUNG_ERINNERUNG => 'Zahlungserinnerung',
             
             // System
@@ -216,6 +218,7 @@ enum RechnungLogTyp: string
             self::STATUS_BEZAHLT => 'bi-check-circle',
             self::STATUS_STORNIERT => 'bi-x-circle',
             self::STATUS_UEBERFAELLIG => 'bi-alarm',
+            self::STATUS_GEAENDERT => 'bi-arrow-repeat',  // NEU
             
             // Zahlungen
             self::ZAHLUNG_EINGEGANGEN, self::ZAHLUNG_TEILWEISE => 'bi-currency-euro',
@@ -238,12 +241,12 @@ enum RechnungLogTyp: string
     }
 
     /**
-     * Bootstrap Farbe für Badge
+     * Bootstrap Farbe fuer Badge
      */
     public function farbe(): string
     {
         return match($this) {
-            // Erfolg (grün)
+            // Erfolg (gruen)
             self::XML_AKZEPTIERT, self::XML_ZUGESTELLT, self::STATUS_BEZAHLT,
             self::ZAHLUNG_EINGEGANGEN, self::PEC_ZUGESTELLT,
             self::RUECKRUF_ERLEDIGT => 'success',
@@ -251,7 +254,8 @@ enum RechnungLogTyp: string
             // Info (blau)
             self::XML_ERSTELLT, self::XML_VALIDIERT, self::XML_SIGNIERT,
             self::PDF_ERSTELLT, self::EMAIL_VERSANDT, self::EMAIL_GELESEN,
-            self::RECHNUNG_ERSTELLT, self::RECHNUNG_BEARBEITET => 'info',
+            self::RECHNUNG_ERSTELLT, self::RECHNUNG_BEARBEITET,
+            self::STATUS_GEAENDERT => 'info',  // NEU
             
             // Primary (dunkelblau)
             self::XML_VERSANDT, self::PDF_VERSANDT, self::PEC_VERSANDT,
@@ -279,7 +283,7 @@ enum RechnungLogTyp: string
     }
 
     /**
-     * Kategorie für Gruppierung
+     * Kategorie fuer Gruppierung
      */
     public function kategorie(): string
     {
@@ -299,7 +303,8 @@ enum RechnungLogTyp: string
             self::RUECKRUF_ANGEFORDERT, self::RUECKRUF_ERLEDIGT => 'kommunikation',
             
             self::STATUS_ENTWURF, self::STATUS_VERSENDET, self::STATUS_BEZAHLT,
-            self::STATUS_STORNIERT, self::STATUS_UEBERFAELLIG => 'status',
+            self::STATUS_STORNIERT, self::STATUS_UEBERFAELLIG,
+            self::STATUS_GEAENDERT => 'status',  // NEU
             
             self::ZAHLUNG_EINGEGANGEN, self::ZAHLUNG_TEILWEISE,
             self::ZAHLUNG_RUECKBUCHUNG, self::ZAHLUNG_ERINNERUNG => 'zahlung',

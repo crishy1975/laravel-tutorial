@@ -6,9 +6,10 @@
     {{-- ⭐ TITEL DYNAMISCH --}}
     <title>{{ $rechnung->typ_rechnung === 'gutschrift' ? 'Gutschrift' : 'Rechnung' }} {{ $rechnung->rechnungsnummer }}</title>
     <style>
-        /* ═══════════════════════════════════════════════════════════
-           SCHWARZ-WEISS PDF (S/W-Drucker optimiert)
-        ═══════════════════════════════════════════════════════════ */
+        /* ═══════════════════════════════════════════════════════════════
+           MODERNES FARBIGES PDF - dompdf-kompatibel
+           Primärfarbe: #1a4a7c (Dunkelblau)
+        ═══════════════════════════════════════════════════════════════ */
         
         /* BASIS */
         * {
@@ -21,16 +22,18 @@
             font-family: DejaVu Sans, sans-serif;
             font-size: 8pt;
             line-height: 1.3;
-            color: #000;
-            background: #fff;
+            color: #333;
+            background-color: #fff;
             padding: 10mm;
         }
         
         /* BRIEFKOPF */
         .letterhead {
             margin-bottom: 4mm;
-            padding-bottom: 3mm;
-            border-bottom: 2px solid #000;
+            padding: 3mm;
+            padding-bottom: 4mm;
+            border-bottom: 3px solid #1a4a7c;
+            background-color: #f8fafc;
         }
         
         .letterhead-row {
@@ -52,18 +55,20 @@
         }
         
         .company-name {
-            font-size: 11pt;
+            font-size: 12pt;
             font-weight: bold;
             margin-bottom: 2mm;
+            color: #1a4a7c;
         }
         
         .company-info {
             font-size: 7.5pt;
             line-height: 1.4;
+            color: #555;
         }
         
         .logo {
-            max-width: 200px;
+            max-width: 220px;
             max-height: 70px;
             margin-bottom: 2mm;
         }
@@ -92,41 +97,38 @@
             padding-right: 0;
         }
         
-        .address-col.post {
-            width: 33%;
-        }
-        
-        .address-col.billing {
-            width: 33%;
-        }
-        
+        .address-col.post,
+        .address-col.billing,
         .address-col.data {
-            width: 34%;
+            width: 33.33%;
         }
         
         .address-box {
-            border: none;
             padding: 2mm;
             min-height: 24mm;
+            background-color: transparent;
         }
         
         .address-label {
-            font-size: 7pt;
+            font-size: 7.5pt;
             font-weight: bold;
             margin-bottom: 1.5mm;
-            border-bottom: 1px solid #000;
-            padding-bottom: 0.5mm;
+            padding: 1.5mm 2mm;
+            background-color: #1a4a7c;
+            color: #fff;
         }
         
         .address-content {
             font-size: 8pt;
             line-height: 1.4;
+            padding: 1mm;
         }
         
         .address-name {
             font-weight: bold;
             font-size: 9pt;
             margin-bottom: 1mm;
+            color: #1a4a7c;
         }
         
         /* Rechnungsdaten-Tabelle */
@@ -142,36 +144,40 @@
         .invoice-data-table .label {
             font-weight: bold;
             width: 40%;
+            color: #555;
         }
         
         /* TITEL */
         .invoice-title {
-            font-size: 14pt;
+            font-size: 12pt;
             font-weight: bold;
-            margin: 4mm 0 2mm 0;
+            margin: 3mm 0 2mm 0;
             text-align: center;
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
             padding: 2mm 0;
+            background-color: #1a4a7c;
+            color: #fff;
+            letter-spacing: 1px;
         }
         
-        /* ⭐ GUTSCHRIFT-TITEL (rot hervorgehoben) */
+        /* GUTSCHRIFT-TITEL (orange) */
         .invoice-title.gutschrift {
-            background: #f5f5f5;
+            background-color: #d97706;
         }
         
         /* CAUSALE BOX */
         .causale-box {
-            border: 2px solid #000;
+            border: 1px solid #1a4a7c;
             padding: 3mm;
             margin: 4mm 0;
             font-size: 8.5pt;
+            background-color: #f0f7ff;
         }
         
         .causale-label {
             font-weight: bold;
             margin-bottom: 1mm;
             font-size: 9pt;
+            color: #1a4a7c;
         }
         
         .causale-text {
@@ -187,14 +193,12 @@
         }
         
         .items-table th {
-            background: #fff;
-            color: #000;
+            background-color: #1a4a7c;
+            color: #fff;
             font-weight: bold;
             padding: 2mm;
             text-align: left;
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
-            font-size: 8pt;
+            font-size: 7.5pt;
         }
         
         .items-table th.right,
@@ -204,11 +208,15 @@
         
         .items-table td {
             padding: 1.5mm 2mm;
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .items-table tr:nth-child(even) td {
+            background-color: #f8fafc;
         }
         
         .items-table tr:last-child td {
-            border-bottom: 2px solid #000;
+            border-bottom: 2px solid #1a4a7c;
         }
         
         /* Zweisprachige Header */
@@ -221,8 +229,7 @@
         }
         
         .bilingual .it {
-            font-style: italic;
-            font-size: 7pt;
+            font-weight: normal;
         }
         
         /* SUMMEN */
@@ -235,15 +242,17 @@
         .totals-table {
             width: 100%;
             border-collapse: collapse;
+            border: 1px solid #ccc;
         }
         
         .totals-table td {
             padding: 1.5mm 2mm;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid #ddd;
         }
         
         .totals-table .label {
             font-size: 7.5pt;
+            color: #555;
         }
         
         .totals-table .value {
@@ -253,29 +262,64 @@
         }
         
         .totals-table tr.total {
-            border-top: 2px solid #000;
-            border-bottom: 2px solid #000;
+            background-color: #1a4a7c;
         }
         
         .totals-table tr.total td {
             padding: 2.5mm 2mm;
             font-size: 10pt;
             border-bottom: none;
+            color: #fff;
+        }
+        
+        .totals-table tr.total .label {
+            color: #fff;
+        }
+        
+        /* Hinweis-Zeilen in Summen */
+        .hint-row-yellow td {
+            background-color: #fef3c7;
+            border-left: 3px solid #d97706;
+        }
+        
+        .hint-row-blue td {
+            background-color: #e0f2fe;
+            border-left: 3px solid #0284c7;
         }
         
         /* INFO BOXEN */
         .info-box {
-            border: 1px solid #000;
+            border: 1px solid #ddd;
             padding: 3mm;
             margin-top: 5mm;
             font-size: 7.5pt;
+            background-color: #f8fafc;
         }
         
         .info-box h3 {
             font-size: 8pt;
             margin-bottom: 2mm;
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #ddd;
             padding-bottom: 1mm;
+            color: #1a4a7c;
+        }
+        
+        .info-box.success {
+            border-color: #16a34a;
+            background-color: #f0fdf4;
+        }
+        
+        .info-box.success h3 {
+            color: #16a34a;
+        }
+        
+        .info-box.warning {
+            border-color: #d97706;
+            background-color: #fffbeb;
+        }
+        
+        .info-box.warning h3 {
+            color: #d97706;
         }
         
         /* FOOTER */
@@ -286,9 +330,9 @@
             right: 10mm;
             font-size: 6.5pt;
             text-align: center;
-            border-top: 1px solid #000;
+            border-top: 2px solid #1a4a7c;
             padding-top: 2mm;
-            color: #333;
+            color: #555;
         }
         
         /* PAGE BREAK */
@@ -354,7 +398,7 @@
                 </div>
                 
                 <div class="letterhead-right">
-                    <div style="font-size: 7.5pt; line-height: 1.4;">
+                    <div style="font-size: 7.5pt; line-height: 1.5;">
                         @if($unternehmen)
                             @if($unternehmen->telefon)<strong>Tel:</strong> {{ $unternehmen->telefon }}<br>@endif
                             @if($unternehmen->email)<strong>E-Mail:</strong> {{ $unternehmen->email }}<br>@endif
@@ -363,7 +407,7 @@
                             @if($unternehmen->codice_fiscale)<strong>CF:</strong> {{ $unternehmen->codice_fiscale }}@endif
                         @else
                             <strong>Tel:</strong> +39 0471 123456<br>
-                            <strong>E-Mail:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ed84838b82ad88958c809d8188c38e8280">[email&#160;protected]</a><br>
+                            <strong>E-Mail:</strong> info@example.com<br>
                             <strong>P.IVA:</strong> 12345678901
                         @endif
                     </div>
@@ -379,8 +423,7 @@
                 <div class="address-col post">
                     <div class="address-box">
                         <div class="address-label">
-                            <span class="de">Postadresse</span><br>
-                            <span class="it" style="font-style: italic; font-size: 6.5pt;">Indirizzo Postale</span>
+                            Postadresse / Indirizzo Postale
                         </div>
                         <div class="address-content">
                             @if($rechnung->post_name)
@@ -403,8 +446,7 @@
                 <div class="address-col billing">
                     <div class="address-box">
                         <div class="address-label">
-                            <span class="de">Rechnungsempfänger</span><br>
-                            <span class="it" style="font-style: italic; font-size: 6.5pt;">Destinatario Fattura</span>
+                            Empfänger / Destinatario
                         </div>
                         <div class="address-content">
                             @if($rechnung->re_name)
@@ -439,61 +481,31 @@
                         <div class="address-label">
                             {{-- ⭐ DYNAMISCH: Rechnungsdaten / Gutschriftdaten --}}
                             @if($rechnung->typ_rechnung === 'gutschrift')
-                                <span class="de">Gutschriftdaten</span><br>
-                                <span class="it" style="font-style: italic; font-size: 6.5pt;">Dati Nota di Credito</span>
+                                Gutschriftdaten / Dati Credito
                             @else
-                                <span class="de">Rechnungsdaten</span><br>
-                                <span class="it" style="font-style: italic; font-size: 6.5pt;">Dati Fattura</span>
+                                Rechnungsdaten / Dati Fattura
                             @endif
                         </div>
                         <div class="address-content">
                             <table class="invoice-data-table">
                                 <tr>
-                                    <td class="label">
-                                        {{-- ⭐ DYNAMISCH: Rechnung-Nr. / Gutschrift-Nr. --}}
-                                        @if($rechnung->typ_rechnung === 'gutschrift')
-                                            <span class="de">Gutschrift-Nr.:</span><br>
-                                            <span class="it" style="font-style: italic; font-size: 6.5pt;">N. Credito:</span>
-                                        @else
-                                            <span class="de">Rechnung-Nr.:</span><br>
-                                            <span class="it" style="font-style: italic; font-size: 6.5pt;">Fattura N.:</span>
-                                        @endif
-                                    </td>
-                                    <td><strong>{{ $rechnung->rechnungsnummer }}</strong></td>
+                                    <td class="label">Nr. / N.:</td>
+                                    <td><strong style="color: #1a4a7c;">{{ $rechnung->rechnungsnummer }}</strong></td>
                                 </tr>
                                 <tr>
-                                    <td class="label">
-                                        <span class="de">Datum:</span><br>
-                                        <span class="it" style="font-style: italic; font-size: 6.5pt;">Data:</span>
-                                    </td>
+                                    <td class="label">Datum / Data:</td>
                                     <td>{{ $rechnung->rechnungsdatum->format('d.m.Y') }}</td>
                                 </tr>
                                 @if($rechnung->leistungsdatum)
                                 <tr>
-                                    <td class="label">
-                                        <span class="de">Leistung:</span><br>
-                                        <span class="it" style="font-style: italic; font-size: 6.5pt;">Prestazione:</span>
-                                    </td>
+                                    <td class="label">Leistung / Prestazione:</td>
                                     <td>{{ $rechnung->leistungsdatum->format('d.m.Y') }}</td>
                                 </tr>
                                 @endif
                                 @if($rechnung->faelligkeitsdatum && $rechnung->typ_rechnung !== 'gutschrift')
                                 <tr>
-                                    <td class="label">
-                                        <span class="de">Fällig:</span><br>
-                                        <span class="it" style="font-style: italic; font-size: 6.5pt;">Scadenza:</span>
-                                    </td>
+                                    <td class="label">Fällig / Scadenza:</td>
                                     <td>{{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}</td>
-                                </tr>
-                                @endif
-                                {{-- ⭐ KORRIGIERT: fattura_causale statt causale --}}
-                                @if($rechnung->fattura_causale)
-                                <tr>
-                                    <td class="label">
-                                        <span class="de">Causale:</span><br>
-                                        <span class="it" style="font-style: italic; font-size: 6.5pt;">Causale:</span>
-                                    </td>
-                                    <td style="font-size: 7pt;">{{ Str::limit($rechnung->fattura_causale, 50) }}</td>
                                 </tr>
                                 @endif
                             </table>
@@ -507,14 +519,13 @@
         {{-- ⭐⭐⭐ TITEL DYNAMISCH: RECHNUNG vs. GUTSCHRIFT ⭐⭐⭐ --}}
         <div class="invoice-title {{ $rechnung->typ_rechnung === 'gutschrift' ? 'gutschrift' : '' }}">
             @if($rechnung->typ_rechnung === 'gutschrift')
-                GUTSCHRIFT / NOTA DI CREDITO<br>
+                GUTSCHRIFT / NOTA DI CREDITO Nr. {{ $rechnung->rechnungsnummer }}
             @else
-                RECHNUNG / FATTURA<br>
+                RECHNUNG / FATTURA Nr. {{ $rechnung->rechnungsnummer }}
             @endif
-            <span style="font-size: 12pt;">{{ $rechnung->rechnungsnummer }}</span>
         </div>
         
-        {{-- ⭐⭐⭐ CAUSALE (Rechnungsgrund) - KORRIGIERT: fattura_causale ⭐⭐⭐ --}}
+        {{-- ⭐⭐⭐ CAUSALE (Rechnungsgrund) --}}
         @if($rechnung->fattura_causale)
         <div class="causale-box">
             <div class="causale-label">
@@ -535,40 +546,22 @@
             <thead>
                 <tr>
                     <th style="width: 8%;">
-                        <span class="bilingual">
-                            <span class="de">Pos.</span><br>
-                            <span class="it">Pos.</span>
-                        </span>
+                        Pos.
                     </th>
                     <th style="width: 42%;">
-                        <span class="bilingual">
-                            <span class="de">Beschreibung</span><br>
-                            <span class="it">Descrizione</span>
-                        </span>
+                        Beschreibung / Descrizione
                     </th>
                     <th class="right" style="width: 10%;">
-                        <span class="bilingual">
-                            <span class="de">Menge</span><br>
-                            <span class="it">Quantità</span>
-                        </span>
+                        Menge / Quantità
                     </th>
                     <th class="right" style="width: 12%;">
-                        <span class="bilingual">
-                            <span class="de">Einheit</span><br>
-                            <span class="it">Unità</span>
-                        </span>
+                        Einheit / Unità
                     </th>
                     <th class="right" style="width: 14%;">
-                        <span class="bilingual">
-                            <span class="de">Einzelpreis</span><br>
-                            <span class="it">Prezzo Unit.</span>
-                        </span>
+                        Einzelpreis / Prezzo
                     </th>
                     <th class="right" style="width: 14%;">
-                        <span class="bilingual">
-                            <span class="de">Gesamt</span><br>
-                            <span class="it">Totale</span>
-                        </span>
+                        Gesamt / Totale
                     </th>
                 </tr>
             </thead>
@@ -577,10 +570,10 @@
                 <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $pos->beschreibung }}</td>
-                    <td class="right">{{ number_format($pos->menge, 2, ',', '.') }}</td>
+                    <td class="right">{{ number_format($pos->anzahl, 2, ',', '.') }}</td>
                     <td class="right">{{ $pos->einheit ?? 'Stk' }}</td>
                     <td class="right">{{ number_format($pos->einzelpreis, 2, ',', '.') }} €</td>
-                    <td class="right">{{ number_format($pos->gesamtpreis, 2, ',', '.') }} €</td>
+                    <td class="right">{{ number_format($pos->netto_gesamt, 2, ',', '.') }} €</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -591,8 +584,7 @@
             <table class="totals-table">
                 <tr>
                     <td class="label">
-                        <span class="de">Zwischensumme (Netto)</span><br>
-                        <span class="it" style="font-style: italic; font-size: 7pt;">Subtotale (Netto)</span>
+                        Zwischensumme (Netto) / Subtotale (Netto)
                     </td>
                     <td class="value">{{ number_format($rechnung->netto_summe, 2, ',', '.') }} €</td>
                 </tr>
@@ -600,8 +592,7 @@
                 {{-- MwSt - IMMER anzeigen (auch bei 0%) --}}
                 <tr>
                     <td class="label">
-                        <span class="de">MwSt {{ number_format($rechnung->mwst_satz, 1) }}%</span><br>
-                        <span class="it" style="font-style: italic; font-size: 7pt;">IVA {{ number_format($rechnung->mwst_satz, 1) }}%</span>
+                        MwSt / IVA {{ number_format($rechnung->mwst_satz, 1) }}%
                     </td>
                     <td class="value">
                         @if($rechnung->mwst_betrag > 0)
@@ -612,25 +603,25 @@
                     </td>
                 </tr>
                 
-                {{-- Reverse Charge Zeile (SEPARATE ZEILE!) --}}
+                {{-- Reverse Charge Zeile --}}
                 @if($rechnung->reverse_charge)
-                <tr>
-                    <td colspan="2" style="padding: 2mm; border-bottom: 1px solid #000; font-size: 7.5pt;">
-                        <strong>⚠ Reverse Charge</strong> - Umkehrung der Steuerschuldnerschaft<br>
-                        <span style="font-style: italic;">
-                            Inversione contabile (Art. 17 DPR 633/72) - IVA a carico del committente
+                <tr class="hint-row-yellow">
+                    <td colspan="2" style="padding: 2mm; font-size: 7pt;">
+                        <strong>! Reverse Charge</strong> - Umkehrung der Steuerschuldnerschaft<br>
+                        <span style="font-style: italic; color: #666;">
+                            Inversione contabile (Art. 17 DPR 633/72)
                         </span>
                     </td>
                 </tr>
                 @endif
                 
-                {{-- Split Payment Zeile (SEPARATE ZEILE!) --}}
+                {{-- Split Payment Zeile --}}
                 @if($rechnung->split_payment)
-                <tr>
-                    <td colspan="2" style="padding: 2mm; border-bottom: 1px solid #000; font-size: 7.5pt;">
-                        <strong>⚠ Split Payment</strong> - Geteilte Zahlung<br>
-                        <span style="font-style: italic;">
-                            Scissione dei pagamenti (Legge 190/2014) - IVA versata dall'ente pubblico
+                <tr class="hint-row-blue">
+                    <td colspan="2" style="padding: 2mm; font-size: 7pt;">
+                        <strong>! Split Payment</strong> - Geteilte Zahlung<br>
+                        <span style="font-style: italic; color: #666;">
+                            Scissione dei pagamenti (Legge 190/2014)
                         </span>
                     </td>
                 </tr>
@@ -639,22 +630,18 @@
                 @if($rechnung->ritenuta_betrag > 0)
                 <tr>
                     <td class="label">
-                        <span class="de">Quellensteuer {{ number_format($rechnung->ritenuta_prozent, 1) }}%</span><br>
-                        <span class="it" style="font-style: italic; font-size: 7pt;">Ritenuta {{ number_format($rechnung->ritenuta_prozent, 1) }}%</span>
+                        - Quellensteuer / Ritenuta {{ number_format($rechnung->ritenuta_prozent, 1) }}%
                     </td>
-                    <td class="value">-{{ number_format($rechnung->ritenuta_betrag, 2, ',', '.') }} €</td>
+                    <td class="value" style="color: #dc2626;">-{{ number_format($rechnung->ritenuta_betrag, 2, ',', '.') }} €</td>
                 </tr>
                 @endif
                 
                 <tr class="total">
                     <td class="label">
-                        {{-- ⭐ DYNAMISCH: GESAMTBETRAG vs. GUTSCHRIFTBETRAG --}}
                         @if($rechnung->typ_rechnung === 'gutschrift')
-                            <span class="de">GUTSCHRIFTBETRAG</span><br>
-                            <span class="it" style="font-style: italic; font-size: 8pt;">IMPORTO CREDITO</span>
+                            GUTSCHRIFTBETRAG / IMPORTO CREDITO
                         @else
-                            <span class="de">GESAMTBETRAG</span><br>
-                            <span class="it" style="font-style: italic; font-size: 8pt;">IMPORTO TOTALE</span>
+                            GESAMTBETRAG / IMPORTO TOTALE
                         @endif
                     </td>
                     <td class="value">{{ number_format($rechnung->brutto_summe, 2, ',', '.') }} €</td>
@@ -666,7 +653,7 @@
         
         {{-- REVERSE CHARGE / SPLIT PAYMENT HINWEISE --}}
         @if($rechnung->reverse_charge || $rechnung->split_payment)
-        <div class="info-box">
+        <div class="info-box warning">
             <h3>Steuerrechtliche Hinweise / Note Fiscali</h3>
             
             @if($rechnung->reverse_charge)
@@ -693,42 +680,32 @@
         
         {{-- ZAHLUNGSINFORMATIONEN (nur bei Rechnung, nicht bei Gutschrift) --}}
         @if($rechnung->typ_rechnung !== 'gutschrift')
-        <div class="info-box">
+        <div class="info-box {{ ($rechnung->status === 'paid' || $rechnung->istAlsBezahltMarkiert()) ? 'success' : '' }}">
             {{-- ⭐⭐⭐ BEZAHLT: Anderer Titel und Inhalt ⭐⭐⭐ --}}
             @if($rechnung->status === 'paid' || $rechnung->istAlsBezahltMarkiert())
-                <h3 style="color: #000;">✓ Bezahlt / Pagato</h3>
+                <h3>BEZAHLT / PAGATO</h3>
                 <table style="width: 100%; font-size: 7.5pt;">
                     <tr>
-                        <td style="width: 30%; font-weight: bold;">
-                            Status:
-                        </td>
-                        <td style="font-weight: bold;">
-                            ✓ Bezahlt / Pagato
-                        </td>
+                        <td style="width: 30%; font-weight: bold;">Status:</td>
+                        <td style="font-weight: bold; color: #16a34a;">Bezahlt / Pagato</td>
                     </tr>
                     @if($rechnung->bezahlt_am)
                     <tr>
-                        <td style="font-weight: bold;">
-                            Bezahlt am / Pagato il:
-                        </td>
+                        <td style="font-weight: bold;">Bezahlt am:</td>
                         <td>{{ $rechnung->bezahlt_am->format('d.m.Y') }}</td>
                     </tr>
                     @endif
                     <tr>
-                        <td style="font-weight: bold;">
-                            Rechnungsdatum / Data fattura:
-                        </td>
+                        <td style="font-weight: bold;">Rechnungsdatum:</td>
                         <td>{{ $rechnung->rechnungsdatum->format('d.m.Y') }}</td>
                     </tr>
                 </table>
             @else
-                {{-- ⭐ UNBEZAHLT: Normale Zahlungsinformationen mit Bankdaten --}}
+                {{-- UNBEZAHLT: Normale Zahlungsinformationen mit Bankdaten --}}
                 <h3>Zahlungsinformationen / Informazioni di Pagamento</h3>
                 <table style="width: 100%; font-size: 7.5pt;">
                     <tr>
-                        <td style="width: 30%; font-weight: bold;">
-                            Zahlungsziel / Scadenza:
-                        </td>
+                        <td style="width: 30%; font-weight: bold;">Zahlungsziel:</td>
                         <td>
                             @if($rechnung->faelligkeitsdatum)
                                 {{ $rechnung->faelligkeitsdatum->format('d.m.Y') }}
@@ -738,23 +715,19 @@
                         </td>
                     </tr>
                     <tr>
-                        <td style="font-weight: bold;">
-                            Zahlungsart / Modalità:
-                        </td>
+                        <td style="font-weight: bold;">Zahlungsart:</td>
                         <td>{{ $rechnung->zahlungsart ?? 'Banküberweisung / Bonifico Bancario' }}</td>
                     </tr>
                     @if($unternehmen && $unternehmen->bank_name)
                     <tr>
-                        <td style="font-weight: bold;">
-                            Bank / Banca:
-                        </td>
+                        <td style="font-weight: bold;">Bank:</td>
                         <td>{{ $unternehmen->bank_name }}</td>
                     </tr>
                     @endif
                     @if($unternehmen && $unternehmen->iban)
                     <tr>
                         <td style="font-weight: bold;">IBAN:</td>
-                        <td>{{ $unternehmen->iban }}</td>
+                        <td><strong>{{ $unternehmen->iban }}</strong></td>
                     </tr>
                     @endif
                     @if($unternehmen && $unternehmen->bic)
@@ -802,7 +775,7 @@
                 @endif
                 @if($rechnung->auftrag_id)
                 <tr>
-                    <td style="font-weight: bold;">Auftrags-ID / ID Ordine:</td>
+                    <td style="font-weight: bold;">Auftrags-ID:</td>
                     <td>{{ $rechnung->auftrag_id }}</td>
                 </tr>
                 @endif
@@ -823,14 +796,14 @@
     {{-- FOOTER --}}
     <div class="footer">
         @if($unternehmen)
-            <strong>{{ $unternehmen->firmenname }}</strong> · 
+            <strong>{{ $unternehmen->firmenname }}</strong> | 
             {{ $unternehmen->strasse }} {{ $unternehmen->hausnummer }}, {{ $unternehmen->postleitzahl }} {{ $unternehmen->ort }}
-            @if($unternehmen->codice_fiscale) · CF: {{ $unternehmen->codice_fiscale }}@endif
-            @if($unternehmen->partita_iva) · P.IVA: {{ $unternehmen->partita_iva }}@endif
-            @if($unternehmen->telefon) · Tel: {{ $unternehmen->telefon }}@endif
-            @if($unternehmen->email) · {{ $unternehmen->email }}@endif
+            @if($unternehmen->codice_fiscale) | CF: {{ $unternehmen->codice_fiscale }}@endif
+            @if($unternehmen->partita_iva) | P.IVA: {{ $unternehmen->partita_iva }}@endif
+            @if($unternehmen->telefon) | Tel: {{ $unternehmen->telefon }}@endif
+            @if($unternehmen->email) | {{ $unternehmen->email }}@endif
         @else
-            Meisterbetrieb Resch GmbH · Musterstraße 123, 39100 Bozen · P.IVA: 12345678901
+            Meisterbetrieb Resch GmbH | Musterstraße 123, 39100 Bozen | P.IVA: 12345678901
         @endif
     </div>
     

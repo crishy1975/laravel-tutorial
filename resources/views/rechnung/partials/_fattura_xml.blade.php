@@ -1,5 +1,5 @@
 {{-- resources/views/rechnung/partials/_fattura_xml.blade.php --}}
-{{-- ⭐ MIT E-MAIL-VERSAND FUNKTION --}}
+{{-- ⭐ MIT E-MAIL-VERSAND FUNKTION + STATUS-ÄNDERUNG --}}
 {{-- ⭐ Nutzt Sprachdatei: lang/de/email.php --}}
 
 @php
@@ -37,12 +37,13 @@
     $defaultEmail = $rechnung->re_email ?? $rechnung->rechnungsempfaenger?->email ?? '';
     $defaultPec = $rechnung->re_pec ?? '';
     
-    // ⭐ Standard-E-Mail-Nachricht aus Sprachdatei
-    // Fallback falls Sprachdatei nicht gefunden wird
+    // Status-Check für Buttons
+    $istEntwurf = ($rechnung->status === 'draft');
+    
+    // Standard-E-Mail-Nachricht
     $standardNachrichtKey = 'email.rechnung.standard_nachricht';
     $standardNachricht = __($standardNachrichtKey, ['nummer' => $rechnung->rechnungsnummer]);
     
-    // Fallback wenn Sprachdatei nicht gefunden (Key wird zurückgegeben)
     if ($standardNachricht === $standardNachrichtKey) {
         $standardNachricht = "Gentili Signore e Signori,
 Sehr geehrte Damen und Herren,
@@ -59,6 +60,26 @@ Mit freundlichen Grüßen";
 @if($rechnung->fattura_profile_id)
 
 <div class="row g-4">
+
+    {{-- ═══════════════════════════════════════════════════════════
+        ⭐ NEU: STATUS-BANNER (nur bei Entwurf)
+    ═══════════════════════════════════════════════════════════ --}}
+    @if($istEntwurf)
+    <div class="col-12">
+        <div class="alert alert-warning d-flex justify-content-between align-items-center mb-0">
+            <div>
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Status: Entwurf</strong> – Diese Rechnung wurde noch nicht versendet.
+            </div>
+            <button type="button" 
+                    class="btn btn-warning"
+                    onclick="markAsSent()">
+                <i class="bi bi-check2-circle"></i>
+                Als versendet markieren
+            </button>
+        </div>
+    </div>
+    @endif
 
     {{-- ═══════════════════════════════════════════════════════════
         CARD 1: XML STATUS & GENERIERUNG
@@ -82,6 +103,9 @@ Mit freundlichen Grüßen";
                     <div class="alert alert-info mb-3">
                         <i class="bi bi-info-circle"></i>
                         Noch kein FatturaPA XML generiert.
+                        @if($istEntwurf)
+                            <br><small class="text-muted">Das XML wird automatisch generiert wenn Sie die Rechnung versenden oder als versendet markieren.</small>
+                        @endif
                     </div>
                     
                     <div class="row g-2">
@@ -237,6 +261,24 @@ Mit freundlichen Grüßen";
             </div>
             <div class="card-body">
                 
+                {{-- ⭐ Hinweis wenn keine E-Mail-Adresse --}}
+                @if(empty($defaultEmail) && empty($defaultPec))
+                    <div class="alert alert-warning mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Keine E-Mail-Adresse hinterlegt!</strong>
+                        <br>Sie können die Rechnung trotzdem als "Versendet" markieren.
+                        @if($istEntwurf)
+                            <br>
+                            <button type="button" 
+                                    class="btn btn-warning btn-sm mt-2"
+                                    onclick="markAsSent()">
+                                <i class="bi bi-check2-circle"></i>
+                                Jetzt als versendet markieren
+                            </button>
+                        @endif
+                    </div>
+                @endif
+                
                 {{-- E-Mail Formular --}}
                 <div class="row g-3">
                     
@@ -273,7 +315,7 @@ Mit freundlichen Grüßen";
                                value="Fattura {{ $rechnung->rechnungsnummer }} - {{ $rechnung->re_name }}">
                     </div>
                     
-                    {{-- Nachricht (aus Sprachdatei mit Fallback) --}}
+                    {{-- Nachricht --}}
                     <div class="col-12">
                         <label class="form-label">Nachricht</label>
                         <textarea class="form-control" 
@@ -340,7 +382,7 @@ Mit freundlichen Grüßen";
                         </button>
                     </div>
                     @endif
-                    <div class="col-md-{{ $defaultPec ? '4' : '8' }}">
+                    <div class="col-md-{{ $defaultPec ? '4' : '4' }}">
                         <button type="button" 
                                 class="btn btn-outline-secondary w-100"
                                 onclick="previewEmail()">
@@ -348,7 +390,25 @@ Mit freundlichen Grüßen";
                             Vorschau
                         </button>
                     </div>
+                    @if(!$defaultPec && $istEntwurf)
+                    <div class="col-md-4">
+                        <button type="button" 
+                                class="btn btn-outline-warning w-100"
+                                onclick="markAsSent()">
+                            <i class="bi bi-check2-circle"></i>
+                            Nur markieren
+                        </button>
+                    </div>
+                    @endif
                 </div>
+                
+                {{-- Info-Hinweis --}}
+                @if($istEntwurf)
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="bi bi-info-circle"></i>
+                    Nach dem Versenden wird der Status automatisch auf <strong>"Versendet"</strong> gesetzt und das XML generiert (falls noch nicht vorhanden).
+                </div>
+                @endif
                 
                 {{-- Versand-Historie --}}
                 @if($emailLogs->count() > 0)
@@ -472,6 +532,7 @@ Mit freundlichen Grüßen";
 const csrfToken = '{{ csrf_token() }}';
 const rechnungId = {{ $rechnung->id }};
 const sendEmailUrl = '{{ route('rechnung.email.send', $rechnung->id) }}';
+const markAsSentUrl = '{{ route('rechnung.mark-sent', $rechnung->id) }}';
 
 function submitDynamicForm(url, method, additionalData = {}) {
     var form = document.createElement('form');
@@ -520,6 +581,12 @@ function deleteXml(url) {
     submitDynamicForm(url, 'DELETE');
 }
 
+// ⭐ NEU: Als versendet markieren (ohne E-Mail)
+function markAsSent() {
+    if (!confirm('Rechnung als "Versendet" markieren?\n\nDas XML wird automatisch generiert falls noch nicht vorhanden.')) return;
+    submitDynamicForm(markAsSentUrl, 'POST');
+}
+
 function sendEmail(typ) {
     var empfaenger = document.getElementById('email_empfaenger').value;
     var pec = document.getElementById('email_pec').value;
@@ -529,14 +596,25 @@ function sendEmail(typ) {
     var attachXml = document.getElementById('attach_xml') ? document.getElementById('attach_xml').checked : false;
     var copyMe = document.getElementById('attach_copy_me').checked;
     
-    if (typ === 'pec' && !pec) { alert('Bitte PEC-Adresse eingeben!'); return; }
-    if (typ === 'email' && !empfaenger) { alert('Bitte E-Mail-Adresse eingeben!'); return; }
+    // ⭐ NEU: Auch ohne E-Mail-Adresse erlauben (Status wird trotzdem geändert)
+    if (typ === 'pec' && !pec) { 
+        if (confirm('Keine PEC-Adresse angegeben.\n\nRechnung trotzdem als "Versendet" markieren?')) {
+            markAsSent();
+        }
+        return; 
+    }
+    if (typ === 'email' && !empfaenger) { 
+        if (confirm('Keine E-Mail-Adresse angegeben.\n\nRechnung trotzdem als "Versendet" markieren?')) {
+            markAsSent();
+        }
+        return; 
+    }
     if (!betreff) { alert('Bitte Betreff eingeben!'); return; }
     
     var zielAdresse = typ === 'pec' ? pec : empfaenger;
     var typLabel = typ === 'pec' ? 'PEC' : 'E-Mail';
     
-    if (!confirm('Rechnung per ' + typLabel + ' senden an:\n\n' + zielAdresse + '\n\nFortfahren?')) return;
+    if (!confirm('Rechnung per ' + typLabel + ' senden an:\n\n' + zielAdresse + '\n\nDer Status wird automatisch auf "Versendet" gesetzt.\nFortfahren?')) return;
     
     submitDynamicForm(sendEmailUrl, 'POST', {
         typ: typ,

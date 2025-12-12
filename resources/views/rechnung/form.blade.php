@@ -136,7 +136,7 @@
                 </div>
 
                 {{-- ⭐ Tab 2: FatturaPA (nur wenn Rechnung existiert) --}}
-                @if($rechnung->exists && $rechnung->fattura_profile_id)
+                @if($rechnung->exists)
                 <div class="tab-pane fade" id="content-fattura" role="tabpanel">
                     @include('rechnung.partials._fattura_xml')
                 </div>

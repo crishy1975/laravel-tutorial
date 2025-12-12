@@ -6,36 +6,38 @@ use App\Models\Rechnung;
 use App\Models\Gebaeude;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
-use App\Enums\Zahlungsbedingung;  // ← NEU
+use App\Models\FatturaXmlLog;
+use App\Models\RechnungLog;
+use App\Models\Unternehmensprofil;
+use App\Enums\Zahlungsbedingung;
+use App\Enums\RechnungLogTyp;
+use App\Services\FatturaXmlGenerator;
+use App\Mail\RechnungMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Carbon;
-use App\Services\FatturaXmlGenerator;
-use App\Models\FatturaXmlLog;
-use Illuminate\Support\Facades\Storage;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
-use App\Models\RechnungLog;
-use App\Enums\RechnungLogTyp;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\RechnungMail;
-use App\Models\Unternehmensprofil;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\View;
-
-
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RechnungController extends Controller
 {
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // INDEX - Liste aller Rechnungen
+    // ═══════════════════════════════════════════════════════════════════════════════
+
     /**
      * Liste aller Rechnungen mit Filter.
      */
     public function index(Request $request)
     {
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 1. Filterwerte aus Request holen
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         $nummer = $request->input('nummer');
         $codex  = $request->input('codex');
         $suche  = $request->input('suche');
@@ -48,17 +50,17 @@ class RechnungController extends Controller
         $datumBis = $request->input('datum_bis')
             ?: Carbon::create($year, 12, 31)->format('Y-m-d');
 
-        // ⭐ NEU: Status-Filter
+        // Status-Filter
         $statusFilter = $request->input('status_filter');
 
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 2. Basis-Query aufbauen
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         $query = Rechnung::query()->with('gebaeude');
 
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 3. Filter: Rechnungsnummer
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         if (!empty($nummer)) {
             $like = '%' . $nummer . '%';
             $query->whereRaw(
@@ -67,9 +69,9 @@ class RechnungController extends Controller
             );
         }
 
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 4. Filter: Codex
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         if (!empty($codex)) {
             $like = '%' . $codex . '%';
             $query->where(function ($q) use ($like) {
@@ -80,9 +82,9 @@ class RechnungController extends Controller
             });
         }
 
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 5. Filter: Suche
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         if (!empty($suche)) {
             $like = '%' . $suche . '%';
             $query->where(function ($q) use ($like) {
@@ -92,9 +94,9 @@ class RechnungController extends Controller
             });
         }
 
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         // 6. Filter: Datum
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
         if (!empty($datumVon) && !empty($datumBis)) {
             $query->whereBetween('rechnungsdatum', [$datumVon, $datumBis]);
         } elseif (!empty($datumVon)) {
@@ -103,9 +105,9 @@ class RechnungController extends Controller
             $query->whereDate('rechnungsdatum', '<=', $datumBis);
         }
 
-        // ------------------------------
-        // ⭐ NEU: 7. Filter: Zahlungsstatus
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
+        // 7. Filter: Zahlungsstatus
+        // ──────────────────────────────────────────────────────────────────────────
         if (!empty($statusFilter)) {
             switch ($statusFilter) {
                 case 'unbezahlt':
@@ -126,16 +128,17 @@ class RechnungController extends Controller
             }
         }
 
-        // ------------------------------
-        // 8. Sortierung & Pagination
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
+        // 8. Sortierung & Pagination (nach Rechnungsnummer absteigend)
+        // ──────────────────────────────────────────────────────────────────────────
         $rechnungen = $query
-            ->orderByDesc('rechnungsdatum')
+            ->orderByDesc('jahr')
+            ->orderByDesc('laufnummer')
             ->paginate(25);
 
-        // ------------------------------
-        // ⭐ NEU: Statistiken berechnen
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
+        // 9. Statistiken berechnen
+        // ──────────────────────────────────────────────────────────────────────────
         $stats = [
             'unbezahlt_anzahl' => Rechnung::unbezahlt()->count(),
             'unbezahlt_summe' => Rechnung::unbezahlt()->sum('zahlbar_betrag'),
@@ -144,9 +147,9 @@ class RechnungController extends Controller
             'bald_faellig_anzahl' => Rechnung::baldFaellig(7)->count(),
         ];
 
-        // ------------------------------
-        // 9. View zurückgeben
-        // ------------------------------
+        // ──────────────────────────────────────────────────────────────────────────
+        // 10. View zurueckgeben
+        // ──────────────────────────────────────────────────────────────────────────
         return view('rechnung.index', [
             'rechnungen'    => $rechnungen,
             'nummer'        => $nummer,
@@ -154,38 +157,61 @@ class RechnungController extends Controller
             'suche'         => $suche,
             'datumVon'      => $datumVon,
             'datumBis'      => $datumBis,
-            'statusFilter'  => $statusFilter,  // ← NEU
-            'stats'         => $stats,         // ← NEU
+            'statusFilter'  => $statusFilter,
+            'stats'         => $stats,
         ]);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CREATE / STORE - Neue Rechnung erstellen
+    // ═══════════════════════════════════════════════════════════════════════════════
+
     /**
-     * Neue Rechnung aus einem Gebäude erstellen.
+     * Neue Rechnung aus einem Gebaeude erstellen.
+     * 
+     * Prueft auf:
+     * - FatturaPA-Profil
+     * - Rechnungsempfaenger
+     * - Postadresse
      */
     public function create(Request $request)
     {
         if (!$request->filled('gebaeude_id')) {
             return redirect()
                 ->route('rechnung.index')
-                ->with('error', 'Bitte wählen Sie zuerst ein Gebäude aus.');
+                ->with('error', 'Bitte waehlen Sie zuerst ein Gebaeude aus.');
         }
 
         try {
             $gebaeude = Gebaeude::findOrFail($request->integer('gebaeude_id'));
 
-            if (!$gebaeude->rechnungsempfaenger_id || !$gebaeude->postadresse_id) {
+            // Pruefungen mit session('warning')
+            $fehlend = [];
+
+            if (!$gebaeude->rechnungsempfaenger_id) {
+                $fehlend[] = 'Rechnungsempfaenger';
+            }
+            if (!$gebaeude->postadresse_id) {
+                $fehlend[] = 'Postadresse';
+            }
+            if (!$gebaeude->fattura_profile_id) {
+                $fehlend[] = 'FatturaPA-Profil';
+            }
+
+            if (!empty($fehlend)) {
                 return redirect()
                     ->route('gebaeude.edit', $gebaeude->id)
-                    ->with('error', 'Bitte hinterlegen Sie zuerst einen Rechnungsempfänger und eine Postadresse für dieses Gebäude.');
+                    ->with('warning', 'Neue Rechnung nicht moeglich! Bitte fuellen Sie folgende Felder aus: ' . implode(', ', $fehlend) . '.');
             }
 
             $rechnung = Rechnung::createFromGebaeude($gebaeude);
 
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
-                ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebäude {$gebaeude->codex} erstellt.");
+                ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebaeude {$gebaeude->codex} erstellt.");
+
         } catch (\Exception $e) {
-            \Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
+            Log::error('Fehler beim Erstellen der Rechnung aus Gebaeude', [
                 'gebaeude_id' => $request->integer('gebaeude_id'),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -214,30 +240,53 @@ class RechnungController extends Controller
             'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
             'cup'                => 'nullable|string|max:20',
             'cig'                => 'nullable|string|max:10',
-            'codice_commessa'    => 'nullable|string|max:100',  // ⭐ NEU
+            'codice_commessa'    => 'nullable|string|max:100',
             'auftrag_id'         => 'nullable|string|max:50',
             'auftrag_datum'      => 'nullable|date',
             'bemerkung'          => 'nullable|string',
             'bemerkung_kunde'    => 'nullable|string',
         ]);
 
-        // Status default auf 'draft' setzen wenn nicht vorhanden
         if (!isset($validated['status'])) {
             $validated['status'] = 'draft';
         }
 
-        // ⭐ NEU: Zahlungsbedingungen Default
         if (!isset($validated['zahlungsbedingungen'])) {
             $validated['zahlungsbedingungen'] = 'netto_30';
         }
 
-        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])->findOrFail($validated['gebaeude_id']);
+        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])
+            ->findOrFail($validated['gebaeude_id']);
+
+        // Pruefungen mit session('warning')
+        $fehlend = [];
+
+        if (!$gebaeude->rechnungsempfaenger_id) {
+            $fehlend[] = 'Rechnungsempfaenger';
+        }
+        if (!$gebaeude->postadresse_id) {
+            $fehlend[] = 'Postadresse';
+        }
+        if (!$gebaeude->fattura_profile_id) {
+            $fehlend[] = 'FatturaPA-Profil';
+        }
+
+        if (!empty($fehlend)) {
+            return redirect()
+                ->route('gebaeude.edit', $gebaeude->id)
+                ->with('warning', 'Neue Rechnung nicht moeglich! Bitte fuellen Sie folgende Felder aus: ' . implode(', ', $fehlend) . '.');
+        }
+
         $rechnung = $gebaeude->createRechnung($validated);
 
         return redirect()
             ->route('rechnung.edit', $rechnung->id)
             ->with('success', "Rechnung {$rechnung->rechnungsnummer} erfolgreich angelegt.");
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SHOW / EDIT / UPDATE - Rechnung anzeigen und bearbeiten
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /**
      * Einzelne Rechnung anzeigen.
@@ -257,7 +306,7 @@ class RechnungController extends Controller
         $gebaeude_liste = Gebaeude::orderBy('codex')->get();
         $profile = FatturaProfile::all();
 
-        // ⭐ NEU: Zahlungsbedingungen für Dropdown
+        // Zahlungsbedingungen fuer Dropdown
         $zahlungsbedingungen = Zahlungsbedingung::options();
 
         return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile', 'zahlungsbedingungen'));
@@ -268,19 +317,19 @@ class RechnungController extends Controller
      */
     public function update(Request $request, $id)
     {
-        \Log::info('=== RECHNUNG UPDATE START ===', ['id' => $id]);
+        Log::info('=== RECHNUNG UPDATE START ===', ['id' => $id]);
 
         $rechnung = Rechnung::findOrFail($id);
-        \Log::info('Rechnung geladen', ['re_name' => $rechnung->re_name]);
+        Log::info('Rechnung geladen', ['re_name' => $rechnung->re_name]);
 
         if (!$rechnung->ist_editierbar) {
-            \Log::info('Rechnung nicht editierbar');
+            Log::info('Rechnung nicht editierbar');
             return redirect()
                 ->back()
                 ->with('error', 'Diese Rechnung kann nicht mehr bearbeitet werden.');
         }
 
-        // Welche Felder dürfen aus dem Formular übernommen werden?
+        // Welche Felder duerfen aus dem Formular uebernommen werden?
         $validated = $request->validate([
             // Basisdaten
             'rechnungsdatum'     => ['required', 'date'],
@@ -296,10 +345,10 @@ class RechnungController extends Controller
             // Fattura-Profil
             'fattura_profile_id' => ['nullable', 'exists:fattura_profile,id'],
 
-            // FatturaPA / öffentliche Aufträge
+            // FatturaPA / oeffentliche Auftraege
             'cup'                => ['nullable', 'string', 'max:20'],
             'cig'                => ['nullable', 'string', 'max:10'],
-            'codice_commessa'    => ['nullable', 'string', 'max:100'],  // ⭐ NEU
+            'codice_commessa'    => ['nullable', 'string', 'max:100'],
             'auftrag_id'         => ['nullable', 'string', 'max:50'],
             'auftrag_datum'      => ['nullable', 'date'],
 
@@ -307,18 +356,17 @@ class RechnungController extends Controller
             'bemerkung'          => ['nullable', 'string'],
             'bemerkung_kunde'    => ['nullable', 'string'],
 
-            // ⭐ NEU: Preis-Aufschlag (readonly, nur zur Info)
+            // Preis-Aufschlag (readonly, nur zur Info)
             'aufschlag_prozent'  => ['nullable', 'numeric', 'min:-100', 'max:100'],
             'aufschlag_typ'      => ['nullable', 'string', 'in:global,individuell,keiner'],
         ]);
 
-        \Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
+        Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
 
-        // Status bleibt unverändert wenn nicht mitgesendet (da Feld disabled ist)
         // Felder in das Modell schreiben
         $rechnung->fill($validated);
 
-        // Falls du bei Profil-Wechsel noch Snapshot-Felder setzen willst
+        // Falls Profil-Wechsel: Snapshot-Felder aktualisieren
         if (array_key_exists('fattura_profile_id', $validated)) {
             $profil = null;
 
@@ -343,12 +391,12 @@ class RechnungController extends Controller
 
         // Speichern
         $rechnung->save();
-        \Log::info('Update ausgeführt', ['neue_leistungsdaten' => $rechnung->leistungsdaten]);
+        Log::info('Update ausgefuehrt', ['neue_leistungsdaten' => $rechnung->leistungsdaten]);
 
         $rechnung->refresh();
-        \Log::info('Nach Refresh', ['status' => $rechnung->status, 'typ_rechnung' => $rechnung->typ_rechnung]);
+        Log::info('Nach Refresh', ['status' => $rechnung->status, 'typ_rechnung' => $rechnung->typ_rechnung]);
 
-        \Log::info('=== RECHNUNG UPDATE ENDE ===');
+        Log::info('=== RECHNUNG UPDATE ENDE ===');
 
         return redirect()
             ->route('rechnung.edit', $rechnung->id)
@@ -356,7 +404,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Rechnung löschen (nur Entwürfe).
+     * Rechnung loeschen (nur Entwuerfe).
      */
     public function destroy($id)
     {
@@ -365,20 +413,24 @@ class RechnungController extends Controller
         if (!$rechnung->ist_editierbar) {
             return redirect()
                 ->back()
-                ->with('error', 'Nur Entwürfe können gelöscht werden.');
+                ->with('error', 'Nur Entwuerfe koennen geloescht werden.');
         }
 
         $nummer = $rechnung->rechnungsnummer;
 
-        \DB::transaction(function () use ($rechnung) {
+        DB::transaction(function () use ($rechnung) {
             $rechnung->positionen()->delete();
             $rechnung->forceDelete();
         });
 
         return redirect()
             ->route('rechnung.index')
-            ->with('success', "Rechnung {$nummer} wurde endgültig gelöscht.");
+            ->with('success', "Rechnung {$nummer} wurde endgueltig geloescht.");
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STATUS-AENDERUNGEN
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /**
      * Rechnung als bezahlt markieren.
@@ -410,6 +462,8 @@ class RechnungController extends Controller
 
     /**
      * Rechnung versenden (Status: sent).
+     * 
+     * @deprecated Verwende stattdessen markAsSent() oder sendEmail()
      */
     public function send($id)
     {
@@ -418,12 +472,10 @@ class RechnungController extends Controller
         if ($rechnung->status !== 'draft') {
             return redirect()
                 ->back()
-                ->with('error', 'Nur Entwürfe können versendet werden.');
+                ->with('error', 'Nur Entwuerfe koennen versendet werden.');
         }
 
         $rechnung->update(['status' => 'sent']);
-
-        // TODO: Hier PDF generieren und per E-Mail versenden
 
         return redirect()
             ->back()
@@ -450,9 +502,70 @@ class RechnungController extends Controller
             ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde storniert.");
     }
 
+    /**
+     * Markiert Rechnung als versendet ohne E-Mail zu senden.
+     * 
+     * - Setzt Status auf 'sent'
+     * - Generiert XML falls noch nicht vorhanden
+     * - Erstellt Log-Eintrag
+     * 
+     * Route: POST /rechnung/{id}/mark-sent
+     */
+    public function markAsSent(Request $request, int $id)
+    {
+        $rechnung = Rechnung::findOrFail($id);
+
+        // Nur draft-Rechnungen koennen als versendet markiert werden
+        if ($rechnung->status !== 'draft') {
+            return back()->with('warning', 'Diese Rechnung wurde bereits versendet.');
+        }
+
+        DB::beginTransaction();
+        try {
+            // 1. XML generieren falls noch nicht vorhanden
+            $xmlLog = $this->generateXmlIfNeeded($rechnung);
+
+            // 2. Status auf 'sent' setzen
+            $rechnung->update(['status' => 'sent']);
+
+            // 3. Log-Eintrag erstellen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::STATUS_GEAENDERT,
+                beschreibung: 'Als versendet markiert (manuell, ohne E-Mail)',
+                metadata: [
+                    'alter_status' => 'draft',
+                    'neuer_status' => 'sent',
+                    'xml_generiert' => $xmlLog ? true : false,
+                    'xml_progressivo' => $xmlLog?->progressivo_invio,
+                ]
+            );
+
+            DB::commit();
+
+            $message = 'Rechnung als versendet markiert.';
+            if ($xmlLog) {
+                $message .= " XML generiert: {$xmlLog->progressivo_invio}";
+            }
+
+            return back()->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Fehler beim Markieren als versendet', [
+                'rechnung_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Fehler: ' . $e->getMessage());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // POSITIONEN - CRUD fuer Rechnungspositionen
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /**
-     * Neue Position zu Rechnung hinzufügen.
+     * Neue Position zu Rechnung hinzufuegen.
      */
     public function storePosition(Request $request, $rechnungId)
     {
@@ -482,7 +595,7 @@ class RechnungController extends Controller
 
         return redirect()
             ->route('rechnung.edit', $rechnungId)
-            ->with('success', 'Position wurde hinzugefügt.');
+            ->with('success', 'Position wurde hinzugefuegt.');
     }
 
     /**
@@ -516,7 +629,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Position löschen.
+     * Position loeschen.
      */
     public function destroyPosition($positionId)
     {
@@ -533,31 +646,12 @@ class RechnungController extends Controller
 
         return redirect()
             ->route('rechnung.edit', $rechnung->id)
-            ->with('success', 'Position wurde gelöscht.');
+            ->with('success', 'Position wurde geloescht.');
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 📄 EXPORT / PDF (Vorbereitet)
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * PDF generieren (TODO: Implementation mit DomPDF/TCPDF).
-     */
-    public function generatePdf($id)
-    {
-        $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
-
-        // TODO: PDF-Generierung implementieren
-
-        return redirect()
-            ->back()
-            ->with('error', 'PDF-Export noch nicht implementiert.');
-    }
-
-
-    // ═══════════════════════════════════════════════════════════
-    // 📊 NEU: AJAX HELPERS
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // AJAX HELPERS
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /**
      * AJAX: Zahlungsziel automatisch berechnen.
@@ -583,16 +677,96 @@ class RechnungController extends Controller
         ]);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // FATTURAPA XML GENERATION
+    // ═══════════════════════════════════════════════════════════════════════════════
 
-    // ═══════════════════════════════════════════════════════════
-    // 🧾 FATTURAPA XML GENERATION
-    // ═══════════════════════════════════════════════════════════
+    /**
+     * Generiert XML falls noch keines existiert (Helper).
+     * 
+     * @param Rechnung $rechnung
+     * @return FatturaXmlLog|null Das XML-Log oder null bei Fehler
+     */
+    protected function generateXmlIfNeeded(Rechnung $rechnung): ?FatturaXmlLog
+    {
+        // Pruefe ob bereits ein gueltiges XML existiert
+        $existingLog = FatturaXmlLog::where('rechnung_id', $rechnung->id)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->first();
 
+        if ($existingLog) {
+            Log::info('XML existiert bereits', [
+                'rechnung_id' => $rechnung->id,
+                'progressivo' => $existingLog->progressivo_invio,
+            ]);
+            return $existingLog;
+        }
+
+        // Pruefe ob FatturaPA-Profil zugeordnet
+        if (!$rechnung->fattura_profile_id) {
+            Log::warning('Kein FatturaPA-Profil - XML wird nicht generiert', [
+                'rechnung_id' => $rechnung->id,
+            ]);
+            return null;
+        }
+
+        try {
+            $generator = new FatturaXmlGenerator();
+            $log = $generator->generate($rechnung);
+
+            // In RechnungLog eintragen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_ERSTELLT,
+                beschreibung: "FatturaPA XML automatisch generiert: {$log->progressivo_invio}",
+                metadata: [
+                    'progressivo' => $log->progressivo_invio,
+                    'dateiname' => $log->xml_filename ?? null,
+                    'fattura_xml_log_id' => $log->id,
+                    'automatisch' => true,
+                ]
+            );
+
+            Log::info('XML automatisch generiert', [
+                'rechnung_id' => $rechnung->id,
+                'progressivo' => $log->progressivo_invio,
+            ]);
+
+            return $log;
+
+        } catch (\Exception $e) {
+            Log::error('Automatische XML-Generierung fehlgeschlagen', [
+                'rechnung_id' => $rechnung->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::XML_FEHLER,
+                beschreibung: "Automatische XML-Generierung fehlgeschlagen: {$e->getMessage()}",
+                metadata: ['error' => $e->getMessage()]
+            );
+
+            return null;
+        }
+    }
+
+    /**
+     * XML manuell generieren.
+     * 
+     * Route: POST /rechnung/{id}/xml/generate
+     */
     public function generateXml(int $id)
     {
         $rechnung = Rechnung::findOrFail($id);
 
-        // Prüfe ob Rechnung bereits ein XML hat
+        // Pruefe ob Rechnung bereits ein XML hat
         $existingLog = FatturaXmlLog::where('rechnung_id', $rechnung->id)
             ->whereIn('status', [
                 FatturaXmlLog::STATUS_GENERATED,
@@ -605,7 +779,7 @@ class RechnungController extends Controller
 
         if ($existingLog) {
             return back()->with('warning', sprintf(
-                'Es existiert bereits ein XML für diese Rechnung (Progressivo: %s). Möchten Sie ein neues generieren?',
+                'Es existiert bereits ein XML fuer diese Rechnung (Progressivo: %s). Moechten Sie ein neues generieren?',
                 $existingLog->progressivo_invio
             ));
         }
@@ -614,7 +788,7 @@ class RechnungController extends Controller
             $generator = new FatturaXmlGenerator();
             $log = $generator->generate($rechnung);
 
-            // ⭐ NEU: Automatisch in RechnungLog eintragen
+            // In RechnungLog eintragen
             RechnungLog::log(
                 rechnungId: $rechnung->id,
                 typ: RechnungLogTyp::XML_ERSTELLT,
@@ -632,13 +806,14 @@ class RechnungController extends Controller
                     'FatturaPA XML erfolgreich generiert! Progressivo: %s',
                     $log->progressivo_invio
                 ));
+
         } catch (\Exception $e) {
             Log::error('Fehler bei XML-Generierung', [
                 'rechnung_id' => $id,
                 'error' => $e->getMessage(),
             ]);
 
-            // ⭐ NEU: Fehler auch in RechnungLog eintragen
+            // Fehler auch in RechnungLog eintragen
             RechnungLog::log(
                 rechnungId: $rechnung->id,
                 typ: RechnungLogTyp::XML_FEHLER,
@@ -655,7 +830,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Regeneriert XML (überschreibt vorheriges).
+     * Regeneriert XML (ueberschreibt vorheriges).
      * 
      * Route: POST /rechnung/{id}/xml/regenerate
      */
@@ -679,7 +854,7 @@ class RechnungController extends Controller
             $generator = new FatturaXmlGenerator();
             $log = $generator->generate($rechnung);
 
-            // ⭐ NEU: Automatisch in RechnungLog eintragen
+            // In RechnungLog eintragen
             RechnungLog::log(
                 rechnungId: $rechnung->id,
                 typ: RechnungLogTyp::XML_ERSTELLT,
@@ -698,13 +873,14 @@ class RechnungController extends Controller
                     'FatturaPA XML neu generiert! Progressivo: %s',
                     $log->progressivo_invio
                 ));
+
         } catch (\Exception $e) {
             Log::error('Fehler bei XML-Regenerierung', [
                 'rechnung_id' => $id,
                 'error' => $e->getMessage(),
             ]);
 
-            // ⭐ NEU: Fehler auch in RechnungLog eintragen
+            // Fehler in RechnungLog eintragen
             RechnungLog::log(
                 rechnungId: $rechnung->id,
                 typ: RechnungLogTyp::XML_FEHLER,
@@ -737,6 +913,7 @@ class RechnungController extends Controller
             return response($xmlString, 200)
                 ->header('Content-Type', 'application/xml; charset=UTF-8')
                 ->header('Content-Disposition', 'inline; filename="preview.xml"');
+
         } catch (\Exception $e) {
             return back()->withErrors([
                 'error' => 'Fehler bei Preview: ' . $e->getMessage()
@@ -745,14 +922,13 @@ class RechnungController extends Controller
     }
 
     /**
-     * Lädt XML-Datei herunter.
+     * Laedt XML-Datei herunter.
      * 
      * Route: GET /rechnung/{id}/xml/download
-     * Route: GET /fattura-xml/{logId}/download
      */
     public function downloadXml(int $id)
     {
-        // Neuestes erfolgreiches XML für diese Rechnung
+        // Neuestes erfolgreiches XML fuer diese Rechnung
         $log = FatturaXmlLog::where('rechnung_id', $id)
             ->whereIn('status', [
                 FatturaXmlLog::STATUS_GENERATED,
@@ -768,7 +944,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Lädt XML-Datei direkt über Log-ID herunter.
+     * Laedt XML-Datei direkt ueber Log-ID herunter.
      * 
      * Route: GET /fattura-xml/{logId}/download
      */
@@ -784,7 +960,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Zeigt alle XML-Logs für eine Rechnung.
+     * Zeigt alle XML-Logs fuer eine Rechnung.
      * 
      * Route: GET /rechnung/{id}/xml/logs
      */
@@ -800,7 +976,7 @@ class RechnungController extends Controller
     }
 
     /**
-     * Löscht ein XML-Log (und Datei).
+     * Loescht ein XML-Log (und Datei).
      * 
      * Route: DELETE /fattura-xml/{logId}
      */
@@ -808,20 +984,20 @@ class RechnungController extends Controller
     {
         $log = FatturaXmlLog::findOrFail($logId);
 
-        // Prüfe ob bereits gesendet
+        // Pruefe ob bereits gesendet
         if (in_array($log->status, [
             FatturaXmlLog::STATUS_SENT,
             FatturaXmlLog::STATUS_DELIVERED,
             FatturaXmlLog::STATUS_ACCEPTED,
         ])) {
             return back()->withErrors([
-                'error' => 'XML wurde bereits versendet und kann nicht gelöscht werden!'
+                'error' => 'XML wurde bereits versendet und kann nicht geloescht werden!'
             ]);
         }
 
         $rechnungId = $log->rechnung_id;
 
-        // Dateien löschen
+        // Dateien loeschen
         if ($log->xmlExists()) {
             Storage::delete($log->xml_file_path);
         }
@@ -834,11 +1010,11 @@ class RechnungController extends Controller
 
         return redirect()
             ->route('rechnung.edit', $rechnungId)
-            ->with('success', 'XML-Log gelöscht');
+            ->with('success', 'XML-Log geloescht');
     }
 
     /**
-     * Zeigt Debug-Info für XML-Generierung.
+     * Zeigt Debug-Info fuer XML-Generierung.
      * 
      * Route: GET /rechnung/{id}/xml/debug
      */
@@ -851,7 +1027,7 @@ class RechnungController extends Controller
             'fatturaProfile',
         ])->findOrFail($id);
 
-        $profil = \App\Models\Unternehmensprofil::first();
+        $profil = Unternehmensprofil::first();
 
         $generator = new FatturaXmlGenerator();
 
@@ -886,38 +1062,49 @@ class RechnungController extends Controller
         return response()->json($debug, 200, [], JSON_PRETTY_PRINT);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // PDF-GENERIERUNG
+    // ═══════════════════════════════════════════════════════════════════════════════
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 📄 PDF-GENERIERUNG FÜR RECHNUNGEN
-    // ═══════════════════════════════════════════════════════════════════════════
-    //
-    // INTEGRATION IN: app/Http/Controllers/RechnungController.php
-    //
-    // ═══════════════════════════════════════════════════════════════════════════
+    /**
+     * PDF generieren (Platzhalter fuer alte Methode).
+     * 
+     * @deprecated Verwende stattdessen downloadPdf() oder previewPdf()
+     */
+    public function generatePdf($id)
+    {
+        $rechnung = Rechnung::with(['positionen'])->findOrFail($id);
 
+        return redirect()
+            ->back()
+            ->with('error', 'PDF-Export noch nicht implementiert.');
+    }
 
-
-
+    /**
+     * PDF herunterladen.
+     * 
+     * Route: GET /rechnung/{id}/pdf/download
+     */
     public function downloadPdf(int $id)
     {
         $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])
             ->findOrFail($id);
 
-        // ⭐ Unternehmensprofil laden
-        $unternehmen = \App\Models\Unternehmensprofil::first();
+        // Unternehmensprofil laden
+        $unternehmen = Unternehmensprofil::first();
 
         // PDF generieren
         $pdf = Pdf::loadView('rechnung.pdf', [
             'rechnung' => $rechnung,
-            'unternehmen' => $unternehmen, // ⭐ NEU
+            'unternehmen' => $unternehmen,
         ])
             ->setPaper('a4', 'portrait')
             ->setOption('defaultFont', 'DejaVu Sans');
 
-        // Dateiname (Schrägstriche ersetzen für Dateisystem)
+        // Dateiname (Schraegstriche ersetzen fuer Dateisystem)
         $filename = sprintf(
             'Rechnung_%s_%s.pdf',
-            str_replace(['/', '\\'], '-', $rechnung->rechnungsnummer), // ⭐ Schrägstriche ersetzen
+            str_replace(['/', '\\'], '-', $rechnung->rechnungsnummer),
             $rechnung->rechnungsdatum->format('Y-m-d')
         );
 
@@ -926,23 +1113,22 @@ class RechnungController extends Controller
     }
 
     /**
-     * Zeigt PDF im Browser (Preview)
+     * Zeigt PDF im Browser (Preview).
      * 
-     * @param int $id Rechnungs-ID
-     * @return \Illuminate\Http\Response
+     * Route: GET /rechnung/{id}/pdf/preview
      */
     public function previewPdf(int $id)
     {
         $rechnung = Rechnung::with(['positionen', 'fatturaProfile'])
             ->findOrFail($id);
 
-        // ⭐ Unternehmensprofil laden
-        $unternehmen = \App\Models\Unternehmensprofil::first();
+        // Unternehmensprofil laden
+        $unternehmen = Unternehmensprofil::first();
 
         // PDF generieren
         $pdf = Pdf::loadView('rechnung.pdf', [
             'rechnung' => $rechnung,
-            'unternehmen' => $unternehmen, // ⭐ NEU
+            'unternehmen' => $unternehmen,
         ])
             ->setPaper('a4', 'portrait')
             ->setOption('defaultFont', 'DejaVu Sans');
@@ -952,10 +1138,9 @@ class RechnungController extends Controller
     }
 
     /**
-     * PDF als Email versenden
+     * PDF als Email versenden (veraltet).
      * 
-     * @param int $id Rechnungs-ID
-     * @return \Illuminate\Http\RedirectResponse
+     * @deprecated Verwende stattdessen sendEmail()
      */
     public function sendPdfEmail(int $id)
     {
@@ -979,50 +1164,40 @@ class RechnungController extends Controller
             $rechnung->rechnungsnummer
         );
 
-        // Email versenden (Beispiel mit Laravel Mail)
-        \Mail::to($rechnung->post_email)->send(
-            new \App\Mail\RechnungMail($rechnung, $pdf->output(), $filename)
+        // Email versenden
+        Mail::to($rechnung->post_email)->send(
+            new RechnungMail($rechnung, $pdf->output(), $filename)
         );
 
         return back()->with('success', 'Rechnung per Email versendet!');
     }
 
-// ═══════════════════════════════════════════════════════════════════════════════════════
-// Diese Methode in app/Http/Controllers/RechnungController.php einfügen/ersetzen
-// ═══════════════════════════════════════════════════════════════════════════════════════
-//
-// BENÖTIGTE IMPORTS (oben in der Datei):
-//
-// use Illuminate\Support\Facades\Log;
-// use Illuminate\Support\Facades\Mail;
-// use Illuminate\Support\Facades\Config;
-// use Illuminate\Support\Facades\Storage;
-// use Illuminate\Support\Facades\View;
-// use App\Models\Unternehmensprofil;
-// use App\Models\Rechnung;
-// use App\Models\RechnungLog;
-// use App\Enums\RechnungLogTyp;
-// use Barryvdh\DomPDF\Facade\Pdf;
-//
-// ═══════════════════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // E-MAIL VERSAND
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /**
-     * E-Mail mit Rechnung versenden
+     * E-Mail mit Rechnung versenden.
      * 
+     * Features:
      * - Nutzt SMTP-Konfiguration aus Unternehmensprofil
      * - Generiert PDF als Anhang
      * - Optional: XML als Anhang
      * - Logo als Inline-Bild (CID)
-     * - HTML-Body aus Blade-View: resources/views/emails/rechnung.blade.php
+     * - HTML-Body aus Blade-View
+     * - Setzt Status automatisch auf 'sent'
+     * - Generiert XML automatisch falls nicht vorhanden
+     * 
+     * Route: POST /rechnung/{id}/email/send
      */
     public function sendEmail(Request $request, int $id)
     {
         $rechnung = Rechnung::with(['gebaeude', 'rechnungsempfaenger', 'fatturaProfile', 'positionen'])
             ->findOrFail($id);
 
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
         // 1. VALIDIERUNG
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
         $validated = $request->validate([
             'typ'        => ['required', 'in:email,pec'],
             'empfaenger' => ['nullable', 'email'],
@@ -1036,28 +1211,33 @@ class RechnungController extends Controller
 
         $typ = $validated['typ'];
         $empfaenger = $typ === 'pec' ? $validated['pec'] : $validated['empfaenger'];
-        
+
+        // Auch ohne E-Mail kann Status geaendert werden
         if (empty($empfaenger)) {
-            return back()->with('error', 'Bitte E-Mail-Adresse eingeben!');
+            return $this->markAsSentWithoutEmail($rechnung);
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // 2. UNTERNEHMENSPROFIL LADEN
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 2. XML GENERIEREN (falls noch nicht vorhanden)
+        // ──────────────────────────────────────────────────────────────────────────
+        $xmlLog = $this->generateXmlIfNeeded($rechnung);
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 3. UNTERNEHMENSPROFIL LADEN
+        // ──────────────────────────────────────────────────────────────────────────
         $profil = Unternehmensprofil::aktiv();
-        
+
         if (!$profil) {
             Log::error('Kein aktives Unternehmensprofil gefunden');
             return back()->with('error', 'Kein aktives Unternehmensprofil gefunden!');
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // 3. SMTP-KONFIGURATION PRÜFEN
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 4. SMTP-KONFIGURATION PRUEFEN
+        // ──────────────────────────────────────────────────────────────────────────
         $usePec = ($typ === 'pec');
-        
+
         if ($usePec) {
-            // PEC-SMTP verwenden
             if (!$profil->hatPecSmtpKonfiguration()) {
                 return back()->with('error', 'PEC-SMTP nicht konfiguriert! Bitte im Unternehmensprofil einrichten.');
             }
@@ -1070,7 +1250,6 @@ class RechnungController extends Controller
             $absenderName = $profil->firmenname;
             $mailerName = 'pec_dynamic';
         } else {
-            // Standard-SMTP verwenden
             if (!$profil->hatSmtpKonfiguration()) {
                 return back()->with('error', 'SMTP nicht konfiguriert! Bitte im Unternehmensprofil einrichten.');
             }
@@ -1079,15 +1258,15 @@ class RechnungController extends Controller
             $smtpUser = $profil->smtp_benutzername;
             $smtpPass = $profil->smtp_passwort;
             $smtpEncryption = $profil->smtp_verschluesselung;
-            // ⭐ WICHTIG: Absender = SMTP-Benutzername (wegen Aruba-Restriktion)
+            // Absender = SMTP-Benutzername (wegen Aruba-Restriktion)
             $absenderEmail = $profil->smtp_benutzername;
             $absenderName = $profil->smtp_absender_name ?: $profil->firmenname;
             $mailerName = 'smtp_dynamic';
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // 4. DYNAMISCHE MAILER-KONFIGURATION
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 5. DYNAMISCHE MAILER-KONFIGURATION
+        // ──────────────────────────────────────────────────────────────────────────
         Config::set("mail.mailers.{$mailerName}", [
             'transport'  => 'smtp',
             'host'       => $smtpHost,
@@ -1107,24 +1286,23 @@ class RechnungController extends Controller
             'absender'    => $absenderEmail,
         ]);
 
-        // ═══════════════════════════════════════════════════════════
-        // 5. PDF GENERIEREN
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 6. PDF GENERIEREN
+        // ──────────────────────────────────────────────────────────────────────────
         $pdfContent = null;
         $pdfFilename = null;
-        
+
         if ($validated['attach_pdf'] ?? true) {
             try {
-                // ⭐ PDF-View erwartet $unternehmen!
                 $pdf = Pdf::loadView('rechnung.pdf', [
                     'rechnung'    => $rechnung,
                     'unternehmen' => $profil,
                 ]);
-                
+
                 $pdf->setPaper('A4', 'portrait');
                 $pdfContent = $pdf->output();
                 $pdfFilename = $this->generatePdfFilename($rechnung);
-                
+
                 Log::info('PDF generiert', [
                     'filename' => $pdfFilename,
                     'size'     => strlen($pdfContent),
@@ -1132,54 +1310,45 @@ class RechnungController extends Controller
             } catch (\Exception $e) {
                 Log::error('PDF-Generierung fehlgeschlagen', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
                 ]);
                 return back()->with('error', 'PDF konnte nicht generiert werden: ' . $e->getMessage());
             }
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // 6. XML LADEN (falls gewünscht)
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 7. XML LADEN (falls gewuenscht und vorhanden)
+        // ──────────────────────────────────────────────────────────────────────────
         $xmlContent = null;
         $xmlFilename = null;
-        
+
         if (($validated['attach_xml'] ?? false) && $rechnung->fattura_profile_id) {
-            $xmlLog = \App\Models\FatturaXmlLog::where('rechnung_id', $rechnung->id)
+            // Nutze das bereits generierte oder existierende XML
+            $xmlLogForAttachment = $xmlLog ?? FatturaXmlLog::where('rechnung_id', $rechnung->id)
                 ->whereIn('status', ['generated', 'signed', 'sent', 'delivered', 'accepted'])
                 ->latest()
                 ->first();
-            
-            if ($xmlLog && $xmlLog->xml_path && Storage::disk('local')->exists($xmlLog->xml_path)) {
-                $xmlContent = Storage::disk('local')->get($xmlLog->xml_path);
-                $xmlFilename = $xmlLog->xml_filename;
-                
-                Log::info('XML angehängt', ['filename' => $xmlFilename]);
+
+            if ($xmlLogForAttachment && $xmlLogForAttachment->xml_path && Storage::disk('local')->exists($xmlLogForAttachment->xml_path)) {
+                $xmlContent = Storage::disk('local')->get($xmlLogForAttachment->xml_path);
+                $xmlFilename = $xmlLogForAttachment->xml_filename;
+                Log::info('XML angehaengt', ['filename' => $xmlFilename]);
             }
         }
 
-        // ═══════════════════════════════════════════════════════════
-        // 7. LOGO-PFAD ERMITTELN
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 8. LOGO-PFAD ERMITTELN
+        // ──────────────────────────────────────────────────────────────────────────
         $logoPath = null;
-        
-        // Priorität: 1. E-Mail-Logo, 2. Standard-Logo
+
         if ($profil->logo_email_pfad && Storage::disk('public')->exists($profil->logo_email_pfad)) {
             $logoPath = Storage::disk('public')->path($profil->logo_email_pfad);
         } elseif ($profil->logo_pfad && Storage::disk('public')->exists($profil->logo_pfad)) {
             $logoPath = Storage::disk('public')->path($profil->logo_pfad);
         }
-        
-        Log::info('Logo-Pfad', [
-            'logo_email_pfad' => $profil->logo_email_pfad,
-            'logo_pfad'       => $profil->logo_pfad,
-            'resolved_path'   => $logoPath,
-            'exists'          => $logoPath ? file_exists($logoPath) : false,
-        ]);
 
-        // ═══════════════════════════════════════════════════════════
-        // 8. E-MAIL SENDEN
-        // ═══════════════════════════════════════════════════════════
+        // ──────────────────────────────────────────────────────────────────────────
+        // 9. E-MAIL SENDEN
+        // ──────────────────────────────────────────────────────────────────────────
         try {
             $betreff = $validated['betreff'];
             $nachricht = $validated['nachricht'];
@@ -1187,45 +1356,48 @@ class RechnungController extends Controller
 
             Mail::mailer($mailerName)
                 ->send([], [], function ($message) use (
-                    $empfaenger, $absenderEmail, $absenderName, $betreff, $nachricht,
-                    $rechnung, $profil, $pdfContent, $pdfFilename, $xmlContent, $xmlFilename,
-                    $logoPath, $copyMe
+                    $empfaenger,
+                    $absenderEmail,
+                    $absenderName,
+                    $betreff,
+                    $nachricht,
+                    $rechnung,
+                    $profil,
+                    $pdfContent,
+                    $pdfFilename,
+                    $xmlContent,
+                    $xmlFilename,
+                    $logoPath,
+                    $copyMe
                 ) {
                     $message->to($empfaenger)
-                            ->from($absenderEmail, $absenderName)
-                            ->subject($betreff);
-                    
-                    // Kopie an mich
+                        ->from($absenderEmail, $absenderName)
+                        ->subject($betreff);
+
                     if ($copyMe) {
                         $message->bcc($copyMe);
                     }
 
-                    // ⭐ Logo als Inline-Attachment (CID)
                     $logoCid = null;
                     if ($logoPath && file_exists($logoPath)) {
                         $logoCid = $message->embed($logoPath);
-                        Log::info('Logo eingebettet', ['cid' => $logoCid]);
                     }
 
-                    // ⭐ HTML-Body aus Blade-View rendern
                     $htmlBody = View::make('emails.rechnung', [
                         'rechnung'  => $rechnung,
                         'profil'    => $profil,
                         'nachricht' => $nachricht,
                         'logoCid'   => $logoCid,
                     ])->render();
-                    
+
                     $message->html($htmlBody);
 
-                    // PDF anhängen
                     if ($pdfContent && $pdfFilename) {
                         $message->attachData($pdfContent, $pdfFilename, [
                             'mime' => 'application/pdf',
                         ]);
-                        Log::info('PDF angehängt', ['filename' => $pdfFilename]);
                     }
 
-                    // XML anhängen
                     if ($xmlContent && $xmlFilename) {
                         $message->attachData($xmlContent, $xmlFilename, [
                             'mime' => 'application/xml',
@@ -1239,34 +1411,46 @@ class RechnungController extends Controller
                 'typ'         => $typ,
             ]);
 
-            // ═══════════════════════════════════════════════════════════
-            // 9. LOG ERSTELLEN
-            // ═══════════════════════════════════════════════════════════
+            // ──────────────────────────────────────────────────────────────────────────
+            // 10. STATUS AUF 'SENT' SETZEN
+            // ──────────────────────────────────────────────────────────────────────────
+            $alterStatus = $rechnung->status;
+            if ($rechnung->status === 'draft') {
+                $rechnung->update(['status' => 'sent']);
+
+                Log::info('Rechnungsstatus auf sent geaendert', [
+                    'rechnung_id' => $rechnung->id,
+                    'alter_status' => $alterStatus,
+                ]);
+            }
+
+            // ──────────────────────────────────────────────────────────────────────────
+            // 11. LOG ERSTELLEN
+            // ──────────────────────────────────────────────────────────────────────────
             RechnungLog::create([
                 'rechnung_id' => $rechnung->id,
                 'typ'         => $typ === 'pec' ? RechnungLogTyp::PEC_VERSANDT->value : RechnungLogTyp::EMAIL_VERSANDT->value,
                 'titel'       => $typ === 'pec' ? 'PEC versandt' : 'E-Mail versandt',
                 'nachricht'   => "Versandt an {$empfaenger}",
                 'metadata'    => [
-                    'empfaenger'  => $empfaenger,
-                    'betreff'     => $betreff,
-                    'typ'         => $typ,
-                    'attachments' => array_filter([
-                        $pdfFilename,
-                        $xmlFilename,
-                    ]),
+                    'empfaenger'       => $empfaenger,
+                    'betreff'          => $betreff,
+                    'typ'              => $typ,
+                    'status_geaendert' => $alterStatus !== 'sent',
+                    'xml_generiert'    => $xmlLog ? true : false,
+                    'attachments'      => array_filter([$pdfFilename, $xmlFilename]),
                 ],
             ]);
 
             $typLabel = $typ === 'pec' ? 'PEC' : 'E-Mail';
-            return back()->with('success', "{$typLabel} erfolgreich versandt an {$empfaenger}");
+            $statusMsg = $alterStatus === 'draft' ? ' Status: Versendet.' : '';
+            return back()->with('success', "{$typLabel} erfolgreich versandt an {$empfaenger}.{$statusMsg}");
 
         } catch (\Exception $e) {
             Log::error('E-Mail Versand fehlgeschlagen', [
                 'rechnung_id' => $rechnung->id,
                 'empfaenger'  => $empfaenger,
                 'error'       => $e->getMessage(),
-                'trace'       => $e->getTraceAsString(),
             ]);
 
             return back()->with('error', 'E-Mail konnte nicht versandt werden: ' . $e->getMessage());
@@ -1274,36 +1458,66 @@ class RechnungController extends Controller
     }
 
     /**
-     * PDF-Dateiname generieren
+     * Status auf 'sent' setzen ohne E-Mail (Helper).
+     * 
+     * Wird aufgerufen wenn keine E-Mail-Adresse angegeben wurde.
+     */
+    protected function markAsSentWithoutEmail(Rechnung $rechnung)
+    {
+        DB::beginTransaction();
+        try {
+            // 1. XML generieren
+            $xmlLog = $this->generateXmlIfNeeded($rechnung);
+
+            // 2. Status aendern
+            $alterStatus = $rechnung->status;
+            if ($rechnung->status === 'draft') {
+                $rechnung->update(['status' => 'sent']);
+            }
+
+            // 3. Log erstellen
+            RechnungLog::log(
+                rechnungId: $rechnung->id,
+                typ: RechnungLogTyp::STATUS_GEAENDERT,
+                beschreibung: 'Als versendet markiert (keine E-Mail-Adresse angegeben)',
+                metadata: [
+                    'alter_status' => $alterStatus,
+                    'neuer_status' => 'sent',
+                    'xml_generiert' => $xmlLog ? true : false,
+                    'xml_progressivo' => $xmlLog?->progressivo_invio,
+                    'hinweis' => 'Keine E-Mail-Adresse - nur Status geaendert',
+                ]
+            );
+
+            DB::commit();
+
+            $message = 'Rechnung als versendet markiert (keine E-Mail-Adresse).';
+            if ($xmlLog) {
+                $message .= " XML: {$xmlLog->progressivo_invio}";
+            }
+
+            return back()->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Fehler beim Markieren als versendet', [
+                'rechnung_id' => $rechnung->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Fehler: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * PDF-Dateiname generieren.
+     * 
+     * Format: Fattura_2025-0001_Kundenname.pdf
      */
     private function generatePdfFilename(Rechnung $rechnung): string
     {
-        // Format: Fattura_2025-0001_Kundenname.pdf
         $nummer = str_replace(['/', '\\', ' '], '-', $rechnung->rechnungsnummer);
         $kunde = substr(preg_replace('/[^a-zA-Z0-9]/', '', $rechnung->re_name ?? 'Kunde'), 0, 30);
-        
+
         return "Fattura_{$nummer}_{$kunde}.pdf";
     }
-    
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // ENDE DER CONTROLLER-METHODEN
-    // ═══════════════════════════════════════════════════════════════════════════
-
-
+}

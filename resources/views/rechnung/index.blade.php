@@ -1,57 +1,41 @@
 {{-- resources/views/rechnung/index.blade.php --}}
+{{-- Smartphone-optimiert: Cards auf Mobile, Tabelle auf Desktop --}}
 @extends('layouts.app')
 
 @section('content')
 @php
-// Standardwerte für Datum von/bis:
-// - wenn vom Controller $datumVon / $datumBis gesetzt wurden, diese verwenden
-// - sonst: 01.01.dieses Jahres bzw. 31.12.dieses Jahres
-$year = now()->year;
-$defaultDatumVon = $datumVon ?? \Illuminate\Support\Carbon::create($year, 1, 1)->format('Y-m-d');
-$defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31)->format('Y-m-d');
+    $year = now()->year;
+    $defaultDatumVon = $datumVon ?? \Illuminate\Support\Carbon::create($year, 1, 1)->format('Y-m-d');
+    $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31)->format('Y-m-d');
 @endphp
 
-<div class="container py-4">
+<div class="container-fluid py-3">
 
     {{-- Kopfzeile --}}
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3><i class="bi bi-receipt"></i> Rechnungen</h3>
-        <div class="d-flex gap-2">
-            <a href="{{ route('rechnung.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Neue Rechnung
-            </a>
-        </div>
+        <h4 class="mb-0"><i class="bi bi-receipt"></i> Rechnungen</h4>
     </div>
 
-    {{-- Filterbereich:
-         - Rechnungsnummer
-         - Codex
-         - Suche (Gebäudename ODER Rechnungsempfänger ODER Postadresse)
-         - Datum von / bis (Standard: 01.01.dieses Jahres bis 31.12.dieses Jahres)
-         KEIN <form>, nur JS-Redirect mit Query-Parametern.
-    --}}
+    {{-- Filterbereich - Mobile optimiert --}}
     <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-
-                {{-- Rechnungsnummer (Format: 2025/0001 usw.) --}}
-                <div class="col-md-3">
+        <div class="card-body py-2">
+            {{-- Erste Zeile: Nummer, Codex --}}
+            <div class="row g-2">
+                <div class="col-6 col-md-3">
                     <div class="form-floating">
                         <input type="text"
-                            class="form-control"
+                            class="form-control form-control-sm"
                             id="filter-nummer"
                             name="nummer"
                             value="{{ $nummer ?? '' }}"
-                            placeholder="Rechnungsnummer">
-                        <label for="filter-nummer">Rechnungsnummer</label>
+                            placeholder="Nr.">
+                        <label for="filter-nummer">Nummer</label>
                     </div>
                 </div>
-
-                {{-- Codex --}}
-                <div class="col-md-3">
+                <div class="col-6 col-md-3">
                     <div class="form-floating">
                         <input type="text"
-                            class="form-control"
+                            class="form-control form-control-sm"
                             id="filter-codex"
                             name="codex"
                             value="{{ $codex ?? '' }}"
@@ -59,328 +43,310 @@ $defaultDatumBis = $datumBis ?? \Illuminate\Support\Carbon::create($year, 12, 31
                         <label for="filter-codex">Codex</label>
                     </div>
                 </div>
-
-                {{-- Suche in Gebäudename ODER Rechnungsempfänger ODER Postadresse --}}
-                <div class="col-md-6">
+                <div class="col-12 col-md-6">
                     <div class="form-floating">
                         <input type="text"
-                            class="form-control"
+                            class="form-control form-control-sm"
                             id="filter-suche"
                             name="suche"
                             value="{{ $suche ?? '' }}"
                             placeholder="Suche">
-                        <label for="filter-suche">
-                            Suche (Gebäude, Empfänger, Postadresse)
-                        </label>
+                        <label for="filter-suche">Suche (Gebäude, Empfänger)</label>
                     </div>
                 </div>
             </div>
 
-            <div class="row g-2 align-items-end mt-2">
-                {{-- Datum von (Standard: 01.01.dieses Jahres) --}}
-                <div class="col-md-3">
+            {{-- Zweite Zeile: Datum von/bis, Filter-Button --}}
+            <div class="row g-2 mt-1">
+                <div class="col-5 col-md-3">
                     <div class="form-floating">
                         <input type="date"
-                            class="form-control"
+                            class="form-control form-control-sm"
                             id="filter-datum-von"
                             name="datum_von"
-                            value="{{ $defaultDatumVon }}"
-                            placeholder="Datum von">
-                        <label for="filter-datum-von">Datum von</label>
+                            value="{{ $defaultDatumVon }}">
+                        <label for="filter-datum-von">Von</label>
                     </div>
                 </div>
-
-                {{-- Datum bis (Standard: 31.12.dieses Jahres) --}}
-                <div class="col-md-3">
+                <div class="col-5 col-md-3">
                     <div class="form-floating">
                         <input type="date"
-                            class="form-control"
+                            class="form-control form-control-sm"
                             id="filter-datum-bis"
                             name="datum_bis"
-                            value="{{ $defaultDatumBis }}"
-                            placeholder="Datum bis">
-                        <label for="filter-datum-bis">Datum bis</label>
+                            value="{{ $defaultDatumBis }}">
+                        <label for="filter-datum-bis">Bis</label>
                     </div>
                 </div>
-
-                <div class="col-md-6 text-end">
-                    {{-- Filter-Button --}}
+                <div class="col-2 col-md-6 d-flex align-items-center justify-content-end">
                     <button type="button"
-                        class="btn btn-outline-primary mt-2 mt-md-0"
+                        class="btn btn-primary"
                         id="btnFilterRechnungen"
-                        title="Filter anwenden">
-                        <i class="bi bi-funnel"></i> Filtern
+                        title="Filtern">
+                        <i class="bi bi-funnel"></i>
+                        <span class="d-none d-md-inline ms-1">Filtern</span>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Tabellenbereich --}}
+    {{-- Ergebnisse --}}
     @if($rechnungen->isEmpty())
-    <div class="alert alert-info">Keine Rechnungen gefunden.</div>
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Keine Rechnungen gefunden.
+        </div>
     @else
-    <div class="card">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Nummer</th>
-                        <th>Typ</th>
-                        <th>Datum</th>
-                        <th>Codex</th>
-                        <th>Gebäude</th>
-                        <th class="text-end">Zahlbar</th>
-                        <th>Status</th>
-                        <th class="text-end">Aktion</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($rechnungen as $rechnung)
-                    <tr data-rechnung-id="{{ $rechnung->id }}">
-                        {{-- Nummer (Accessor: rechnungsnummer => "jahr/laufnummer") --}}
-                        <td>
-                            <span class="fw-semibold">
-                                {{ $rechnung->rechnungsnummer }}
-                            </span>
-                        </td>
 
-                        {{-- Typ (Rechnung oder Gutschrift) --}}
-                        <td>
-                            @if($rechnung->typ_rechnung === 'gutschrift')
-                                <span class="badge bg-danger">Gutschrift</span>
-                            @else
-                                <span class="badge bg-primary">Rechnung</span>
-                            @endif
-                        </td>
-
-                        {{-- Datum (Rechnungsdatum) --}}
-                        <td>
-                            {{ optional($rechnung->rechnungsdatum)->format('d.m.Y') }}
-                        </td>
-
-                        {{-- Codex (Snapshot oder Relation) --}}
-                        <td>
-                            {{ $rechnung->geb_codex ?? $rechnung->gebaeude?->codex ?? '–' }}
-                        </td>
-
-                        {{-- Gebäudename (Snapshot oder Relation) als Link zum Gebäude (Edit-Seite) --}}
-                        <td>
-                            @php
-                            // Bevorzugt den Snapshot-Namen, sonst den aktuellen Namen aus der Relation
-                            $gebName = $rechnung->geb_name ?? $rechnung->gebaeude?->gebaeude_name ?? '–';
-                            @endphp
-
-                            @if($rechnung->gebaeude_id && $gebName !== '–')
-                            {{-- Link zur Bearbeitung des Gebäudes
-             Route laut web.php: gebaeude.edit
-             link-primary = blau, text-decoration-none = nicht unterstrichen --}}
-                            <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}"
-                                class="link-primary text-decoration-none">
-                                {{ $gebName }}
-                            </a>
-                            @else
-                            {{ $gebName }}
-                            @endif
-                        </td>
-
-
-                        {{-- Zahlbar / Betrag (Snapshot-Feld) - NEGATIV bei Gutschrift --}}
-                        <td class="text-end">
-                            @php
-                                $betrag = $rechnung->zahlbar_betrag ?? 0;
-                                if ($rechnung->typ_rechnung === 'gutschrift') {
-                                    $betrag = -1 * abs($betrag);
-                                }
-                            @endphp
-                            <span class="{{ $rechnung->typ_rechnung === 'gutschrift' ? 'text-danger' : '' }}">
-                                {{ number_format($betrag, 2, ',', '.') }} €
-                            </span>
-                        </td>
-
-                        {{-- Status --}}
-                        <td>
-                            @php
-                            $status = $rechnung->status ?? 'draft';
-                            $badgeClass = match ($status) {
-                            'paid' => 'bg-success',
-                            'cancelled' => 'bg-secondary',
-                            'draft' => 'bg-warning text-dark',
-                            'sent' => 'bg-primary',
-                            'overdue' => 'bg-danger',
-                            default => 'bg-light text-dark',
-                            };
-                            @endphp
-                            <span class="badge {{ $badgeClass }}">
-                                {{ ucfirst($status) }}
-                            </span>
-                        </td>
-
-                        {{-- Aktionen (vollständig, ohne Form, Delete via JS/fetch) --}}
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm" role="group">
-                                {{-- Anzeigen --}}
+        {{-- ══════════════════════════════════════════════════════════════ --}}
+        {{-- DESKTOP: Tabelle (ab md sichtbar) --}}
+        {{-- ══════════════════════════════════════════════════════════════ --}}
+        <div class="card d-none d-md-block">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Nummer ↓</th>
+                            <th>Typ</th>
+                            <th>Datum</th>
+                            <th>Codex</th>
+                            <th>Gebäude</th>
+                            <th class="text-end">Zahlbar</th>
+                            <th>Status</th>
+                            <th class="text-center" style="width: 60px;">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($rechnungen as $rechnung)
+                        <tr>
+                            <td>
+                                <span class="fw-semibold font-monospace">
+                                    {{ $rechnung->rechnungsnummer }}
+                                </span>
+                            </td>
+                            <td>
+                                @if($rechnung->typ_rechnung === 'gutschrift')
+                                    <span class="badge bg-danger">GS</span>
+                                @else
+                                    <span class="badge bg-primary">RE</span>
+                                @endif
+                            </td>
+                            <td>{{ optional($rechnung->rechnungsdatum)->format('d.m.Y') }}</td>
+                            <td>
+                                <code class="text-muted">{{ $rechnung->geb_codex ?? $rechnung->gebaeude?->codex ?? '–' }}</code>
+                            </td>
+                            <td>
+                                @php
+                                    $gebName = $rechnung->geb_name ?? $rechnung->gebaeude?->gebaeude_name ?? '–';
+                                @endphp
+                                @if($rechnung->gebaeude_id && $gebName !== '–')
+                                    <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}"
+                                       class="text-decoration-none">
+                                        {{ Str::limit($gebName, 30) }}
+                                    </a>
+                                @else
+                                    {{ Str::limit($gebName, 30) }}
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                @php
+                                    $zahlbar = $rechnung->zahlbetrag ?? $rechnung->brutto_summe ?? 0;
+                                    if ($rechnung->typ_rechnung === 'gutschrift') {
+                                        $zahlbar = -abs($zahlbar);
+                                    }
+                                @endphp
+                                <span class="fw-semibold {{ $zahlbar < 0 ? 'text-danger' : '' }}">
+                                    {{ number_format($zahlbar, 2, ',', '.') }} €
+                                </span>
+                            </td>
+                            <td>
+                                @php
+                                    $status = $rechnung->status ?? 'draft';
+                                    $badgeClass = match ($status) {
+                                        'paid' => 'bg-success',
+                                        'cancelled' => 'bg-secondary',
+                                        'draft' => 'bg-warning text-dark',
+                                        'sent' => 'bg-primary',
+                                        'overdue' => 'bg-danger',
+                                        default => 'bg-light text-dark',
+                                    };
+                                @endphp
+                                <span class="badge {{ $badgeClass }}">
+                                    {{ ucfirst($status) }}
+                                </span>
+                            </td>
+                            <td class="text-center">
                                 <a href="{{ route('rechnung.edit', $rechnung->id) }}"
-                                    class="btn btn-outline-secondary"
-                                    title="Details anzeigen">
+                                   class="btn btn-sm btn-outline-primary"
+                                   title="Details anzeigen">
                                     <i class="bi bi-eye"></i>
                                 </a>
-
-                                {{-- Bearbeiten --}}
-                                <a href="{{ route('rechnung.edit', $rechnung->id) }}"
-                                    class="btn btn-outline-primary"
-                                    title="Bearbeiten">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-
-                                {{-- Löschen: Button + JS, KEIN <form>, KEIN GET-Delete --}}
-                                <button type="button"
-                                    class="btn btn-outline-danger btn-delete-rechnung"
-                                    title="Löschen"
-                                    data-delete-url="{{ route('rechnung.destroy', $rechnung->id) }}">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-
-        {{-- Pagination --}}
-        <div class="card-footer d-flex justify-content-between align-items-center">
-            <div class="text-muted small">
-                {{ $rechnungen->total() }} Rechnungen gefunden
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
-            <div>
-                {{-- alle Filter als Query-Parameter erhalten --}}
-                {{ $rechnungen->appends([
+
+            {{-- Pagination Desktop --}}
+            <div class="card-footer d-flex justify-content-between align-items-center py-2">
+                <small class="text-muted">
+                    {{ $rechnungen->total() }} Rechnungen
+                </small>
+                <div>
+                    {{ $rechnungen->appends([
                         'nummer'    => $nummer ?? null,
                         'codex'     => $codex ?? null,
                         'suche'     => $suche ?? null,
                         'datum_von' => $datumVon ?? $defaultDatumVon,
                         'datum_bis' => $datumBis ?? $defaultDatumBis,
                     ])->links() }}
+                </div>
             </div>
         </div>
-    </div>
-    @endif
 
+        {{-- ══════════════════════════════════════════════════════════════ --}}
+        {{-- MOBILE: Card-Layout (nur auf sm sichtbar) --}}
+        {{-- ══════════════════════════════════════════════════════════════ --}}
+        <div class="d-md-none">
+            {{-- Anzahl --}}
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted">{{ $rechnungen->total() }} Rechnungen</small>
+                <small class="text-muted">Sortiert nach Nr. ↓</small>
+            </div>
+
+            {{-- Cards --}}
+            @foreach($rechnungen as $rechnung)
+                @php
+                    $gebName = $rechnung->geb_name ?? $rechnung->gebaeude?->gebaeude_name ?? '–';
+                    $codex = $rechnung->geb_codex ?? $rechnung->gebaeude?->codex ?? '–';
+                    $zahlbar = $rechnung->zahlbetrag ?? $rechnung->brutto_summe ?? 0;
+                    if ($rechnung->typ_rechnung === 'gutschrift') {
+                        $zahlbar = -abs($zahlbar);
+                    }
+                    $status = $rechnung->status ?? 'draft';
+                    $badgeClass = match ($status) {
+                        'paid' => 'bg-success',
+                        'cancelled' => 'bg-secondary',
+                        'draft' => 'bg-warning text-dark',
+                        'sent' => 'bg-primary',
+                        'overdue' => 'bg-danger',
+                        default => 'bg-light text-dark',
+                    };
+                @endphp
+
+                <div class="card mb-2 {{ $rechnung->typ_rechnung === 'gutschrift' ? 'border-danger' : '' }}">
+                    <div class="card-body py-2 px-3">
+                        {{-- Zeile 1: Nummer, Typ, Status, Auge --}}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold font-monospace">{{ $rechnung->rechnungsnummer }}</span>
+                                @if($rechnung->typ_rechnung === 'gutschrift')
+                                    <span class="badge bg-danger">GS</span>
+                                @else
+                                    <span class="badge bg-primary">RE</span>
+                                @endif
+                                <span class="badge {{ $badgeClass }}">{{ ucfirst($status) }}</span>
+                            </div>
+                            <a href="{{ route('rechnung.edit', $rechnung->id) }}"
+                               class="btn btn-sm btn-outline-primary"
+                               title="Details">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </div>
+
+                        {{-- Zeile 2: Datum, Codex --}}
+                        <div class="d-flex justify-content-between text-muted small mb-1">
+                            <span>
+                                <i class="bi bi-calendar3"></i>
+                                {{ optional($rechnung->rechnungsdatum)->format('d.m.Y') }}
+                            </span>
+                            <code>{{ $codex }}</code>
+                        </div>
+
+                        {{-- Zeile 3: Gebäude, Betrag --}}
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-truncate me-2" style="max-width: 60%;">
+                                @if($rechnung->gebaeude_id && $gebName !== '–')
+                                    <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}"
+                                       class="text-decoration-none">
+                                        {{ Str::limit($gebName, 25) }}
+                                    </a>
+                                @else
+                                    {{ Str::limit($gebName, 25) }}
+                                @endif
+                            </span>
+                            <span class="fw-bold {{ $zahlbar < 0 ? 'text-danger' : 'text-success' }}">
+                                {{ number_format($zahlbar, 2, ',', '.') }} €
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+
+            {{-- Pagination Mobile --}}
+            <div class="d-flex justify-content-center mt-3">
+                {{ $rechnungen->appends([
+                    'nummer'    => $nummer ?? null,
+                    'codex'     => $codex ?? null,
+                    'suche'     => $suche ?? null,
+                    'datum_von' => $datumVon ?? $defaultDatumVon,
+                    'datum_bis' => $datumBis ?? $defaultDatumBis,
+                ])->links() }}
+            </div>
+        </div>
+
+    @endif
 </div>
 @endsection
 
 @push('scripts')
 <script>
-    // Voraussetzung im Layout:
-    // <meta name="csrf-token" content="{{ csrf_token() }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const baseIndexUrl = "{{ route('rechnung.index') }}";
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const baseIndexUrl = "{{ route('rechnung.index') }}";
+    const nummerInput = document.getElementById('filter-nummer');
+    const codexInput = document.getElementById('filter-codex');
+    const sucheInput = document.getElementById('filter-suche');
+    const datumVonInput = document.getElementById('filter-datum-von');
+    const datumBisInput = document.getElementById('filter-datum-bis');
+    const btnFilter = document.getElementById('btnFilterRechnungen');
 
-        // Filter-Felder aus dem DOM holen
-        const nummerInput = document.getElementById('filter-nummer');
-        const codexInput = document.getElementById('filter-codex');
-        const sucheInput = document.getElementById('filter-suche');
-        const datumVonInput = document.getElementById('filter-datum-von');
-        const datumBisInput = document.getElementById('filter-datum-bis');
-        const btnFilter = document.getElementById('btnFilterRechnungen');
+    function applyFilter() {
+        const nummer = nummerInput?.value ?? '';
+        const codex = codexInput?.value ?? '';
+        const suche = sucheInput?.value ?? '';
+        const datumVon = datumVonInput?.value ?? '';
+        const datumBis = datumBisInput?.value ?? '';
 
-        // ---------------------------------
-        // Filter-Logik: Nummer, Codex, Suche, Datum von/bis
-        // ---------------------------------
-        function applyFilter() {
-            const nummer = nummerInput?.value ?? '';
-            const codex = codexInput?.value ?? '';
-            const suche = sucheInput?.value ?? '';
-            const datumVon = datumVonInput?.value ?? '';
-            const datumBis = datumBisInput?.value ?? '';
+        const params = new URLSearchParams();
 
-            const params = new URLSearchParams();
+        if (nummer) params.append('nummer', nummer);
+        if (codex) params.append('codex', codex);
+        if (suche) params.append('suche', suche);
+        if (datumVon) params.append('datum_von', datumVon);
+        if (datumBis) params.append('datum_bis', datumBis);
 
-            if (nummer) params.append('nummer', nummer);
-            if (codex) params.append('codex', codex);
-            if (suche) params.append('suche', suche);
-            if (datumVon) params.append('datum_von', datumVon);
-            if (datumBis) params.append('datum_bis', datumBis);
+        const targetUrl = params.toString()
+            ? baseIndexUrl + '?' + params.toString()
+            : baseIndexUrl;
 
-            const targetUrl = params.toString() ?
-                baseIndexUrl + '?' + params.toString() :
-                baseIndexUrl;
+        window.location.href = targetUrl;
+    }
 
-            // klassischer GET-Redirect mit Query-Parametern
-            window.location.href = targetUrl;
-        }
+    if (btnFilter) {
+        btnFilter.addEventListener('click', applyFilter);
+    }
 
-        // Klick auf Filter-Button
-        if (btnFilter) {
-            btnFilter.addEventListener('click', function() {
+    [nummerInput, codexInput, sucheInput, datumVonInput, datumBisInput].forEach(function(input) {
+        if (!input) return;
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
                 applyFilter();
-            });
-        }
-
-        // Enter in einem der Felder soll auch filtern
-        [nummerInput, codexInput, sucheInput, datumVonInput, datumBisInput].forEach(function(input) {
-            if (!input) return;
-            input.addEventListener('keydown', function(event) {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    applyFilter();
-                }
-            });
-        });
-
-        // ---------------------------------
-        // Löschen-Logik via fetch(), ohne <form>
-        // ---------------------------------
-        const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
-        const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : null;
-
-        document.querySelectorAll('.btn-delete-rechnung').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const url = this.getAttribute('data-delete-url');
-                const row = this.closest('tr');
-
-                if (!url) {
-                    console.error('Keine data-delete-url am Button gesetzt.');
-                    return;
-                }
-
-                if (!csrfToken) {
-                    alert('CSRF-Token nicht gefunden. Löschen nicht möglich.');
-                    return;
-                }
-
-                if (!confirm('Diese Rechnung wirklich löschen?')) {
-                    return;
-                }
-
-                // POST + _method=DELETE für Laravel
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        _method: 'DELETE'
-                    })
-                }).then(function(response) {
-                    if (response.ok) {
-                        if (row) {
-                            row.remove();
-                        }
-                    } else {
-                        alert('Fehler beim Löschen der Rechnung.');
-                    }
-                }).catch(function(error) {
-                    console.error(error);
-                    alert('Netzwerkfehler beim Löschen der Rechnung.');
-                });
-            });
+            }
         });
     });
+});
 </script>
 @endpush
