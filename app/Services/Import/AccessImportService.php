@@ -196,12 +196,12 @@ class AccessImportService
         $legacyMid = (int) $item->mId;
         $legacyId = (int) $item->id;
 
-        // ⭐ Duplikat-Prüfung (IMMER)
+        // Duplikat-Pruefung (IMMER)
         $existing = Gebaeude::where('legacy_mid', $legacyMid)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['gebaeude']['skipped']++;
-                Log::debug("Gebäude übersprungen (Duplikat)", [
+                Log::debug("Gebaeude uebersprungen (Duplikat)", [
                     'legacy_mid' => $legacyMid,
                     'codex' => (string) $item->Codex,
                     'existing_id' => $existing->id
@@ -210,9 +210,17 @@ class AccessImportService
             }
         }
 
-        // Referenzen auflösen
+        // Referenzen aufloesen
         $postadresseId = $this->resolveAdresse((int) $item->Postadresse);
         $rechnungsempfaengerId = $this->resolveAdresse((int) $item->Rechnungsempfaenger);
+
+        // =====================================================================
+        // RECHNUNGSEMPFAENGER LADEN (fuer Fallback bei fehlenden Daten)
+        // =====================================================================
+        $rechnungsempfaenger = null;
+        if ($rechnungsempfaengerId) {
+            $rechnungsempfaenger = Adresse::find($rechnungsempfaengerId);
+        }
 
         // Letzter Termin parsen (Dummy-Datum 2000-01-01 ignorieren)
         $letzterTermin = $this->parseDate((string) $item->LetzterTermin);
@@ -220,15 +228,86 @@ class AccessImportService
             $letzterTermin = null;
         }
 
+        // =====================================================================
+        // FatturaPA-Profil aus TypKunde ermitteln (Grossbuchstaben!)
+        // =====================================================================
+        $typKunde = (int) $item->TypKunde;
+        $fatturaProfil = $this->mapFatturaProfil($typKunde);
+        $fatturaProfileId = $fatturaProfil['fattura_profile_id'];
+
+        Log::debug("Gebaeude FatturaPA-Profil gemappt", [
+            'legacy_mid' => $legacyMid,
+            'codex' => (string) $item->Codex,
+            'TypKunde' => $typKunde,
+            'fattura_profile_id' => $fatturaProfileId,
+            'profile_bezeichnung' => $fatturaProfil['profile_bezeichnung'],
+        ]);
+
+        // =====================================================================
+        // CUP, CIG, Codice Commessa auslesen (falls vorhanden)
+        // =====================================================================
+        $cup = trim((string) $item->CUP) ?: null;
+        $cig = trim((string) $item->CIG) ?: null;
+        $codiceCommessa = trim((string) $item->CodiceCommessa) ?: null;
+        $auftragId = trim((string) $item->AuftragId) ?: null;
+        $auftragDatum = $this->parseDate((string) $item->AuftragDatum);
+
+        // =====================================================================
+        // DATEN ZUSAMMENSTELLEN MIT FALLBACK AUF RECHNUNGSEMPFAENGER
+        // =====================================================================
+        $xmlName = trim((string) $item->Namen1);
+        $xmlStrasse = trim((string) $item->Strasse);
+        $xmlHausnummer = trim((string) $item->Hausnummer);
+        $xmlPlz = trim((string) $item->PLZ);
+        $xmlWohnort = trim((string) $item->Wohnort);
+
+        // Fallback: Wenn Gebaeude-Daten leer sind, vom Rechnungsempfaenger uebernehmen
+        $gebaeudeName = $xmlName;
+        $strasse = $xmlStrasse;
+        $hausnummer = $xmlHausnummer;
+        $plz = $xmlPlz;
+        $wohnort = $xmlWohnort;
+
+        if ($rechnungsempfaenger) {
+            // Name: Fallback wenn leer oder nur "?"
+            if (empty($gebaeudeName) || $gebaeudeName === '?') {
+                $gebaeudeName = $rechnungsempfaenger->name;
+                Log::debug("Gebaeude-Name vom RE uebernommen", [
+                    'codex' => (string) $item->Codex,
+                    'name' => $gebaeudeName,
+                ]);
+            }
+
+            // Strasse: Fallback wenn leer
+            if (empty($strasse)) {
+                $strasse = $rechnungsempfaenger->strasse;
+            }
+
+            // Hausnummer: Fallback wenn leer
+            if (empty($hausnummer)) {
+                $hausnummer = $rechnungsempfaenger->hausnummer;
+            }
+
+            // PLZ: Fallback wenn leer
+            if (empty($plz)) {
+                $plz = $rechnungsempfaenger->plz;
+            }
+
+            // Wohnort: Fallback wenn leer
+            if (empty($wohnort)) {
+                $wohnort = $rechnungsempfaenger->wohnort;
+            }
+        }
+
         $data = [
             'legacy_id'              => $legacyId,
             'legacy_mid'             => $legacyMid,
             'codex'                  => (string) $item->Codex ?: null,
-            'gebaeude_name'          => (string) $item->Namen1 ?: null,
-            'strasse'                => (string) $item->Strasse ?: null,
-            'hausnummer'             => (string) $item->Hausnummer ?: null,
-            'plz'                    => (string) $item->PLZ ?: null,
-            'wohnort'                => (string) $item->Wohnort ?: null,
+            'gebaeude_name'          => $gebaeudeName ?: null,
+            'strasse'                => $strasse ?: null,
+            'hausnummer'             => $hausnummer ?: null,
+            'plz'                    => $plz ?: null,
+            'wohnort'                => $wohnort ?: null,
             'land'                   => 'IT',
             'bemerkung'              => (string) $item->Bemerkung ?: null,
             'postadresse_id'         => $postadresseId,
@@ -237,6 +316,17 @@ class AccessImportService
             'faellig'                => (int) $item->Faellig === 1,
             'geplante_reinigungen'   => (int) $item->anzReinigungPlan ?: 0,
             'gemachte_reinigungen'   => (int) $item->anzReinigung ?: 0,
+
+            // FatturaPA-Profil
+            'fattura_profile_id'     => $fatturaProfileId,
+
+            // FatturaPA-Zusatzdaten (falls im XML vorhanden)
+            'cup'                    => $cup,
+            'cig'                    => $cig,
+            'codice_commessa'        => $codiceCommessa,
+            'auftrag_id'             => $auftragId,
+            'auftrag_datum'          => $auftragDatum,
+
             // Monate
             'm01' => (int) $item->jan === 1,
             'm02' => (int) $item->feb === 1,
@@ -253,9 +343,12 @@ class AccessImportService
         ];
 
         if ($this->dryRun) {
-            Log::info('[DRY-RUN] Würde Gebäude importieren', [
+            Log::info('[DRY-RUN] Wuerde Gebaeude importieren', [
                 'legacy_mid' => $legacyMid,
                 'codex' => $data['codex'],
+                'gebaeude_name' => $data['gebaeude_name'],
+                'TypKunde' => $typKunde,
+                'fattura_profile_id' => $fatturaProfileId,
             ]);
             $this->stats['gebaeude']['imported']++;
             return 1;
@@ -448,7 +541,7 @@ class AccessImportService
             'mwst_betrag'            => (float) $item->MwStr ?: 0,
             'brutto_summe'           => (float) $item->Betrag ?: 0,
             'ritenuta_betrag'        => (float) $item->Rit ?: 0,
-            
+
             // ⭐⭐⭐ NEU: Fattura-Profil Felder aus Mapping ⭐⭐⭐
             'fattura_profile_id'     => $profilMapping['fattura_profile_id'],
             'profile_bezeichnung'    => $profilMapping['profile_bezeichnung'],
@@ -457,7 +550,7 @@ class AccessImportService
             'reverse_charge'         => $profilMapping['reverse_charge'],
             'ritenuta'               => $profilMapping['ritenuta'],
             'ritenuta_prozent'       => $profilMapping['ritenuta_prozent'],
-            
+
             'fattura_causale'        => (string) $item->Causale ?: null,
             'cig'                    => (string) $item->{'FatturaPAAbfrage.CIG'} ?: null,
             'auftrag_id'             => (string) $item->OrdineId ?: null,
@@ -468,7 +561,7 @@ class AccessImportService
             // ⭐ Snapshot Rechnungsempfänger - Vorname + Nachname zusammenführen!
             're_name'                => trim(
                 ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Vorname'} ?: '') . ' ' .
-                ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nachname'} ?: '')
+                    ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nachname'} ?: '')
             ) ?: ((string) $item->aNachname ?: null),
             're_strasse'             => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Strasse'} ?: ((string) $item->aStrasse ?: null),
             're_hausnummer'          => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nr'} ?: ((string) $item->aHausnummer ?: null),
@@ -480,11 +573,11 @@ class AccessImportService
             're_steuernummer'        => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Steuernummer'} ?: ((string) $item->mSteuernummer ?: null),
             're_codice_univoco'      => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.CodiceUnivoco'} ?: ((string) $item->mCodiceDestinatario ?: null),
             're_pec'                 => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Pec'} ?: null,
-            
+
             // ⭐ Snapshot Postadresse - Vorname + Nachname zusammenführen!
             'post_name'              => trim(
                 ((string) $item->{'GebaeudeAbfrage.Postadresse.Vorname'} ?: '') . ' ' .
-                ((string) $item->{'GebaeudeAbfrage.Postadresse.Nachname'} ?: '')
+                    ((string) $item->{'GebaeudeAbfrage.Postadresse.Nachname'} ?: '')
             ) ?: ((string) $item->pNachname ?: null),
             'post_strasse'           => (string) $item->{'GebaeudeAbfrage.Postadresse.Strasse'} ?: ((string) $item->pStrasse ?: null),
             'post_hausnummer'        => (string) $item->{'GebaeudeAbfrage.Postadresse.Nr'} ?: ((string) $item->pHausnummer ?: null),
@@ -640,7 +733,7 @@ class AccessImportService
         }
 
         $content = file_get_contents($path);
-        
+
         // BOM entfernen falls vorhanden
         $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
 
