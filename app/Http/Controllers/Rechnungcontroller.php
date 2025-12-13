@@ -209,7 +209,6 @@ class RechnungController extends Controller
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
                 ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebaeude {$gebaeude->codex} erstellt.");
-
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Rechnung aus Gebaeude', [
                 'gebaeude_id' => $request->integer('gebaeude_id'),
@@ -543,13 +542,15 @@ class RechnungController extends Controller
 
             DB::commit();
 
+            // 4. Gebaeude-Flag zuruecksetzen
+            $this->resetGebaeudeRechnungFlag($rechnung);
+
             $message = 'Rechnung als versendet markiert.';
             if ($xmlLog) {
                 $message .= " XML generiert: {$xmlLog->progressivo_invio}";
             }
 
             return back()->with('success', $message);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Fehler beim Markieren als versendet', [
@@ -559,6 +560,7 @@ class RechnungController extends Controller
             return back()->with('error', 'Fehler: ' . $e->getMessage());
         }
     }
+
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // POSITIONEN - CRUD fuer Rechnungspositionen
@@ -739,7 +741,6 @@ class RechnungController extends Controller
             ]);
 
             return $log;
-
         } catch (\Exception $e) {
             Log::error('Automatische XML-Generierung fehlgeschlagen', [
                 'rechnung_id' => $rechnung->id,
@@ -806,7 +807,6 @@ class RechnungController extends Controller
                     'FatturaPA XML erfolgreich generiert! Progressivo: %s',
                     $log->progressivo_invio
                 ));
-
         } catch (\Exception $e) {
             Log::error('Fehler bei XML-Generierung', [
                 'rechnung_id' => $id,
@@ -873,7 +873,6 @@ class RechnungController extends Controller
                     'FatturaPA XML neu generiert! Progressivo: %s',
                     $log->progressivo_invio
                 ));
-
         } catch (\Exception $e) {
             Log::error('Fehler bei XML-Regenerierung', [
                 'rechnung_id' => $id,
@@ -913,7 +912,6 @@ class RechnungController extends Controller
             return response($xmlString, 200)
                 ->header('Content-Type', 'application/xml; charset=UTF-8')
                 ->header('Content-Disposition', 'inline; filename="preview.xml"');
-
         } catch (\Exception $e) {
             return back()->withErrors([
                 'error' => 'Fehler bei Preview: ' . $e->getMessage()
@@ -1442,10 +1440,14 @@ class RechnungController extends Controller
                 ],
             ]);
 
+            // ──────────────────────────────────────────────────────────────────────────
+            // 12. GEBAEUDE-FLAG ZURUECKSETZEN
+            // ──────────────────────────────────────────────────────────────────────────
+            $this->resetGebaeudeRechnungFlag($rechnung);
+
             $typLabel = $typ === 'pec' ? 'PEC' : 'E-Mail';
             $statusMsg = $alterStatus === 'draft' ? ' Status: Versendet.' : '';
             return back()->with('success', "{$typLabel} erfolgreich versandt an {$empfaenger}.{$statusMsg}");
-
         } catch (\Exception $e) {
             Log::error('E-Mail Versand fehlgeschlagen', [
                 'rechnung_id' => $rechnung->id,
@@ -1491,13 +1493,15 @@ class RechnungController extends Controller
 
             DB::commit();
 
+            // 4. Gebaeude-Flag zuruecksetzen
+            $this->resetGebaeudeRechnungFlag($rechnung);
+
             $message = 'Rechnung als versendet markiert (keine E-Mail-Adresse).';
             if ($xmlLog) {
                 $message .= " XML: {$xmlLog->progressivo_invio}";
             }
 
             return back()->with('success', $message);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Fehler beim Markieren als versendet', [
@@ -1519,5 +1523,30 @@ class RechnungController extends Controller
         $kunde = substr(preg_replace('/[^a-zA-Z0-9]/', '', $rechnung->re_name ?? 'Kunde'), 0, 30);
 
         return "Fattura_{$nummer}_{$kunde}.pdf";
+    }
+    
+    protected function resetGebaeudeRechnungFlag(Rechnung $rechnung): void
+    {
+        // Pruefen ob Rechnung einem Gebaeude zugeordnet ist
+        if (!$rechnung->gebaeude_id) {
+            return;
+        }
+
+        $gebaeude = Gebaeude::find($rechnung->gebaeude_id);
+
+        // Pruefen ob Gebaeude existiert und Flag gesetzt ist
+        if (!$gebaeude || !$gebaeude->rechnung_schreiben) {
+            return;
+        }
+
+        // Flag zuruecksetzen
+        $gebaeude->update(['rechnung_schreiben' => false]);
+
+        Log::info('Gebaeude rechnung_schreiben Flag zurueckgesetzt', [
+            'rechnung_id'   => $rechnung->id,
+            'gebaeude_id'   => $gebaeude->id,
+            'gebaeude_name' => $gebaeude->gebaeude_name,
+            'codex'         => $gebaeude->codex,
+        ]);
     }
 }
