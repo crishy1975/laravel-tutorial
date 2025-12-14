@@ -113,7 +113,7 @@
                             <th>Gebäude</th>
                             <th class="text-end">Zahlbar</th>
                             <th>Status</th>
-                            <th class="text-center" style="width: 60px;">Details</th>
+                            <th class="text-center" style="width: 100px;">Aktionen</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -176,11 +176,20 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <a href="{{ route('rechnung.edit', $rechnung->id) }}"
-                                   class="btn btn-sm btn-outline-primary"
-                                   title="Details anzeigen">
-                                    <i class="bi bi-eye"></i>
-                                </a>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('rechnung.edit', $rechnung->id) }}"
+                                       class="btn btn-outline-primary"
+                                       title="Details anzeigen">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if($rechnung->hat_xml)
+                                    <a href="{{ route('rechnung.xml.download', $rechnung->id) }}"
+                                       class="btn btn-outline-secondary"
+                                       title="XML herunterladen">
+                                        <i class="bi bi-file-earmark-code"></i>
+                                    </a>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                         @endforeach
@@ -237,7 +246,7 @@
 
                 <div class="card mb-2 {{ $rechnung->typ_rechnung === 'gutschrift' ? 'border-danger' : '' }}">
                     <div class="card-body py-2 px-3">
-                        {{-- Zeile 1: Nummer, Typ, Status, Auge --}}
+                        {{-- Zeile 1: Nummer, Typ, Status, Buttons --}}
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="fw-bold font-monospace">{{ $rechnung->rechnungsnummer }}</span>
@@ -248,11 +257,20 @@
                                 @endif
                                 <span class="badge {{ $badgeClass }}">{{ ucfirst($status) }}</span>
                             </div>
-                            <a href="{{ route('rechnung.edit', $rechnung->id) }}"
-                               class="btn btn-sm btn-outline-primary"
-                               title="Details">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ route('rechnung.edit', $rechnung->id) }}"
+                                   class="btn btn-outline-primary"
+                                   title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                @if($rechnung->hat_xml)
+                                <a href="{{ route('rechnung.xml.download', $rechnung->id) }}"
+                                   class="btn btn-outline-secondary"
+                                   title="XML">
+                                    <i class="bi bi-file-earmark-code"></i>
+                                </a>
+                                @endif
+                            </div>
                         </div>
 
                         {{-- Zeile 2: Datum, Codex --}}
