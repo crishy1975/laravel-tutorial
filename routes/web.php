@@ -14,6 +14,7 @@ use App\Http\Controllers\RechnungController;
 use App\Http\Controllers\PreisAufschlagController;
 use App\Http\Controllers\UnternehmensprofilController;
 use App\Http\Controllers\ReinigungsplanungController;
+use App\Http\Controllers\BankBuchungController;
 
 
 // Home / Dashboard Redirect
@@ -259,31 +260,31 @@ Route::middleware(['auth'])->prefix('preis-aufschlaege')->name('preis-aufschlaeg
 // UNTERNEHMENSPROFIL
 // ═══════════════════════════════════════════════════════════════════════════
 Route::prefix('einstellungen/profil')->name('unternehmensprofil.')->group(function () {
-    
+
     // Übersicht
     Route::get('/', [UnternehmensprofilController::class, 'index'])
         ->name('index');
-    
+
     // Bearbeiten
     Route::get('/bearbeiten', [UnternehmensprofilController::class, 'bearbeiten'])
         ->name('bearbeiten');
-    
+
     // Speichern
     Route::post('/speichern', [UnternehmensprofilController::class, 'speichern'])
         ->name('speichern');
-    
+
     // Logo
     Route::post('/logo/hochladen', [UnternehmensprofilController::class, 'logoHochladen'])
         ->name('logo.hochladen');
     Route::delete('/logo/loeschen', [UnternehmensprofilController::class, 'logoLoeschen'])
         ->name('logo.loeschen');
-    
+
     // SMTP Testen
     Route::get('/smtp/testen', [UnternehmensprofilController::class, 'smtpTesten'])
         ->name('smtp.testen');
     Route::get('/pec-smtp/testen', [UnternehmensprofilController::class, 'pecSmtpTesten'])
         ->name('pec-smtp.testen');
-    
+
     // Backup/Import
     Route::post('/duplizieren', [UnternehmensprofilController::class, 'duplizieren'])
         ->name('duplizieren');
@@ -395,6 +396,63 @@ Route::prefix('reinigungsplanung')->name('reinigungsplanung.')->group(function (
     Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
     Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
 });
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bank-Buchungen
+// ═══════════════════════════════════════════════════════════════════════════
+
+Route::prefix('bank')->name('bank.')->middleware('auth')->group(function () {
+
+    // Uebersicht
+    Route::get('/', [BankBuchungController::class, 'index'])
+        ->name('index');
+
+    // Import
+    Route::get('/import', [BankBuchungController::class, 'importForm'])
+        ->name('import');
+    Route::post('/import', [BankBuchungController::class, 'import'])
+        ->name('import.store');
+
+    // Nicht zugeordnete
+    Route::get('/unmatched', [BankBuchungController::class, 'unmatched'])
+        ->name('unmatched');
+
+    // Zugeordnete (Kontroll-Übersicht)
+    Route::get('/matched', [BankBuchungController::class, 'matched'])
+        ->name('matched');
+
+    // Matching-Uebersicht
+    Route::get('/matching', [BankBuchungController::class, 'matchingOverview'])
+        ->name('matching');
+
+    // Auto-Matching fuer alle
+    Route::post('/auto-match', [BankBuchungController::class, 'autoMatchAll'])
+        ->name('auto-match');
+
+    // Einzelne Buchung
+    Route::get('/{buchung}', [BankBuchungController::class, 'show'])
+        ->name('show');
+
+    // Manuell zuordnen
+    Route::post('/{buchung}/match', [BankBuchungController::class, 'match'])
+        ->name('match');
+
+    // Zuordnung aufheben
+    Route::delete('/{buchung}/unmatch', [BankBuchungController::class, 'unmatch'])
+        ->name('unmatch');
+
+    // Ignorieren
+    Route::post('/{buchung}/ignore', [BankBuchungController::class, 'ignore'])
+        ->name('ignore');
+});
+
+
+
+
+
+
 
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';

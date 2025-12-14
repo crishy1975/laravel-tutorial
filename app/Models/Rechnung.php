@@ -16,6 +16,7 @@ use App\Models\Adresse;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
 use App\Enums\Zahlungsbedingung;
+use App\Models\FatturaXmlLog;
 
 class Rechnung extends Model
 {
@@ -233,6 +234,53 @@ class Rechnung extends Model
         return $rechnungsdatum->copy()->addDays($tage);
     }
 
+
+    // ═══════════════════════════════════════════════════════════
+    // XML-LOG BEZIEHUNGEN
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Alle XML-Logs fuer diese Rechnung
+     */
+    public function xmlLogs(): HasMany
+    {
+        return $this->hasMany(FatturaXmlLog::class)
+            ->orderByDesc('created_at');
+    }
+
+    /**
+     * Neuester erfolgreicher XML-Log
+     */
+    public function latestXmlLog()
+    {
+        return $this->hasOne(FatturaXmlLog::class)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->latest();
+    }
+
+    /**
+     * Hat diese Rechnung eine generierte XML-Datei?
+     * 
+     * @return bool
+     */
+    public function getHatXmlAttribute(): bool
+    {
+        return FatturaXmlLog::where('rechnung_id', $this->id)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->exists();
+    }
 // ─────────────────────────────────────────────────────────────────────────
 // SCHRITT 3: Statische Methoden (am Ende der Klasse einfügen)
 // ─────────────────────────────────────────────────────────────────────────

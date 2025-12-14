@@ -19,10 +19,17 @@ use Exception;
  * 
  * Import-Reihenfolge (wichtig wegen Referenzen!):
  * 1. Adressen
- * 2. Gebäude
+ * 2. Gebaeude
  * 3. Artikel (Stamm)
  * 4. Rechnungen
  * 5. Rechnungspositionen
+ * 
+ * WICHTIG - Index-Referenzen:
+ * - Adressen: mId ist der primaere Schluessel (legacy_mid)
+ * - Gebaeude: id ist der primaere Schluessel (legacy_id), mId ist sekundaer
+ * - Artikel: id ist der primaere Schluessel, herkunft -> Gebaeude.id
+ * - Rechnungen: idFatturaPA ist der primaere Schluessel
+ * - Positionen: id ist der primaere Schluessel, herkunft -> FatturaPA.idFatturaPA
  */
 class AccessImportService
 {
@@ -38,10 +45,11 @@ class AccessImportService
     protected bool $dryRun = false;
     protected bool $skipExisting = true;
 
-    // Lookup-Tabellen für Referenz-Auflösung
-    protected array $adressenMap = [];     // legacy_mid → neue ID
-    protected array $gebaeudeMap = [];     // legacy_mid → neue ID
-    protected array $rechnungenMap = [];   // legacy_id (idFatturaPA) → neue ID
+    // Lookup-Tabellen fuer Referenz-Aufloesung
+    protected array $adressenMap = [];       // legacy_mid -> neue ID
+    protected array $gebaeudeMap = [];       // legacy_mid -> neue ID (fuer Rechnungen)
+    protected array $gebaeudeMapById = [];   // legacy_id -> neue ID (fuer Artikel!)
+    protected array $rechnungenMap = [];     // legacy_id (idFatturaPA) -> neue ID
 
     /**
      * Konfiguration setzen
@@ -69,9 +77,9 @@ class AccessImportService
         return $this->errors;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 📋 ADRESSEN IMPORT
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // ADRESSEN IMPORT
+    // =====================================================================
 
     /**
      * Importiert Adressen aus XML
@@ -100,19 +108,17 @@ class AccessImportService
         $legacyMid = (int) $item->mId;
         $legacyId = (int) $item->id;
 
-        // ⭐ Duplikat-Prüfung (IMMER, nicht nur bei skipExisting)
+        // Duplikat-Pruefung
         $existing = Adresse::where('legacy_mid', $legacyMid)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['adressen']['skipped']++;
-                Log::debug("Adresse übersprungen (Duplikat)", [
+                Log::debug("Adresse uebersprungen (Duplikat)", [
                     'legacy_mid' => $legacyMid,
                     'existing_id' => $existing->id
                 ]);
                 return 0;
             }
-            // Bei --force: Existierenden aktualisieren statt neu anlegen
-            // (Optional: hier könnte man $existing->update($data) machen)
         }
 
         // Name zusammensetzen (Vorname + Nachname)
@@ -142,7 +148,7 @@ class AccessImportService
         ];
 
         if ($this->dryRun) {
-            Log::info('[DRY-RUN] Würde Adresse importieren', ['legacy_mid' => $legacyMid, 'name' => $name]);
+            Log::info('[DRY-RUN] Wuerde Adresse importieren', ['legacy_mid' => $legacyMid, 'name' => $name]);
             $this->stats['adressen']['imported']++;
             return 1;
         }
@@ -158,14 +164,16 @@ class AccessImportService
         $this->adressenMap = Adresse::whereNotNull('legacy_mid')
             ->pluck('id', 'legacy_mid')
             ->toArray();
+        
+        Log::info("AdressenMap aufgebaut", ['count' => count($this->adressenMap)]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🏢 GEBÄUDE IMPORT
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // GEBAEUDE IMPORT
+    // =====================================================================
 
     /**
-     * Importiert Gebäude aus XML
+     * Importiert Gebaeude aus XML
      */
     public function importGebaeude(string $xmlPath): int
     {
@@ -185,8 +193,9 @@ class AccessImportService
             }
         }
 
-        // Lookup-Tabelle aufbauen
+        // Lookup-Tabellen aufbauen (beide!)
         $this->buildGebaeudeMap();
+        $this->buildGebaeudeMapById();
 
         return $count;
     }
@@ -196,13 +205,13 @@ class AccessImportService
         $legacyMid = (int) $item->mId;
         $legacyId = (int) $item->id;
 
-        // Duplikat-Pruefung (IMMER)
-        $existing = Gebaeude::where('legacy_mid', $legacyMid)->first();
+        // Duplikat-Pruefung auf legacy_id (primaerer Schluessel)
+        $existing = Gebaeude::where('legacy_id', $legacyId)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['gebaeude']['skipped']++;
                 Log::debug("Gebaeude uebersprungen (Duplikat)", [
-                    'legacy_mid' => $legacyMid,
+                    'legacy_id' => $legacyId,
                     'codex' => (string) $item->Codex,
                     'existing_id' => $existing->id
                 ]);
@@ -214,9 +223,7 @@ class AccessImportService
         $postadresseId = $this->resolveAdresse((int) $item->Postadresse);
         $rechnungsempfaengerId = $this->resolveAdresse((int) $item->Rechnungsempfaenger);
 
-        // =====================================================================
-        // RECHNUNGSEMPFAENGER LADEN (fuer Fallback bei fehlenden Daten)
-        // =====================================================================
+        // Rechnungsempfaenger laden (fuer Fallback bei fehlenden Daten)
         $rechnungsempfaenger = null;
         if ($rechnungsempfaengerId) {
             $rechnungsempfaenger = Adresse::find($rechnungsempfaengerId);
@@ -228,33 +235,27 @@ class AccessImportService
             $letzterTermin = null;
         }
 
-        // =====================================================================
         // FatturaPA-Profil aus TypKunde ermitteln (Grossbuchstaben!)
-        // =====================================================================
         $typKunde = (int) $item->TypKunde;
         $fatturaProfil = $this->mapFatturaProfil($typKunde);
         $fatturaProfileId = $fatturaProfil['fattura_profile_id'];
 
         Log::debug("Gebaeude FatturaPA-Profil gemappt", [
-            'legacy_mid' => $legacyMid,
+            'legacy_id' => $legacyId,
             'codex' => (string) $item->Codex,
             'TypKunde' => $typKunde,
             'fattura_profile_id' => $fatturaProfileId,
             'profile_bezeichnung' => $fatturaProfil['profile_bezeichnung'],
         ]);
 
-        // =====================================================================
         // CUP, CIG, Codice Commessa auslesen (falls vorhanden)
-        // =====================================================================
         $cup = trim((string) $item->CUP) ?: null;
         $cig = trim((string) $item->CIG) ?: null;
         $codiceCommessa = trim((string) $item->CodiceCommessa) ?: null;
         $auftragId = trim((string) $item->AuftragId) ?: null;
         $auftragDatum = $this->parseDate((string) $item->AuftragDatum);
 
-        // =====================================================================
-        // DATEN ZUSAMMENSTELLEN MIT FALLBACK AUF RECHNUNGSEMPFAENGER
-        // =====================================================================
+        // Daten zusammenstellen MIT FALLBACK auf Rechnungsempfaenger
         $xmlName = trim((string) $item->Namen1);
         $xmlStrasse = trim((string) $item->Strasse);
         $xmlHausnummer = trim((string) $item->Hausnummer);
@@ -269,7 +270,6 @@ class AccessImportService
         $wohnort = $xmlWohnort;
 
         if ($rechnungsempfaenger) {
-            // Name: Fallback wenn leer oder nur "?"
             if (empty($gebaeudeName) || $gebaeudeName === '?') {
                 $gebaeudeName = $rechnungsempfaenger->name;
                 Log::debug("Gebaeude-Name vom RE uebernommen", [
@@ -277,23 +277,15 @@ class AccessImportService
                     'name' => $gebaeudeName,
                 ]);
             }
-
-            // Strasse: Fallback wenn leer
             if (empty($strasse)) {
                 $strasse = $rechnungsempfaenger->strasse;
             }
-
-            // Hausnummer: Fallback wenn leer
             if (empty($hausnummer)) {
                 $hausnummer = $rechnungsempfaenger->hausnummer;
             }
-
-            // PLZ: Fallback wenn leer
             if (empty($plz)) {
                 $plz = $rechnungsempfaenger->plz;
             }
-
-            // Wohnort: Fallback wenn leer
             if (empty($wohnort)) {
                 $wohnort = $rechnungsempfaenger->wohnort;
             }
@@ -320,7 +312,7 @@ class AccessImportService
             // FatturaPA-Profil
             'fattura_profile_id'     => $fatturaProfileId,
 
-            // FatturaPA-Zusatzdaten (falls im XML vorhanden)
+            // FatturaPA-Zusatzdaten
             'cup'                    => $cup,
             'cig'                    => $cig,
             'codice_commessa'        => $codiceCommessa,
@@ -344,7 +336,7 @@ class AccessImportService
 
         if ($this->dryRun) {
             Log::info('[DRY-RUN] Wuerde Gebaeude importieren', [
-                'legacy_mid' => $legacyMid,
+                'legacy_id' => $legacyId,
                 'codex' => $data['codex'],
                 'gebaeude_name' => $data['gebaeude_name'],
                 'TypKunde' => $typKunde,
@@ -365,21 +357,36 @@ class AccessImportService
         $this->gebaeudeMap = Gebaeude::whereNotNull('legacy_mid')
             ->pluck('id', 'legacy_mid')
             ->toArray();
+        
+        Log::info("GebaeudeMap (legacy_mid) aufgebaut", ['count' => count($this->gebaeudeMap)]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 📦 ARTIKEL (STAMM) IMPORT
-    // ═══════════════════════════════════════════════════════════
+    protected function buildGebaeudeMapById(): void
+    {
+        $this->gebaeudeMapById = Gebaeude::whereNotNull('legacy_id')
+            ->pluck('id', 'legacy_id')
+            ->toArray();
+        
+        Log::info("GebaeudeMapById (legacy_id) aufgebaut", ['count' => count($this->gebaeudeMapById)]);
+    }
+
+    // =====================================================================
+    // ARTIKEL (STAMM) IMPORT
+    // =====================================================================
 
     /**
-     * Importiert Artikel (Stammdaten) aus XML → artikel_gebaeude
+     * Importiert Artikel (Stammdaten) aus XML -> artikel_gebaeude
+     * 
+     * WICHTIG: 
+     * - id ist der primaere Schluessel (nicht mId!)
+     * - herkunft verweist auf Gebaeude.mId (legacy_mid)
      */
     public function importArtikel(string $xmlPath): int
     {
         $xml = $this->loadXml($xmlPath);
         $count = 0;
 
-        // Sicherstellen dass Gebäude-Map existiert
+        // Sicherstellen dass Gebaeude-Map existiert (nach legacy_mid!)
         if (empty($this->gebaeudeMap)) {
             $this->buildGebaeudeMap();
         }
@@ -397,35 +404,37 @@ class AccessImportService
 
     protected function importArtikelItem(\SimpleXMLElement $item): int
     {
-        $legacyMid = (int) $item->mId;
+        // id ist der primaere Schluessel
         $legacyId = (int) $item->id;
+        $herkunft = (int) $item->herkunft;
+        $beschreibung = (string) $item->Beschreibung;
 
-        // ⭐ Duplikat-Prüfung (IMMER)
-        $existing = ArtikelGebaeude::where('legacy_mid', $legacyMid)->first();
+        // Duplikat-Pruefung auf legacy_id
+        $existing = ArtikelGebaeude::where('legacy_id', $legacyId)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['artikel']['skipped']++;
-                Log::debug("Artikel übersprungen (Duplikat)", [
-                    'legacy_mid' => $legacyMid,
+                Log::debug("Artikel uebersprungen (Duplikat)", [
+                    'legacy_id' => $legacyId,
                     'existing_id' => $existing->id
                 ]);
                 return 0;
             }
         }
 
-        // Gebäude-Referenz auflösen (herkunft → Gebaeude.mId)
-        $gebaeudeId = $this->resolveGebaeude((int) $item->herkunft);
+        // herkunft verweist auf Gebaeude.mId (legacy_mid)
+        $gebaeudeId = $this->resolveGebaeude($herkunft);
 
         if (!$gebaeudeId) {
-            $this->logError('artikel', $legacyId, "Gebäude nicht gefunden: herkunft=" . (int)$item->herkunft);
+            $this->logError('artikel', (string)$legacyId, "Gebaeude nicht gefunden: herkunft=$herkunft (legacy_mid)");
             return 0;
         }
 
         $data = [
             'legacy_id'    => $legacyId,
-            'legacy_mid'   => $legacyMid,
+            'legacy_mid'   => null,
             'gebaeude_id'  => $gebaeudeId,
-            'beschreibung' => (string) $item->Beschreibung ?: 'Ohne Beschreibung',
+            'beschreibung' => $beschreibung ?: 'Ohne Beschreibung',
             'einzelpreis'  => (float) $item->Einzelpreis ?: 0,
             'anzahl'       => (float) $item->Anzahl ?: 1,
             'aktiv'        => true,
@@ -434,9 +443,11 @@ class AccessImportService
         ];
 
         if ($this->dryRun) {
-            Log::info('[DRY-RUN] Würde Artikel importieren', [
-                'legacy_mid' => $legacyMid,
-                'beschreibung' => substr($data['beschreibung'], 0, 50),
+            Log::info('[DRY-RUN] Wuerde Artikel importieren', [
+                'legacy_id' => $legacyId,
+                'herkunft' => $herkunft,
+                'gebaeude_id' => $gebaeudeId,
+                'beschreibung' => substr($beschreibung, 0, 50),
             ]);
             $this->stats['artikel']['imported']++;
             return 1;
@@ -448,9 +459,9 @@ class AccessImportService
         return 1;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🧾 RECHNUNGEN IMPORT
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // RECHNUNGEN IMPORT
+    // =====================================================================
 
     /**
      * Importiert Rechnungen aus XML
@@ -466,6 +477,9 @@ class AccessImportService
         }
         if (empty($this->gebaeudeMap)) {
             $this->buildGebaeudeMap();
+        }
+        if (empty($this->gebaeudeMapById)) {
+            $this->buildGebaeudeMapById();
         }
 
         foreach ($xml->FatturaPAXmlAbfrage as $item) {
@@ -487,12 +501,12 @@ class AccessImportService
         $legacyId = (int) $item->idFatturaPA;
         $progressivo = (int) $item->ProgressivoInvio;
 
-        // ⭐ Duplikat-Prüfung (IMMER)
+        // Duplikat-Pruefung
         $existing = Rechnung::where('legacy_id', $legacyId)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['rechnungen']['skipped']++;
-                Log::debug("Rechnung übersprungen (Duplikat)", [
+                Log::debug("Rechnung uebersprungen (Duplikat)", [
                     'legacy_id' => $legacyId,
                     'existing_id' => $existing->id
                 ]);
@@ -500,8 +514,15 @@ class AccessImportService
             }
         }
 
-        // Referenzen auflösen
-        $gebaeudeId = $this->resolveGebaeude((int) $item->herkunft);
+        // Referenzen aufloesen
+        // HINWEIS: Bei Rechnungen kann herkunft auf legacy_mid ODER legacy_id verweisen
+        // Wir versuchen zuerst legacy_id, dann legacy_mid
+        $herkunft = (int) $item->herkunft;
+        $gebaeudeId = $this->resolveGebaeudeById($herkunft);
+        if (!$gebaeudeId) {
+            $gebaeudeId = $this->resolveGebaeude($herkunft);
+        }
+        
         $rechnungsempfaengerId = $this->resolveAdresse((int) $item->Rechnungsempfaenger);
 
         // Rechnungsdatum parsen
@@ -515,14 +536,14 @@ class AccessImportService
         // Status ermitteln
         $status = (int) $item->Bezahlt === 1 ? 'paid' : 'sent';
 
-        // Typ ermitteln (TipoDocumento: 2 = Rechnung, sonst Gutschrift?)
+        // Typ ermitteln (TipoDocumento: TD04 = Gutschrift)
         $typ = 'rechnung';
         $tipoDoc = (string) $item->TipoDocumentoCodex;
         if ($tipoDoc === 'TD04') {
             $typ = 'gutschrift';
         }
 
-        // ⭐⭐⭐ NEU: Fattura-Profil aus mTypKunde mappen ⭐⭐⭐
+        // Fattura-Profil aus mTypKunde mappen
         $mTypKunde = (int) $item->mTypKunde;
         $profilMapping = $this->mapFatturaProfil($mTypKunde);
 
@@ -542,7 +563,7 @@ class AccessImportService
             'brutto_summe'           => (float) $item->Betrag ?: 0,
             'ritenuta_betrag'        => (float) $item->Rit ?: 0,
 
-            // ⭐⭐⭐ NEU: Fattura-Profil Felder aus Mapping ⭐⭐⭐
+            // Fattura-Profil Felder aus Mapping
             'fattura_profile_id'     => $profilMapping['fattura_profile_id'],
             'profile_bezeichnung'    => $profilMapping['profile_bezeichnung'],
             'mwst_satz'              => $profilMapping['mwst_satz'],
@@ -555,13 +576,15 @@ class AccessImportService
             'cig'                    => (string) $item->{'FatturaPAAbfrage.CIG'} ?: null,
             'auftrag_id'             => (string) $item->OrdineId ?: null,
             'auftrag_datum'          => $this->parseDate((string) $item->OrdineData),
-            // Snapshot Gebäude
+            
+            // Snapshot Gebaeude
             'geb_codex'              => (string) $item->Codex ?: null,
             'geb_name'               => (string) $item->Namen1 ?: null,
-            // ⭐ Snapshot Rechnungsempfänger - Vorname + Nachname zusammenführen!
+            
+            // Snapshot Rechnungsempfaenger
             're_name'                => trim(
                 ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Vorname'} ?: '') . ' ' .
-                    ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nachname'} ?: '')
+                ((string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nachname'} ?: '')
             ) ?: ((string) $item->aNachname ?: null),
             're_strasse'             => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Strasse'} ?: ((string) $item->aStrasse ?: null),
             're_hausnummer'          => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Nr'} ?: ((string) $item->aHausnummer ?: null),
@@ -574,10 +597,10 @@ class AccessImportService
             're_codice_univoco'      => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.CodiceUnivoco'} ?: ((string) $item->mCodiceDestinatario ?: null),
             're_pec'                 => (string) $item->{'GebaeudeAbfrage.Rechnungsempfaenger.Pec'} ?: null,
 
-            // ⭐ Snapshot Postadresse - Vorname + Nachname zusammenführen!
+            // Snapshot Postadresse
             'post_name'              => trim(
                 ((string) $item->{'GebaeudeAbfrage.Postadresse.Vorname'} ?: '') . ' ' .
-                    ((string) $item->{'GebaeudeAbfrage.Postadresse.Nachname'} ?: '')
+                ((string) $item->{'GebaeudeAbfrage.Postadresse.Nachname'} ?: '')
             ) ?: ((string) $item->pNachname ?: null),
             'post_strasse'           => (string) $item->{'GebaeudeAbfrage.Postadresse.Strasse'} ?: ((string) $item->pStrasse ?: null),
             'post_hausnummer'        => (string) $item->{'GebaeudeAbfrage.Postadresse.Nr'} ?: ((string) $item->pHausnummer ?: null),
@@ -590,7 +613,7 @@ class AccessImportService
         ];
 
         if ($this->dryRun) {
-            Log::info('[DRY-RUN] Würde Rechnung importieren', [
+            Log::info('[DRY-RUN] Wuerde Rechnung importieren', [
                 'legacy_id' => $legacyId,
                 'nummer' => "$jahr/$laufnummer",
                 'profil' => $profilMapping['profile_bezeichnung'],
@@ -611,11 +634,13 @@ class AccessImportService
         $this->rechnungenMap = Rechnung::whereNotNull('legacy_id')
             ->pluck('id', 'legacy_id')
             ->toArray();
+        
+        Log::info("RechnungenMap aufgebaut", ['count' => count($this->rechnungenMap)]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 📝 RECHNUNGSPOSITIONEN IMPORT
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // RECHNUNGSPOSITIONEN IMPORT
+    // =====================================================================
 
     /**
      * Importiert Rechnungspositionen aus XML
@@ -630,7 +655,7 @@ class AccessImportService
             $this->buildRechnungenMap();
         }
 
-        // Positionen nach Rechnung gruppieren (für position-Nummerierung)
+        // Positionen nach Rechnung gruppieren (fuer position-Nummerierung)
         $positionenProRechnung = [];
 
         foreach ($xml->ArtikelFatturaPAAbfrage as $item) {
@@ -661,12 +686,12 @@ class AccessImportService
     {
         $legacyId = (int) $item->id;
 
-        // ⭐ Duplikat-Prüfung (IMMER)
+        // Duplikat-Pruefung
         $existing = RechnungPosition::where('legacy_id', $legacyId)->first();
         if ($existing) {
             if ($this->skipExisting) {
                 $this->stats['positionen']['skipped']++;
-                Log::debug("Position übersprungen (Duplikat)", [
+                Log::debug("Position uebersprungen (Duplikat)", [
                     'legacy_id' => $legacyId,
                     'existing_id' => $existing->id
                 ]);
@@ -674,11 +699,11 @@ class AccessImportService
             }
         }
 
-        // Rechnung-Referenz auflösen (herkunft → FatturaPAAbfrage.idFatturaPA)
+        // Rechnung-Referenz aufloesen (herkunft -> FatturaPAAbfrage.idFatturaPA)
         $rechnungId = $this->resolveRechnung((int) $item->herkunft);
 
         if (!$rechnungId) {
-            $this->logError('positionen', $legacyId, "Rechnung nicht gefunden: herkunft=" . (int)$item->herkunft);
+            $this->logError('positionen', (string)$legacyId, "Rechnung nicht gefunden: herkunft=" . (int)$item->herkunft);
             return 0;
         }
 
@@ -704,7 +729,7 @@ class AccessImportService
         ];
 
         if ($this->dryRun) {
-            Log::info('[DRY-RUN] Würde Position importieren', [
+            Log::info('[DRY-RUN] Wuerde Position importieren', [
                 'legacy_id' => $legacyId,
                 'rechnung_id' => $rechnungId,
                 'position' => $posNr,
@@ -719,12 +744,12 @@ class AccessImportService
         return 1;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🔧 HELPER METHODS
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // HELPER METHODS
+    // =====================================================================
 
     /**
-     * Lädt XML-Datei
+     * Laedt XML-Datei
      */
     protected function loadXml(string $path): \SimpleXMLElement
     {
@@ -741,7 +766,7 @@ class AccessImportService
     }
 
     /**
-     * Adresse-Referenz auflösen (legacy_mid → neue ID)
+     * Adresse-Referenz aufloesen (legacy_mid -> neue ID)
      */
     protected function resolveAdresse(int $legacyMid): ?int
     {
@@ -752,7 +777,7 @@ class AccessImportService
     }
 
     /**
-     * Gebäude-Referenz auflösen (legacy_mid → neue ID)
+     * Gebaeude-Referenz aufloesen nach legacy_mid (fuer Rechnungen)
      */
     protected function resolveGebaeude(int $legacyMid): ?int
     {
@@ -763,7 +788,21 @@ class AccessImportService
     }
 
     /**
-     * Rechnung-Referenz auflösen (legacy_id/idFatturaPA → neue ID)
+     * Gebaeude-Referenz aufloesen nach legacy_id (fuer Artikel!)
+     * 
+     * WICHTIG: Artikel.herkunft verweist auf Gebaeude.id (legacy_id),
+     * NICHT auf Gebaeude.mId (legacy_mid)!
+     */
+    protected function resolveGebaeudeById(int $legacyId): ?int
+    {
+        if ($legacyId <= 0) {
+            return null;
+        }
+        return $this->gebaeudeMapById[$legacyId] ?? null;
+    }
+
+    /**
+     * Rechnung-Referenz aufloesen (legacy_id/idFatturaPA -> neue ID)
      */
     protected function resolveRechnung(int $legacyId): ?int
     {
@@ -807,9 +846,9 @@ class AccessImportService
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🧾 FATTURA-PROFIL MAPPING
-    // ═══════════════════════════════════════════════════════════
+    // =====================================================================
+    // FATTURA-PROFIL MAPPING
+    // =====================================================================
 
     /**
      * Mappt mTypKunde auf Fattura-Profil-Daten
@@ -817,36 +856,18 @@ class AccessImportService
      * Access-Tabelle TypKunde:
      * id | beschreibung              | Ritenuta | typMwst | typRechnung
      * 1  | Kondominium               | Ja       | 7 (4%)  | 1 (normal)
-     * 2  | Öffentliches Gebäude      | Nein     | 11 (0%) | 2 (split)
+     * 2  | Oeffentliches Gebaeude    | Nein     | 11 (0%) | 2 (split)
      * 3  | Privat Kunde              | Nein     | 7 (4%)  | 1 (normal)
      * 4  | Firmen Kunde              | Nein     | 11 (0%)| 1 (normal)
      * 5  | Sanierung                 | Nein     | 7 (4%)  | 1 (normal)
      * 7  | 22% MwSt. Split Payment   | Nein     | 9 (22%)| 2 (split)
      * 8  | FirmenKunde 22% MwSt      | Nein     | 8 (22%)| 1 (normal)
      * 9  | Kondominium 22%           | Ja       | 8 (22%)| 1 (normal)
-     * 
-     * typRechnung: 1 = normale Rechnung, 2 = Split Payment (PA)
-     * typMwst: 7 = 4%, 8 = 22%, 9 = 22%, 11 = 0% (Reverse Charge)
-     * 
-     * @param int $mTypKunde
-     * @return array
      */
     protected function mapFatturaProfil(int $mTypKunde): array
     {
-        // Mapping-Tabelle: mTypKunde (Access) → fattura_profile (Laravel)
-        // 
-        // Access TypKunde:                    → Laravel fattura_profile:
-        // 1 Kondominium (Rit, 4%)             → 4 Kondominium (10%, ritenuta)
-        // 2 Öffentliches Gebäude (0%, Split)  → 3 Öffentlich (22%, split_payment)
-        // 3 Privat Kunde (4%)                 → 2 Privatkunde (10%)
-        // 4 Firmen Kunde (0%, RC)             → 1 Firma, Reverse Charge (0%, RC)
-        // 5 Sanierung (4%)                    → 1 Firma, Reverse Charge (0%, RC)
-        // 7 22% MwSt. Split Payment           → 3 Öffentlich (22%, split_payment)
-        // 8 FirmenKunde 22% MwSt              → 6 Firma, 22% (22%)
-        // 9 Kondominium 22% (Rit)             → 5 Kondominium Gewerblich (22%, ritenuta)
-        //
         $mapping = [
-            // mTypKunde 1: Kondominium → Profil 4 (Kondominium, 10%, ritenuta)
+            // mTypKunde 1: Kondominium -> Profil 4 (Kondominium, 10%, ritenuta)
             1 => [
                 'fattura_profile_id'  => 4,
                 'profile_bezeichnung' => 'Kondominium',
@@ -856,17 +877,17 @@ class AccessImportService
                 'ritenuta'            => true,
                 'ritenuta_prozent'    => 4.00,
             ],
-            // mTypKunde 2: Öffentliches Gebäude → Profil 3 (Öffentlich, 22%, split_payment)
+            // mTypKunde 2: Oeffentliches Gebaeude -> Profil 3 (Oeffentlich, 22%, split_payment)
             2 => [
                 'fattura_profile_id'  => 3,
-                'profile_bezeichnung' => 'Öffentlich',
+                'profile_bezeichnung' => 'Oeffentlich',
                 'mwst_satz'           => 22.00,
                 'split_payment'       => true,
                 'reverse_charge'      => false,
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 3: Privat Kunde → Profil 2 (Privatkunde, 10%)
+            // mTypKunde 3: Privat Kunde -> Profil 2 (Privatkunde, 10%)
             3 => [
                 'fattura_profile_id'  => 2,
                 'profile_bezeichnung' => 'Privatkunde',
@@ -876,7 +897,7 @@ class AccessImportService
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 4: Firmen Kunde → Profil 1 (Firma, Reverse Charge, 0%)
+            // mTypKunde 4: Firmen Kunde -> Profil 1 (Firma, Reverse Charge, 0%)
             4 => [
                 'fattura_profile_id'  => 1,
                 'profile_bezeichnung' => 'Firma, Reverse Charge',
@@ -886,7 +907,7 @@ class AccessImportService
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 5: Sanierung → Profil 1 (Firma, Reverse Charge, 0%)
+            // mTypKunde 5: Sanierung -> Profil 1 (Firma, Reverse Charge, 0%)
             5 => [
                 'fattura_profile_id'  => 1,
                 'profile_bezeichnung' => 'Firma, Reverse Charge',
@@ -896,17 +917,17 @@ class AccessImportService
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 7: 22% MwSt. Split Payment → Profil 3 (Öffentlich, 22%, split_payment)
+            // mTypKunde 7: 22% MwSt. Split Payment -> Profil 3 (Oeffentlich, 22%, split_payment)
             7 => [
                 'fattura_profile_id'  => 3,
-                'profile_bezeichnung' => 'Öffentlich',
+                'profile_bezeichnung' => 'Oeffentlich',
                 'mwst_satz'           => 22.00,
                 'split_payment'       => true,
                 'reverse_charge'      => false,
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 8: FirmenKunde 22% MwSt → Profil 6 (Firma, 22%)
+            // mTypKunde 8: FirmenKunde 22% MwSt -> Profil 6 (Firma, 22%)
             8 => [
                 'fattura_profile_id'  => 6,
                 'profile_bezeichnung' => 'Firma, 22%',
@@ -916,7 +937,7 @@ class AccessImportService
                 'ritenuta'            => false,
                 'ritenuta_prozent'    => 0.00,
             ],
-            // mTypKunde 9: Kondominium 22% → Profil 5 (Kondominium Gewerblich, 22%, ritenuta)
+            // mTypKunde 9: Kondominium 22% -> Profil 5 (Kondominium Gewerblich, 22%, ritenuta)
             9 => [
                 'fattura_profile_id'  => 5,
                 'profile_bezeichnung' => 'Kondominium Gewerblich',
