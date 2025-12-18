@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BankBuchung;
 use App\Models\BankImportLog;
 use App\Models\Rechnung;
+use App\Models\BankMatchingConfig;
 use App\Services\BankImportService;
 use App\Services\BankMatchingService;
 use Illuminate\Http\Request;
@@ -107,18 +108,10 @@ class BankBuchungController extends Controller
             $result = $service->importFromFile($fullPath);
 
             if ($result['success']) {
-                // Nach Import: Auto-Matching durchführen
-                $matchResult = $this->matchingService->autoMatchAll();
-                
-                $message = $result['message'];
-                if ($matchResult['matched'] > 0) {
-                    $message .= sprintf(' Davon %d automatisch zugeordnet.', $matchResult['matched']);
-                }
-
+                // Weiterleitung zur Progress-Seite für Auto-Matching
                 return redirect()
-                    ->route('bank.matched')
-                    ->with('success', $message)
-                    ->with('match_results', $matchResult['results']);
+                    ->route('bank.autoMatchProgress')
+                    ->with('success', $result['message']);
             } else {
                 return back()
                     ->with('warning', $result['message']);
@@ -138,15 +131,18 @@ class BankBuchungController extends Controller
     /**
      * Einzelne Buchung anzeigen
      */
-    public function show(BankBuchung $buchung)
+    public function show(Request $request, BankBuchung $buchung)
     {
         $buchung->load('rechnung.rechnungsempfaenger');
+
+        // Schalter: Auch bezahlte Rechnungen anzeigen? (Standard: NEIN)
+        $includePaid = $request->boolean('include_paid', false);
 
         // Potenzielle Matches mit Scoring
         $potentielleMatches = collect();
         
         if ($buchung->typ === 'CRDT' && $buchung->match_status === 'unmatched') {
-            $potentielleMatches = $this->matchingService->findMatches($buchung, 15);
+            $potentielleMatches = $this->matchingService->findMatches($buchung, 15, $includePaid);
         }
 
         // Extrahierte Daten für Anzeige
@@ -156,7 +152,8 @@ class BankBuchungController extends Controller
             'buchung'            => $buchung,
             'potentielleMatches' => $potentielleMatches,
             'extractedData'      => $extractedData,
-            'autoMatchThreshold' => BankMatchingService::AUTO_MATCH_THRESHOLD,
+            'autoMatchThreshold' => BankMatchingConfig::get('auto_match_threshold', 80),
+            'includePaid'        => $includePaid,
         ]);
     }
 
@@ -305,8 +302,12 @@ class BankBuchungController extends Controller
                             ->where('typ', 'CRDT')->sum('betrag'),
         ];
 
+        // Rechnungen als Map für schnellen Zugriff in der View
+        $rechnungen = $buchungen->pluck('rechnung')->filter()->keyBy('id');
+
         return view('bank.matched', [
             'buchungen'  => $buchungen,
+            'rechnungen' => $rechnungen,
             'newResults' => $newResults,
             'stats'      => $stats,
             'filter'     => $request->only(['zeitraum', 'typ']),
@@ -318,31 +319,233 @@ class BankBuchungController extends Controller
      */
     public function matchingOverview(Request $request)
     {
-        // Nicht zugeordnete Eingaenge
+        // Filter-Parameter mit Defaults
+        $jahr = $request->input('jahr', now()->year);
+        $monate = $request->input('monate', '12'); // Standard: 12 Monate
+        $status = $request->input('status', 'offen'); // Standard: nur offene
+
+        // Nicht zugeordnete Eingänge
         $unmatchedBuchungen = BankBuchung::where('match_status', 'unmatched')
             ->where('typ', 'CRDT')
             ->orderByDesc('buchungsdatum')
             ->take(50)
             ->get();
 
-        // Rechnungen (mit oder ohne bezahlte)
+        // Rechnungen-Query mit Filtern
         $query = Rechnung::with('rechnungsempfaenger')
             ->orderByDesc('rechnungsdatum');
-        
-        if ($request->boolean('show_paid')) {
-            // Alle Rechnungen
-            $query->take(200);
-        } else {
-            // Nur offene
-            $query->whereIn('status', ['sent', 'draft'])
-                  ->take(100);
+
+        // Jahr-Filter
+        if ($jahr) {
+            $query->where('jahr', $jahr);
         }
-        
-        $rechnungen = $query->get();
+
+        // Monate-Filter (nur letzte X Monate)
+        if ($monate && is_numeric($monate)) {
+            $query->where('rechnungsdatum', '>=', now()->subMonths((int) $monate)->startOfMonth());
+        }
+
+        // Status-Filter
+        if ($status === 'offen') {
+            $query->whereIn('status', ['sent', 'draft']);
+        }
+        // Bei 'alle' kein Status-Filter
+
+        $rechnungen = $query->take(200)->get();
 
         return view('bank.matching', [
             'buchungen'  => $unmatchedBuchungen,
             'rechnungen' => $rechnungen,
+            'filter' => [
+                'jahr'   => $jahr,
+                'monate' => $monate,
+                'status' => $status,
+            ],
         ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // AUTO-MATCH MIT PROGRESS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Progress-Seite für Auto-Matching anzeigen
+     */
+    public function autoMatchProgress(Request $request)
+    {
+        $jahr = (int) $request->input('jahr', now()->year);
+        
+        $total = BankBuchung::where('match_status', 'unmatched')
+            ->where('typ', 'CRDT')
+            ->count();
+
+        $rechnungenCount = Rechnung::whereIn('status', ['sent', 'draft'])
+            ->where('jahr', $jahr)
+            ->count();
+
+        return view('bank.auto-match-progress', [
+            'total'           => $total,
+            'rechnungenCount' => $rechnungenCount,
+            'jahr'            => $jahr,
+        ]);
+    }
+
+    /**
+     * Batch-Verarbeitung für Auto-Matching (AJAX)
+     * 
+     * Verwendet last_id um Endlosschleifen zu vermeiden (effizienter als ID-Array).
+     */
+    public function autoMatchBatch(Request $request)
+    {
+        $batchSize = $request->input('batch_size', 10);
+        $lastId = $request->input('last_id', 0);
+        $jahr = (int) $request->input('jahr', now()->year);
+
+        // Unzugeordnete Buchungen holen, ID > last_id
+        $buchungen = BankBuchung::where('match_status', 'unmatched')
+            ->where('typ', 'CRDT')
+            ->where('id', '>', $lastId)
+            ->orderBy('id')
+            ->take($batchSize)
+            ->get();
+
+        $matched = 0;
+        $results = [];
+        $newLastId = $lastId;
+
+        foreach ($buchungen as $buchung) {
+            $newLastId = $buchung->id;  // Letzte geprüfte ID
+            
+            // ⭐ Jahr an tryAutoMatch übergeben
+            $result = $this->matchingService->tryAutoMatch($buchung, $jahr);
+
+            if ($result['matched'] && $result['rechnung']) {
+                $this->matchingService->executeMatch(
+                    $buchung, 
+                    $result['rechnung'], 
+                    $result['score'], 
+                    $result['details']
+                );
+                $matched++;
+
+                $results[] = [
+                    'buchung_id'      => $buchung->id,
+                    'rechnung_id'     => $result['rechnung']->id,
+                    'rechnungsnummer' => $result['rechnung']->rechnungsnummer,
+                    'betrag'          => $buchung->betrag,
+                    'score'           => $result['score'],
+                ];
+            }
+        }
+
+        // Verbleibende (ID > newLastId und unmatched)
+        $remaining = BankBuchung::where('match_status', 'unmatched')
+            ->where('typ', 'CRDT')
+            ->where('id', '>', $newLastId)
+            ->count();
+
+        return response()->json([
+            'processed' => $buchungen->count(),
+            'matched'   => $matched,
+            'remaining' => $remaining,
+            'results'   => $results,
+            'last_id'   => $newLastId,
+            'done'      => $buchungen->isEmpty(),
+        ]);
+    }
+
+    /**
+     * Status für Auto-Matching (AJAX)
+     */
+    public function autoMatchStatus()
+    {
+        $unmatched = BankBuchung::where('match_status', 'unmatched')
+            ->where('typ', 'CRDT')
+            ->count();
+
+        $matched = BankBuchung::whereIn('match_status', ['matched', 'manual'])->count();
+
+        return response()->json([
+            'unmatched' => $unmatched,
+            'matched'   => $matched,
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // KONFIGURATION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Konfiguration anzeigen
+     */
+    public function config()
+    {
+        $config = BankMatchingConfig::getConfig();
+        $descriptions = BankMatchingConfig::getFieldDescriptions();
+
+        return view('bank.config', [
+            'config'       => $config,
+            'descriptions' => $descriptions,
+        ]);
+    }
+
+    /**
+     * Konfiguration speichern
+     */
+    public function updateConfig(Request $request)
+    {
+        $config = BankMatchingConfig::getConfig();
+
+        $validated = $request->validate([
+            'score_iban_match'         => 'required|integer|min:0|max:500',
+            'score_cig_match'          => 'required|integer|min:0|max:500',
+            'score_rechnungsnr_match'  => 'required|integer|min:0|max:500',
+            'score_betrag_exakt'       => 'required|integer|min:0|max:500',
+            'score_betrag_nah'         => 'required|integer|min:0|max:500',
+            'score_betrag_abweichung'  => 'required|integer|max:0',
+            'score_name_token_exact'   => 'required|integer|min:0|max:500',
+            'score_name_token_partial' => 'required|integer|min:0|max:500',
+            'auto_match_threshold'     => 'required|integer|min:1|max:500',
+            'betrag_abweichung_limit'  => 'required|integer|min:1|max:100',
+            'betrag_toleranz_exakt'    => 'required|numeric|min:0|max:100',
+            'betrag_toleranz_nah'      => 'required|numeric|min:0|max:100',
+        ]);
+
+        $config->update($validated);
+
+        Log::info('Bank-Matching-Konfiguration aktualisiert', $validated);
+
+        return redirect()
+            ->route('bank.config')
+            ->with('success', 'Konfiguration gespeichert.');
+    }
+
+    /**
+     * Konfiguration auf Standard zurücksetzen
+     */
+    public function resetConfig()
+    {
+        $config = BankMatchingConfig::getConfig();
+        
+        $config->update([
+            'score_iban_match'         => 100,
+            'score_cig_match'          => 80,
+            'score_rechnungsnr_match'  => 50,
+            'score_betrag_exakt'       => 30,
+            'score_betrag_nah'         => 15,
+            'score_betrag_abweichung'  => -40,
+            'score_name_token_exact'   => 10,
+            'score_name_token_partial' => 5,
+            'auto_match_threshold'     => 80,
+            'betrag_abweichung_limit'  => 30,
+            'betrag_toleranz_exakt'    => 0.10,
+            'betrag_toleranz_nah'      => 2.00,
+        ]);
+
+        Log::info('Bank-Matching-Konfiguration auf Standard zurückgesetzt');
+
+        return redirect()
+            ->route('bank.config')
+            ->with('success', 'Konfiguration auf Standard-Werte zurückgesetzt.');
     }
 }

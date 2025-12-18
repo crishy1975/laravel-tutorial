@@ -218,34 +218,38 @@
                             {{ $buchung->rechnung->re_name ?? ($buchung->rechnung->rechnungsempfaenger?->name ?? '–') }}
                         </div>
                         
-                        @if($buchung->rechnung->geb_name)
-                        <div class="small text-muted mb-2">
-                            <i class="bi bi-building"></i>
-                            {{ $buchung->rechnung->geb_name }}
-                        </div>
-                        @endif
-                        
                         {{-- Match-Details --}}
                         @if(!empty($details))
-                        <div class="d-flex flex-wrap gap-1 mb-2">
-                            @foreach($details as $detail)
-                                <span class="badge bg-light text-dark" title="{{ $detail['text'] }}">
-                                    +{{ $detail['punkte'] }}
-                                </span>
-                            @endforeach
-                        </div>
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                @foreach(array_slice($details, 0, 6) as $detail)
+                                    @php
+                                        $isNegative = ($detail['punkte'] ?? 0) < 0;
+                                        $badgeClass = $isNegative ? 'bg-danger text-white' : 'bg-light text-dark';
+                                    @endphp
+                                    <span class="badge {{ $badgeClass }}" title="{{ $detail['text'] ?? '' }}">
+                                        {{ $isNegative ? '' : '+' }}{{ $detail['punkte'] }}
+                                    </span>
+                                @endforeach
+                            </div>
                         @endif
-                        
+
+                        {{-- Meta --}}
                         <div class="small text-muted mb-2">
-                            {{ $isAuto ? 'Auto' : 'Manuell' }} · {{ $buchung->matched_at?->format('d.m.Y H:i') }}
+                            <span class="badge bg-{{ $isAuto ? 'primary' : 'secondary' }}">
+                                {{ $isAuto ? 'Auto' : 'Manuell' }}
+                            </span>
+                            @if($buchung->matched_at)
+                                <span class="ms-1">{{ $buchung->matched_at->format('d.m.Y H:i') }}</span>
+                            @endif
                         </div>
-                        
-                        <div class="d-flex flex-wrap gap-2">
-                            <a href="{{ route('rechnung.edit', $buchung->rechnung_id) }}" class="btn btn-outline-primary btn-sm">
+
+                        {{-- Aktionen --}}
+                        <div class="d-flex gap-2">
+                            <a href="{{ route('rechnung.edit', $buchung->rechnung->id) }}" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-eye"></i> Rechnung
                             </a>
                             <form method="POST" action="{{ route('bank.unmatch', $buchung->id) }}" 
-                                  onsubmit="return confirm('Zuordnung aufheben?')">
+                                  onsubmit="return confirm('Zuordnung wirklich aufheben?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-outline-danger btn-sm">
@@ -260,15 +264,45 @@
             {{-- Manuelles Matching --}}
             @if($buchung->match_status === 'unmatched' && $buchung->typ === 'CRDT')
                 <div class="card mb-3">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
                         <h6 class="mb-0"><i class="bi bi-link-45deg"></i> Matches</h6>
-                        <small class="text-muted">Auto ab {{ $autoMatchThreshold }}</small>
+                        <div class="d-flex align-items-center gap-2">
+                            {{-- ⭐ SCHALTER: Auch bezahlte anzeigen --}}
+                            <form method="GET" action="{{ route('bank.show', $buchung->id) }}" class="d-flex align-items-center">
+                                @if(request('q'))
+                                    <input type="hidden" name="q" value="{{ request('q') }}">
+                                @endif
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" 
+                                           id="includePaid" name="include_paid" value="1"
+                                           {{ $includePaid ?? false ? 'checked' : '' }}
+                                           onchange="this.form.submit()">
+                                    <label class="form-check-label small" for="includePaid">
+                                        <span class="d-none d-sm-inline">+ Bezahlte</span>
+                                        <span class="d-sm-none">+Bez.</span>
+                                    </label>
+                                </div>
+                            </form>
+                            <small class="text-muted">Auto ab {{ $autoMatchThreshold }}</small>
+                        </div>
                     </div>
                     <div class="card-body py-2">
-                        <div class="alert alert-info py-2 small mb-2">
-                            <i class="bi bi-info-circle"></i>
-                            Graue Einträge = bereits bezahlt (für historische Verknüpfungen)
-                        </div>
+                        {{-- Info-Box angepasst je nach Schalter --}}
+                        @if($includePaid ?? false)
+                            <div class="alert alert-warning py-2 small mb-2">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Bezahlte Rechnungen werden angezeigt!</strong>
+                                Graue Einträge sind bereits bezahlt.
+                            </div>
+                        @else
+                            <div class="alert alert-info py-2 small mb-2">
+                                <i class="bi bi-info-circle"></i>
+                                Nur offene Rechnungen. 
+                                <a href="{{ route('bank.show', array_merge(['buchung' => $buchung->id], request()->except('include_paid'), ['include_paid' => 1])) }}" class="alert-link">
+                                    Auch bezahlte anzeigen?
+                                </a>
+                            </div>
+                        @endif
 
                         @if($potentielleMatches->isNotEmpty())
                             <div class="list-group list-group-flush">
@@ -322,7 +356,7 @@
                                                             $isNegative = ($detail['punkte'] ?? 0) < 0;
                                                             $badgeClass = $isNegative ? 'bg-danger text-white' : 'bg-light text-dark';
                                                         @endphp
-                                                        <span class="badge {{ $badgeClass }}" style="font-size: 0.65rem;">
+                                                        <span class="badge {{ $badgeClass }}" style="font-size: 0.65rem;" title="{{ $detail['text'] ?? '' }}">
                                                             {{ $isNegative ? '' : '+' }}{{ $detail['punkte'] }}
                                                         </span>
                                                     @endforeach
@@ -334,7 +368,8 @@
                                                 <input type="hidden" name="rechnung_id" value="{{ $re->id }}">
                                                 <input type="hidden" name="mark_paid" value="{{ $isPaid ? '0' : '1' }}">
                                                 <input type="hidden" name="save_iban" value="1">
-                                                <button type="submit" class="btn btn-{{ $isPaid ? 'outline-secondary' : 'success' }} btn-sm">
+                                                <button type="submit" class="btn btn-{{ $isPaid ? 'outline-secondary' : 'success' }} btn-sm"
+                                                        title="{{ $isPaid ? 'Nur verknüpfen (nicht als bezahlt markieren)' : 'Zuordnen und als bezahlt markieren' }}">
                                                     <i class="bi bi-{{ $isPaid ? 'link' : 'check-lg' }}"></i>
                                                 </button>
                                             </form>
@@ -343,13 +378,23 @@
                                 @endforeach
                             </div>
                         @else
-                            <p class="text-muted small mb-2">Keine passenden Rechnungen gefunden.</p>
+                            <p class="text-muted small mb-2">
+                                Keine passenden Rechnungen gefunden.
+                                @if(!($includePaid ?? false))
+                                    <a href="{{ route('bank.show', array_merge(['buchung' => $buchung->id], request()->except('include_paid'), ['include_paid' => 1])) }}">
+                                        Mit bezahlten suchen?
+                                    </a>
+                                @endif
+                            </p>
                         @endif
 
                         <hr class="my-2">
 
                         {{-- Suche --}}
                         <form method="GET" action="{{ route('bank.show', $buchung->id) }}" class="mb-2">
+                            @if($includePaid ?? false)
+                                <input type="hidden" name="include_paid" value="1">
+                            @endif
                             <div class="input-group input-group-sm">
                                 <input type="text" name="q" class="form-control" 
                                        placeholder="Suche: Name, Nummer, Codex..."

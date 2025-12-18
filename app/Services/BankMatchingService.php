@@ -5,26 +5,28 @@ namespace App\Services;
 use App\Models\BankBuchung;
 use App\Models\Rechnung;
 use App\Models\Gebaeude;
+use App\Models\BankMatchingConfig;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 class BankMatchingService
 {
     // ═══════════════════════════════════════════════════════════════════════
-    // SCORING GEWICHTUNG
+    // KONFIGURATION (wird aus DB geladen)
     // ═══════════════════════════════════════════════════════════════════════
     
-    const SCORE_IBAN_MATCH         = 100;  // IBAN im Gebäude gefunden
-    const SCORE_CIG_MATCH          = 80;   // CIG-Nummer stimmt
-    const SCORE_RECHNUNGSNR_MATCH  = 50;   // Laufnummer gefunden
-    const SCORE_BETRAG_EXAKT       = 30;   // Betrag ±0.10€
-    const SCORE_BETRAG_NAH         = 15;   // Betrag ±2.00€ (Ritenuta-Toleranz)
-    const SCORE_BETRAG_ABWEICHUNG  = -40;  // Betrag weicht >30% ab (sehr unwahrscheinlich!)
-    const SCORE_NAME_TOKEN_EXACT   = 10;   // Exakter Token-Match
-    const SCORE_NAME_TOKEN_PARTIAL = 5;    // Partieller Token-Match (>50%)
+    protected ?BankMatchingConfig $config = null;
     
-    const AUTO_MATCH_THRESHOLD     = 80;   // Ab diesem Score automatisch zuordnen
-    const BETRAG_ABWEICHUNG_LIMIT  = 30;   // Prozent-Abweichung ab der Malus greift
+    /**
+     * Holt die aktuelle Konfiguration
+     */
+    protected function getConfig(): BankMatchingConfig
+    {
+        if ($this->config === null) {
+            $this->config = BankMatchingConfig::getConfig();
+        }
+        return $this->config;
+    }
     
     // Füllwörter die ignoriert werden
     const STOP_WORDS = [
@@ -45,9 +47,10 @@ class BankMatchingService
      * @param BankBuchung $buchung
      * @param int $limit Max. Anzahl Ergebnisse
      * @param bool $includePaid Auch bereits bezahlte Rechnungen anzeigen
+     * @param int|null $jahr Rechnungen aus welchem Jahr (null = alle)
      * @return Collection [{rechnung, score, details, is_paid}]
      */
-    public function findMatches(BankBuchung $buchung, int $limit = 20, bool $includePaid = true): Collection
+    public function findMatches(BankBuchung $buchung, int $limit = 20, bool $includePaid = true, ?int $jahr = null): Collection
     {
         // Nur für Eingänge
         if ($buchung->typ !== 'CRDT') {
@@ -62,7 +65,12 @@ class BankMatchingService
         $query = Rechnung::with(['rechnungsempfaenger', 'gebaeude']);
         
         if (!$includePaid) {
-            $query->where('status', '!=', 'paid');
+            $query->whereIn('status', ['sent', 'draft']);
+        }
+        
+        // ⭐ Jahr-Filter (wenn angegeben)
+        if ($jahr !== null) {
+            $query->where('jahr', $jahr);
         }
         
         $rechnungen = $query->get();
@@ -90,12 +98,15 @@ class BankMatchingService
      * (Nur für unbezahlte Rechnungen!)
      * 
      * @param BankBuchung $buchung
+     * @param int|null $jahr Rechnungen aus welchem Jahr (null = aktuelles Jahr)
      * @return array{matched: bool, rechnung: ?Rechnung, score: int, details: array}
      */
-    public function tryAutoMatch(BankBuchung $buchung): array
+    public function tryAutoMatch(BankBuchung $buchung, ?int $jahr = null): array
     {
-        // Für Auto-Match nur unbezahlte Rechnungen
-        $matches = $this->findMatches($buchung, 10, false);
+        $jahr = $jahr ?? now()->year;
+        
+        // Für Auto-Match nur unbezahlte Rechnungen des gewählten Jahres
+        $matches = $this->findMatches($buchung, 10, false, $jahr);
         
         // Nur unbezahlte für Auto-Match
         $matches = $matches->filter(fn($m) => !$m['is_paid']);
@@ -112,7 +123,7 @@ class BankMatchingService
         $best = $matches->first();
 
         // Nur wenn Score >= Threshold
-        if ($best['score'] >= self::AUTO_MATCH_THRESHOLD) {
+        if ($best['score'] >= $this->getConfig()->auto_match_threshold) {
             return [
                 'matched'  => true,
                 'rechnung' => $best['rechnung'],
@@ -310,15 +321,16 @@ class BankMatchingService
     {
         $score = 0;
         $details = [];
+        $config = $this->getConfig();
 
         // 1. IBAN-Match (über Gebäude)
         if ($extracted['iban'] && $rechnung->gebaeude_id) {
             $gebaeude = $rechnung->gebaeude;
             if ($gebaeude && $this->matchIban($extracted['iban'], $gebaeude)) {
-                $score += self::SCORE_IBAN_MATCH;
+                $score += $config->score_iban_match;
                 $details[] = [
                     'typ'    => 'iban',
-                    'punkte' => self::SCORE_IBAN_MATCH,
+                    'punkte' => $config->score_iban_match,
                     'text'   => 'IBAN im Gebäude gefunden',
                 ];
             }
@@ -327,10 +339,10 @@ class BankMatchingService
         // 2. CIG-Match
         if ($extracted['cig'] && $rechnung->cig) {
             if (strtoupper($rechnung->cig) === $extracted['cig']) {
-                $score += self::SCORE_CIG_MATCH;
+                $score += $config->score_cig_match;
                 $details[] = [
                     'typ'    => 'cig',
-                    'punkte' => self::SCORE_CIG_MATCH,
+                    'punkte' => $config->score_cig_match,
                     'text'   => "CIG {$extracted['cig']} stimmt",
                 ];
             }
@@ -339,10 +351,10 @@ class BankMatchingService
         // 3. Rechnungsnummer-Match
         if (!empty($extracted['nummern']) && $rechnung->laufnummer) {
             if (in_array((int) $rechnung->laufnummer, $extracted['nummern'])) {
-                $score += self::SCORE_RECHNUNGSNR_MATCH;
+                $score += $config->score_rechnungsnr_match;
                 $details[] = [
                     'typ'    => 'rechnungsnr',
-                    'punkte' => self::SCORE_RECHNUNGSNR_MATCH,
+                    'punkte' => $config->score_rechnungsnr_match,
                     'text'   => "Laufnummer {$rechnung->laufnummer} gefunden",
                 ];
             }
@@ -357,28 +369,28 @@ class BankMatchingService
             ? ($differenz / $rechnungBetrag) * 100 
             : 100;
 
-        if ($differenz <= 0.10) {
+        if ($differenz <= (float) $config->betrag_toleranz_exakt) {
             // Exakter Match
-            $score += self::SCORE_BETRAG_EXAKT;
+            $score += $config->score_betrag_exakt;
             $details[] = [
                 'typ'    => 'betrag_exakt',
-                'punkte' => self::SCORE_BETRAG_EXAKT,
+                'punkte' => $config->score_betrag_exakt,
                 'text'   => sprintf('Betrag exakt (%.2f€)', $rechnungBetrag),
             ];
-        } elseif ($differenz <= 2.00) {
+        } elseif ($differenz <= (float) $config->betrag_toleranz_nah) {
             // Nah dran (z.B. Rundungsdifferenzen)
-            $score += self::SCORE_BETRAG_NAH;
+            $score += $config->score_betrag_nah;
             $details[] = [
                 'typ'    => 'betrag_nah',
-                'punkte' => self::SCORE_BETRAG_NAH,
+                'punkte' => $config->score_betrag_nah,
                 'text'   => sprintf('Betrag nah (%.2f€, Diff: %.2f€)', $rechnungBetrag, $differenz),
             ];
-        } elseif ($prozentAbweichung > self::BETRAG_ABWEICHUNG_LIMIT) {
+        } elseif ($prozentAbweichung > $config->betrag_abweichung_limit) {
             // Große Abweichung = sehr unwahrscheinlich!
-            $score += self::SCORE_BETRAG_ABWEICHUNG;
+            $score += $config->score_betrag_abweichung;
             $details[] = [
                 'typ'    => 'betrag_abweichung',
-                'punkte' => self::SCORE_BETRAG_ABWEICHUNG,
+                'punkte' => $config->score_betrag_abweichung,
                 'text'   => sprintf('Betrag weicht %.0f%% ab (%.2f€ vs %.2f€)', $prozentAbweichung, $betrag, $rechnungBetrag),
             ];
         }
@@ -504,6 +516,7 @@ class BankMatchingService
 
         $targetText = implode(' ', $targetNames);
         $matchedTokens = [];
+        $config = $this->getConfig();
 
         foreach ($tokens as $token) {
             // Schon gematcht? (Duplikate vermeiden)
@@ -515,7 +528,7 @@ class BankMatchingService
             if (strpos($targetText, $token) !== false) {
                 $matches[] = [
                     'typ'    => 'name_exact',
-                    'punkte' => self::SCORE_NAME_TOKEN_EXACT,
+                    'punkte' => $config->score_name_token_exact,
                     'text'   => "Name-Token \"{$token}\" gefunden",
                 ];
                 $matchedTokens[] = $token;
@@ -530,7 +543,7 @@ class BankMatchingService
                     if (strpos($name, $token) !== false) {
                         $matches[] = [
                             'typ'    => 'name_partial',
-                            'punkte' => self::SCORE_NAME_TOKEN_PARTIAL,
+                            'punkte' => $config->score_name_token_partial,
                             'text'   => "Name-Token \"{$token}\" teilweise",
                         ];
                         $matchedTokens[] = $token;
@@ -542,7 +555,7 @@ class BankMatchingService
                         if (strlen($nameToken) >= 4 && strpos($token, $nameToken) !== false) {
                             $matches[] = [
                                 'typ'    => 'name_partial',
-                                'punkte' => self::SCORE_NAME_TOKEN_PARTIAL,
+                                'punkte' => $config->score_name_token_partial,
                                 'text'   => "Name \"{$nameToken}\" in Token",
                             ];
                             $matchedTokens[] = $token;
@@ -575,7 +588,7 @@ class BankMatchingService
         $matchInfo = [
             'score'      => $score,
             'details'    => $details,
-            'threshold'  => self::AUTO_MATCH_THRESHOLD,
+            'threshold'  => $this->getConfig()->auto_match_threshold,
             'auto'       => true,
             'matched_at' => now()->toIso8601String(),
         ];
@@ -637,7 +650,7 @@ class BankMatchingService
         $matchInfo = [
             'score'            => $scoreResult['score'],
             'details'          => $scoreResult['details'],
-            'threshold'        => self::AUTO_MATCH_THRESHOLD,
+            'threshold'        => $this->getConfig()->auto_match_threshold,
             'auto'             => false,
             'was_already_paid' => $wasAlreadyPaid,
             'matched_at'       => now()->toIso8601String(),

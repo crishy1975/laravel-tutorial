@@ -20,6 +20,45 @@
         </div>
     </div>
 
+    {{-- Filter --}}
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form method="GET" action="{{ route('bank.matching') }}" id="matchingFilterForm">
+                <div class="row g-2 align-items-center">
+                    <div class="col-6 col-md-auto">
+                        <select name="jahr" class="form-select form-select-sm">
+                            <option value="">Alle Jahre</option>
+                            @for($j = now()->year; $j >= now()->year - 5; $j--)
+                                <option value="{{ $j }}" {{ ($filter['jahr'] ?? now()->year) == $j ? 'selected' : '' }}>
+                                    {{ $j }}
+                                </option>
+                            @endfor
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select name="monate" class="form-select form-select-sm">
+                            <option value="12" {{ ($filter['monate'] ?? '12') == '12' ? 'selected' : '' }}>12 Monate</option>
+                            <option value="6" {{ ($filter['monate'] ?? '') == '6' ? 'selected' : '' }}>6 Monate</option>
+                            <option value="24" {{ ($filter['monate'] ?? '') == '24' ? 'selected' : '' }}>24 Monate</option>
+                            <option value="" {{ ($filter['monate'] ?? '12') === '' ? 'selected' : '' }}>Alle</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="offen" {{ ($filter['status'] ?? 'offen') == 'offen' ? 'selected' : '' }}>Nur offene</option>
+                            <option value="alle" {{ ($filter['status'] ?? '') == 'alle' ? 'selected' : '' }}>Alle (+ bezahlte)</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-funnel"></i> Filtern
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {{-- Mobile: Tab-Navigation --}}
     <ul class="nav nav-tabs d-md-none mb-3" role="tablist">
         <li class="nav-item" role="presentation">
@@ -80,14 +119,6 @@
 
         {{-- Tab: Rechnungen --}}
         <div class="tab-pane fade" id="tabRechnungen">
-            <div class="mb-2">
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="showPaidMobile" 
-                           onchange="togglePaidInvoices(this.checked)"
-                           {{ request('show_paid') ? 'checked' : '' }}>
-                    <label class="form-check-label small" for="showPaidMobile">Auch bezahlte</label>
-                </div>
-            </div>
             @forelse($rechnungen as $rechnung)
                 @php $isPaid = $rechnung->status === 'paid'; @endphp
                 <div class="card mb-2 {{ $isPaid ? 'bg-light' : '' }}">
@@ -192,18 +223,12 @@
         {{-- Rechnungen --}}
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white py-2">
                     <h6 class="mb-0">
                         <i class="bi bi-receipt"></i> 
                         Rechnungen 
                         <span class="badge bg-light text-dark">{{ $rechnungen->count() }}</span>
                     </h6>
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" id="showPaid" 
-                               onchange="togglePaidInvoices(this.checked)"
-                               {{ request('show_paid') ? 'checked' : '' }}>
-                        <label class="form-check-label small text-white" for="showPaid">Bezahlte</label>
-                    </div>
                 </div>
                 <div class="list-group list-group-flush" style="max-height: 70vh; overflow-y: auto;">
                     @forelse($rechnungen as $rechnung)
@@ -253,15 +278,4 @@
 
 </div>
 
-<script>
-function togglePaidInvoices(show) {
-    const url = new URL(window.location);
-    if (show) {
-        url.searchParams.set('show_paid', '1');
-    } else {
-        url.searchParams.delete('show_paid');
-    }
-    window.location = url;
-}
-</script>
 @endsection

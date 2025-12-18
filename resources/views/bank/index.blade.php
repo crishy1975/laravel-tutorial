@@ -2,7 +2,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-3">
+<div class="container-fluid py-3" id="bankIndexContainer">
 
     {{-- Kopfzeile --}}
     <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 mb-3">
@@ -16,8 +16,8 @@
             <a href="{{ route('bank.matched') }}" class="btn btn-success btn-sm">
                 <i class="bi bi-check2-all"></i> <span class="d-none d-sm-inline">Zugeordnet</span>
             </a>
-            <a href="{{ route('bank.unmatched') }}" class="btn btn-warning btn-sm">
-                <i class="bi bi-exclamation-circle"></i> <span class="d-none d-sm-inline">Offen</span>
+            <a href="{{ route('bank.config') }}" class="btn btn-outline-secondary btn-sm" title="Konfiguration">
+                <i class="bi bi-sliders"></i>
             </a>
         </div>
     </div>
@@ -63,11 +63,16 @@
         <div class="card-header py-2 d-flex justify-content-between align-items-center" 
              data-bs-toggle="collapse" data-bs-target="#filterCollapse" role="button">
             <span><i class="bi bi-funnel"></i> Filter</span>
-            <i class="bi bi-chevron-down d-md-none"></i>
+            <div>
+                <button type="button" class="btn btn-outline-secondary btn-sm me-1" onclick="resetFilter()" title="Filter zurücksetzen">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+                <i class="bi bi-chevron-down d-md-none"></i>
+            </div>
         </div>
         <div class="collapse show" id="filterCollapse">
             <div class="card-body py-2">
-                <form method="GET" action="{{ route('bank.index') }}">
+                <form method="GET" action="{{ route('bank.index') }}" id="bankFilterForm">
                     <div class="row g-2">
                         <div class="col-6 col-md-2">
                             <select name="typ" class="form-select form-select-sm">
@@ -217,4 +222,71 @@
     @endif
 
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const STORAGE_KEY_FILTER = 'bank_index_filter';
+    const STORAGE_KEY_SCROLL = 'bank_index_scroll';
+    const form = document.getElementById('bankFilterForm');
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCROLL-POSITION WIEDERHERSTELLEN
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
+    if (savedScroll) {
+        // Kurze Verzögerung damit die Seite fertig gerendert ist
+        setTimeout(() => {
+            window.scrollTo(0, parseInt(savedScroll, 10));
+        }, 100);
+        // Nach Wiederherstellung löschen (nur einmalig)
+        sessionStorage.removeItem(STORAGE_KEY_SCROLL);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCROLL-POSITION SPEICHERN BEI KLICK AUF DETAILS
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    document.querySelectorAll('a[href*="/bank/"]').forEach(link => {
+        // Nur Detail-Links (nicht Index selbst)
+        if (link.href.match(/\/bank\/\d+$/)) {
+            link.addEventListener('click', () => {
+                sessionStorage.setItem(STORAGE_KEY_SCROLL, window.scrollY);
+            });
+        }
+    });
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILTER SPEICHERN
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Aktuellen Filter aus URL speichern
+    const currentParams = new URLSearchParams(window.location.search);
+    if (currentParams.toString()) {
+        localStorage.setItem(STORAGE_KEY_FILTER, currentParams.toString());
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILTER WIEDERHERSTELLEN (nur wenn keine Parameter in URL)
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    if (!window.location.search && localStorage.getItem(STORAGE_KEY_FILTER)) {
+        const savedFilter = localStorage.getItem(STORAGE_KEY_FILTER);
+        // Nur wiederherstellen wenn nicht leer
+        if (savedFilter && savedFilter !== '') {
+            // Redirect mit gespeicherten Filtern
+            window.location.search = savedFilter;
+        }
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// FILTER ZURÜCKSETZEN
+// ═══════════════════════════════════════════════════════════════════════
+
+function resetFilter() {
+    localStorage.removeItem('bank_index_filter');
+    window.location.href = '{{ route("bank.index") }}';
+}
+</script>
 @endsection
