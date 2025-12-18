@@ -15,6 +15,7 @@ use App\Http\Controllers\PreisAufschlagController;
 use App\Http\Controllers\UnternehmensprofilController;
 use App\Http\Controllers\ReinigungsplanungController;
 use App\Http\Controllers\BankBuchungController;
+use App\Http\Controllers\MahnungController;
 
 
 // Home / Dashboard Redirect
@@ -427,9 +428,20 @@ Route::prefix('bank')->name('bank.')->middleware('auth')->group(function () {
     Route::get('/matching', [BankBuchungController::class, 'matchingOverview'])
         ->name('matching');
 
-    // Auto-Matching fuer alle
-    Route::post('/auto-match', [BankBuchungController::class, 'autoMatchAll'])
-        ->name('auto-match');
+    // Auto-Matching mit Progress
+    Route::get('/auto-match', [BankBuchungController::class, 'autoMatchProgress'])
+        ->name('autoMatchProgress');
+    Route::post('/auto-match/batch', [BankBuchungController::class, 'autoMatchBatch'])
+        ->name('autoMatchBatch');
+
+    // Konfiguration
+    Route::get('/config', [BankBuchungController::class, 'config'])
+        ->name('config');
+    Route::put('/config', [BankBuchungController::class, 'updateConfig'])
+        ->name('config.update');
+    Route::post('/config/reset', [BankBuchungController::class, 'resetConfig'])
+        ->name('config.reset');
+
 
     // Einzelne Buchung
     Route::get('/{buchung}', [BankBuchungController::class, 'show'])
@@ -447,6 +459,49 @@ Route::prefix('bank')->name('bank.')->middleware('auth')->group(function () {
     Route::post('/{buchung}/ignore', [BankBuchungController::class, 'ignore'])
         ->name('ignore');
 });
+
+
+Route::prefix('mahnungen')->name('mahnungen.')->middleware('auth')->group(function () {
+    
+    // Dashboard
+    Route::get('/', [MahnungController::class, 'index'])->name('index');
+    
+    // Historie
+    Route::get('/historie', [MahnungController::class, 'historie'])->name('historie');
+    
+    // Mahnlauf
+    Route::get('/mahnlauf', [MahnungController::class, 'mahnlaufVorbereiten'])->name('mahnlauf');
+    Route::post('/mahnlauf/erstellen', [MahnungController::class, 'mahnungenErstellen'])->name('erstellen');
+    
+    // Versand
+    Route::get('/versand', [MahnungController::class, 'versand'])->name('versand');
+    Route::post('/versand', [MahnungController::class, 'versenden'])->name('versenden');
+    
+    // Mahnstufen-Konfiguration
+    Route::get('/stufen', [MahnungController::class, 'stufen'])->name('stufen');
+    Route::get('/stufen/{stufe}/bearbeiten', [MahnungController::class, 'stufeBearbeiten'])->name('stufe.bearbeiten');
+    Route::put('/stufen/{stufe}', [MahnungController::class, 'stufeSpeichern'])->name('stufe.speichern');
+    
+    // Ausschlüsse
+    Route::get('/ausschluesse', [MahnungController::class, 'ausschluesse'])->name('ausschluesse');
+    Route::post('/ausschluesse/kunde', [MahnungController::class, 'kundeAusschliessen'])->name('kunde.ausschliessen');
+    Route::delete('/ausschluesse/kunde/{adresse}', [MahnungController::class, 'kundeAusschlussEntfernen'])->name('kunde.ausschluss.entfernen');
+    Route::post('/ausschluesse/rechnung', [MahnungController::class, 'rechnungAusschliessen'])->name('rechnung.ausschliessen');
+    Route::delete('/ausschluesse/rechnung/{rechnung}', [MahnungController::class, 'rechnungAusschlussEntfernen'])->name('rechnung.ausschluss.entfernen');
+    
+    // Einzelne Mahnung
+    Route::get('/{mahnung}', [MahnungController::class, 'show'])->name('show');
+    Route::post('/{mahnung}/stornieren', [MahnungController::class, 'stornieren'])->name('stornieren');
+    Route::post('/{mahnung}/als-post-versendet', [MahnungController::class, 'alsPostVersendet'])->name('als-post-versendet');
+    Route::get('/{mahnung}/pdf/{sprache?}', [MahnungController::class, 'downloadPdf'])->name('pdf');
+    
+    // API
+    Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
+});
+
+
+
+
 
 
 

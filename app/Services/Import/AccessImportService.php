@@ -547,6 +547,37 @@ class AccessImportService
         $mTypKunde = (int) $item->mTypKunde;
         $profilMapping = $this->mapFatturaProfil($mTypKunde);
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // BETRÄGE KORREKT BERECHNEN
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        $nettoSumme = (float) $item->RechnungsBetrag ?: 0;
+        $mwstBetrag = (float) $item->MwStr ?: 0;
+        $bruttoSumme = (float) $item->Betrag ?: 0;
+        $ritenutaBetrag = (float) $item->Rit ?: 0;
+
+        // Bei Reverse Charge: MwSt = 0, Brutto = Netto
+        if ($profilMapping['reverse_charge']) {
+            $mwstBetrag = 0;
+            $bruttoSumme = $nettoSumme;
+            
+            Log::debug("Reverse Charge Rechnung - MwSt auf 0 gesetzt", [
+                'legacy_id' => $legacyId,
+                'mTypKunde' => $mTypKunde,
+                'netto' => $nettoSumme,
+                'brutto_korrigiert' => $bruttoSumme,
+            ]);
+        }
+
+        // Zahlbar-Betrag berechnen basierend auf Rechnungstyp
+        $zahlbarBetrag = $this->berechneZahlbarBetrag(
+            $nettoSumme,
+            $mwstBetrag,
+            $bruttoSumme,
+            $ritenutaBetrag,
+            $profilMapping
+        );
+
         $data = [
             'legacy_id'              => $legacyId,
             'legacy_progressivo'     => $progressivo,
@@ -558,10 +589,13 @@ class AccessImportService
             'zahlungsziel'           => $zahlungsziel,
             'status'                 => $status,
             'typ_rechnung'           => $typ,
-            'netto_summe'            => (float) $item->RechnungsBetrag ?: 0,
-            'mwst_betrag'            => (float) $item->MwStr ?: 0,
-            'brutto_summe'           => (float) $item->Betrag ?: 0,
-            'ritenuta_betrag'        => (float) $item->Rit ?: 0,
+            
+            // Korrigierte Beträge
+            'netto_summe'            => $nettoSumme,
+            'mwst_betrag'            => $mwstBetrag,
+            'brutto_summe'           => $bruttoSumme,
+            'ritenuta_betrag'        => $ritenutaBetrag,
+            'zahlbar_betrag'         => $zahlbarBetrag,
 
             // Fattura-Profil Felder aus Mapping
             'fattura_profile_id'     => $profilMapping['fattura_profile_id'],
@@ -618,6 +652,8 @@ class AccessImportService
                 'nummer' => "$jahr/$laufnummer",
                 'profil' => $profilMapping['profile_bezeichnung'],
                 'mTypKunde' => $mTypKunde,
+                'reverse_charge' => $profilMapping['reverse_charge'],
+                'zahlbar_betrag' => $zahlbarBetrag,
             ]);
             $this->stats['rechnungen']['imported']++;
             return 1;
@@ -627,6 +663,42 @@ class AccessImportService
         $this->stats['rechnungen']['imported']++;
 
         return 1;
+    }
+
+    /**
+     * Berechnet den korrekten Zahlbar-Betrag basierend auf Rechnungstyp
+     * 
+     * @param float $netto Netto-Summe
+     * @param float $mwst MwSt-Betrag
+     * @param float $brutto Brutto-Summe
+     * @param float $ritenuta Ritenuta-Betrag
+     * @param array $profil Fattura-Profil Mapping
+     * @return float Zahlbar-Betrag
+     */
+    protected function berechneZahlbarBetrag(
+        float $netto,
+        float $mwst,
+        float $brutto,
+        float $ritenuta,
+        array $profil
+    ): float {
+        // Reverse Charge: Kunde zahlt nur Netto (keine MwSt)
+        if ($profil['reverse_charge']) {
+            return round($netto - $ritenuta, 2);
+        }
+
+        // Split-Payment: Kunde zahlt Netto, MwSt geht direkt an Finanzamt
+        if ($profil['split_payment']) {
+            return round($netto - $ritenuta, 2);
+        }
+
+        // Mit Ritenuta: Brutto minus Ritenuta
+        if ($ritenuta > 0) {
+            return round($brutto - $ritenuta, 2);
+        }
+
+        // Normal: Brutto
+        return $brutto;
     }
 
     protected function buildRechnungenMap(): void
@@ -707,13 +779,27 @@ class AccessImportService
             return 0;
         }
 
-        // MwSt-Satz aus Natura oder Standard
+        // ═══════════════════════════════════════════════════════════════════════
+        // RECHNUNG LADEN UM REVERSE CHARGE STATUS ZU PRÜFEN
+        // ═══════════════════════════════════════════════════════════════════════
+        $rechnung = Rechnung::find($rechnungId);
+        $istReverseCharge = $rechnung && ($rechnung->reverse_charge || $rechnung->fattura_profile_id == 1);
+        $istSplitPayment = $rechnung && $rechnung->split_payment;
+
+        // MwSt-Satz bestimmen
         $mwstSatz = (float) $item->MwStSatz ?: 22;
+
+        // ⭐ Bei Reverse Charge: MwSt = 0!
+        if ($istReverseCharge) {
+            $mwstSatz = 0;
+        }
 
         $einzelpreis = (float) $item->Einzelpreis ?: 0;
         $anzahl = (float) $item->Anzahl ?: 1;
-        $nettoGesamt = $einzelpreis * $anzahl;
-        $mwstBetrag = round($nettoGesamt * ($mwstSatz / 100), 2);
+        $nettoGesamt = round($einzelpreis * $anzahl, 2);
+        
+        // ⭐ MwSt-Betrag nur berechnen wenn NICHT Reverse Charge
+        $mwstBetrag = $istReverseCharge ? 0 : round($nettoGesamt * ($mwstSatz / 100), 2);
 
         $data = [
             'legacy_id'          => $legacyId,
@@ -733,6 +819,7 @@ class AccessImportService
                 'legacy_id' => $legacyId,
                 'rechnung_id' => $rechnungId,
                 'position' => $posNr,
+                'reverse_charge' => $istReverseCharge,
             ]);
             $this->stats['positionen']['imported']++;
             return 1;

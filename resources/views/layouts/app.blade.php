@@ -313,19 +313,52 @@
 
                     {{-- Finanzen --}}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') ? 'active' : '' }}" 
+                        @php
+                            $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
+                            $offeneBuchungen = \App\Models\BankBuchung::where('match_status', 'unmatched')->where('typ', 'CRDT')->count();
+                            
+                            // Überfällige Rechnungen für Mahnwesen (30 Tage Zahlungsfrist)
+                            $ueberfaelligeRechnungen = 0;
+                            try {
+                                $ueberfaelligeRechnungen = \App\Models\Rechnung::where('status', 'sent')
+                                    ->whereNotNull('rechnungsdatum')
+                                    ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL 30 DAY) < CURDATE()")
+                                    ->count();
+                            } catch (\Exception $e) {
+                                $ueberfaelligeRechnungen = 0;
+                            }
+                            
+                            $finanzBadgeTotal = $offeneRechnungen + $offeneBuchungen + $ueberfaelligeRechnungen;
+                        @endphp
+                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') || request()->is('bank*') || request()->is('mahnungen*') ? 'active' : '' }}" 
                            href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-wallet2"></i> Finanzen
+                            @if($finanzBadgeTotal > 0)
+                                <span class="nav-badge">{{ $finanzBadgeTotal }}</span>
+                            @endif
                         </a>
                         <ul class="dropdown-menu">
                             <li>
                                 <a class="dropdown-item {{ request()->is('rechnung*') ? 'active' : '' }}" href="{{ url('/rechnung') }}">
                                     <i class="bi bi-file-text"></i> Rechnungen
-                                    @php
-                                        $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
-                                    @endphp
                                     @if($offeneRechnungen > 0)
                                         <span class="dropdown-badge">{{ $offeneRechnungen }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('bank*') ? 'active' : '' }}" href="{{ route('bank.index') }}">
+                                    <i class="bi bi-bank"></i> Bank-Buchungen
+                                    @if($offeneBuchungen > 0)
+                                        <span class="dropdown-badge bg-warning text-dark">{{ $offeneBuchungen }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->is('mahnungen*') ? 'active' : '' }}" href="{{ route('mahnungen.index') }}">
+                                    <i class="bi bi-envelope-exclamation"></i> Mahnwesen
+                                    @if($ueberfaelligeRechnungen > 0)
+                                        <span class="dropdown-badge bg-danger text-white">{{ $ueberfaelligeRechnungen }}</span>
                                     @endif
                                 </a>
                             </li>

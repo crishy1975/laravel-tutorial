@@ -23,6 +23,7 @@ class Rechnung extends Model
     use HasFactory, SoftDeletes;
 
     protected $table = 'rechnungen';
+    protected $appends = ['erwarteter_zahlbetrag'];
 
     protected $fillable = [
         'legacy_id',          // ⭐ NEU
@@ -1046,4 +1047,91 @@ class Rechnung extends Model
                     ->orWhere('zahlungsbedingungen', '!=', Zahlungsbedingung::BEZAHLT->value);
             });
     }
+
+    public function getErwarteterZahlbetragAttribute(): float
+{
+    // 1. Primär: zahlbar_betrag wenn bereits korrekt gesetzt
+    if ($this->zahlbar_betrag !== null && (float) $this->zahlbar_betrag > 0) {
+        return (float) $this->zahlbar_betrag;
+    }
+
+    // 2. Berechnung basierend auf Rechnungstyp
+    $brutto = (float) ($this->brutto_summe ?? 0);
+    $netto = (float) ($this->netto_summe ?? $brutto);
+    $mwst = (float) ($this->mwst_betrag ?? ($brutto - $netto));
+    $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
+
+    // Prüfe FatturaProfile oder direkte Flags
+    $profile = $this->fatturaProfile;
+    
+    $isSplitPayment = $profile?->split_payment 
+        ?? $this->split_payment 
+        ?? false;
+    
+    $isReverseCharge = $profile?->reverse_charge 
+        ?? $this->reverse_charge 
+        ?? ($this->natura_esenzione !== null && in_array($this->natura_esenzione, ['N2', 'N2.1', 'N2.2', 'N3', 'N3.1', 'N3.2', 'N3.3', 'N3.4', 'N3.5', 'N3.6', 'N6', 'N6.1', 'N6.2', 'N6.3', 'N6.4', 'N6.5', 'N6.6', 'N6.7', 'N6.8', 'N6.9']))
+        ?? false;
+    
+    // Ritenuta aus Profil holen falls nicht direkt gesetzt
+    if ($ritenuta == 0 && $profile?->ritenuta > 0) {
+        $ritenutaSatz = (float) $profile->ritenuta;
+        $ritenuta = round($netto * ($ritenutaSatz / 100), 2);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // BERECHNUNG
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Reverse Charge: Kunde zahlt nur Netto (MwSt wird vom Kunden selbst abgeführt)
+    if ($isReverseCharge) {
+        return round($netto - $ritenuta, 2);
+    }
+
+    // Split-Payment: Kunde zahlt Netto, MwSt geht direkt an Finanzamt
+    if ($isSplitPayment) {
+        return round($netto - $ritenuta, 2);
+    }
+
+    // Ritenuta ohne Split-Payment: Brutto minus Ritenuta
+    if ($ritenuta > 0) {
+        return round($brutto - $ritenuta, 2);
+    }
+
+    // Normal: Brutto
+    return $brutto;
+}
+
+/**
+ * Formatierter erwarteter Zahlbetrag
+ */
+public function getErwarteterZahlbetragFormatAttribute(): string
+{
+    return number_format($this->erwarteter_zahlbetrag, 2, ',', '.') . ' €';
+}
+
+/**
+ * Erklärt wie der Zahlbetrag zustande kommt
+ */
+public function getZahlbetragErklaerungAttribute(): string
+{
+    $profile = $this->fatturaProfile;
+    $isSplitPayment = $profile?->split_payment ?? $this->split_payment ?? false;
+    $isReverseCharge = $profile?->reverse_charge ?? $this->reverse_charge ?? false;
+    $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
+
+    if ($isReverseCharge) {
+        return 'Reverse Charge: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
+    }
+
+    if ($isSplitPayment) {
+        return 'Split-Payment: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
+    }
+
+    if ($ritenuta > 0) {
+        return 'Brutto − Ritenuta';
+    }
+
+    return 'Brutto';
+}
 }
