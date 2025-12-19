@@ -90,7 +90,7 @@
                             <td>{{ $mahnung->mahndatum->format('d.m.Y') }}</td>
                             <td>
                                 <a href="{{ url('/rechnung/' . $mahnung->rechnung_id . '/edit') }}">
-                                    {{ $mahnung->rechnung?->volle_rechnungsnummer ?? '-' }}
+                                    {{ $mahnung->rechnungsnummer_anzeige }}
                                 </a>
                             </td>
                             <td>{{ Str::limit($mahnung->rechnung?->rechnungsempfaenger?->name, 25) }}</td>
@@ -121,17 +121,18 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
                                             <a class="dropdown-item" href="{{ route('mahnungen.show', $mahnung->id) }}">
-                                                <i class="bi bi-eye"></i> Anzeigen
+                                                <i class="bi bi-info-circle"></i> Details
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item" href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'preview' => 1]) }}" target="_blank">
+                                                <i class="bi bi-eye"></i> PDF Vorschau
                                             </a>
                                         </li>
                                         <li>
-                                            <a class="dropdown-item" href="{{ route('mahnungen.pdf', [$mahnung->id, 'de']) }}">
-                                                <i class="bi bi-file-pdf"></i> PDF (DE)
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="{{ route('mahnungen.pdf', [$mahnung->id, 'it']) }}">
-                                                <i class="bi bi-file-pdf"></i> PDF (IT)
+                                            <a class="dropdown-item" href="{{ route('mahnungen.pdf', $mahnung->id) }}">
+                                                <i class="bi bi-download"></i> PDF Download
                                             </a>
                                         </li>
                                         @if($mahnung->status !== 'storniert')

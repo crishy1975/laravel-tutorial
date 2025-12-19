@@ -7,7 +7,7 @@
     {{-- Kopfzeile --}}
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h4 class="mb-0"><i class="bi bi-send"></i> Mahnungen versenden</h4>
+            <h4 class="mb-0"><i class="bi bi-send"></i> Mahnungen versenden / Inviare solleciti</h4>
             <small class="text-muted">{{ $entwuerfe->count() }} Mahnungen bereit zum Versand</small>
         </div>
         <a href="{{ route('mahnungen.index') }}" class="btn btn-outline-secondary">
@@ -48,36 +48,33 @@
         <form method="POST" action="{{ route('mahnungen.versenden') }}" id="versandForm">
             @csrf
 
-            {{-- Sprache wählen --}}
+            {{-- Info-Box (ersetzt Sprachauswahl) --}}
             <div class="card mb-4">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <div class="col-md-4">
-                            <label class="form-label fw-bold mb-0">Sprache der Mahnungen:</label>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="btn-group w-100" role="group">
-                                <input type="radio" class="btn-check" name="sprache" id="spracheDe" value="de" checked>
-                                <label class="btn btn-outline-primary" for="spracheDe">
-                                    🇩🇪 Deutsch
-                                </label>
-                                <input type="radio" class="btn-check" name="sprache" id="spracheIt" value="it">
-                                <label class="btn btn-outline-primary" for="spracheIt">
-                                    🇮🇹 Italiano
-                                </label>
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <span class="me-3 fs-4">🇩🇪 🇮🇹</span>
+                                <div>
+                                    <strong>Zweisprachiger Versand / Invio bilingue</strong>
+                                    <div class="text-muted small">
+                                        Alle Mahnungen werden automatisch auf Deutsch und Italienisch erstellt.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-4 text-end">
                             <button type="submit" class="btn btn-success" id="btnVersenden" disabled>
                                 <i class="bi bi-send"></i>
-                                <span id="btnText">Versenden</span>
+                                <span id="btnText">Versenden / Inviare</span>
                             </button>
                         </div>
                     </div>
                     <div class="mt-3 pt-3 border-top">
                         <small class="text-muted">
                             <i class="bi bi-paperclip"></i> 
-                            <strong>Anhänge:</strong> Mahnungs-PDF + Original-Rechnung (PDF)
+                            <strong>Anhänge / Allegati:</strong> 
+                            Mahnungs-PDF (DE/IT) + Original-Rechnung (PDF)
                         </small>
                     </div>
                 </div>
@@ -101,18 +98,24 @@
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 40px;"></th>
-                                    <th>Rechnung</th>
-                                    <th>Kunde</th>
+                                    <th>Rechnung / Fattura</th>
+                                    <th>Kunde / Cliente</th>
                                     <th>E-Mail</th>
-                                    <th>Stufe</th>
-                                    <th>Betrag</th>
-                                    <th>Spesen</th>
-                                    <th>Gesamt</th>
-                                    <th></th>
+                                    <th>Stufe / Livello</th>
+                                    <th class="text-end">Betrag</th>
+                                    <th class="text-end">Spesen</th>
+                                    <th class="text-end">Gesamt</th>
+                                    <th>Vorschau</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($mitEmail as $mahnung)
+                                    @php
+                                        // E-Mail-Priorität: Postadresse → Rechnungsempfänger
+                                        $postEmail = $mahnung->rechnung?->gebaeude?->postadresse?->email;
+                                        $rechnungEmail = $mahnung->rechnung?->rechnungsempfaenger?->email;
+                                        $emailAdresse = $postEmail ?: $rechnungEmail;
+                                    @endphp
                                     <tr>
                                         <td>
                                             <input type="checkbox" 
@@ -121,11 +124,16 @@
                                                    class="form-check-input mahnung-checkbox email-checkbox">
                                         </td>
                                         <td>
-                                            {{ $mahnung->rechnung?->volle_rechnungsnummer ?? '-' }}
+                                            <a href="{{ url('/rechnung/' . $mahnung->rechnung_id . '/edit') }}" target="_blank">
+                                                {{ $mahnung->rechnungsnummer_anzeige }}
+                                            </a>
                                         </td>
                                         <td>{{ Str::limit($mahnung->rechnung?->rechnungsempfaenger?->name, 25) }}</td>
                                         <td>
-                                            <small>{{ $mahnung->rechnung?->rechnungsempfaenger?->email }}</small>
+                                            <small>{{ Str::limit($emailAdresse, 25) }}</small>
+                                            @if($postEmail)
+                                                <span class="badge bg-info text-dark" title="E-Mail aus Postadresse">P</span>
+                                            @endif
                                         </td>
                                         <td>
                                             <span class="badge {{ $mahnung->stufe?->badge_class ?? 'bg-secondary' }}">
@@ -136,11 +144,27 @@
                                         <td class="text-end">{{ number_format($mahnung->spesen, 2, ',', '.') }} €</td>
                                         <td class="text-end fw-bold">{{ $mahnung->gesamtbetrag_formatiert }}</td>
                                         <td>
-                                            <a href="{{ route('mahnungen.show', $mahnung->id) }}" 
-                                               class="btn btn-sm btn-outline-secondary"
-                                               title="Vorschau">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
+                                            <div class="btn-group btn-group-sm">
+                                                {{-- PDF Vorschau (im Browser) --}}
+                                                <a href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'preview' => 1]) }}" 
+                                                   class="btn btn-outline-primary"
+                                                   title="PDF im Browser anzeigen"
+                                                   target="_blank">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                {{-- PDF Download --}}
+                                                <a href="{{ route('mahnungen.pdf', $mahnung->id) }}" 
+                                                   class="btn btn-outline-secondary"
+                                                   title="PDF herunterladen">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                                {{-- Details --}}
+                                                <a href="{{ route('mahnungen.show', $mahnung->id) }}" 
+                                                   class="btn btn-outline-secondary"
+                                                   title="Details anzeigen">
+                                                    <i class="bi bi-info-circle"></i>
+                                                </a>
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -156,19 +180,22 @@
                     <div class="card-header bg-warning d-flex justify-content-between align-items-center">
                         <div>
                             <i class="bi bi-mailbox"></i>
-                            <strong>Postversand erforderlich</strong> ({{ $ohneEmail->count() }})
+                            <strong>Postversand erforderlich / Invio postale</strong> ({{ $ohneEmail->count() }})
                         </div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Rechnung</th>
-                                    <th>Kunde</th>
-                                    <th>Adresse</th>
-                                    <th>Stufe</th>
-                                    <th>Gesamt</th>
-                                    <th>Aktionen</th>
+                                    <th style="width: 40px;"></th>
+                                    <th>Rechnung / Fattura</th>
+                                    <th>Kunde / Cliente</th>
+                                    <th>Adresse / Indirizzo</th>
+                                    <th>Stufe / Livello</th>
+                                    <th class="text-end">Betrag</th>
+                                    <th class="text-end">Spesen</th>
+                                    <th class="text-end">Gesamt</th>
+                                    <th>Vorschau</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -177,11 +204,21 @@
                                         $empfaenger = $mahnung->rechnung?->rechnungsempfaenger;
                                     @endphp
                                     <tr>
-                                        <td>{{ $mahnung->rechnung?->volle_rechnungsnummer ?? '-' }}</td>
+                                        <td>
+                                            {{-- Kein Checkbox - muss per Post versendet werden --}}
+                                            <span class="text-warning" title="Postversand">
+                                                <i class="bi bi-mailbox"></i>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url('/rechnung/' . $mahnung->rechnung_id . '/edit') }}" target="_blank">
+                                                {{ $mahnung->rechnungsnummer_anzeige }}
+                                            </a>
+                                        </td>
                                         <td>{{ Str::limit($empfaenger?->name, 25) }}</td>
                                         <td>
                                             <small class="text-muted">
-                                                {{ $empfaenger?->strasse }} {{ $empfaenger?->hausnummer }}<br>
+                                                {{ $empfaenger?->strasse }} {{ $empfaenger?->hausnummer }},
                                                 {{ $empfaenger?->plz }} {{ $empfaenger?->wohnort }}
                                             </small>
                                         </td>
@@ -190,17 +227,31 @@
                                                 {{ $mahnung->stufe?->name_de ?? 'Stufe ' . $mahnung->mahnstufe }}
                                             </span>
                                         </td>
+                                        <td class="text-end">{{ number_format($mahnung->rechnungsbetrag, 2, ',', '.') }} €</td>
+                                        <td class="text-end">{{ number_format($mahnung->spesen, 2, ',', '.') }} €</td>
                                         <td class="text-end fw-bold">{{ $mahnung->gesamtbetrag_formatiert }}</td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
-                                                <a href="{{ route('mahnungen.pdf', [$mahnung->id, 'de']) }}" 
-                                                   class="btn btn-outline-primary" title="PDF (DE)">
-                                                    <i class="bi bi-file-pdf"></i> DE
+                                                {{-- PDF Vorschau (im Browser) --}}
+                                                <a href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'preview' => 1]) }}" 
+                                                   class="btn btn-outline-primary" 
+                                                   title="PDF im Browser anzeigen"
+                                                   target="_blank">
+                                                    <i class="bi bi-eye"></i>
                                                 </a>
-                                                <a href="{{ route('mahnungen.pdf', [$mahnung->id, 'it']) }}" 
-                                                   class="btn btn-outline-primary" title="PDF (IT)">
-                                                    <i class="bi bi-file-pdf"></i> IT
+                                                {{-- PDF Download --}}
+                                                <a href="{{ route('mahnungen.pdf', $mahnung->id) }}" 
+                                                   class="btn btn-outline-secondary"
+                                                   title="PDF herunterladen">
+                                                    <i class="bi bi-download"></i>
                                                 </a>
+                                                {{-- Details --}}
+                                                <a href="{{ route('mahnungen.show', $mahnung->id) }}" 
+                                                   class="btn btn-outline-secondary"
+                                                   title="Details anzeigen">
+                                                    <i class="bi bi-info-circle"></i>
+                                                </a>
+                                                {{-- Als versendet markieren --}}
                                                 <form method="POST" action="{{ route('mahnungen.als-post-versendet', $mahnung->id) }}" class="d-inline">
                                                     @csrf
                                                     <button type="submit" class="btn btn-outline-success" title="Als versendet markieren">
@@ -234,7 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btnVersenden.disabled = checked === 0;
         btnText.textContent = checked > 0 
             ? `${checked} Mahnung${checked > 1 ? 'en' : ''} versenden`
-            : 'Versenden';
+            : 'Versenden / Inviare';
     }
 
     selectAllEmail?.addEventListener('change', function() {

@@ -46,7 +46,7 @@
     @else
         {{-- Statistik --}}
         <div class="row mb-4">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
                         <h3 class="mb-0">{{ $ueberfaellige->count() }}</h3>
@@ -54,27 +54,46 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        <h3 class="mb-0">{{ number_format($ueberfaellige->sum(fn($r) => (float) $r->brutto), 2, ',', '.') }} €</h3>
+                        {{-- ⭐ brutto_summe statt brutto --}}
+                        <h3 class="mb-0">{{ number_format($ueberfaellige->sum(fn($r) => (float) ($r->brutto_summe ?? 0)), 2, ',', '.') }} €</h3>
                         <small>Offener Betrag</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        <h3 class="mb-0 text-success">{{ $ueberfaellige->filter(fn($r) => $r->hat_email)->count() }}</h3>
+                        {{-- ⭐ Nur mahnbare (ohne blockierte) --}}
+                        <h3 class="mb-0 text-primary">{{ $ueberfaellige->filter(fn($r) => $r->naechste_mahnstufe !== null)->count() }}</h3>
+                        <small>Mahnbar</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center py-2">
+                        {{-- ⭐ Blockierte (Entwurf offen) --}}
+                        <h3 class="mb-0 text-info">{{ $ueberfaellige->filter(fn($r) => $r->hat_offenen_entwurf)->count() }}</h3>
+                        <small>Entwurf offen</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card bg-light">
+                    <div class="card-body text-center py-2">
+                        <h3 class="mb-0 text-success">{{ $ueberfaellige->filter(fn($r) => $r->hat_email && $r->naechste_mahnstufe)->count() }}</h3>
                         <small>Mit E-Mail</small>
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        <h3 class="mb-0 text-warning">{{ $ueberfaellige->filter(fn($r) => !$r->hat_email)->count() }}</h3>
-                        <small>Postversand nötig</small>
+                        <h3 class="mb-0 text-warning">{{ $ueberfaellige->filter(fn($r) => !$r->hat_email && $r->naechste_mahnstufe)->count() }}</h3>
+                        <small>Post nötig</small>
                     </div>
                 </div>
             </div>
@@ -84,13 +103,25 @@
             @csrf
 
             {{-- Legende --}}
-            <div class="mb-3 d-flex gap-3 flex-wrap">
-                @foreach($stufen as $stufe)
-                    <span class="badge {{ $stufe->badge_class }}">
-                        <i class="bi {{ $stufe->icon }}"></i>
-                        {{ $stufe->name_de }} (ab {{ $stufe->tage_ueberfaellig }} Tage)
-                    </span>
-                @endforeach
+            <div class="mb-3">
+                <div class="d-flex gap-3 flex-wrap mb-2">
+                    @foreach($stufen as $stufe)
+                        <span class="badge {{ $stufe->badge_class }}">
+                            <i class="bi {{ $stufe->icon }}"></i>
+                            {{ $stufe->name_de }} (ab {{ $stufe->tage_ueberfaellig }} Tage)
+                        </span>
+                    @endforeach
+                </div>
+                
+                {{-- ⭐ Hinweis für blockierte Rechnungen --}}
+                @if($ueberfaellige->where('hat_offenen_entwurf', true)->count() > 0)
+                    <div class="alert alert-info py-2 mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>{{ $ueberfaellige->where('hat_offenen_entwurf', true)->count() }} Rechnung(en)</strong> 
+                        haben bereits einen Entwurf, der erst versendet werden muss.
+                        <a href="{{ route('mahnungen.versand') }}" class="alert-link">→ Zum Versand</a>
+                    </div>
+                @endif
             </div>
 
             <div class="card">
@@ -121,16 +152,27 @@
                         </thead>
                         <tbody>
                             @foreach($ueberfaellige as $rechnung)
-                                <tr class="{{ !$rechnung->hat_email ? 'table-warning' : '' }}">
+                                @php
+                                    $istBlockiert = $rechnung->hat_offenen_entwurf && !$rechnung->naechste_mahnstufe;
+                                @endphp
+                                <tr class="{{ $istBlockiert ? 'table-info' : (!$rechnung->hat_email ? 'table-warning' : '') }}">
                                     <td>
-                                        <input type="checkbox" 
-                                               name="rechnung_ids[]" 
-                                               value="{{ $rechnung->id }}"
-                                               class="form-check-input rechnung-checkbox">
+                                        @if($istBlockiert)
+                                            {{-- ⭐ Blockiert: Entwurf muss erst versendet werden --}}
+                                            <span class="text-info" title="Entwurf muss erst versendet werden">
+                                                <i class="bi bi-hourglass-split"></i>
+                                            </span>
+                                        @else
+                                            <input type="checkbox" 
+                                                   name="rechnung_ids[]" 
+                                                   value="{{ $rechnung->id }}"
+                                                   class="form-check-input rechnung-checkbox">
+                                        @endif
                                     </td>
                                     <td>
                                         <a href="{{ url('/rechnung/' . $rechnung->id . '/edit') }}" target="_blank">
-                                            {{ $rechnung->volle_rechnungsnummer ?? $rechnung->laufnummer }}
+                                            {{-- ⭐ Robuste Rechnungsnummer --}}
+                                            {{ $rechnung->volle_rechnungsnummer ?? ($rechnung->jahr && $rechnung->laufnummer ? $rechnung->jahr.'/'.$rechnung->laufnummer : $rechnung->laufnummer ?? '-') }}
                                         </a>
                                     </td>
                                     <td>
@@ -145,10 +187,19 @@
                                         <span class="badge bg-danger">{{ $rechnung->tage_ueberfaellig }} Tage</span>
                                     </td>
                                     <td class="text-end">
-                                        {{ number_format($rechnung->brutto ?? 0, 2, ',', '.') }} €
+                                        {{-- ⭐ brutto_summe statt brutto --}}
+                                        {{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} €
                                     </td>
                                     <td>
-                                        @if($rechnung->naechste_mahnstufe)
+                                        @if($istBlockiert)
+                                            {{-- ⭐ Entwurf existiert - zeige Link zum Versand --}}
+                                            <a href="{{ route('mahnungen.versand') }}" class="badge bg-info text-decoration-none">
+                                                <i class="bi bi-hourglass-split"></i>
+                                                Stufe {{ $rechnung->offener_entwurf->mahnstufe }} wartet
+                                            </a>
+                                            <br>
+                                            <small class="text-muted">Erst versenden!</small>
+                                        @elseif($rechnung->naechste_mahnstufe)
                                             <span class="badge {{ $rechnung->naechste_mahnstufe->badge_class }}">
                                                 <i class="bi {{ $rechnung->naechste_mahnstufe->icon }}"></i>
                                                 {{ $rechnung->naechste_mahnstufe->name_de }}
@@ -164,10 +215,14 @@
                                         @endif
                                     </td>
                                     <td>
+                                        {{-- ⭐ E-Mail mit Postadresse-Priorität --}}
                                         @if($rechnung->hat_email)
-                                            <span class="badge bg-success">
+                                            <span class="badge bg-success" title="{{ $rechnung->email_adresse }}">
                                                 <i class="bi bi-envelope-check"></i>
                                             </span>
+                                            @if($rechnung->email_von_postadresse ?? false)
+                                                <span class="badge bg-info text-dark" title="E-Mail von Postadresse">P</span>
+                                            @endif
                                         @else
                                             <span class="badge bg-warning text-dark" title="Keine E-Mail - Postversand nötig">
                                                 <i class="bi bi-mailbox"></i> Post

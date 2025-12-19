@@ -34,7 +34,11 @@ class MahnungController extends Controller
         $bankAktualitaet = $this->service->getBankAktualitaet();
         
         // Letzte Mahnungen
-        $letzteMahnungen = Mahnung::with(['rechnung.rechnungsempfaenger', 'stufe'])
+        $letzteMahnungen = Mahnung::with([
+            'rechnung.rechnungsempfaenger', 
+            'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
+            'stufe'
+        ])
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
@@ -51,7 +55,11 @@ class MahnungController extends Controller
      */
     public function historie(Request $request)
     {
-        $query = Mahnung::with(['rechnung.rechnungsempfaenger', 'stufe'])
+        $query = Mahnung::with([
+            'rechnung.rechnungsempfaenger', 
+            'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
+            'stufe'
+        ])
             ->orderByDesc('created_at');
 
         // Filter: Status
@@ -140,18 +148,33 @@ class MahnungController extends Controller
 
     /**
      * Versand-Übersicht (Entwürfe)
+     * 
+     * ⭐ E-Mail wird aus POSTADRESSE des Gebäudes geholt!
      */
     public function versand()
     {
-        $entwuerfe = Mahnung::with(['rechnung.rechnungsempfaenger', 'stufe'])
+        $entwuerfe = Mahnung::with([
+            'rechnung.rechnungsempfaenger', 
+            'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
+            'stufe'
+        ])
             ->entwurf()
             ->orderByDesc('mahnstufe')
             ->orderByDesc('tage_ueberfaellig')
             ->get();
 
-        // Gruppieren nach Versandart-Möglichkeit
-        $mitEmail = $entwuerfe->filter(fn($m) => !empty($m->rechnung?->rechnungsempfaenger?->email));
-        $ohneEmail = $entwuerfe->filter(fn($m) => empty($m->rechnung?->rechnungsempfaenger?->email));
+        // ⭐ Gruppieren nach Versandart-Möglichkeit (Postadresse-E-Mail!)
+        $mitEmail = $entwuerfe->filter(function($m) {
+            $postEmail = $m->rechnung?->gebaeude?->postadresse?->email;
+            $rechnungEmail = $m->rechnung?->rechnungsempfaenger?->email;
+            return !empty($postEmail) || !empty($rechnungEmail);
+        });
+        
+        $ohneEmail = $entwuerfe->filter(function($m) {
+            $postEmail = $m->rechnung?->gebaeude?->postadresse?->email;
+            $rechnungEmail = $m->rechnung?->rechnungsempfaenger?->email;
+            return empty($postEmail) && empty($rechnungEmail);
+        });
 
         return view('mahnungen.versand', [
             'entwuerfe'  => $entwuerfe,
@@ -161,20 +184,16 @@ class MahnungController extends Controller
     }
 
     /**
-     * Mahnungen versenden
+     * Mahnungen versenden (ZWEISPRACHIG)
      */
     public function versenden(Request $request)
     {
         $request->validate([
             'mahnung_ids'   => 'required|array|min:1',
             'mahnung_ids.*' => 'integer|exists:mahnungen,id',
-            'sprache'       => 'required|in:de,it',
         ]);
 
-        $result = $this->service->versendeMahnungenBatch(
-            $request->mahnung_ids,
-            $request->sprache
-        );
+        $result = $this->service->versendeMahnungenBatch($request->mahnung_ids);
 
         Log::info('Mahnungen versendet', $result['statistik']);
 
@@ -219,10 +238,15 @@ class MahnungController extends Controller
      */
     public function show(Mahnung $mahnung)
     {
-        $mahnung->load(['rechnung.rechnungsempfaenger', 'stufe']);
+        $mahnung->load([
+            'rechnung.rechnungsempfaenger', 
+            'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
+            'stufe'
+        ]);
 
-        $textDe = $mahnung->generiereText('de');
-        $textIt = $mahnung->generiereText('it');
+        // Separate Texte für die Tab-Vorschau
+        $textDe = $mahnung->generiereTextDe();
+        $textIt = $mahnung->generiereTextIt();
 
         return view('mahnungen.show', [
             'mahnung' => $mahnung,
@@ -250,26 +274,37 @@ class MahnungController extends Controller
     }
 
     /**
-     * PDF herunterladen
+     * PDF herunterladen oder im Browser anzeigen
+     * 
+     * ?preview=1 → Im Browser anzeigen (inline)
+     * ohne Parameter → Download
      */
-    public function downloadPdf(Mahnung $mahnung, string $sprache = 'de')
+    public function downloadPdf(Request $request, Mahnung $mahnung)
     {
-        // PDF erstellen falls nicht vorhanden
+        // PDF erstellen falls nicht vorhanden (immer zweisprachig)
         if (!$mahnung->pdf_pfad || !file_exists(storage_path('app/' . $mahnung->pdf_pfad))) {
-            $mahnung->pdf_pfad = $this->service->erstellePdf($mahnung, $sprache);
+            $mahnung->pdf_pfad = $this->service->erstellePdf($mahnung);
             $mahnung->save();
         }
 
         $filename = sprintf(
-            'Mahnung_%s_Stufe%d.pdf',
-            $mahnung->rechnung?->volle_rechnungsnummer ?? $mahnung->id,
+            'Mahnung_Sollecito_%s_Stufe%d.pdf',
+            str_replace('/', '-', $mahnung->rechnungsnummer_anzeige),
             $mahnung->mahnstufe
         );
 
-        return response()->download(
-            storage_path('app/' . $mahnung->pdf_pfad),
-            $filename
-        );
+        $path = storage_path('app/' . $mahnung->pdf_pfad);
+
+        // ⭐ Preview = Im Browser anzeigen (inline)
+        if ($request->boolean('preview')) {
+            return response()->file($path, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            ]);
+        }
+
+        // ⭐ Download
+        return response()->download($path, $filename);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
