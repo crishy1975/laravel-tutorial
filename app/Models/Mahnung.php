@@ -148,6 +148,14 @@ class Mahnung extends Model
         return $this->email_fehler === true;
     }
 
+    /**
+     * ⭐ Rechnungsnummer für Anzeige (öffentlicher Accessor)
+     */
+    public function getRechnungsnummerAnzeigeAttribute(): string
+    {
+        return $this->getRechnungsnummer();
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // BUSINESS LOGIC
     // ═══════════════════════════════════════════════════════════════════════
@@ -200,56 +208,163 @@ class Mahnung extends Model
         $this->save();
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // PLATZHALTER-GENERIERUNG
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
-     * Generiert den Mahntext mit Platzhaltern
+     * ⭐ Holt die Rechnungsnummer robust aus verschiedenen Quellen
      */
-    public function generiereText(string $sprache = 'de', array $extraDaten = []): string
+    protected function getRechnungsnummer(): string
+    {
+        $rechnung = $this->rechnung;
+        
+        if (!$rechnung) {
+            return '-';
+        }
+
+        // 1. Priorität: volle_rechnungsnummer (Accessor)
+        if (!empty($rechnung->volle_rechnungsnummer)) {
+            return $rechnung->volle_rechnungsnummer;
+        }
+
+        // 2. Priorität: rechnungsnummer (direktes Feld)
+        if (!empty($rechnung->rechnungsnummer)) {
+            return $rechnung->rechnungsnummer;
+        }
+
+        // 3. Priorität: jahr/laufnummer zusammensetzen
+        if (!empty($rechnung->jahr) && !empty($rechnung->laufnummer)) {
+            return "{$rechnung->jahr}/{$rechnung->laufnummer}";
+        }
+
+        // 4. Fallback: nur laufnummer
+        if (!empty($rechnung->laufnummer)) {
+            return (string) $rechnung->laufnummer;
+        }
+
+        return '-';
+    }
+
+    /**
+     * ⭐ Erstellt die Standard-Platzhalter für Texte
+     */
+    protected function getPlatzhalter(array $extraDaten = []): array
+    {
+        $rechnung = $this->rechnung;
+
+        $platzhalter = [
+            '{rechnungsnummer}'   => $this->getRechnungsnummer(),
+            '{rechnungsdatum}'    => $rechnung?->rechnungsdatum?->format('d.m.Y') ?? '-',
+            '{faelligkeitsdatum}' => $rechnung?->faelligkeitsdatum?->format('d.m.Y') 
+                                     ?? $rechnung?->rechnungsdatum?->addDays(30)->format('d.m.Y') 
+                                     ?? '-',
+            '{betrag}'            => number_format($this->rechnungsbetrag, 2, ',', '.'),
+            '{spesen}'            => number_format($this->spesen, 2, ',', '.'),
+            '{gesamtbetrag}'      => number_format($this->gesamtbetrag, 2, ',', '.'),
+            '{tage_ueberfaellig}' => $this->tage_ueberfaellig,
+            '{firma}'             => config('app.firma_name', 'Resch GmbH'),
+            '{kunde}'             => $rechnung?->rechnungsempfaenger?->name ?? '-',
+        ];
+
+        return array_merge($platzhalter, $extraDaten);
+    }
+
+    /**
+     * Generiert den Mahntext ZWEISPRACHIG (DE + IT)
+     */
+    public function generiereText(array $extraDaten = []): string
     {
         $stufe = $this->stufe;
         if (!$stufe) {
             return '';
         }
 
-        $text = $stufe->getText($sprache);
-        $rechnung = $this->rechnung;
+        $platzhalter = $this->getPlatzhalter($extraDaten);
 
-        // Standard-Platzhalter
-        $platzhalter = [
-            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
-            '{rechnungsdatum}'  => $rechnung?->rechnungsdatum?->format('d.m.Y') ?? '-',
-            '{faelligkeitsdatum}' => $rechnung?->faelligkeitsdatum?->format('d.m.Y') ?? '-',
-            '{betrag}'          => number_format($this->rechnungsbetrag, 2, ',', '.'),
-            '{spesen}'          => number_format($this->spesen, 2, ',', '.'),
-            '{gesamtbetrag}'    => number_format($this->gesamtbetrag, 2, ',', '.'),
-            '{tage_ueberfaellig}' => $this->tage_ueberfaellig,
-            '{firma}'           => config('app.firma_name', 'Resch GmbH'),
-            '{kunde}'           => $rechnung?->rechnungsempfaenger?->name ?? '-',
-        ];
+        // Deutschen Text
+        $textDe = str_replace(
+            array_keys($platzhalter), 
+            array_values($platzhalter), 
+            $stufe->getText('de')
+        );
 
-        // Extra-Daten überschreiben/ergänzen
-        $platzhalter = array_merge($platzhalter, $extraDaten);
+        // Italienischen Text
+        $textIt = str_replace(
+            array_keys($platzhalter), 
+            array_values($platzhalter), 
+            $stufe->getText('it')
+        );
 
-        return str_replace(array_keys($platzhalter), array_values($platzhalter), $text);
+        // Kombinieren: DE zuerst, dann IT
+        $separator = "\n\n" . str_repeat('─', 50) . "\n\n";
+        
+        return $textDe . $separator . $textIt;
     }
 
     /**
-     * Generiert den Betreff mit Platzhaltern
+     * Generiert NUR den deutschen Mahntext (für Vorschau)
      */
-    public function generiereBetreff(string $sprache = 'de'): string
+    public function generiereTextDe(array $extraDaten = []): string
+    {
+        return $this->generiereTextSprache('de', $extraDaten);
+    }
+
+    /**
+     * Generiert NUR den italienischen Mahntext (für Vorschau)
+     */
+    public function generiereTextIt(array $extraDaten = []): string
+    {
+        return $this->generiereTextSprache('it', $extraDaten);
+    }
+
+    /**
+     * Interne Hilfsmethode: Text in einer Sprache generieren
+     */
+    protected function generiereTextSprache(string $sprache, array $extraDaten = []): string
     {
         $stufe = $this->stufe;
         if (!$stufe) {
-            return "Mahnung";
+            return '';
         }
 
-        $betreff = $stufe->getBetreff($sprache);
-        $rechnung = $this->rechnung;
+        $platzhalter = $this->getPlatzhalter($extraDaten);
+
+        return str_replace(
+            array_keys($platzhalter), 
+            array_values($platzhalter), 
+            $stufe->getText($sprache)
+        );
+    }
+
+    /**
+     * Generiert den Betreff ZWEISPRACHIG (DE / IT)
+     */
+    public function generiereBetreff(): string
+    {
+        $stufe = $this->stufe;
+        if (!$stufe) {
+            return "Mahnung / Sollecito";
+        }
 
         $platzhalter = [
-            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
+            '{rechnungsnummer}' => $this->getRechnungsnummer(),
         ];
 
-        return str_replace(array_keys($platzhalter), array_values($platzhalter), $betreff);
+        $betreffDe = str_replace(
+            array_keys($platzhalter), 
+            array_values($platzhalter), 
+            $stufe->getBetreff('de')
+        );
+
+        $betreffIt = str_replace(
+            array_keys($platzhalter), 
+            array_values($platzhalter), 
+            $stufe->getBetreff('it')
+        );
+
+        // Kombinieren: DE / IT
+        return $betreffDe . ' / ' . $betreffIt;
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -257,13 +372,60 @@ class Mahnung extends Model
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Höchste Mahnstufe für eine Rechnung
+     * ⭐ Höchste GESENDETE Mahnstufe für eine Rechnung
+     * 
+     * NUR gesendete Mahnungen zählen! Entwürfe blockieren die nächste Stufe,
+     * aber sie erhöhen nicht die "abgeschlossene" Stufe.
+     * 
+     * @return int Höchste gesendete Stufe, oder -1 wenn keine gesendet
+     */
+    public static function hoechsteGesendeteStufeVonRechnung(int $rechnungId): int
+    {
+        $result = self::vonRechnung($rechnungId)
+            ->where('status', 'gesendet')
+            ->max('mahnstufe');
+        
+        // ⭐ WICHTIG: max() gibt NULL zurück wenn keine Einträge
+        // (int) null = 0, daher explizite Prüfung!
+        return $result !== null ? (int) $result : -1;
+    }
+
+    /**
+     * ⭐ Prüft ob ein offener Entwurf existiert
+     * 
+     * Wenn ja, muss dieser erst versendet werden bevor eine neue Mahnung erstellt werden kann.
+     */
+    public static function hatOffenenEntwurf(int $rechnungId): bool
+    {
+        return self::vonRechnung($rechnungId)
+            ->where('status', 'entwurf')
+            ->exists();
+    }
+
+    /**
+     * ⭐ Holt den offenen Entwurf (falls vorhanden)
+     */
+    public static function getOffenerEntwurf(int $rechnungId): ?self
+    {
+        return self::vonRechnung($rechnungId)
+            ->where('status', 'entwurf')
+            ->first();
+    }
+
+    /**
+     * Höchste Mahnstufe für eine Rechnung (alle außer storniert)
+     * 
+     * @deprecated Nutze hoechsteGesendeteStufeVonRechnung() für Stufen-Logik
+     * @return int Höchste Stufe, oder -1 wenn keine vorhanden
      */
     public static function hoechsteStufeVonRechnung(int $rechnungId): int
     {
-        return (int) self::vonRechnung($rechnungId)
+        $result = self::vonRechnung($rechnungId)
             ->where('status', '!=', 'storniert')
-            ->max('mahnstufe') ?? -1;
+            ->max('mahnstufe');
+        
+        // ⭐ WICHTIG: max() gibt NULL zurück wenn keine Einträge
+        return $result !== null ? (int) $result : -1;
     }
 
     /**

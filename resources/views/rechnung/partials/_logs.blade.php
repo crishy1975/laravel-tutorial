@@ -15,6 +15,9 @@
     $offeneErinnerungen = RechnungLog::where('rechnung_id', $rechnung->id)
         ->offeneErinnerungen()
         ->count();
+        
+    // Mahnung-Statistiken
+    $mahnungLogs = $logs->filter(fn($l) => str_starts_with($l->typ->value ?? '', 'mahnung'));
 @endphp
 
 <div class="row g-4">
@@ -29,6 +32,7 @@
             </div>
             <div class="card-body">
                 <div class="row g-2">
+                    {{-- Kommunikation --}}
                     <div class="col-md-2">
                         <button type="button" class="btn btn-outline-secondary w-100" 
                                 onclick="openLogModal('telefonat')">
@@ -43,6 +47,8 @@
                             <small>Kundenmitteilung</small>
                         </button>
                     </div>
+                    
+                    {{-- Notizen --}}
                     <div class="col-md-2">
                         <button type="button" class="btn btn-outline-secondary w-100"
                                 onclick="openLogModal('notiz')">
@@ -57,13 +63,17 @@
                             <small>Erinnerung</small>
                         </button>
                     </div>
+                    
+                    {{-- Mahnung --}}
                     <div class="col-md-2">
                         <button type="button" class="btn btn-outline-danger w-100"
-                                onclick="openLogModal('mahnung_erstellt')">
-                            <i class="bi bi-exclamation-triangle"></i><br>
-                            <small>Mahnung</small>
+                                onclick="openLogModal('mahnung_telefonisch')">
+                            <i class="bi bi-telephone-x"></i><br>
+                            <small>Tel. Mahnung</small>
                         </button>
                     </div>
+                    
+                    {{-- Zahlung --}}
                     <div class="col-md-2">
                         <button type="button" class="btn btn-outline-success w-100"
                                 onclick="openLogModal('zahlung_eingegangen')">
@@ -72,6 +82,16 @@
                         </button>
                     </div>
                 </div>
+                
+                {{-- Link zum Mahnwesen --}}
+                @if($rechnung->status === 'sent')
+                    <div class="mt-3 pt-3 border-top">
+                        <a href="{{ route('mahnungen.index') }}" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-envelope-exclamation"></i> Zum Mahnwesen
+                        </a>
+                        <small class="text-muted ms-2">Für automatische Mahnungen per E-Mail/Post</small>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -106,10 +126,12 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card text-center h-100">
+        <div class="card text-center h-100 {{ $mahnungLogs->count() > 0 ? 'border-danger' : '' }}">
             <div class="card-body">
-                <h3 class="mb-0">{{ $logs->where('kategorie', 'dokument')->count() }}</h3>
-                <small class="text-muted">Dokumente</small>
+                <h3 class="mb-0 {{ $mahnungLogs->count() > 0 ? 'text-danger' : '' }}">
+                    {{ $mahnungLogs->count() }}
+                </h3>
+                <small class="text-muted">Mahnungen</small>
             </div>
         </div>
     </div>
@@ -186,17 +208,11 @@
                                         @if($log->erinnerung_datum)
                                             <div class="mt-1">
                                                 @if($log->erinnerung_erledigt)
-                                                    <span class="badge bg-success">
-                                                        <i class="bi bi-check"></i> Erledigt
-                                                    </span>
+                                                    <span class="badge bg-success"><i class="bi bi-check"></i> Erledigt</span>
                                                 @elseif($log->erinnerung_datum->isPast())
                                                     <span class="badge bg-danger">
                                                         <i class="bi bi-alarm"></i> Überfällig: {{ $log->erinnerung_datum->format('d.m.Y') }}
                                                     </span>
-                                                    <button type="button" class="btn btn-sm btn-outline-success ms-1"
-                                                            onclick="markErinnerungErledigt({{ $log->id }})">
-                                                        <i class="bi bi-check"></i> Erledigen
-                                                    </button>
                                                 @else
                                                     <span class="badge bg-info">
                                                         <i class="bi bi-bell"></i> {{ $log->erinnerung_datum->format('d.m.Y') }}
@@ -205,19 +221,34 @@
                                             </div>
                                         @endif
                                         
-                                        {{-- Meta --}}
-                                        <div class="small text-muted mt-1">
-                                            <i class="bi bi-person-circle"></i> {{ $log->benutzer_name }}
-                                            
-                                            {{-- Löschen-Button (nur für manuelle Einträge) --}}
-                                            @if(in_array($log->typ->value, ['telefonat', 'telefonat_eingehend', 'telefonat_ausgehend', 'mitteilung_kunde', 'mitteilung_intern', 'notiz', 'erinnerung']))
-                                                <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2"
-                                                        onclick="deleteLog({{ $log->id }})"
-                                                        title="Löschen">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            @endif
-                                        </div>
+                                        {{-- Metadata für Mahnungen --}}
+                                        @if($log->metadata && isset($log->metadata['stufe']))
+                                            <div class="mt-1">
+                                                <span class="badge bg-danger">Stufe {{ $log->metadata['stufe'] }}</span>
+                                                @if(isset($log->metadata['betrag']))
+                                                    <span class="badge bg-secondary">{{ $log->metadata['betrag'] }}</span>
+                                                @endif
+                                                @if(isset($log->metadata['versandart']))
+                                                    <span class="badge bg-info">{{ $log->metadata['versandart'] }}</span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                    
+                                    {{-- Aktionen --}}
+                                    <div class="ms-2">
+                                        @if($log->erinnerung_datum && !$log->erinnerung_erledigt)
+                                            <button type="button" class="btn btn-sm btn-outline-success mb-1"
+                                                    onclick="markErinnerungErledigt({{ $log->id }})" title="Erledigen">
+                                                <i class="bi bi-check"></i>
+                                            </button>
+                                        @endif
+                                        @if(in_array($log->typ->value ?? '', ['telefonat', 'telefonat_eingehend', 'telefonat_ausgehend', 'mitteilung_kunde', 'mitteilung_intern', 'notiz', 'erinnerung', 'mahnung_telefonisch']))
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    onclick="deleteLog({{ $log->id }})" title="Löschen">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -230,82 +261,68 @@
 
 </div>
 
-{{-- ⭐⭐⭐ MODAL WIRD ÜBER @push AUSSERHALB DES HAUPTFORMS EINGEBUNDEN ⭐⭐⭐ --}}
+{{-- ⭐⭐⭐ MODAL ÜBER @push EINBINDEN - AUSSERHALB DES FORMULARS! ⭐⭐⭐ --}}
 @push('modals')
-<div class="modal fade" id="modalNeuerLog" tabindex="-1" aria-labelledby="modalLogTitel" aria-hidden="true">
-    <div class="modal-dialog">
+<div class="modal fade" id="modalNeuerLog" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header">
                 <h5 class="modal-title" id="modalLogTitel">
                     <i class="bi bi-plus-circle"></i> Neuer Eintrag
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                {{-- Typ (hidden) --}}
                 <input type="hidden" id="log_typ" value="">
                 
-                {{-- Typ-Auswahl (wird je nach Quick-Action vorbelegt) --}}
+                {{-- Typ-Auswahl (nur bei bestimmten Typen sichtbar) --}}
                 <div class="mb-3" id="typAuswahlContainer">
                     <label class="form-label">Typ</label>
-                    <select class="form-select" id="log_typ_select" onchange="document.getElementById('log_typ').value = this.value;">
-                        <optgroup label="Kommunikation">
-                            <option value="telefonat">Telefonat</option>
-                            <option value="telefonat_eingehend">Anruf erhalten</option>
-                            <option value="telefonat_ausgehend">Anruf getätigt</option>
-                            <option value="mitteilung_kunde">Mitteilung vom Kunden</option>
-                            <option value="mitteilung_intern">Interne Notiz</option>
-                        </optgroup>
-                        <optgroup label="Dokumente">
-                            <option value="pdf_erstellt">PDF erstellt</option>
-                            <option value="pdf_versandt">PDF versandt</option>
-                            <option value="mahnung_erstellt">Mahnung erstellt</option>
-                            <option value="mahnung_versandt">Mahnung versandt</option>
-                        </optgroup>
-                        <optgroup label="Zahlungen">
-                            <option value="zahlung_eingegangen">Zahlung eingegangen</option>
-                            <option value="zahlung_teilweise">Teilzahlung</option>
-                            <option value="zahlung_erinnerung">Zahlungserinnerung</option>
-                        </optgroup>
-                        <optgroup label="Sonstiges">
-                            <option value="notiz">Notiz</option>
-                            <option value="erinnerung">Erinnerung</option>
-                            <option value="wiedervorlage">Wiedervorlage</option>
-                        </optgroup>
+                    <select id="log_typ_select" class="form-select">
+                        <option value="telefonat">Telefonat (allgemein)</option>
+                        <option value="telefonat_eingehend">Anruf erhalten</option>
+                        <option value="telefonat_ausgehend">Anruf getätigt</option>
+                        <option value="mahnung_telefonisch">Telefonische Mahnung</option>
+                        <option value="mitteilung_kunde">Mitteilung vom Kunden</option>
+                        <option value="mitteilung_intern">Interne Notiz</option>
+                        <option value="notiz">Notiz</option>
+                        <option value="erinnerung">Erinnerung</option>
                     </select>
                 </div>
                 
                 {{-- Beschreibung --}}
                 <div class="mb-3">
                     <label class="form-label">Beschreibung <span class="text-danger">*</span></label>
-                    <textarea class="form-control" id="log_beschreibung" rows="4" 
-                              placeholder="Details eingeben..."></textarea>
+                    <textarea id="log_beschreibung" class="form-control" rows="4" 
+                              placeholder="Was wurde besprochen / vereinbart?"></textarea>
                 </div>
                 
                 {{-- Kontakt-Person --}}
                 <div class="mb-3" id="kontaktContainer">
-                    <label class="form-label">Kontaktperson</label>
-                    <input type="text" class="form-control" id="log_kontakt_person" 
-                           placeholder="Name der Kontaktperson">
+                    <label class="form-label">Kontakt-Person</label>
+                    <input type="text" id="log_kontakt_person" class="form-control" 
+                           placeholder="Name des Ansprechpartners">
                 </div>
                 
-                {{-- Kontakt-Telefon --}}
+                {{-- Telefon --}}
                 <div class="mb-3" id="telefonContainer">
                     <label class="form-label">Telefonnummer</label>
-                    <input type="text" class="form-control" id="log_kontakt_telefon" 
+                    <input type="text" id="log_kontakt_telefon" class="form-control" 
                            placeholder="+39 ...">
                 </div>
                 
-                {{-- Kontakt-Email --}}
-                <div class="mb-3" id="emailContainer" style="display:none;">
+                {{-- E-Mail --}}
+                <div class="mb-3" id="emailContainer" style="display: none;">
                     <label class="form-label">E-Mail</label>
-                    <input type="email" class="form-control" id="log_kontakt_email" 
+                    <input type="email" id="log_kontakt_email" class="form-control" 
                            placeholder="email@example.com">
                 </div>
                 
                 {{-- Priorität --}}
                 <div class="mb-3">
                     <label class="form-label">Priorität</label>
-                    <select class="form-select" id="log_prioritaet">
+                    <select id="log_prioritaet" class="form-select">
                         <option value="niedrig">Niedrig</option>
                         <option value="normal" selected>Normal</option>
                         <option value="hoch">Hoch</option>
@@ -315,9 +332,9 @@
                 
                 {{-- Erinnerung --}}
                 <div class="mb-3" id="erinnerungContainer">
-                    <label class="form-label">Erinnerung am</label>
-                    <input type="date" class="form-control" id="log_erinnerung_datum">
-                    <small class="text-muted">Optional: Für Wiedervorlage</small>
+                    <label class="form-label">Wiedervorlage / Erinnerung</label>
+                    <input type="date" id="log_erinnerung_datum" class="form-control">
+                    <small class="text-muted">Optional: Datum für Wiedervorlage setzen</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -369,9 +386,16 @@ function openLogModal(typ) {
     typAuswahlContainer.style.display = 'block';
     
     // Typ-spezifische Anpassungen
-    if (typ.includes('telefonat')) {
+    if (typ.includes('telefonat') || typ === 'mahnung_telefonisch') {
         emailContainer.style.display = 'none';
         typAuswahlContainer.style.display = 'none';
+        
+        // Bei telefonischer Mahnung: Priorität auf "hoch" setzen
+        if (typ === 'mahnung_telefonisch') {
+            document.getElementById('log_prioritaet').value = 'hoch';
+            document.getElementById('log_beschreibung').placeholder = 
+                'Was wurde besprochen? Zahlungszusage? Vereinbarung?';
+        }
     } else if (typ === 'mitteilung_kunde') {
         emailContainer.style.display = 'block';
         telefonContainer.style.display = 'none';
@@ -386,6 +410,8 @@ function openLogModal(typ) {
         telefonContainer.style.display = 'none';
         erinnerungContainer.style.display = 'none';
         typAuswahlContainer.style.display = 'none';
+        document.getElementById('log_beschreibung').placeholder = 
+            'Betrag, Referenz, Datum der Zahlung...';
     }
     
     // Titel anpassen
@@ -396,7 +422,7 @@ function openLogModal(typ) {
         'mitteilung_kunde': 'Kundenmitteilung',
         'notiz': 'Notiz hinzufügen',
         'erinnerung': 'Erinnerung erstellen',
-        'mahnung_erstellt': 'Mahnung dokumentieren',
+        'mahnung_telefonisch': '📞 Telefonische Mahnung',
         'zahlung_eingegangen': 'Zahlung dokumentieren',
     };
     

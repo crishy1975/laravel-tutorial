@@ -7,6 +7,8 @@ use App\Models\MahnungStufe;
 use App\Models\MahnungAusschluss;
 use App\Models\MahnungRechnungAusschluss;
 use App\Models\Rechnung;
+use App\Models\RechnungLog;
+use App\Enums\RechnungLogTyp;
 use App\Models\Adresse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -36,7 +38,8 @@ class MahnungService
 
         $heute = now()->startOfDay();
 
-        return Rechnung::with(['rechnungsempfaenger', 'gebaeude'])
+        // ⭐ Auch postadresse laden für E-Mail-Priorität
+        return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
             ->where('status', 'sent')  // Nur versendete, nicht bezahlte
             ->whereNotNull('rechnungsdatum')
             ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL ? DAY) < ?", [
@@ -54,31 +57,60 @@ class MahnungService
                 $rechnung->tage_ueberfaellig = $tageUeberfaellig;
                 $rechnung->naechste_mahnstufe = $this->ermittleNaechsteMahnstufe($rechnung);
                 $rechnung->letzte_mahnung = Mahnung::letzteVonRechnung($rechnung->id);
-                $rechnung->hat_email = !empty($rechnung->rechnungsempfaenger?->email);
+                
+                // ⭐ NEU: Info über offenen Entwurf
+                $rechnung->hat_offenen_entwurf = Mahnung::hatOffenenEntwurf($rechnung->id);
+                $rechnung->offener_entwurf = $rechnung->hat_offenen_entwurf 
+                    ? Mahnung::getOffenerEntwurf($rechnung->id) 
+                    : null;
+                
+                // ⭐ E-Mail-Priorität: Postadresse → Rechnungsempfänger
+                $postEmail = $rechnung->gebaeude?->postadresse?->email;
+                $rechnungEmail = $rechnung->rechnungsempfaenger?->email;
+                $rechnung->hat_email = !empty($postEmail) || !empty($rechnungEmail);
+                $rechnung->email_adresse = $postEmail ?: $rechnungEmail;
+                $rechnung->email_von_postadresse = !empty($postEmail);
                 
                 return $rechnung;
             })
             ->filter(fn($r) => $r->tage_ueberfaellig >= $minTage)
-            ->filter(fn($r) => $r->naechste_mahnstufe !== null)  // Nur wenn mahnbar
+            // ⭐ GEÄNDERT: Zeige auch Rechnungen mit offenem Entwurf (aber blockiert)
+            ->filter(fn($r) => $r->naechste_mahnstufe !== null || $r->hat_offenen_entwurf)
             ->sortByDesc('tage_ueberfaellig');
     }
 
     /**
-     * Ermittelt die nächste Mahnstufe für eine Rechnung
+     * ⭐ Ermittelt die nächste Mahnstufe für eine Rechnung
+     * 
+     * WICHTIG: Eine höhere Stufe wird nur zurückgegeben wenn:
+     * 1. Kein offener Entwurf existiert (dieser muss erst versendet werden!)
+     * 2. Die vorherige Stufe GESENDET wurde (nicht nur als Entwurf erstellt)
+     * 3. Genug Tage überfällig für die nächste Stufe
      */
     public function ermittleNaechsteMahnstufe(Rechnung $rechnung): ?MahnungStufe
     {
         $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
         $tageUeberfaellig = $faelligAm->diffInDays(now());
 
-        // Höchste bereits versendete Stufe
-        $hoechsteGesendete = Mahnung::hoechsteStufeVonRechnung($rechnung->id);
+        // ⭐ WICHTIG: Prüfe ob ein offener Entwurf existiert
+        // Wenn ja, muss dieser erst versendet werden!
+        if (Mahnung::hatOffenenEntwurf($rechnung->id)) {
+            Log::debug('Offener Entwurf existiert - keine neue Mahnung möglich', [
+                'rechnung_id' => $rechnung->id,
+            ]);
+            return null;
+        }
+
+        // ⭐ Höchste GESENDETE Stufe (nicht nur erstellt!)
+        $hoechsteGesendete = Mahnung::hoechsteGesendeteStufeVonRechnung($rechnung->id);
 
         // Alle aktiven Stufen
         $stufen = MahnungStufe::getAlleAktiven();
 
         // Finde passende Stufe die noch nicht gesendet wurde
         foreach ($stufen as $stufe) {
+            // Stufe muss höher sein als die höchste GESENDETE
+            // UND genug Tage überfällig
             if ($stufe->stufe > $hoechsteGesendete && $tageUeberfaellig >= $stufe->tage_ueberfaellig) {
                 return $stufe;
             }
@@ -121,8 +153,8 @@ class MahnungService
         $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
         $tageUeberfaellig = $faelligAm->diffInDays(now());
 
-        // Rechnungsbetrag (Brutto)
-        $rechnungsbetrag = (float) ($rechnung->brutto ?? $rechnung->total_brutto ?? 0);
+        // ⭐ Rechnungsbetrag (Brutto) - Feld heißt brutto_summe!
+        $rechnungsbetrag = (float) ($rechnung->brutto_summe ?? $rechnung->netto_summe ?? 0);
         $spesen = (float) $stufe->spesen;
         $gesamtbetrag = $rechnungsbetrag + $spesen;
 
@@ -143,6 +175,13 @@ class MahnungService
             'rechnung_id' => $rechnung->id,
             'stufe'       => $stufe->stufe,
         ]);
+
+        // ⭐ RechnungLog: Mahnung erstellt
+        RechnungLog::mahnungErstellt(
+            $rechnung->id,
+            $stufe->stufe,
+            number_format($gesamtbetrag, 2, ',', '.') . ' €'
+        );
 
         return $mahnung;
     }
@@ -188,22 +227,32 @@ class MahnungService
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Versendet eine Mahnung per E-Mail
+     * Versendet eine Mahnung per E-Mail (ZWEISPRACHIG DE/IT)
      * Inkl. Originalrechnung als Anhang
+     * 
+     * ⭐ E-Mail wird aus POSTADRESSE des Gebäudes geholt!
      */
-    public function versendeMahnung(Mahnung $mahnung, string $sprache = 'de'): array
+    public function versendeMahnung(Mahnung $mahnung): array
     {
         $rechnung = $mahnung->rechnung;
-        $empfaenger = $rechnung?->rechnungsempfaenger;
+        $gebaeude = $rechnung?->gebaeude;
+        $postadresse = $gebaeude?->postadresse;
+        $rechnungsempfaenger = $rechnung?->rechnungsempfaenger;
 
-        if (!$empfaenger) {
+        if (!$rechnungsempfaenger) {
             return [
                 'erfolg' => false,
                 'grund'  => 'Kein Rechnungsempfänger gefunden',
             ];
         }
 
-        $email = $empfaenger->email;
+        // ⭐ E-Mail aus POSTADRESSE holen (nicht Rechnungsempfänger!)
+        $email = $postadresse?->email;
+        
+        // Fallback: Falls Postadresse keine E-Mail hat, Rechnungsempfänger prüfen
+        if (empty($email)) {
+            $email = $rechnungsempfaenger->email;
+        }
         
         if (empty($email)) {
             // Kein E-Mail → für Postversand markieren
@@ -219,26 +268,29 @@ class MahnungService
         }
 
         try {
-            // E-Mail senden
-            $betreff = $mahnung->generiereBetreff($sprache);
-            $text = $mahnung->generiereText($sprache);
+            // E-Mail senden (ZWEISPRACHIG)
+            $betreff = $mahnung->generiereBetreff();
+            $text = $mahnung->generiereText();
 
-            // Mahnungs-PDF erstellen
-            $mahnungPdfPfad = $this->erstellePdf($mahnung, $sprache);
+            // Mahnungs-PDF erstellen (ZWEISPRACHIG)
+            $mahnungPdfPfad = $this->erstellePdf($mahnung);
             $mahnung->pdf_pfad = $mahnungPdfPfad;
 
             // Rechnungs-PDF herunterladen/generieren
             $rechnungPdfPfad = $this->holeRechnungsPdf($rechnung);
 
-            Mail::send([], [], function ($message) use ($email, $empfaenger, $betreff, $text, $mahnungPdfPfad, $rechnungPdfPfad, $rechnung) {
-                $message->to($email, $empfaenger->name)
+            // ⭐ Name für E-Mail: Postadresse oder Rechnungsempfänger
+            $emailName = $postadresse?->name ?? $rechnungsempfaenger->name;
+
+            Mail::send([], [], function ($message) use ($email, $emailName, $betreff, $text, $mahnungPdfPfad, $rechnungPdfPfad, $rechnung) {
+                $message->to($email, $emailName)
                     ->subject($betreff)
                     ->text($text);
                 
                 // 1. Mahnungs-PDF anhängen
                 if ($mahnungPdfPfad && file_exists(storage_path('app/' . $mahnungPdfPfad))) {
                     $message->attach(storage_path('app/' . $mahnungPdfPfad), [
-                        'as' => 'Mahnung.pdf',
+                        'as' => 'Mahnung_Sollecito.pdf',
                         'mime' => 'application/pdf',
                     ]);
                 }
@@ -247,7 +299,7 @@ class MahnungService
                 if ($rechnungPdfPfad && file_exists($rechnungPdfPfad)) {
                     $rechnungsNr = $rechnung->volle_rechnungsnummer ?? $rechnung->laufnummer ?? $rechnung->id;
                     $message->attach($rechnungPdfPfad, [
-                        'as' => "Rechnung_{$rechnungsNr}.pdf",
+                        'as' => "Rechnung_Fattura_{$rechnungsNr}.pdf",
                         'mime' => 'application/pdf',
                     ]);
                 }
@@ -261,6 +313,13 @@ class MahnungService
                 'email'      => $email,
                 'mit_rechnung' => !empty($rechnungPdfPfad),
             ]);
+
+            // ⭐ RechnungLog: Mahnung versandt
+            RechnungLog::mahnungVersandt(
+                $mahnung->rechnung_id,
+                $mahnung->mahnstufe,
+                'E-Mail an ' . $email
+            );
 
             return [
                 'erfolg' => true,
@@ -377,9 +436,9 @@ class MahnungService
     }
 
     /**
-     * Versendet mehrere Mahnungen
+     * Versendet mehrere Mahnungen (ZWEISPRACHIG)
      */
-    public function versendeMahnungenBatch(array $mahnungIds, string $sprache = 'de'): array
+    public function versendeMahnungenBatch(array $mahnungIds): array
     {
         $erfolg = [];
         $fehler = [];
@@ -392,7 +451,7 @@ class MahnungService
                 continue;
             }
 
-            $result = $this->versendeMahnung($mahnung, $sprache);
+            $result = $this->versendeMahnung($mahnung);
             
             if ($result['erfolg']) {
                 $erfolg[] = $mahnung;
@@ -420,9 +479,9 @@ class MahnungService
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Erstellt PDF für eine Mahnung
+     * Erstellt ZWEISPRACHIGES PDF für eine Mahnung (DE + IT)
      */
-    public function erstellePdf(Mahnung $mahnung, string $sprache = 'de'): string
+    public function erstellePdf(Mahnung $mahnung): string
     {
         $rechnung = $mahnung->rechnung;
         $empfaenger = $rechnung?->rechnungsempfaenger;
@@ -433,9 +492,10 @@ class MahnungService
             'rechnung'   => $rechnung,
             'empfaenger' => $empfaenger,
             'stufe'      => $stufe,
-            'sprache'    => $sprache,
-            'text'       => $mahnung->generiereText($sprache),
-            'betreff'    => $mahnung->generiereBetreff($sprache),
+            'text_de'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('de'), $mahnung) : '',
+            'text_it'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('it'), $mahnung) : '',
+            'betreff_de' => $stufe ? $this->ersetzePlatzhalterBetreff($stufe->getBetreff('de'), $mahnung) : '',
+            'betreff_it' => $stufe ? $this->ersetzePlatzhalterBetreff($stufe->getBetreff('it'), $mahnung) : '',
             'firma'      => config('app.firma_name', 'Resch GmbH'),
         ];
 
@@ -448,9 +508,51 @@ class MahnungService
             now()->format('Ymd_His')
         );
 
+        // ⭐ Ordner erstellen falls nicht vorhanden
+        $directory = storage_path('app/mahnungen');
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
         $pdf->save(storage_path('app/' . $filename));
 
         return $filename;
+    }
+
+    /**
+     * Ersetzt Platzhalter im Text
+     */
+    protected function ersetzePlatzhalter(string $text, Mahnung $mahnung): string
+    {
+        $rechnung = $mahnung->rechnung;
+        
+        $platzhalter = [
+            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
+            '{rechnungsdatum}'  => $rechnung?->rechnungsdatum?->format('d.m.Y') ?? '-',
+            '{faelligkeitsdatum}' => $rechnung?->faelligkeitsdatum?->format('d.m.Y') ?? '-',
+            '{betrag}'          => number_format($mahnung->rechnungsbetrag, 2, ',', '.'),
+            '{spesen}'          => number_format($mahnung->spesen, 2, ',', '.'),
+            '{gesamtbetrag}'    => number_format($mahnung->gesamtbetrag, 2, ',', '.'),
+            '{tage_ueberfaellig}' => $mahnung->tage_ueberfaellig,
+            '{firma}'           => config('app.firma_name', 'Resch GmbH'),
+            '{kunde}'           => $rechnung?->rechnungsempfaenger?->name ?? '-',
+        ];
+
+        return str_replace(array_keys($platzhalter), array_values($platzhalter), $text);
+    }
+
+    /**
+     * Ersetzt Platzhalter im Betreff
+     */
+    protected function ersetzePlatzhalterBetreff(string $betreff, Mahnung $mahnung): string
+    {
+        $rechnung = $mahnung->rechnung;
+        
+        $platzhalter = [
+            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
+        ];
+
+        return str_replace(array_keys($platzhalter), array_values($platzhalter), $betreff);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -466,7 +568,8 @@ class MahnungService
 
         return [
             'ueberfaellig_gesamt' => $ueberfaellige->count(),
-            'ueberfaellig_betrag' => $ueberfaellige->sum(fn($r) => (float) ($r->brutto ?? 0)),
+            // ⭐ brutto_summe statt brutto!
+            'ueberfaellig_betrag' => $ueberfaellige->sum(fn($r) => (float) ($r->brutto_summe ?? 0)),
             'ohne_email'          => $ueberfaellige->filter(fn($r) => !$r->hat_email)->count(),
             'mahnungen_entwurf'   => Mahnung::entwurf()->count(),
             'mahnungen_gesendet'  => Mahnung::gesendet()->count(),

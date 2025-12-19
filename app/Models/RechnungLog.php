@@ -111,6 +111,19 @@ class RechnungLog extends Model
         return $query->orderByDesc('created_at');
     }
 
+    /**
+     * ⭐ NEU: Nur Mahnungs-relevante Logs
+     */
+    public function scopeMahnungen($query)
+    {
+        return $query->whereIn('typ', [
+            RechnungLogTyp::MAHNUNG_ERSTELLT->value,
+            RechnungLogTyp::MAHNUNG_VERSANDT->value,
+            RechnungLogTyp::MAHNUNG_TELEFONISCH->value,
+            RechnungLogTyp::MAHNUNG_STORNIERT->value,
+        ]);
+    }
+
     // ═══════════════════════════════════════════════════════════
     // 🏷️ ACCESSORS
     // ═══════════════════════════════════════════════════════════
@@ -364,6 +377,43 @@ class RechnungLog extends Model
     }
 
     /**
+     * ⭐ NEU: Telefonische Mahnung loggen
+     * 
+     * @param int $rechnungId
+     * @param string $beschreibung Was wurde besprochen?
+     * @param string|null $kontaktPerson Mit wem gesprochen?
+     * @param string|null $telefon Telefonnummer
+     * @param string|null $ergebnis Ergebnis des Gesprächs (z.B. "Zahlungszusage", "Nicht erreicht")
+     * @param string|null $wiedervorlage Datum für Wiedervorlage (YYYY-MM-DD)
+     * @return self
+     */
+    public static function mahnungTelefonisch(
+        int $rechnungId,
+        string $beschreibung,
+        ?string $kontaktPerson = null,
+        ?string $telefon = null,
+        ?string $ergebnis = null,
+        ?string $wiedervorlage = null
+    ): self {
+        return self::create([
+            'rechnung_id' => $rechnungId,
+            'typ' => RechnungLogTyp::MAHNUNG_TELEFONISCH,
+            'titel' => 'Telefonische Mahnung',
+            'beschreibung' => $beschreibung,
+            'user_id' => Auth::id(),
+            'kontakt_person' => $kontaktPerson,
+            'kontakt_telefon' => $telefon,
+            'prioritaet' => 'hoch',
+            'metadata' => array_filter([
+                'ergebnis' => $ergebnis,
+                'wiedervorlage' => $wiedervorlage,
+            ]),
+            'erinnerung_datum' => $wiedervorlage,
+            'erinnerung_erledigt' => false,
+        ]);
+    }
+
+    /**
      * Zahlung eingegangen loggen
      */
     public static function zahlungEingegangen(int $rechnungId, float $betrag, ?string $referenz = null): self
@@ -380,6 +430,22 @@ class RechnungLog extends Model
     }
 
     /**
+     * ⭐ NEU: Bank-Match loggen
+     */
+    public static function bankMatch(int $rechnungId, float $betrag, ?int $buchungId = null): self
+    {
+        return self::log(
+            $rechnungId,
+            RechnungLogTyp::BANK_MATCH,
+            sprintf("Bankzuordnung: %.2f €", $betrag),
+            [
+                'betrag' => $betrag,
+                'bank_buchung_id' => $buchungId,
+            ]
+        );
+    }
+
+    /**
      * Status geändert loggen
      */
     public static function statusGeaendert(int $rechnungId, string $alterStatus, string $neuerStatus): self
@@ -390,7 +456,7 @@ class RechnungLog extends Model
             'paid' => RechnungLogTyp::STATUS_BEZAHLT,
             'cancelled' => RechnungLogTyp::STATUS_STORNIERT,
             'overdue' => RechnungLogTyp::STATUS_UEBERFAELLIG,
-            default => RechnungLogTyp::RECHNUNG_BEARBEITET,
+            default => RechnungLogTyp::STATUS_GEAENDERT,
         };
         
         return self::log(
