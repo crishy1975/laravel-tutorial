@@ -29,16 +29,16 @@
     <div class="card mb-4 border-primary">
         <div class="card-body py-3">
             <div class="row align-items-center">
-                <div class="col-md-7">
+                <div class="col-md-5">
                     <h5 class="mb-1">
                         <i class="bi bi-file-pdf text-danger"></i>
                         PDF Mahnung / Sollecito PDF
                     </h5>
-                    <p class="text-muted mb-0">
-                        Zweisprachiges Mahnschreiben (Deutsch + Italienisch)
+                    <p class="text-muted mb-0 small">
+                        Zweisprachig (DE + IT)
                     </p>
                 </div>
-                <div class="col-md-5 text-end">
+                <div class="col-md-7 text-end">
                     <div class="btn-group">
                         {{-- Im Browser anzeigen --}}
                         <a href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'preview' => 1]) }}" 
@@ -54,6 +54,13 @@
                             <i class="bi bi-download"></i> Download
                         </a>
                     </div>
+                    {{-- Neu generieren --}}
+                    <a href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'regenerate' => 1, 'preview' => 1]) }}" 
+                       class="btn btn-outline-secondary ms-2"
+                       target="_blank"
+                       title="PDF neu erstellen (Cache umgehen)">
+                        <i class="bi bi-arrow-clockwise"></i> Neu
+                    </a>
                 </div>
             </div>
         </div>

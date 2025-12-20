@@ -497,6 +497,18 @@ Route::prefix('mahnungen')->name('mahnungen.')->middleware('auth')->group(functi
 
     // API
     Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
+
+    // Mahnsperre setzen (POST mit rechnung_id, typ, tage, grund)
+    Route::post('/mahnungen/mahnsperre', [MahnungController::class, 'mahnsperreSetzen'])
+        ->name('mahnungen.mahnsperre.setzen');
+
+    // Mahnsperre entfernen
+    Route::delete('/mahnungen/mahnsperre/{rechnungId}', [MahnungController::class, 'mahnsperreEntfernen'])
+        ->name('mahnungen.mahnsperre.entfernen');
+
+    // Übersicht gesperrte Rechnungen
+    Route::get('/mahnungen/gesperrt', [MahnungController::class, 'gesperrteRechnungen'])
+        ->name('mahnungen.gesperrt');
 });
 
 

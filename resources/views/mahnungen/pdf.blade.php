@@ -1,13 +1,14 @@
 {{-- resources/views/mahnungen/pdf.blade.php --}}
 {{-- ZWEISPRACHIGES MAHNUNGS-PDF (Deutsch + Italienisch) --}}
+{{-- Daten aus Unternehmensprofil --}}
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Mahnung / Sollecito - {{ $rechnung?->volle_rechnungsnummer ?? '' }}</title>
+    <title>Mahnung / Sollecito - {{ $mahnung->rechnungsnummer_anzeige }}</title>
     <style>
         @page {
-            margin: 20mm 18mm 20mm 18mm;
+            margin: 20mm 18mm 25mm 18mm;
         }
         
         body {
@@ -18,20 +19,20 @@
         }
         
         .header {
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         
         .firma {
             font-size: 8pt;
             color: #666;
             border-bottom: 1px solid #ccc;
-            padding-bottom: 4px;
-            margin-bottom: 15px;
+            padding-bottom: 3px;
+            margin-bottom: 10px;
         }
         
         .empfaenger {
-            min-height: 70px;
-            margin-bottom: 15px;
+            min-height: 60px;
+            margin-bottom: 10px;
         }
         
         .empfaenger-name {
@@ -41,16 +42,16 @@
         
         .datum-zeile {
             text-align: right;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             color: #666;
             font-size: 9pt;
         }
         
         .betreff {
             font-weight: bold;
-            font-size: 12pt;
-            margin-bottom: 15px;
-            padding: 8px 12px;
+            font-size: 11pt;
+            margin-bottom: 10px;
+            padding: 6px 10px;
             background-color: #f8f9fa;
             border-left: 4px solid #dc3545;
         }
@@ -61,28 +62,20 @@
         .mahnstufe-3 .betreff { border-left-color: #6f42c1; }
         
         .sprach-block {
-            margin-bottom: 20px;
-        }
-        
-        .sprach-titel {
-            font-size: 9pt;
-            font-weight: bold;
-            color: #666;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 3px;
             margin-bottom: 10px;
         }
         
         .inhalt {
-            white-space: pre-wrap;
             font-size: 10pt;
-            line-height: 1.5;
+            line-height: 1.4;
+            margin: 0;
+            white-space: pre-line;
         }
         
         .rechnungs-tabelle {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 10px 0;
             font-size: 9pt;
         }
         
@@ -107,51 +100,21 @@
             background-color: #fff3cd;
         }
         
-        .zwei-spalten {
-            display: table;
-            width: 100%;
-            margin-bottom: 15px;
-        }
-        
-        .spalte {
-            display: table-cell;
-            width: 48%;
-            vertical-align: top;
-            padding-right: 2%;
-        }
-        
-        .spalte:last-child {
-            padding-right: 0;
-            padding-left: 2%;
-        }
-        
         .trennlinie {
-            border-top: 2px dashed #ccc;
-            margin: 20px 0;
-            position: relative;
-        }
-        
-        .trennlinie-text {
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 0 10px;
-            font-size: 8pt;
-            color: #999;
+            border-top: 1px dashed #ccc;
+            margin: 12px 0;
         }
         
         .bankdaten {
             background-color: #f8f9fa;
             border: 1px solid #ddd;
-            padding: 12px;
-            margin: 15px 0;
+            padding: 10px;
+            margin: 12px 0;
             font-size: 9pt;
         }
         
         .bankdaten h4 {
-            margin: 0 0 8px 0;
+            margin: 0 0 6px 0;
             font-size: 10pt;
         }
         
@@ -169,8 +132,8 @@
         }
         
         .footer {
-            margin-top: 20px;
-            padding-top: 10px;
+            margin-top: 15px;
+            padding-top: 8px;
             border-top: 1px solid #ddd;
             font-size: 8pt;
             color: #666;
@@ -180,8 +143,8 @@
         .warnung {
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
-            padding: 8px;
-            margin: 15px 0;
+            padding: 6px 8px;
+            margin: 10px 0;
             font-weight: bold;
             color: #721c24;
             font-size: 9pt;
@@ -191,23 +154,25 @@
             display: inline-block;
             background: #dc3545;
             color: white;
-            padding: 4px 10px;
+            padding: 3px 8px;
             font-weight: bold;
-            margin: 10px 0;
-            font-size: 10pt;
+            margin: 8px 0;
+            font-size: 9pt;
         }
         
         .gruss {
-            margin-top: 20px;
+            margin-top: 15px;
         }
     </style>
 </head>
 <body class="mahnstufe-{{ $mahnung->mahnstufe }}">
 
     <div class="header">
-        {{-- Absender-Zeile --}}
+        {{-- Absender-Zeile aus Unternehmensprofil --}}
         <div class="firma">
-            {{ $firma }} · {{ config('app.firma_strasse', 'Musterstraße 1') }} · {{ config('app.firma_plz', '12345') }} {{ config('app.firma_ort', 'Musterstadt') }}
+            {{ $profil?->firmenname ?? $firma }} · 
+            {{ $profil?->strasse ?? '' }} {{ $profil?->hausnummer ?? '' }} · 
+            {{ $profil?->postleitzahl ?? '' }} {{ $profil?->ort ?? '' }}
         </div>
         
         {{-- Empfänger --}}
@@ -223,16 +188,16 @@
             @endif
         </div>
         
-        {{-- Datum --}}
+        {{-- Datum mit Ort aus Profil --}}
         <div class="datum-zeile">
-            {{ config('app.firma_ort', 'Musterstadt') }}, {{ now()->format('d.m.Y') }}
+            {{ $profil?->ort ?? 'Bozen' }}, {{ now()->format('d.m.Y') }}
         </div>
     </div>
 
     {{-- Betreff ZWEISPRACHIG --}}
     <div class="betreff">
-        🇩🇪 {{ $betreff_de }}<br>
-        🇮🇹 {{ $betreff_it }}
+        {{ $betreff_de }}<br>
+        {{ $betreff_it }}
     </div>
 
     {{-- Überfälligkeit --}}
@@ -249,7 +214,7 @@
             <th class="text-right">Betrag / Importo</th>
         </tr>
         <tr>
-            <td><strong>{{ $rechnung?->volle_rechnungsnummer ?? '-' }}</strong></td>
+            <td><strong>{{ $mahnung->rechnungsnummer_anzeige }}</strong></td>
             <td>{{ $rechnung?->rechnungsdatum?->format('d.m.Y') ?? '-' }}</td>
             <td>{{ $rechnung?->faelligkeitsdatum?->format('d.m.Y') ?? ($rechnung?->rechnungsdatum?->addDays(30)->format('d.m.Y') ?? '-') }}</td>
             <td class="text-right">{{ number_format($mahnung->rechnungsbetrag, 2, ',', '.') }} €</td>
@@ -266,26 +231,20 @@
         </tr>
     </table>
 
-    {{-- ════════════════════════════════════════════════════════════════ --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
     {{-- DEUTSCHER TEXT --}}
-    {{-- ════════════════════════════════════════════════════════════════ --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
     <div class="sprach-block">
-        <div class="sprach-titel">🇩🇪 DEUTSCH</div>
-        <p>Sehr geehrte Damen und Herren,</p>
         <div class="inhalt">{{ $text_de }}</div>
     </div>
 
     {{-- Trennlinie --}}
-    <div class="trennlinie">
-        <span class="trennlinie-text">───────────────────</span>
-    </div>
+    <div class="trennlinie"></div>
 
-    {{-- ════════════════════════════════════════════════════════════════ --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
     {{-- ITALIENISCHER TEXT --}}
-    {{-- ════════════════════════════════════════════════════════════════ --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════ --}}
     <div class="sprach-block">
-        <div class="sprach-titel">🇮🇹 ITALIANO</div>
-        <p>Gentili Signore e Signori,</p>
         <div class="inhalt">{{ $text_it }}</div>
     </div>
 
@@ -298,50 +257,53 @@
         </div>
     @endif
 
-    {{-- Bankdaten (zweisprachig) --}}
+    {{-- Bankdaten aus Unternehmensprofil (zweisprachig) --}}
     <div class="bankdaten">
         <h4>Bankverbindung / Coordinate bancarie:</h4>
         <table>
             <tr>
                 <td class="label">Kontoinhaber / Intestatario:</td>
-                <td><strong>{{ config('app.firma_name', $firma) }}</strong></td>
+                <td><strong>{{ $profil?->kontoinhaber ?? $profil?->firmenname ?? $firma }}</strong></td>
             </tr>
             <tr>
                 <td class="label">IBAN:</td>
-                <td><strong>{{ config('app.firma_iban', 'IT00 X000 0000 0000 0000 0000 000') }}</strong></td>
+                <td><strong>{{ $profil?->iban_formatiert ?? $profil?->iban ?? '-' }}</strong></td>
             </tr>
             <tr>
                 <td class="label">BIC/SWIFT:</td>
-                <td>{{ config('app.firma_bic', 'XXXXXXXX') }}</td>
+                <td>{{ $profil?->bic ?? '-' }}</td>
             </tr>
             <tr>
                 <td class="label">Bank / Banca:</td>
-                <td>{{ config('app.firma_bank', 'Musterbank') }}</td>
+                <td>{{ $profil?->bank_name ?? '-' }}</td>
             </tr>
             <tr>
                 <td class="label">Verwendungszweck / Causale:</td>
-                <td><strong>{{ $rechnung?->volle_rechnungsnummer ?? 'Rechnung' }}</strong></td>
+                <td><strong>{{ $mahnung->rechnungsnummer_anzeige }}</strong></td>
             </tr>
         </table>
     </div>
 
     {{-- Grußformel --}}
     <div class="gruss">
-        <p>
+        <p style="margin-bottom: 15px;">
             Mit freundlichen Grüßen / Cordiali saluti
         </p>
-        <p style="margin-top: 20px;">
-            <strong>{{ $firma }}</strong>
+        <p style="margin: 0;">
+            <strong>{{ $profil?->firmenname ?? $firma }}</strong>
         </p>
     </div>
 
-    {{-- Footer --}}
+    {{-- Footer aus Unternehmensprofil --}}
     <div class="footer">
-        {{ $firma }} · 
-        {{ config('app.firma_strasse', 'Musterstraße 1') }}, 
-        {{ config('app.firma_plz', '12345') }} {{ config('app.firma_ort', 'Musterstadt') }} · 
-        P.IVA/USt-IdNr.: {{ config('app.firma_ustid', 'IT00000000000') }} · 
-        Tel: {{ config('app.firma_telefon', '+39 0000 000000') }}
+        {{ $profil?->firmenname ?? $firma }} · 
+        {{ $profil?->strasse ?? '' }} {{ $profil?->hausnummer ?? '' }}, 
+        {{ $profil?->postleitzahl ?? '' }} {{ $profil?->ort ?? '' }} · 
+        P.IVA/USt-IdNr.: {{ $profil?->partita_iva ?? $profil?->umsatzsteuer_id ?? '-' }} · 
+        Tel: {{ $profil?->telefon ?? '-' }}
+        @if($profil?->email)
+            · {{ $profil->email }}
+        @endif
     </div>
 
 </body>
