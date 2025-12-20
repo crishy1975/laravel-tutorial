@@ -482,6 +482,10 @@ Route::prefix('mahnungen')->name('mahnungen.')->middleware('auth')->group(functi
     Route::get('/stufen/{stufe}/bearbeiten', [MahnungController::class, 'stufeBearbeiten'])->name('stufe.bearbeiten');
     Route::put('/stufen/{stufe}', [MahnungController::class, 'stufeSpeichern'])->name('stufe.speichern');
 
+    // ⭐ NEU: Einstellungen
+    Route::get('/einstellungen', [MahnungController::class, 'einstellungen'])->name('einstellungen');
+    Route::post('/einstellungen', [MahnungController::class, 'einstellungenSpeichern'])->name('einstellungen.speichern');
+
     // Ausschlüsse
     Route::get('/ausschluesse', [MahnungController::class, 'ausschluesse'])->name('ausschluesse');
     Route::post('/ausschluesse/kunde', [MahnungController::class, 'kundeAusschliessen'])->name('kunde.ausschliessen');
@@ -497,18 +501,7 @@ Route::prefix('mahnungen')->name('mahnungen.')->middleware('auth')->group(functi
 
     // API
     Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
-
-    // Mahnsperre setzen (POST mit rechnung_id, typ, tage, grund)
-    Route::post('/mahnungen/mahnsperre', [MahnungController::class, 'mahnsperreSetzen'])
-        ->name('mahnungen.mahnsperre.setzen');
-
-    // Mahnsperre entfernen
-    Route::delete('/mahnungen/mahnsperre/{rechnungId}', [MahnungController::class, 'mahnsperreEntfernen'])
-        ->name('mahnungen.mahnsperre.entfernen');
-
-    // Übersicht gesperrte Rechnungen
-    Route::get('/mahnungen/gesperrt', [MahnungController::class, 'gesperrteRechnungen'])
-        ->name('mahnungen.gesperrt');
+    Route::post('/{mahnung}/versende-einzeln', [MahnungController::class, 'versendeEinzeln'])->name('versende-einzeln');
 });
 
 

@@ -6,73 +6,117 @@ use App\Models\Mahnung;
 use App\Models\MahnungStufe;
 use App\Models\MahnungAusschluss;
 use App\Models\MahnungRechnungAusschluss;
+use App\Models\MahnungEinstellung;
 use App\Models\Rechnung;
 use App\Models\RechnungLog;
+use App\Models\Unternehmensprofil;
 use App\Enums\RechnungLogTyp;
 use App\Models\Adresse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class MahnungService
 {
-    // Standard Zahlungsfrist in Tagen
-    const ZAHLUNGSFRIST_TAGE = 30;
-
     // ═══════════════════════════════════════════════════════════════════════
     // ÜBERFÄLLIGE RECHNUNGEN ERMITTELN
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Holt alle überfälligen Rechnungen die mahnbar sind
+     * ⭐ ÜBERARBEITET: Holt alle überfälligen Rechnungen die JETZT mahnbar sind
+     * 
+     * Eine Rechnung ist mahnbar wenn:
+     * 1. Status = 'sent' (nicht 'paid', nicht 'draft')
+     * 2. Überfällig (Zahlungsfrist abgelaufen)
+     * 3. Nicht ausgeschlossen (Adresse oder Rechnung)
+     * 4. ENTWEDER: noch nie gemahnt
+     *    ODER: letzte gesendete Mahnung älter als Wartezeit
+     * 5. Kein offener Entwurf vorhanden
      */
-    public function getUeberfaelligeRechnungen(?int $minTage = null): Collection
+    public function getUeberfaelligeRechnungen(): Collection
     {
-        $minTage = $minTage ?? 1;
+        $heute = now()->startOfDay();
+        
+        // Einstellungen aus Datenbank
+        $zahlungsfristTage = MahnungEinstellung::getZahlungsfristTage();
+        $wartezeitTage = MahnungEinstellung::getWartezeitZwischenMahnungen();
+        $minTageUeberfaellig = MahnungEinstellung::getMinTageUeberfaellig();
 
         // Ausgeschlossene Adressen und Rechnungen
         $ausgeschlosseneAdressen = MahnungAusschluss::getAusgeschlosseneIds();
         $ausgeschlosseneRechnungen = MahnungRechnungAusschluss::getAusgeschlosseneIds();
 
-        $heute = now()->startOfDay();
-
-        // ⭐ Auch postadresse laden für E-Mail-Priorität
-        // Ausgeschlossene Rechnungen werden bereits über $ausgeschlosseneRechnungen gefiltert!
+        // Rechnungen laden: status = 'sent', überfällig, nicht ausgeschlossen
         return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
-            ->where('status', 'sent')  // Nur versendete, nicht bezahlte
+            ->where('status', 'sent')  // ⭐ Nur 'sent' - 'paid' ist erledigt!
             ->whereNotNull('rechnungsdatum')
             ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL ? DAY) < ?", [
-                self::ZAHLUNGSFRIST_TAGE,
+                $zahlungsfristTage,
                 $heute->toDateString()
             ])
             ->whereNotIn('rechnungsempfaenger_id', $ausgeschlosseneAdressen)
-            ->whereNotIn('id', $ausgeschlosseneRechnungen)  // ⭐ Mahnsperre via MahnungRechnungAusschluss
+            ->whereNotIn('id', $ausgeschlosseneRechnungen)
             ->get()
-            ->map(function ($rechnung) use ($heute) {
-                $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
+            ->map(function ($rechnung) use ($heute, $zahlungsfristTage, $wartezeitTage) {
+                // Fälligkeit und Überfälligkeit berechnen
+                $faelligAm = $rechnung->rechnungsdatum->copy()->addDays($zahlungsfristTage);
                 $tageUeberfaellig = $faelligAm->diffInDays($heute);
                 
                 $rechnung->faellig_am = $faelligAm;
                 $rechnung->tage_ueberfaellig = $tageUeberfaellig;
-                $rechnung->naechste_mahnstufe = $this->ermittleNaechsteMahnstufe($rechnung);
-                $rechnung->letzte_mahnung = Mahnung::letzteVonRechnung($rechnung->id);
                 
-                // ⭐ NEU: Info über offenen Entwurf
+                // Letzte GESENDETE Mahnung ermitteln
+                $letzteMahnung = Mahnung::where('rechnung_id', $rechnung->id)
+                    ->where('status', 'gesendet')
+                    ->orderByDesc('mahndatum')
+                    ->first();
+                
+                $rechnung->letzte_mahnung = $letzteMahnung;
+                
+                // Tage seit letzter Mahnung
+                if ($letzteMahnung && $letzteMahnung->mahndatum) {
+                    $rechnung->tage_seit_letzter_mahnung = $letzteMahnung->mahndatum->diffInDays($heute);
+                } else {
+                    $rechnung->tage_seit_letzter_mahnung = null;
+                }
+                
+                // ⭐ KERNLOGIK: Ist diese Rechnung JETZT mahnbar?
+                // Fall 1: Noch nie gemahnt → sofort mahnbar
+                // Fall 2: Schon gemahnt → nur wenn Wartezeit abgelaufen
+                if ($letzteMahnung === null) {
+                    $rechnung->ist_mahnbar = true;
+                    $rechnung->grund_nicht_mahnbar = null;
+                } elseif ($rechnung->tage_seit_letzter_mahnung >= $wartezeitTage) {
+                    $rechnung->ist_mahnbar = true;
+                    $rechnung->grund_nicht_mahnbar = null;
+                } else {
+                    $rechnung->ist_mahnbar = false;
+                    $verbleibend = $wartezeitTage - $rechnung->tage_seit_letzter_mahnung;
+                    $rechnung->grund_nicht_mahnbar = "Wartezeit: noch {$verbleibend} Tag(e)";
+                    $rechnung->tage_bis_mahnbar = $verbleibend;
+                }
+                
+                // Offener Entwurf prüfen
                 $rechnung->hat_offenen_entwurf = Mahnung::hatOffenenEntwurf($rechnung->id);
                 $rechnung->offener_entwurf = $rechnung->hat_offenen_entwurf 
                     ? Mahnung::getOffenerEntwurf($rechnung->id) 
                     : null;
                 
-                // ⭐ Tage seit letzter Mahnung
-                if ($rechnung->letzte_mahnung && $rechnung->letzte_mahnung->gesendet_am) {
-                    $rechnung->tage_seit_letzter_mahnung = $rechnung->letzte_mahnung->gesendet_am->diffInDays($heute);
-                } else {
-                    $rechnung->tage_seit_letzter_mahnung = null;
+                // Wenn offener Entwurf → nicht neu mahnbar (Entwurf muss erst versendet werden)
+                if ($rechnung->hat_offenen_entwurf) {
+                    $rechnung->ist_mahnbar = false;
+                    $rechnung->grund_nicht_mahnbar = 'Offener Entwurf vorhanden';
                 }
                 
-                // ⭐ E-Mail-Priorität: Postadresse → Rechnungsempfänger
+                // Nächste Mahnstufe ermitteln
+                $rechnung->naechste_mahnstufe = $this->ermittleNaechsteMahnstufe($rechnung);
+                
+                // E-Mail-Priorität: Postadresse → Rechnungsempfänger
                 $postEmail = $rechnung->gebaeude?->postadresse?->email;
                 $rechnungEmail = $rechnung->rechnungsempfaenger?->email;
                 $rechnung->hat_email = !empty($postEmail) || !empty($rechnungEmail);
@@ -81,66 +125,28 @@ class MahnungService
                 
                 return $rechnung;
             })
-            ->filter(fn($r) => $r->tage_ueberfaellig >= $minTage)
-            // ⭐ GEÄNDERT: Zeige auch Rechnungen mit offenem Entwurf (aber blockiert)
+            ->filter(fn($r) => $r->tage_ueberfaellig >= $minTageUeberfaellig)
+            // ⭐ Nur Rechnungen mit gültiger nächster Stufe ODER offenem Entwurf anzeigen
             ->filter(fn($r) => $r->naechste_mahnstufe !== null || $r->hat_offenen_entwurf)
             ->sortByDesc('tage_ueberfaellig');
     }
 
     /**
-     * ⭐ NEU: Rechnungen filtern nach "letzte Mahnung älter als X Tage"
-     * Für Wiederholungs-Mahnungen
+     * ⭐ NEU: Nur die JETZT mahnbaren Rechnungen (für Mahnlauf-Erstellung)
      */
-    public function getWiederholungsMahnungen(int $tageAlt = 14): Collection
+    public function getMahnbareRechnungen(): Collection
     {
-        $heute = now();
-        
-        // Ausgeschlossene Rechnungen via MahnungRechnungAusschluss
-        $ausgeschlosseneRechnungen = MahnungRechnungAusschluss::getAusgeschlosseneIds();
-        
-        // Alle Rechnungen die bereits gemahnt wurden, aber letzte Mahnung > X Tage alt
-        return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
-            ->where('status', 'sent')
-            ->whereNotNull('rechnungsdatum')
-            ->whereNotIn('id', $ausgeschlosseneRechnungen)  // ⭐ Ausschluss via Model
-            ->get()
-            ->filter(function ($rechnung) use ($heute, $tageAlt) {
-                // Hat bereits eine gesendete Mahnung?
-                $letzteMahnung = Mahnung::where('rechnung_id', $rechnung->id)
-                    ->where('status', 'gesendet')
-                    ->orderByDesc('gesendet_am')
-                    ->first();
-                
-                if (!$letzteMahnung || !$letzteMahnung->gesendet_am) {
-                    return false;
-                }
-                
-                // Letzte Mahnung älter als X Tage?
-                $tageSeitMahnung = $letzteMahnung->gesendet_am->diffInDays($heute);
-                
-                if ($tageSeitMahnung < $tageAlt) {
-                    return false;
-                }
-                
-                // Kein offener Entwurf?
-                if (Mahnung::hatOffenenEntwurf($rechnung->id)) {
-                    return false;
-                }
-                
-                // Zusätzliche Infos anhängen
-                $rechnung->letzte_mahnung = $letzteMahnung;
-                $rechnung->tage_seit_letzter_mahnung = $tageSeitMahnung;
-                $rechnung->naechste_mahnstufe = $this->ermittleNaechsteMahnstufe($rechnung);
-                
-                // E-Mail-Info
-                $postEmail = $rechnung->gebaeude?->postadresse?->email;
-                $rechnungEmail = $rechnung->rechnungsempfaenger?->email;
-                $rechnung->hat_email = !empty($postEmail) || !empty($rechnungEmail);
-                $rechnung->email_adresse = $postEmail ?: $rechnungEmail;
-                
-                return true;
-            })
-            ->sortByDesc('tage_seit_letzter_mahnung');
+        return $this->getUeberfaelligeRechnungen()
+            ->filter(fn($r) => $r->ist_mahnbar === true);
+    }
+
+    /**
+     * ⭐ NEU: Rechnungen in Wartezeit (zur Info)
+     */
+    public function getRechnungenInWartezeit(): Collection
+    {
+        return $this->getUeberfaelligeRechnungen()
+            ->filter(fn($r) => $r->ist_mahnbar === false && !$r->hat_offenen_entwurf);
     }
 
     /**
@@ -167,7 +173,8 @@ class MahnungService
      */
     public function ermittleNaechsteMahnstufe(Rechnung $rechnung): ?MahnungStufe
     {
-        $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
+        $zahlungsfristTage = MahnungEinstellung::getZahlungsfristTage();
+        $faelligAm = $rechnung->rechnungsdatum->copy()->addDays($zahlungsfristTage);
         $tageUeberfaellig = $faelligAm->diffInDays(now());
 
         // ⭐ WICHTIG: Prüfe ob ein offener Entwurf existiert
@@ -228,7 +235,8 @@ class MahnungService
             return null;
         }
 
-        $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
+        $zahlungsfristTage = MahnungEinstellung::getZahlungsfristTage();
+        $faelligAm = $rechnung->rechnungsdatum->copy()->addDays($zahlungsfristTage);
         $tageUeberfaellig = $faelligAm->diffInDays(now());
 
         // ⭐ Rechnungsbetrag (Brutto) - Feld heißt brutto_summe!
@@ -308,7 +316,8 @@ class MahnungService
      * Versendet eine Mahnung per E-Mail (ZWEISPRACHIG DE/IT)
      * Inkl. Originalrechnung als Anhang
      * 
-     * ⭐ E-Mail wird aus POSTADRESSE des Gebäudes geholt!
+     * Verwendet die SMTP-Konfiguration aus dem Unternehmensprofil
+     * (gleiche Logik wie RechnungController)
      */
     public function versendeMahnung(Mahnung $mahnung): array
     {
@@ -324,32 +333,84 @@ class MahnungService
             ];
         }
 
-        // ⭐ E-Mail aus POSTADRESSE holen (nicht Rechnungsempfänger!)
+        // ──────────────────────────────────────────────────────────────────────────
+        // 1. E-MAIL-ADRESSE ERMITTELN (Postadresse > Rechnungsempfänger)
+        // ──────────────────────────────────────────────────────────────────────────
         $email = $postadresse?->email;
         
-        // Fallback: Falls Postadresse keine E-Mail hat, Rechnungsempfänger prüfen
         if (empty($email)) {
             $email = $rechnungsempfaenger->email;
         }
         
         if (empty($email)) {
-            // Kein E-Mail → für Postversand markieren
             $mahnung->versandart = 'post';
-            $mahnung->status = 'entwurf';  // Bleibt Entwurf bis manuell als Post versendet
+            $mahnung->status = 'entwurf';
             $mahnung->save();
             
             return [
-                'erfolg'    => false,
-                'grund'     => 'Keine E-Mail-Adresse vorhanden - Postversand erforderlich',
+                'erfolg'      => false,
+                'grund'       => 'Keine E-Mail-Adresse vorhanden - Postversand erforderlich',
                 'post_noetig' => true,
             ];
         }
 
-        try {
-            // E-Mail senden (ZWEISPRACHIG)
-            $betreff = $mahnung->generiereBetreff();
-            $text = $mahnung->generiereText();
+        // ──────────────────────────────────────────────────────────────────────────
+        // 2. UNTERNEHMENSPROFIL LADEN
+        // ──────────────────────────────────────────────────────────────────────────
+        $profil = Unternehmensprofil::aktiv();
 
+        if (!$profil) {
+            Log::error('Kein aktives Unternehmensprofil gefunden');
+            return [
+                'erfolg' => false,
+                'grund'  => 'Kein aktives Unternehmensprofil gefunden!',
+            ];
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 3. SMTP-KONFIGURATION PRÜFEN
+        // ──────────────────────────────────────────────────────────────────────────
+        if (!$profil->hatSmtpKonfiguration()) {
+            return [
+                'erfolg' => false,
+                'grund'  => 'SMTP nicht konfiguriert! Bitte im Unternehmensprofil einrichten.',
+            ];
+        }
+
+        $smtpHost = $profil->smtp_host;
+        $smtpPort = $profil->smtp_port;
+        $smtpUser = $profil->smtp_benutzername;
+        $smtpPass = $profil->smtp_passwort;
+        $smtpEncryption = $profil->smtp_verschluesselung;
+        $absenderEmail = $profil->smtp_benutzername;
+        $absenderName = $profil->smtp_absender_name ?: $profil->firmenname;
+        $mailerName = 'mahnung_smtp';
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 4. DYNAMISCHE MAILER-KONFIGURATION
+        // ──────────────────────────────────────────────────────────────────────────
+        Config::set("mail.mailers.{$mailerName}", [
+            'transport'  => 'smtp',
+            'host'       => $smtpHost,
+            'port'       => $smtpPort,
+            'encryption' => ($smtpEncryption === 'none' || empty($smtpEncryption)) ? null : $smtpEncryption,
+            'username'   => $smtpUser,
+            'password'   => $smtpPass,
+            'timeout'    => 30,
+        ]);
+
+        Log::info('Mahnung E-Mail Versand gestartet', [
+            'mahnung_id'  => $mahnung->id,
+            'rechnung_id' => $rechnung->id,
+            'empfaenger'  => $email,
+            'smtp_host'   => $smtpHost,
+            'absender'    => $absenderEmail,
+        ]);
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 5. PDFs ERSTELLEN
+        // ──────────────────────────────────────────────────────────────────────────
+        try {
             // Mahnungs-PDF erstellen (ZWEISPRACHIG)
             $mahnungPdfPfad = $this->erstellePdf($mahnung);
             $mahnung->pdf_pfad = $mahnungPdfPfad;
@@ -357,51 +418,116 @@ class MahnungService
             // Rechnungs-PDF herunterladen/generieren
             $rechnungPdfPfad = $this->holeRechnungsPdf($rechnung);
 
-            // ⭐ Name für E-Mail: Postadresse oder Rechnungsempfänger
+        } catch (\Exception $e) {
+            Log::error('PDF-Generierung fehlgeschlagen', [
+                'mahnung_id' => $mahnung->id,
+                'error'      => $e->getMessage(),
+            ]);
+            return [
+                'erfolg' => false,
+                'grund'  => 'PDF konnte nicht generiert werden: ' . $e->getMessage(),
+            ];
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 6. DEBUG-MODUS PRÜFEN
+        // ──────────────────────────────────────────────────────────────────────────
+        $originalEmail = $email;
+        $debugMode = config('app.mahnung_debug_mode', false);
+        $debugEmail = config('app.mahnung_debug_email');
+
+        if ($debugMode && $debugEmail) {
+            $email = $debugEmail;
+            Log::warning('MAHNUNG DEBUG-MODUS AKTIV', [
+                'original_email' => $originalEmail,
+                'umgeleitet_zu'  => $debugEmail,
+                'mahnung_id'     => $mahnung->id,
+            ]);
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // 7. E-MAIL SENDEN
+        // ──────────────────────────────────────────────────────────────────────────
+        try {
+            $betreff = $mahnung->generiereBetreff();
+            $text = $mahnung->generiereText();
             $emailName = $postadresse?->name ?? $rechnungsempfaenger->name;
 
-            Mail::send([], [], function ($message) use ($email, $emailName, $betreff, $text, $mahnungPdfPfad, $rechnungPdfPfad, $rechnung) {
-                $message->to($email, $emailName)
-                    ->subject($betreff)
-                    ->text($text);
-                
-                // 1. Mahnungs-PDF anhängen
-                if ($mahnungPdfPfad && file_exists(storage_path('app/' . $mahnungPdfPfad))) {
-                    $message->attach(storage_path('app/' . $mahnungPdfPfad), [
-                        'as' => 'Mahnung_Sollecito.pdf',
-                        'mime' => 'application/pdf',
-                    ]);
-                }
+            // Debug: Betreff anpassen
+            if ($debugMode && $debugEmail) {
+                $betreff = "[TEST] {$betreff} (→ {$originalEmail})";
+            }
 
-                // 2. Rechnungs-PDF anhängen
-                if ($rechnungPdfPfad && file_exists($rechnungPdfPfad)) {
-                    $rechnungsNr = $rechnung->volle_rechnungsnummer ?? $rechnung->laufnummer ?? $rechnung->id;
-                    $message->attach($rechnungPdfPfad, [
-                        'as' => "Rechnung_Fattura_{$rechnungsNr}.pdf",
-                        'mime' => 'application/pdf',
-                    ]);
-                }
-            });
+            Mail::mailer($mailerName)
+                ->send([], [], function ($message) use (
+                    $email,
+                    $emailName,
+                    $absenderEmail,
+                    $absenderName,
+                    $betreff,
+                    $text,
+                    $mahnungPdfPfad,
+                    $rechnungPdfPfad,
+                    $rechnung,
+                    $debugMode,
+                    $originalEmail
+                ) {
+                    $message->to($email, $emailName)
+                        ->from($absenderEmail, $absenderName)
+                        ->subject($betreff);
+                    
+                    // Text (mit Debug-Hinweis wenn aktiv)
+                    if ($debugMode) {
+                        $message->text("⚠️ DEBUG - Original: {$originalEmail}\n\n" . $text);
+                    } else {
+                        $message->text($text);
+                    }
+                    
+                    // 1. Mahnungs-PDF anhängen
+                    if ($mahnungPdfPfad && file_exists(storage_path('app/' . $mahnungPdfPfad))) {
+                        $message->attach(storage_path('app/' . $mahnungPdfPfad), [
+                            'as'   => 'Mahnung_Sollecito.pdf',
+                            'mime' => 'application/pdf',
+                        ]);
+                    }
 
-            // Als gesendet markieren
-            $mahnung->markiereAlsGesendet('email', $email);
+                    // 2. Rechnungs-PDF anhängen
+                    if ($rechnungPdfPfad && file_exists($rechnungPdfPfad)) {
+                        $rechnungsNr = $rechnung->volle_rechnungsnummer ?? $rechnung->laufnummer ?? $rechnung->id;
+                        $message->attach($rechnungPdfPfad, [
+                            'as'   => "Rechnung_Fattura_{$rechnungsNr}.pdf",
+                            'mime' => 'application/pdf',
+                        ]);
+                    }
+                });
+
+            // Als gesendet markieren (mit Info über Debug)
+            $logEmail = $debugMode ? "{$debugEmail} (Test für: {$originalEmail})" : $email;
+            $mahnung->markiereAlsGesendet('email', $logEmail);
 
             Log::info('Mahnung per E-Mail versendet', [
-                'mahnung_id' => $mahnung->id,
-                'email'      => $email,
+                'mahnung_id'   => $mahnung->id,
+                'email'        => $email,
+                'debug_mode'   => $debugMode,
+                'original'     => $debugMode ? $originalEmail : null,
                 'mit_rechnung' => !empty($rechnungPdfPfad),
             ]);
 
-            // ⭐ RechnungLog: Mahnung versandt
+            // RechnungLog: Mahnung versandt
+            $logNachricht = $debugMode 
+                ? "TEST an {$debugEmail} (für: {$originalEmail})" 
+                : "E-Mail an {$email}";
+            
             RechnungLog::mahnungVersandt(
                 $mahnung->rechnung_id,
                 $mahnung->mahnstufe,
-                'E-Mail an ' . $email
+                $logNachricht
             );
 
             return [
-                'erfolg' => true,
-                'email'  => $email,
+                'erfolg'     => true,
+                'email'      => $email,
+                'debug_mode' => $debugMode,
             ];
 
         } catch (\Exception $e) {
@@ -420,79 +546,24 @@ class MahnungService
     }
 
     /**
-     * Holt das Rechnungs-PDF über HTTP-Anfrage
+     * Generiert das Rechnungs-PDF direkt mit DomPDF
+     * (gleiche Logik wie RechnungController)
      */
     protected function holeRechnungsPdf(Rechnung $rechnung): ?string
     {
         try {
-            // PDF über URL abrufen: /rechnung/{id}/pdf
-            $url = url('/rechnung/' . $rechnung->id . '/pdf');
+            // Lade Rechnung mit allen Beziehungen
+            $rechnung->load(['rechnungsempfaenger', 'gebaeude', 'positionen', 'fatturaProfile']);
             
-            // HTTP-Client verwenden
-            $client = new \GuzzleHttp\Client([
-                'timeout' => 30,
-                'verify' => false, // Für localhost
-                'cookies' => true,
-            ]);
-
-            // Session-Cookie für authentifizierte Anfrage
-            $sessionName = config('session.cookie', 'laravel_session');
-            $jar = \GuzzleHttp\Cookie\CookieJar::fromArray([
-                $sessionName => request()->cookie($sessionName),
-                'XSRF-TOKEN' => request()->cookie('XSRF-TOKEN'),
-            ], parse_url($url, PHP_URL_HOST));
-
-            $response = $client->get($url, [
-                'cookies' => $jar,
-                'headers' => [
-                    'Accept' => 'application/pdf',
-                ],
-            ]);
-
-            if ($response->getStatusCode() === 200) {
-                $pdfContent = $response->getBody()->getContents();
-                
-                // Temporär speichern
-                $tempDir = storage_path('app/temp');
-                if (!is_dir($tempDir)) {
-                    mkdir($tempDir, 0755, true);
-                }
-                
-                $tempPfad = $tempDir . '/rechnung_' . $rechnung->id . '_' . time() . '.pdf';
-                file_put_contents($tempPfad, $pdfContent);
-                
-                return $tempPfad;
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            Log::warning('Rechnungs-PDF konnte nicht über URL geladen werden', [
-                'rechnung_id' => $rechnung->id,
-                'url' => $url ?? 'unknown',
-                'error' => $e->getMessage(),
+            // Unternehmensprofil laden
+            $unternehmen = Unternehmensprofil::aktiv();
+            
+            $pdf = Pdf::loadView('rechnung.pdf', [
+                'rechnung'    => $rechnung,
+                'unternehmen' => $unternehmen,
             ]);
             
-            // Fallback: Versuche direkt mit DomPDF
-            return $this->generiereRechnungsPdfFallback($rechnung);
-        }
-    }
-
-    /**
-     * Fallback: Generiert das Rechnungs-PDF direkt mit DomPDF
-     */
-    protected function generiereRechnungsPdfFallback(Rechnung $rechnung): ?string
-    {
-        try {
-            if (!class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-                return null;
-            }
-
-            // Lade Rechnung mit Beziehungen
-            $rechnung->load(['rechnungsempfaenger', 'gebaeude', 'positionen']);
-            
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('rechnung.pdf', [
-                'rechnung' => $rechnung,
-            ]);
+            $pdf->setPaper('A4', 'portrait');
             
             // Temporär speichern
             $tempDir = storage_path('app/temp');
@@ -503,11 +574,17 @@ class MahnungService
             $tempPfad = $tempDir . '/rechnung_' . $rechnung->id . '_' . time() . '.pdf';
             $pdf->save($tempPfad);
             
-            return $tempPfad;
-        } catch (\Exception $e) {
-            Log::warning('Rechnungs-PDF Fallback fehlgeschlagen', [
+            Log::info('Rechnungs-PDF generiert', [
                 'rechnung_id' => $rechnung->id,
-                'error' => $e->getMessage(),
+                'pfad'        => $tempPfad,
+            ]);
+            
+            return $tempPfad;
+            
+        } catch (\Exception $e) {
+            Log::error('Rechnungs-PDF Generierung fehlgeschlagen', [
+                'rechnung_id' => $rechnung->id,
+                'error'       => $e->getMessage(),
             ]);
             return null;
         }
