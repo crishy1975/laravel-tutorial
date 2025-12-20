@@ -39,6 +39,7 @@ class MahnungService
         $heute = now()->startOfDay();
 
         // ⭐ Auch postadresse laden für E-Mail-Priorität
+        // Ausgeschlossene Rechnungen werden bereits über $ausgeschlosseneRechnungen gefiltert!
         return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
             ->where('status', 'sent')  // Nur versendete, nicht bezahlte
             ->whereNotNull('rechnungsdatum')
@@ -47,7 +48,7 @@ class MahnungService
                 $heute->toDateString()
             ])
             ->whereNotIn('rechnungsempfaenger_id', $ausgeschlosseneAdressen)
-            ->whereNotIn('id', $ausgeschlosseneRechnungen)
+            ->whereNotIn('id', $ausgeschlosseneRechnungen)  // ⭐ Mahnsperre via MahnungRechnungAusschluss
             ->get()
             ->map(function ($rechnung) use ($heute) {
                 $faelligAm = $rechnung->rechnungsdatum->copy()->addDays(self::ZAHLUNGSFRIST_TAGE);
@@ -64,6 +65,13 @@ class MahnungService
                     ? Mahnung::getOffenerEntwurf($rechnung->id) 
                     : null;
                 
+                // ⭐ Tage seit letzter Mahnung
+                if ($rechnung->letzte_mahnung && $rechnung->letzte_mahnung->gesendet_am) {
+                    $rechnung->tage_seit_letzter_mahnung = $rechnung->letzte_mahnung->gesendet_am->diffInDays($heute);
+                } else {
+                    $rechnung->tage_seit_letzter_mahnung = null;
+                }
+                
                 // ⭐ E-Mail-Priorität: Postadresse → Rechnungsempfänger
                 $postEmail = $rechnung->gebaeude?->postadresse?->email;
                 $rechnungEmail = $rechnung->rechnungsempfaenger?->email;
@@ -77,6 +85,76 @@ class MahnungService
             // ⭐ GEÄNDERT: Zeige auch Rechnungen mit offenem Entwurf (aber blockiert)
             ->filter(fn($r) => $r->naechste_mahnstufe !== null || $r->hat_offenen_entwurf)
             ->sortByDesc('tage_ueberfaellig');
+    }
+
+    /**
+     * ⭐ NEU: Rechnungen filtern nach "letzte Mahnung älter als X Tage"
+     * Für Wiederholungs-Mahnungen
+     */
+    public function getWiederholungsMahnungen(int $tageAlt = 14): Collection
+    {
+        $heute = now();
+        
+        // Ausgeschlossene Rechnungen via MahnungRechnungAusschluss
+        $ausgeschlosseneRechnungen = MahnungRechnungAusschluss::getAusgeschlosseneIds();
+        
+        // Alle Rechnungen die bereits gemahnt wurden, aber letzte Mahnung > X Tage alt
+        return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
+            ->where('status', 'sent')
+            ->whereNotNull('rechnungsdatum')
+            ->whereNotIn('id', $ausgeschlosseneRechnungen)  // ⭐ Ausschluss via Model
+            ->get()
+            ->filter(function ($rechnung) use ($heute, $tageAlt) {
+                // Hat bereits eine gesendete Mahnung?
+                $letzteMahnung = Mahnung::where('rechnung_id', $rechnung->id)
+                    ->where('status', 'gesendet')
+                    ->orderByDesc('gesendet_am')
+                    ->first();
+                
+                if (!$letzteMahnung || !$letzteMahnung->gesendet_am) {
+                    return false;
+                }
+                
+                // Letzte Mahnung älter als X Tage?
+                $tageSeitMahnung = $letzteMahnung->gesendet_am->diffInDays($heute);
+                
+                if ($tageSeitMahnung < $tageAlt) {
+                    return false;
+                }
+                
+                // Kein offener Entwurf?
+                if (Mahnung::hatOffenenEntwurf($rechnung->id)) {
+                    return false;
+                }
+                
+                // Zusätzliche Infos anhängen
+                $rechnung->letzte_mahnung = $letzteMahnung;
+                $rechnung->tage_seit_letzter_mahnung = $tageSeitMahnung;
+                $rechnung->naechste_mahnstufe = $this->ermittleNaechsteMahnstufe($rechnung);
+                
+                // E-Mail-Info
+                $postEmail = $rechnung->gebaeude?->postadresse?->email;
+                $rechnungEmail = $rechnung->rechnungsempfaenger?->email;
+                $rechnung->hat_email = !empty($postEmail) || !empty($rechnungEmail);
+                $rechnung->email_adresse = $postEmail ?: $rechnungEmail;
+                
+                return true;
+            })
+            ->sortByDesc('tage_seit_letzter_mahnung');
+    }
+
+    /**
+     * ⭐ NEU: Gesperrte Rechnungen abrufen (via MahnungRechnungAusschluss)
+     */
+    public function getGesperrteRechnungen(): Collection
+    {
+        // Alle gültigen Ausschlüsse laden
+        $ausschluesse = MahnungRechnungAusschluss::with(['rechnung.rechnungsempfaenger', 'rechnung.gebaeude'])
+            ->gueltig()
+            ->orderByDesc('created_at')
+            ->get();
+        
+        return $ausschluesse;
     }
 
     /**
@@ -487,16 +565,21 @@ class MahnungService
         $empfaenger = $rechnung?->rechnungsempfaenger;
         $stufe = $mahnung->stufe;
 
+        // ⭐ Unternehmensprofil laden
+        $profil = \App\Models\Unternehmensprofil::aktiv();
+
         $data = [
             'mahnung'    => $mahnung,
             'rechnung'   => $rechnung,
             'empfaenger' => $empfaenger,
             'stufe'      => $stufe,
-            'text_de'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('de'), $mahnung) : '',
-            'text_it'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('it'), $mahnung) : '',
+            'profil'     => $profil,  // ⭐ NEU: Unternehmensprofil
+            'text_de'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('de'), $mahnung, $profil) : '',
+            'text_it'    => $stufe ? $this->ersetzePlatzhalter($stufe->getText('it'), $mahnung, $profil) : '',
             'betreff_de' => $stufe ? $this->ersetzePlatzhalterBetreff($stufe->getBetreff('de'), $mahnung) : '',
             'betreff_it' => $stufe ? $this->ersetzePlatzhalterBetreff($stufe->getBetreff('it'), $mahnung) : '',
-            'firma'      => config('app.firma_name', 'Resch GmbH'),
+            // ⭐ Firmendaten aus Profil
+            'firma'      => $profil?->firmenname ?? config('app.firma_name', 'Resch GmbH'),
         ];
 
         $pdf = Pdf::loadView('mahnungen.pdf', $data);
@@ -508,7 +591,7 @@ class MahnungService
             now()->format('Ymd_His')
         );
 
-        // ⭐ Ordner erstellen falls nicht vorhanden
+        // Ordner erstellen falls nicht vorhanden
         $directory = storage_path('app/mahnungen');
         if (!is_dir($directory)) {
             mkdir($directory, 0755, true);
@@ -522,19 +605,19 @@ class MahnungService
     /**
      * Ersetzt Platzhalter im Text
      */
-    protected function ersetzePlatzhalter(string $text, Mahnung $mahnung): string
+    protected function ersetzePlatzhalter(string $text, Mahnung $mahnung, ?\App\Models\Unternehmensprofil $profil = null): string
     {
         $rechnung = $mahnung->rechnung;
         
         $platzhalter = [
-            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
+            '{rechnungsnummer}' => $mahnung->rechnungsnummer_anzeige,  // ⭐ Robuster Accessor
             '{rechnungsdatum}'  => $rechnung?->rechnungsdatum?->format('d.m.Y') ?? '-',
             '{faelligkeitsdatum}' => $rechnung?->faelligkeitsdatum?->format('d.m.Y') ?? '-',
             '{betrag}'          => number_format($mahnung->rechnungsbetrag, 2, ',', '.'),
             '{spesen}'          => number_format($mahnung->spesen, 2, ',', '.'),
             '{gesamtbetrag}'    => number_format($mahnung->gesamtbetrag, 2, ',', '.'),
             '{tage_ueberfaellig}' => $mahnung->tage_ueberfaellig,
-            '{firma}'           => config('app.firma_name', 'Resch GmbH'),
+            '{firma}'           => $profil?->firmenname ?? config('app.firma_name', 'Resch GmbH'),
             '{kunde}'           => $rechnung?->rechnungsempfaenger?->name ?? '-',
         ];
 
@@ -546,10 +629,8 @@ class MahnungService
      */
     protected function ersetzePlatzhalterBetreff(string $betreff, Mahnung $mahnung): string
     {
-        $rechnung = $mahnung->rechnung;
-        
         $platzhalter = [
-            '{rechnungsnummer}' => $rechnung?->volle_rechnungsnummer ?? $rechnung?->laufnummer ?? '-',
+            '{rechnungsnummer}' => $mahnung->rechnungsnummer_anzeige,  // ⭐ Robuster Accessor
         ];
 
         return str_replace(array_keys($platzhalter), array_values($platzhalter), $betreff);

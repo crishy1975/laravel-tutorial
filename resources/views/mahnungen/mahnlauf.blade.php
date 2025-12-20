@@ -10,9 +10,51 @@
             <h4 class="mb-0"><i class="bi bi-play-circle"></i> Mahnlauf vorbereiten</h4>
             <small class="text-muted">Wählen Sie die zu mahnenden Rechnungen</small>
         </div>
-        <a href="{{ route('mahnungen.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Zurück
-        </a>
+        <div class="btn-group">
+            <a href="{{ route('mahnungen.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Zurück
+            </a>
+            @if(isset($gesperrte) && $gesperrte->count() > 0)
+                <a href="{{ route('mahnungen.ausschluesse') }}" class="btn btn-outline-warning">
+                    <i class="bi bi-shield-x"></i> Ausschlüsse ({{ $gesperrte->count() }})
+                </a>
+            @endif
+        </div>
+    </div>
+
+    {{-- ⭐ FILTER-BOX --}}
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <i class="bi bi-funnel"></i> Filter
+        </div>
+        <div class="card-body py-3">
+            <form method="GET" action="{{ route('mahnungen.mahnlauf') }}" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Anzeige</label>
+                    <select name="filter" class="form-select" onchange="toggleTageInput(this)">
+                        <option value="alle" {{ ($filter ?? 'alle') === 'alle' ? 'selected' : '' }}>
+                            Alle überfälligen Rechnungen
+                        </option>
+                        <option value="wiederholung" {{ ($filter ?? '') === 'wiederholung' ? 'selected' : '' }}>
+                            Wiederholung: Letzte Mahnung älter als X Tage
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-3" id="tageInputWrapper" style="{{ ($filter ?? 'alle') !== 'wiederholung' ? 'display:none;' : '' }}">
+                    <label class="form-label">Tage seit letzter Mahnung</label>
+                    <div class="input-group">
+                        <input type="number" name="tage" class="form-control" 
+                               value="{{ $tageAlt ?? 14 }}" min="1" max="365">
+                        <span class="input-group-text">Tage</span>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Anwenden
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     {{-- Bank-Warnung --}}
@@ -40,8 +82,13 @@
     @if($ueberfaellige->isEmpty())
         <div class="alert alert-info">
             <i class="bi bi-info-circle"></i>
-            <strong>Keine überfälligen Rechnungen!</strong> 
-            Alle Rechnungen sind bezahlt oder noch nicht fällig.
+            @if(($filter ?? 'alle') === 'wiederholung')
+                <strong>Keine Wiederholungs-Mahnungen!</strong> 
+                Keine Rechnungen gefunden, deren letzte Mahnung älter als {{ $tageAlt ?? 14 }} Tage ist.
+            @else
+                <strong>Keine überfälligen Rechnungen!</strong> 
+                Alle Rechnungen sind bezahlt oder noch nicht fällig.
+            @endif
         </div>
     @else
         {{-- Statistik --}}
@@ -50,14 +97,13 @@
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
                         <h3 class="mb-0">{{ $ueberfaellige->count() }}</h3>
-                        <small>Überfällig</small>
+                        <small>{{ ($filter ?? 'alle') === 'wiederholung' ? 'Wiederholung' : 'Überfällig' }}</small>
                     </div>
                 </div>
             </div>
             <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        {{-- ⭐ brutto_summe statt brutto --}}
                         <h3 class="mb-0">{{ number_format($ueberfaellige->sum(fn($r) => (float) ($r->brutto_summe ?? 0)), 2, ',', '.') }} €</h3>
                         <small>Offener Betrag</small>
                     </div>
@@ -66,7 +112,6 @@
             <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        {{-- ⭐ Nur mahnbare (ohne blockierte) --}}
                         <h3 class="mb-0 text-primary">{{ $ueberfaellige->filter(fn($r) => $r->naechste_mahnstufe !== null)->count() }}</h3>
                         <small>Mahnbar</small>
                     </div>
@@ -75,8 +120,7 @@
             <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        {{-- ⭐ Blockierte (Entwurf offen) --}}
-                        <h3 class="mb-0 text-info">{{ $ueberfaellige->filter(fn($r) => $r->hat_offenen_entwurf)->count() }}</h3>
+                        <h3 class="mb-0 text-info">{{ $ueberfaellige->filter(fn($r) => $r->hat_offenen_entwurf ?? false)->count() }}</h3>
                         <small>Entwurf offen</small>
                     </div>
                 </div>
@@ -84,16 +128,8 @@
             <div class="col-md-2">
                 <div class="card bg-light">
                     <div class="card-body text-center py-2">
-                        <h3 class="mb-0 text-success">{{ $ueberfaellige->filter(fn($r) => $r->hat_email && $r->naechste_mahnstufe)->count() }}</h3>
-                        <small>Mit E-Mail</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <div class="card bg-light">
-                    <div class="card-body text-center py-2">
-                        <h3 class="mb-0 text-warning">{{ $ueberfaellige->filter(fn($r) => !$r->hat_email && $r->naechste_mahnstufe)->count() }}</h3>
-                        <small>Post nötig</small>
+                        <h3 class="mb-0 text-warning">{{ $gesperrte->count() ?? 0 }}</h3>
+                        <small>Gesperrt</small>
                     </div>
                 </div>
             </div>
@@ -113,7 +149,6 @@
                     @endforeach
                 </div>
                 
-                {{-- ⭐ Hinweis für blockierte Rechnungen --}}
                 @if($ueberfaellige->where('hat_offenen_entwurf', true)->count() > 0)
                     <div class="alert alert-info py-2 mb-0">
                         <i class="bi bi-info-circle"></i>
@@ -143,22 +178,25 @@
                                 <th style="width: 40px;"></th>
                                 <th>Rechnung</th>
                                 <th>Kunde</th>
-                                <th>Rechnungsdatum</th>
+                                <th>Datum</th>
                                 <th>Überfällig</th>
+                                @if(($filter ?? 'alle') === 'wiederholung')
+                                    <th>Letzte Mahnung</th>
+                                @endif
                                 <th>Betrag</th>
                                 <th>Nächste Stufe</th>
                                 <th>E-Mail</th>
+                                <th style="width: 80px;">Aktion</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($ueberfaellige as $rechnung)
                                 @php
-                                    $istBlockiert = $rechnung->hat_offenen_entwurf && !$rechnung->naechste_mahnstufe;
+                                    $istBlockiert = ($rechnung->hat_offenen_entwurf ?? false) && !$rechnung->naechste_mahnstufe;
                                 @endphp
                                 <tr class="{{ $istBlockiert ? 'table-info' : (!$rechnung->hat_email ? 'table-warning' : '') }}">
                                     <td>
                                         @if($istBlockiert)
-                                            {{-- ⭐ Blockiert: Entwurf muss erst versendet werden --}}
                                             <span class="text-info" title="Entwurf muss erst versendet werden">
                                                 <i class="bi bi-hourglass-split"></i>
                                             </span>
@@ -171,12 +209,11 @@
                                     </td>
                                     <td>
                                         <a href="{{ url('/rechnung/' . $rechnung->id . '/edit') }}" target="_blank">
-                                            {{-- ⭐ Robuste Rechnungsnummer --}}
                                             {{ $rechnung->volle_rechnungsnummer ?? ($rechnung->jahr && $rechnung->laufnummer ? $rechnung->jahr.'/'.$rechnung->laufnummer : $rechnung->laufnummer ?? '-') }}
                                         </a>
                                     </td>
                                     <td>
-                                        {{ Str::limit($rechnung->rechnungsempfaenger?->name, 30) }}
+                                        {{ Str::limit($rechnung->rechnungsempfaenger?->name, 25) }}
                                     </td>
                                     <td>
                                         {{ $rechnung->rechnungsdatum?->format('d.m.Y') }}
@@ -186,19 +223,26 @@
                                     <td>
                                         <span class="badge bg-danger">{{ $rechnung->tage_ueberfaellig }} Tage</span>
                                     </td>
+                                    @if(($filter ?? 'alle') === 'wiederholung')
+                                        <td>
+                                            @if($rechnung->tage_seit_letzter_mahnung)
+                                                <span class="badge bg-warning text-dark">
+                                                    vor {{ $rechnung->tage_seit_letzter_mahnung }} Tagen
+                                                </span>
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td class="text-end">
-                                        {{-- ⭐ brutto_summe statt brutto --}}
                                         {{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} €
                                     </td>
                                     <td>
                                         @if($istBlockiert)
-                                            {{-- ⭐ Entwurf existiert - zeige Link zum Versand --}}
                                             <a href="{{ route('mahnungen.versand') }}" class="badge bg-info text-decoration-none">
                                                 <i class="bi bi-hourglass-split"></i>
                                                 Stufe {{ $rechnung->offener_entwurf->mahnstufe }} wartet
                                             </a>
-                                            <br>
-                                            <small class="text-muted">Erst versenden!</small>
                                         @elseif($rechnung->naechste_mahnstufe)
                                             <span class="badge {{ $rechnung->naechste_mahnstufe->badge_class }}">
                                                 <i class="bi {{ $rechnung->naechste_mahnstufe->icon }}"></i>
@@ -206,16 +250,13 @@
                                             </span>
                                             @if($rechnung->naechste_mahnstufe->spesen > 0)
                                                 <br>
-                                                <small class="text-muted">
-                                                    +{{ number_format($rechnung->naechste_mahnstufe->spesen, 2, ',', '.') }} € Spesen
-                                                </small>
+                                                <small class="text-muted">+{{ number_format($rechnung->naechste_mahnstufe->spesen, 2, ',', '.') }} € Spesen</small>
                                             @endif
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
                                     <td>
-                                        {{-- ⭐ E-Mail mit Postadresse-Priorität --}}
                                         @if($rechnung->hat_email)
                                             <span class="badge bg-success" title="{{ $rechnung->email_adresse }}">
                                                 <i class="bi bi-envelope-check"></i>
@@ -224,21 +265,37 @@
                                                 <span class="badge bg-info text-dark" title="E-Mail von Postadresse">P</span>
                                             @endif
                                         @else
-                                            <span class="badge bg-warning text-dark" title="Keine E-Mail - Postversand nötig">
-                                                <i class="bi bi-mailbox"></i> Post
+                                            <span class="badge bg-warning text-dark" title="Keine E-Mail - Postversand">
+                                                <i class="bi bi-mailbox"></i>
                                             </span>
                                         @endif
+                                    </td>
+                                    <td>
+                                        {{-- ⭐ Ausschluss/Mahnsperre Button --}}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-secondary" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#modalMahnsperre"
+                                                data-rechnung-id="{{ $rechnung->id }}"
+                                                data-rechnung-nr="{{ $rechnung->volle_rechnungsnummer ?? $rechnung->laufnummer }}"
+                                                data-kunde="{{ $rechnung->rechnungsempfaenger?->name }}"
+                                                title="Vom Mahnwesen ausschließen">
+                                            <i class="bi bi-shield-x"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 @if($rechnung->letzte_mahnung)
                                     <tr class="table-light">
                                         <td></td>
-                                        <td colspan="7">
+                                        <td colspan="{{ ($filter ?? 'alle') === 'wiederholung' ? 9 : 8 }}">
                                             <small class="text-muted">
                                                 <i class="bi bi-info-circle"></i>
                                                 Letzte Mahnung: {{ $rechnung->letzte_mahnung->mahndatum->format('d.m.Y') }}
                                                 ({{ $rechnung->letzte_mahnung->stufe?->name_de ?? 'Stufe ' . $rechnung->letzte_mahnung->mahnstufe }})
                                                 - {!! $rechnung->letzte_mahnung->status_badge !!}
+                                                @if($rechnung->letzte_mahnung->gesendet_am)
+                                                    - versendet {{ $rechnung->letzte_mahnung->gesendet_am->format('d.m.Y') }}
+                                                @endif
                                             </small>
                                         </td>
                                     </tr>
@@ -253,9 +310,55 @@
 
 </div>
 
+{{-- ⭐ MODAL: Mahnsperre setzen --}}
+<div class="modal fade" id="modalMahnsperre" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('mahnungen.ausschluss.rechnung') }}">
+                @csrf
+                <input type="hidden" name="rechnung_id" id="mahnsperreRechnungId">
+                
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="bi bi-shield-x"></i> Vom Mahnwesen ausschließen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="alert alert-info mb-3">
+                        <strong>Rechnung:</strong> <span id="mahnsperreRechnungNr"></span><br>
+                        <strong>Kunde:</strong> <span id="mahnsperreKunde"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mahnsperre_grund" class="form-label">Grund (optional)</label>
+                        <textarea class="form-control" name="grund" id="mahnsperre_grund" rows="2" 
+                                  placeholder="z.B. Ratenzahlung vereinbart, Reklamation offen..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bis_datum" class="form-label">Ausschließen bis (optional)</label>
+                        <input type="date" class="form-control" name="bis_datum" id="bis_datum">
+                        <small class="text-muted">Leer = permanent ausgeschlossen</small>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-shield-x"></i> Ausschließen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Checkboxen-Logik
     const selectAll = document.getElementById('selectAll');
     const checkboxes = document.querySelectorAll('.rechnung-checkbox');
     const btnErstellen = document.getElementById('btnErstellen');
@@ -283,7 +386,24 @@ document.addEventListener('DOMContentLoaded', function() {
             updateButton();
         });
     });
+
+    // Mahnsperre-Modal: Daten übertragen
+    const modalMahnsperre = document.getElementById('modalMahnsperre');
+    if (modalMahnsperre) {
+        modalMahnsperre.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            document.getElementById('mahnsperreRechnungId').value = button.dataset.rechnungId;
+            document.getElementById('mahnsperreRechnungNr').textContent = button.dataset.rechnungNr;
+            document.getElementById('mahnsperreKunde').textContent = button.dataset.kunde;
+        });
+    }
 });
+
+// Filter: Tage-Input ein/ausblenden
+function toggleTageInput(select) {
+    const wrapper = document.getElementById('tageInputWrapper');
+    wrapper.style.display = select.value === 'wiederholung' ? '' : 'none';
+}
 </script>
 @endpush
 @endsection

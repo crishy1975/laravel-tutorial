@@ -87,7 +87,11 @@
                 <tbody>
                     @forelse($mahnungen as $mahnung)
                         <tr class="{{ $mahnung->status === 'storniert' ? 'table-secondary text-muted' : '' }}">
-                            <td>{{ $mahnung->mahndatum->format('d.m.Y') }}</td>
+                            <td>
+                                <a href="{{ route('mahnungen.show', $mahnung->id) }}" class="text-decoration-none">
+                                    {{ $mahnung->mahndatum->format('d.m.Y') }}
+                                </a>
+                            </td>
                             <td>
                                 <a href="{{ url('/rechnung/' . $mahnung->rechnung_id . '/edit') }}">
                                     {{ $mahnung->rechnungsnummer_anzeige }}
