@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mahnwesen Debug-Modus
+    |--------------------------------------------------------------------------
+    |
+    | Wenn aktiv, werden alle Mahnungs-E-Mails an die Debug-Adresse gesendet
+    | statt an die echten Kunden. Perfekt zum Testen!
+    |
+    */
+
+    'mahnung_debug_mode' => env('MAHNUNG_DEBUG_MODE', false),
+    'mahnung_debug_email' => env('MAHNUNG_DEBUG_EMAIL', null),
+
 ];

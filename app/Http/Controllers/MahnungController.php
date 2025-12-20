@@ -6,6 +6,7 @@ use App\Models\Mahnung;
 use App\Models\MahnungStufe;
 use App\Models\MahnungAusschluss;
 use App\Models\MahnungRechnungAusschluss;
+use App\Models\MahnungEinstellung;
 use App\Models\Rechnung;
 use App\Models\Adresse;
 use App\Services\MahnungService;
@@ -94,39 +95,36 @@ class MahnungController extends Controller
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Mahnlauf vorbereiten (Vorschau)
+     * ⭐ VEREINFACHT: Mahnlauf vorbereiten
      * 
-     * Filter:
-     * - ?filter=wiederholung&tage=14 → Nur wo letzte Mahnung > X Tage alt
-     * - ?filter=alle → Standard (alle überfälligen)
+     * Zeigt alle überfälligen Rechnungen mit Status:
+     * - ist_mahnbar = true → kann gemahnt werden
+     * - ist_mahnbar = false → in Wartezeit oder offener Entwurf
      */
     public function mahnlaufVorbereiten(Request $request)
     {
         $bankAktualitaet = $this->service->getBankAktualitaet();
         $stufen = MahnungStufe::getAlleAktiven();
         
-        $filter = $request->get('filter', 'alle');
-        $tageAlt = $request->integer('tage', 14);
+        // Alle überfälligen Rechnungen (mit ist_mahnbar Flag)
+        $ueberfaellige = $this->service->getUeberfaelligeRechnungen();
         
-        if ($filter === 'wiederholung') {
-            // ⭐ Nur Rechnungen wo letzte Mahnung älter als X Tage
-            $ueberfaellige = $this->service->getWiederholungsMahnungen($tageAlt);
-        } else {
-            // Standard: Alle überfälligen
-            $ueberfaellige = $this->service->getUeberfaelligeRechnungen();
-        }
-        
-        // ⭐ Gesperrte Rechnungen separat laden
+        // Gesperrte Rechnungen separat laden
         $gesperrte = $this->service->getGesperrteRechnungen();
+        
+        // Einstellungen für Anzeige
+        $einstellungen = [
+            'zahlungsfrist_tage'            => MahnungEinstellung::getZahlungsfristTage(),
+            'wartezeit_zwischen_mahnungen'  => MahnungEinstellung::getWartezeitZwischenMahnungen(),
+        ];
 
         return view('mahnungen.mahnlauf', [
             'bankAktualitaet'  => $bankAktualitaet,
             'ueberfaellige'    => $ueberfaellige,
             'stufen'           => $stufen,
             'statistiken'      => $this->service->getStatistiken(),
-            'filter'           => $filter,
-            'tageAlt'          => $tageAlt,
             'gesperrte'        => $gesperrte,
+            'einstellungen'    => $einstellungen,
         ]);
     }
 
@@ -235,6 +233,60 @@ class MahnungController extends Controller
         return redirect()
             ->route('mahnungen.historie')
             ->with('success', $message);
+    }
+
+    /**
+     * ⭐ AJAX: Einzelne Mahnung versenden (für Progress-Anzeige)
+     * 
+     * Route: POST /mahnungen/{mahnung}/versende-einzeln
+     */
+    public function versendeEinzeln(Mahnung $mahnung)
+    {
+        try {
+            // Prüfen ob noch Entwurf
+            if ($mahnung->status !== 'entwurf') {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'Mahnung wurde bereits versendet.',
+                ], 400);
+            }
+
+            // Versenden über Service
+            $result = $this->service->versendeMahnung($mahnung);
+
+            if ($result['erfolg']) {
+                return response()->json([
+                    'ok'      => true,
+                    'message' => 'Versendet an ' . ($result['email'] ?? 'unbekannt'),
+                    'email'   => $result['email'] ?? null,
+                ]);
+            }
+
+            // Postversand nötig?
+            if ($result['post_noetig'] ?? false) {
+                return response()->json([
+                    'ok'          => false,
+                    'post_noetig' => true,
+                    'message'     => $result['grund'] ?? 'Postversand erforderlich',
+                ]);
+            }
+
+            return response()->json([
+                'ok'      => false,
+                'message' => $result['grund'] ?? 'Unbekannter Fehler',
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('AJAX Mahnungsversand fehlgeschlagen', [
+                'mahnung_id' => $mahnung->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -480,112 +532,44 @@ class MahnungController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MAHNSPERRE (direkt in Rechnungen-Tabelle)
+    // EINSTELLUNGEN
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Mahnsperre setzen (permanent oder temporär)
-     * Nutzt das bestehende MahnungRechnungAusschluss Model
+     * Einstellungen anzeigen
      */
-    public function mahnsperreSetzen(Request $request)
+    public function einstellungen()
+    {
+        $einstellungen = MahnungEinstellung::alle();
+
+        return view('mahnungen.einstellungen', [
+            'einstellungen' => $einstellungen,
+        ]);
+    }
+
+    /**
+     * Einstellungen speichern
+     */
+    public function einstellungenSpeichern(Request $request)
     {
         $validated = $request->validate([
-            'rechnung_id' => 'required|integer|exists:rechnungen,id',
-            'typ'         => 'required|in:permanent,temporaer',
-            'tage'        => 'required_if:typ,temporaer|nullable|integer|min:1|max:365',
-            'grund'       => 'nullable|string|max:500',
+            'zahlungsfrist_tage'           => 'required|integer|min:1|max:365',
+            'wartezeit_zwischen_mahnungen' => 'required|integer|min:1|max:365',
+            'min_tage_ueberfaellig'        => 'required|integer|min:0|max:365',
         ]);
 
-        $rechnung = Rechnung::findOrFail($validated['rechnung_id']);
-        
-        // Bis-Datum berechnen
-        $bisDatum = null;
-        if ($validated['typ'] === 'temporaer' && isset($validated['tage'])) {
-            $bisDatum = now()->addDays($validated['tage']);
+        foreach ($validated as $schluessel => $wert) {
+            MahnungEinstellung::set($schluessel, $wert);
         }
 
-        // ⭐ Nutze bestehendes MahnungRechnungAusschluss Model
-        MahnungRechnungAusschluss::setAusschluss(
-            $validated['rechnung_id'],
-            $validated['grund'] ?? null,
-            $bisDatum
-        );
-
-        // Log
-        Log::info('Rechnung vom Mahnwesen ausgeschlossen', [
-            'rechnung_id' => $rechnung->id,
-            'typ'         => $validated['typ'],
-            'bis'         => $bisDatum,
-            'user_id'     => auth()->id(),
+        Log::info('Mahnwesen Einstellungen aktualisiert', [
+            'einstellungen' => $validated,
+            'user_id' => auth()->id(),
         ]);
 
-        // RechnungLog erstellen
-        if (class_exists(\App\Models\RechnungLog::class)) {
-            \App\Models\RechnungLog::create([
-                'rechnung_id' => $rechnung->id,
-                'typ'         => 'notiz',
-                'titel'       => 'Vom Mahnwesen ausgeschlossen',
-                'inhalt'      => $validated['typ'] === 'permanent' 
-                    ? 'Permanent vom Mahnwesen ausgeschlossen' . ($validated['grund'] ? ': ' . $validated['grund'] : '')
-                    : 'Für ' . $validated['tage'] . ' Tage vom Mahnwesen ausgeschlossen' . ($validated['grund'] ? ': ' . $validated['grund'] : ''),
-                'user_id'     => auth()->id(),
-            ]);
-        }
-
-        $message = $validated['typ'] === 'permanent'
-            ? 'Rechnung permanent vom Mahnwesen ausgeschlossen.'
-            : 'Rechnung für ' . $validated['tage'] . ' Tage vom Mahnwesen ausgeschlossen.';
-
-        if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'message' => $message]);
-        }
-
-        return redirect()->back()->with('success', $message);
-    }
-
-    /**
-     * Mahnsperre entfernen
-     */
-    public function mahnsperreEntfernen(int $rechnungId)
-    {
-        $rechnung = Rechnung::findOrFail($rechnungId);
-
-        // ⭐ Nutze bestehendes Model
-        MahnungRechnungAusschluss::entferneAusschluss($rechnungId);
-
-        Log::info('Mahnsperre entfernt', [
-            'rechnung_id' => $rechnung->id,
-            'user_id'     => auth()->id(),
-        ]);
-
-        // RechnungLog
-        if (class_exists(\App\Models\RechnungLog::class)) {
-            \App\Models\RechnungLog::create([
-                'rechnung_id' => $rechnung->id,
-                'typ'         => 'notiz',
-                'titel'       => 'Mahnsperre aufgehoben',
-                'inhalt'      => 'Rechnung kann wieder gemahnt werden',
-                'user_id'     => auth()->id(),
-            ]);
-        }
-
-        if (request()->expectsJson()) {
-            return response()->json(['ok' => true, 'message' => 'Mahnsperre entfernt.']);
-        }
-
-        return redirect()->back()->with('success', 'Mahnsperre entfernt. Rechnung kann wieder gemahnt werden.');
-    }
-
-    /**
-     * Übersicht aller gesperrten Rechnungen
-     */
-    public function gesperrteRechnungen()
-    {
-        $gesperrte = $this->service->getGesperrteRechnungen();
-
-        return view('mahnungen.gesperrt', [
-            'gesperrte' => $gesperrte,
-        ]);
+        return redirect()
+            ->back()
+            ->with('success', 'Einstellungen erfolgreich gespeichert.');
     }
 
     // ═══════════════════════════════════════════════════════════════════════
