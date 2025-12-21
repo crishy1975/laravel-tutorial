@@ -16,6 +16,7 @@ use App\Http\Controllers\UnternehmensprofilController;
 use App\Http\Controllers\ReinigungsplanungController;
 use App\Http\Controllers\BankBuchungController;
 use App\Http\Controllers\MahnungController;
+use App\Http\Controllers\AngebotController;
 
 
 // Home / Dashboard Redirect
@@ -505,9 +506,55 @@ Route::prefix('mahnungen')->name('mahnungen.')->middleware('auth')->group(functi
 });
 
 
+Route::prefix('angebote')->name('angebote.')->middleware(['auth'])->group(function () {
 
+    // Übersicht
+    Route::get('/', [AngebotController::class, 'index'])->name('index');
 
+    // Neu erstellen (nur Gebäude-Auswahl)
+    Route::get('/create', [AngebotController::class, 'create'])->name('create');
 
+    // Aus Gebäude erstellen
+    Route::post('/from-gebaeude/{gebaeude}', [AngebotController::class, 'createFromGebaeude'])
+        ->name('from-gebaeude');
+
+    // Einzelnes Angebot
+    Route::get('/{angebot}', [AngebotController::class, 'edit'])->name('edit');
+    Route::put('/{angebot}', [AngebotController::class, 'update'])->name('update');
+    Route::delete('/{angebot}', [AngebotController::class, 'destroy'])->name('destroy');
+
+    // PDF
+    Route::get('/{angebot}/pdf', [AngebotController::class, 'pdf'])->name('pdf');
+
+    // E-Mail Versand
+    Route::get('/{angebot}/versand', [AngebotController::class, 'showVersand'])->name('versand');
+    Route::post('/{angebot}/versenden', [AngebotController::class, 'versenden'])->name('versenden');
+
+    // Status ändern
+    Route::post('/{angebot}/status', [AngebotController::class, 'setStatus'])->name('status');
+
+    // Zu Rechnung umwandeln
+    Route::post('/{angebot}/zu-rechnung', [AngebotController::class, 'zuRechnung'])->name('zu-rechnung');
+
+    // Kopieren
+    Route::post('/{angebot}/kopieren', [AngebotController::class, 'kopieren'])->name('kopieren');
+
+    // Positionen
+    Route::post('/{angebot}/position', [AngebotController::class, 'addPosition'])->name('position.add');
+    Route::put('/position/{position}', [AngebotController::class, 'updatePosition'])->name('position.update');
+    Route::delete('/position/{position}', [AngebotController::class, 'deletePosition'])->name('position.delete');
+    Route::post('/{angebot}/positionen/reorder', [AngebotController::class, 'reorderPositions'])->name('position.reorder');
+});
+
+Route::get('/test-pdf', function () {
+    $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><h1>Test PDF</h1><p>Umlaute: ä ö ü ß</p></body></html>';
+    
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)
+        ->setPaper('a4', 'portrait')
+        ->setOption('defaultFont', 'DejaVu Sans');
+    
+    return $pdf->stream('test.pdf');
+});
 
 
 

@@ -28,12 +28,15 @@ param(
 $Config = @{
     # SSH/SFTP-Zugangsdaten (aus Hostinger hPanel -> SSH-Zugang)
     SFTP_HOST     = "212.1.209.26"
-    SFTP_USER     = "u192633638"
+    # SFTP_USER     = "u192633638" # resch gmbh
+    SFTP_USER     = "u854179217" # resch kg
+
     SFTP_PORT     = 65002
     
     # Pfade
     LOCAL_PATH    = "C:\Users\Christian\Documents\entwicklung\laravel-tutorial"
-    REMOTE_PATH   = "/home/u192633638/domains/reschc.space/public_html"
+    # REMOTE_PATH   = "/home/u192633638/domains/reschc.space/public_html" # resch gmbh
+    REMOTE_PATH   = "/home/u854179217/domains/christianresch.esy.es/public_html/martin" # resch kg
     
     # WinSCP Pfad
     WINSCP_PATH   = "C:\Program Files (x86)\WinSCP\WinSCP.com"
