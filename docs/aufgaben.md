@@ -4,4 +4,11 @@ mahnungen
     tage runden
 
 allgemein
-    logo zu groß
+    logo zu groß?
+
+log
+    log auch im gebäude
+    log auch in angebote
+    
+angebote
+    standard texte dynamisch

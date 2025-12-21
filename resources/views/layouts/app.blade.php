@@ -203,49 +203,14 @@
         }
 
         /* ═══════════════════════════════════════════════════════════
-           SELECT2
+           PRINT STYLES
            ═══════════════════════════════════════════════════════════ */
-        .select2-container {
-            width: 100% !important;
-        }
-
-        .select2-container--bootstrap-5 .select2-selection {
-            border: 1px solid #ced4da !important;
-            border-radius: 0.375rem !important;
-            background-color: #fff !important;
-            height: calc(2.5rem + 2px) !important;
-            padding: 0.375rem 0.75rem !important;
-            display: flex !important;
-            align-items: center !important;
-            box-shadow: none !important;
-            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
-        }
-
-        .select2-container--bootstrap-5 .select2-selection:hover {
-            border-color: #86b7fe !important;
-        }
-
-        .select2-container--bootstrap-5.select2-container--focus .select2-selection {
-            border-color: #86b7fe !important;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, .25) !important;
-        }
-
-        .select2-container--bootstrap-5 .select2-selection__arrow {
-            top: 50% !important;
-            transform: translateY(-50%) !important;
-            right: 0.75rem !important;
-        }
-
-        .select2-container--bootstrap-5 .select2-search .select2-search__field {
-            width: 100% !important;
-            height: calc(2.25rem);
-            padding: 0.375rem 0.75rem;
-            border: 1px solid #ced4da;
-            border-radius: 0.375rem;
-        }
-
-        .select2-selection__clear {
-            display: none !important;
+        @media print {
+            .navbar-custom,
+            footer,
+            .no-print {
+                display: none !important;
+            }
         }
     </style>
 
@@ -309,6 +274,51 @@
                                 <span class="nav-badge">{{ $offeneReinigungen }}</span>
                             @endif
                         </a>
+                    </li>
+
+                    {{-- ⭐ ANGEBOTE --}}
+                    <li class="nav-item dropdown">
+                        @php
+                            $offeneAngebote = 0;
+                            try {
+                                $offeneAngebote = \App\Models\Angebot::whereIn('status', ['entwurf', 'versendet'])->count();
+                            } catch (\Exception $e) {}
+                        @endphp
+                        <a class="nav-link dropdown-toggle {{ request()->routeIs('angebote.*') ? 'active' : '' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-file-earmark-text"></i> Angebote
+                            @if($offeneAngebote > 0)
+                                <span class="nav-badge" style="background-color: #17a2b8;">{{ $offeneAngebote }}</span>
+                            @endif
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="{{ route('angebote.index') }}">
+                                    <i class="bi bi-list"></i> Übersicht
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('angebote.create') }}">
+                                    <i class="bi bi-plus-lg"></i> Neues Angebot
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('angebote.index', ['status' => 'entwurf']) }}">
+                                    <i class="bi bi-pencil"></i> Entwürfe
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('angebote.index', ['status' => 'versendet']) }}">
+                                    <i class="bi bi-envelope"></i> Versendet
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ route('angebote.index', ['status' => 'angenommen']) }}">
+                                    <i class="bi bi-check-circle text-success"></i> Angenommen
+                                </a>
+                            </li>
+                        </ul>
                     </li>
 
                     {{-- Finanzen --}}
