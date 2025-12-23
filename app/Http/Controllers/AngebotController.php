@@ -19,6 +19,10 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class AngebotController extends Controller
 {
+    // =======================================================================
+    // UEBERSICHT
+    // =======================================================================
+
     public function index(Request $request)
     {
         $query = Angebot::with(['gebaeude', 'adresse'])
@@ -60,6 +64,10 @@ class AngebotController extends Controller
         return view('angebote.index', compact('angebote', 'statistik', 'jahre'));
     }
 
+    // =======================================================================
+    // ERSTELLEN
+    // =======================================================================
+
     public function createFromGebaeude(Request $request, Gebaeude $gebaeude)
     {
         try {
@@ -84,50 +92,16 @@ class AngebotController extends Controller
 
     public function create()
     {
-        $gebaeude = Gebaeude::orderBy('codex')->get(['id', 'codex', 'gebaeude_name', 'wohnort']);
-        $fatturaProfiles = FatturaProfile::orderBy('bezeichnung')->get();
+        $gebaeude = Gebaeude::orderBy('codex')
+            ->whereHas('aktiveArtikel')
+            ->get(['id', 'codex', 'gebaeude_name', 'wohnort']);
 
-        return view('angebote.create', compact('gebaeude', 'fatturaProfiles'));
+        return view('angebote.create', compact('gebaeude'));
     }
 
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'gebaeude_id'       => 'nullable|exists:gebaeude,id',
-            'adresse_id'        => 'nullable|exists:adressen,id',
-            'titel'             => 'required|string|max:255',
-            'datum'             => 'required|date',
-            'gueltig_bis'       => 'nullable|date|after_or_equal:datum',
-            'mwst_satz'         => 'required|numeric|min:0|max:100',
-            'einleitung'        => 'nullable|string',
-            'bemerkung_kunde'   => 'nullable|string',
-            'bemerkung_intern'  => 'nullable|string',
-            'fattura_profile_id' => 'nullable|exists:fattura_profile,id',
-        ]);
-
-        $jahr = now()->year;
-
-        $angebot = Angebot::create([
-            'jahr'       => $jahr,
-            'laufnummer' => Angebot::naechsteLaufnummer($jahr),
-            'status'     => 'entwurf',
-            ...$data,
-        ]);
-
-        if ($angebot->adresse_id) {
-            $angebot->aktualisiereEmpfaengerSnapshot();
-        }
-
-        if ($angebot->gebaeude_id) {
-            $angebot->aktualisiereGebaeudeSnapshot();
-        }
-
-        AngebotLog::erstellt($angebot->id);
-
-        return redirect()
-            ->route('angebote.edit', $angebot)
-            ->with('success', 'Angebot ' . $angebot->angebotsnummer . ' erstellt.');
-    }
+    // =======================================================================
+    // BEARBEITEN
+    // =======================================================================
 
     public function edit(Angebot $angebot)
     {
@@ -166,6 +140,10 @@ class AngebotController extends Controller
             ->route('angebote.edit', $angebot)
             ->with('success', 'Angebot gespeichert.');
     }
+
+    // =======================================================================
+    // POSITIONEN
+    // =======================================================================
 
     public function addPosition(Request $request, Angebot $angebot)
     {
@@ -235,14 +213,20 @@ class AngebotController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // =======================================================================
+    // PDF - VERWENDET loadHTML STATT loadView!
+    // =======================================================================
+
     /**
-     * PDF generieren - HTML wird INLINE generiert (keine separate View-Datei)
+     * PDF generieren - HTML wird direkt im Controller generiert
+     * NICHT loadView verwenden wegen Windows-Encoding-Problemen!
      */
     public function pdf(Angebot $angebot, Request $request)
     {
         $angebot->load(['positionen', 'fatturaProfile', 'adresse']);
-        $unternehmen = Unternehmensprofil::aktiv();
+        $unternehmen = Unternehmensprofil::first();
 
+        // HTML direkt generieren (NICHT loadView!)
         $html = $this->generatePdfHtml($angebot, $unternehmen);
 
         $pdf = Pdf::loadHTML($html)
@@ -252,14 +236,6 @@ class AngebotController extends Controller
         $safeNummer = str_replace(['/', '\\'], '-', $angebot->angebotsnummer);
         $pdfName = 'Angebot_' . $safeNummer . '.pdf';
 
-        $pdfDir = 'angebote/' . $angebot->jahr;
-        $pdfPath = $pdfDir . '/' . $pdfName;
-
-        Storage::disk('local')->put($pdfPath, $pdf->output());
-        $angebot->update(['pdf_pfad' => $pdfPath]);
-
-        AngebotLog::pdfErstellt($angebot->id);
-
         if ($request->has('preview')) {
             return $pdf->stream($pdfName);
         }
@@ -268,13 +244,20 @@ class AngebotController extends Controller
     }
 
     /**
-     * Generiert das HTML fuer das Angebot-PDF inline
+     * Generiert das HTML fuer das Angebot-PDF
+     * Modernes Teal-Design, kompakt, nur Netto-Summe
      */
     protected function generatePdfHtml(Angebot $angebot, $unternehmen): string
     {
-        $empfaengerEmail = $angebot->adresse->email ?? $angebot->empfaenger_email ?? '';
+        $firma = e($unternehmen->firmenname ?? 'Resch GmbH');
+        $strasse = e(trim(($unternehmen->strasse ?? '') . ' ' . ($unternehmen->hausnummer ?? '')));
+        $plzOrt = e(trim(($unternehmen->postleitzahl ?? '') . ' ' . ($unternehmen->ort ?? '')));
+        $telefon = $unternehmen->telefon ?? '';
+        $email = $unternehmen->email ?? '';
+        $piva = $unternehmen->partita_iva ?? '';
+        $cf = $unternehmen->codice_fiscale ?? '';
 
-        // Logo-Pfad ermitteln
+        // Logo laden
         $logoHtml = '';
         if ($unternehmen) {
             $logoPfad = $unternehmen->logo_rechnung_pfad ?? $unternehmen->logo_pfad ?? null;
@@ -293,170 +276,123 @@ class AngebotController extends Controller
             }
         }
 
-        // Positionen-HTML generieren
-        $positionenHtml = '';
-        $i = 1;
-        foreach ($angebot->positionen as $pos) {
-            $bgColor = ($i % 2 == 0) ? 'background-color:#f7fafc;' : '';
-            $positionenHtml .= '<tr>
-                <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;' . $bgColor . '">' . $i . '</td>
-                <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;' . $bgColor . '">' . e($pos->beschreibung) . '</td>
-                <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bgColor . '">' . number_format($pos->anzahl, 2, ',', '.') . ' ' . ($pos->einheit ?? 'Stk') . '</td>
-                <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bgColor . '">' . number_format($pos->einzelpreis, 2, ',', '.') . ' EUR</td>
-                <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bgColor . '">' . number_format($pos->gesamtpreis, 2, ',', '.') . ' EUR</td>
-            </tr>';
-            $i++;
-        }
-
-        // Gueltig-bis HTML
-        $gueltigBisHtml = '';
-        if ($angebot->gueltig_bis) {
-            $gueltigBisHtml = '<tr><td>
-                <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Gueltig bis / Valido fino al</div>
-                <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . $angebot->gueltig_bis->format('d.m.Y') . '</div>
-            </td></tr>';
-        }
-
-        // Einleitung HTML
-        $einleitungHtml = '';
-        if ($angebot->einleitung) {
-            $einleitungHtml = '<div style="margin-bottom:3mm;padding:2mm;font-size:8pt;line-height:1.4;color:#4a5568;">' . nl2br(e($angebot->einleitung)) . '</div>';
-        }
-
-        // Betreff HTML
-        $betreffHtml = '';
-        if ($angebot->titel) {
-            $betreffHtml = '<div style="background-color:#e6fffa;border-left:3px solid #38b2ac;padding:2mm 3mm;margin-bottom:3mm;font-size:8pt;">
-                <div style="font-size:6pt;color:#38b2ac;text-transform:uppercase;font-weight:bold;">Betreff / Oggetto</div>
-                ' . e($angebot->titel) . '
-            </div>';
-        }
-
-        // Validity box
-        $validityHtml = '';
-        if ($angebot->gueltig_bis) {
-            $validityHtml = '<div style="margin-top:4mm;padding:2mm;background-color:#fefcbf;border:1px solid #ecc94b;font-size:7pt;text-align:center;">
-                <strong style="color:#b7791f;">Gueltig bis ' . $angebot->gueltig_bis->format('d.m.Y') . '</strong> |
-                <em>Valido fino al ' . $angebot->gueltig_bis->format('d.m.Y') . '</em>
-            </div>';
-        }
-
-        // Bemerkung HTML
-        $bemerkungHtml = '';
-        if ($angebot->bemerkung_kunde) {
-            $bemerkungHtml = '<div style="margin-top:3mm;padding:2mm;background-color:#f7fafc;border:1px solid #e2e8f0;font-size:7pt;">
-                <div style="font-weight:bold;color:#2c7a7b;margin-bottom:1mm;font-size:7pt;">Bemerkungen / Note</div>
-                ' . e($angebot->bemerkung_kunde) . '
-            </div>';
-        }
-
-        // Unternehmensdaten
-        $firmenname = $unternehmen->firmenname ?? 'Resch GmbH';
-        $strasse = $unternehmen->strasse ?? '';
-        $hausnummer = $unternehmen->hausnummer ?? '';
-        $plz = $unternehmen->postleitzahl ?? '';
-        $ort = $unternehmen->ort ?? '';
-        $telefon = $unternehmen->telefon ?? '';
-        $email = $unternehmen->email ?? '';
-        $piva = $unternehmen->partita_iva ?? '';
-        $cf = $unternehmen->codice_fiscale ?? '';
-
         $html = '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Angebot ' . e($angebot->angebotsnummer) . '</title>
 </head>
-<body style="font-family:DejaVu Sans,sans-serif;font-size:8pt;line-height:1.3;color:#2d3748;padding:8mm;">
+<body style="font-family:DejaVu Sans,sans-serif;font-size:8pt;line-height:1.3;color:#2d3748;margin:0;padding:8mm;">
 
-    <div style="display:table;width:100%;margin-bottom:4mm;padding-bottom:3mm;border-bottom:2px solid #38b2ac;">
-        <div style="display:table-cell;width:50%;vertical-align:top;">
-            ' . $logoHtml . '
-            <div style="font-size:12pt;font-weight:bold;color:#2c7a7b;margin-bottom:1mm;">' . e($firmenname) . '</div>
-            <div style="font-size:7pt;color:#718096;line-height:1.4;">
-                ' . e($strasse) . ' ' . e($hausnummer) . ', ' . e($plz) . ' ' . e($ort) . '<br>
-                ' . ($telefon ? 'Tel: ' . e($telefon) . ' | ' : '') . e($email) . '
-            </div>
-        </div>
-        <div style="display:table-cell;width:50%;vertical-align:top;text-align:right;">
-            <div style="font-size:7pt;color:#718096;">
-                ' . ($piva ? 'P.IVA: ' . e($piva) : '') . ($cf ? ' | CF: ' . e($cf) : '') . '
+<div style="margin-bottom:4mm;padding-bottom:3mm;border-bottom:2px solid #38b2ac;">
+    ' . $logoHtml . '
+    <div style="font-size:14pt;font-weight:bold;color:#2c7a7b;">' . $firma . '</div>
+    <div style="font-size:7pt;color:#718096;line-height:1.5;margin-top:1mm;">
+        ' . $strasse . ' | ' . $plzOrt . '
+        ' . ($telefon ? ' | Tel: ' . e($telefon) : '') . '
+        ' . ($email ? ' | ' . e($email) : '') . '<br>
+        ' . ($piva ? 'P.IVA: ' . e($piva) : '') . ($cf && $piva ? ' | ' : '') . ($cf ? 'C.F.: ' . e($cf) : '') . '
+    </div>
+</div>
+
+<div style="background-color:#38b2ac;color:white;padding:4mm 5mm;margin-bottom:4mm;text-align:center;">
+    <div style="font-size:14pt;font-weight:bold;letter-spacing:1px;">ANGEBOT / OFFERTA</div>
+</div>
+
+<div style="display:table;width:100%;margin-bottom:4mm;">
+    <div style="display:table-cell;width:50%;vertical-align:top;padding-right:4mm;">
+        <div style="border:1px solid #e2e8f0;border-left:3px solid #38b2ac;padding:2mm;background-color:#f7fafc;min-height:22mm;">
+            <div style="font-size:6pt;text-transform:uppercase;letter-spacing:0.5px;color:#38b2ac;font-weight:bold;margin-bottom:1mm;">Empfaenger / Destinatario</div>
+            <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . e($angebot->empfaenger_name) . '</div>
+            <div style="font-size:7pt;color:#4a5568;line-height:1.4;">
+                ' . e($angebot->empfaenger_strasse) . ' ' . e($angebot->empfaenger_hausnummer) . '<br>
+                ' . e($angebot->empfaenger_plz) . ' ' . e($angebot->empfaenger_ort) . '
+                ' . ($angebot->empfaenger_steuernummer ? '<br>MwSt-Nr.: ' . e($angebot->empfaenger_steuernummer) : '') . '
             </div>
         </div>
     </div>
-
-    <div style="background-color:#38b2ac;color:white;padding:4mm 5mm;margin-bottom:4mm;text-align:center;">
-        <div style="font-size:14pt;font-weight:bold;letter-spacing:1px;">ANGEBOT / OFFERTA</div>
+    <div style="display:table-cell;width:50%;vertical-align:top;padding-left:4mm;">
+        <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:1.5mm 2mm;background-color:#edf2f7;border-bottom:1px solid #d1d5db;">
+                <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Angebots-Nr. / N. Offerta</div>
+                <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . e($angebot->angebotsnummer) . '</div>
+            </td></tr>
+            <tr><td style="padding:1.5mm 2mm;background-color:#edf2f7;border-bottom:1px solid #d1d5db;">
+                <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Datum / Data</div>
+                <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . $angebot->datum->format('d.m.Y') . '</div>
+            </td></tr>
+            ' . ($angebot->gueltig_bis ? '<tr><td style="padding:1.5mm 2mm;background-color:#edf2f7;">
+                <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Gueltig bis / Valido fino al</div>
+                <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . $angebot->gueltig_bis->format('d.m.Y') . '</div>
+            </td></tr>' : '') . '
+        </table>
     </div>
+</div>
 
-    <div style="display:table;width:100%;margin-bottom:4mm;">
-        <div style="display:table-cell;width:50%;vertical-align:top;padding-right:4mm;">
-            <div style="border:1px solid #e2e8f0;border-left:3px solid #38b2ac;padding:2mm;background-color:#f7fafc;min-height:22mm;">
-                <div style="font-size:6pt;text-transform:uppercase;letter-spacing:0.5px;color:#38b2ac;font-weight:bold;margin-bottom:1mm;">Empfaenger / Destinatario</div>
-                <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . e($angebot->empfaenger_name) . '</div>
-                <div style="font-size:7pt;color:#4a5568;line-height:1.4;">
-                    ' . e($angebot->empfaenger_strasse) . ' ' . e($angebot->empfaenger_hausnummer) . '<br>
-                    ' . e($angebot->empfaenger_plz) . ' ' . e($angebot->empfaenger_ort) . '
-                    ' . ($empfaengerEmail ? '<br>' . e($empfaengerEmail) : '') . '
-                    ' . ($angebot->empfaenger_steuernummer ? '<br>MwSt-Nr.: ' . e($angebot->empfaenger_steuernummer) : '') . '
-                </div>
-            </div>
-        </div>
-        <div style="display:table-cell;width:50%;vertical-align:top;padding-left:4mm;">
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td style="padding:1.5mm 2mm;background-color:#edf2f7;border-bottom:1px solid #d1d5db;">
-                    <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Angebots-Nr. / N. Offerta</div>
-                    <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . e($angebot->angebotsnummer) . '</div>
-                </td></tr>
-                <tr><td style="padding:1.5mm 2mm;background-color:#edf2f7;border-bottom:1px solid #d1d5db;">
-                    <div style="font-size:6pt;color:#718096;text-transform:uppercase;">Datum / Data</div>
-                    <div style="font-size:9pt;font-weight:bold;color:#2d3748;">' . $angebot->datum->format('d.m.Y') . '</div>
-                </td></tr>
-                ' . $gueltigBisHtml . '
-            </table>
-        </div>
-    </div>
+' . ($angebot->titel ? '<div style="background-color:#e6fffa;border-left:3px solid #38b2ac;padding:2mm 3mm;margin-bottom:3mm;font-size:8pt;">
+    <div style="font-size:6pt;color:#38b2ac;text-transform:uppercase;font-weight:bold;">Betreff / Oggetto</div>
+    ' . e($angebot->titel) . '
+</div>' : '') . '
 
-    ' . $betreffHtml . '
-    ' . $einleitungHtml . '
+' . ($angebot->einleitung ? '<div style="margin-bottom:3mm;padding:2mm;font-size:8pt;line-height:1.4;color:#4a5568;">' . nl2br(e($angebot->einleitung)) . '</div>' : '') . '
 
-    <table style="width:100%;border-collapse:collapse;margin-bottom:3mm;">
-        <thead>
+<table style="width:100%;border-collapse:collapse;margin-bottom:3mm;">
+    <thead>
+        <tr>
+            <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:left;font-size:7pt;width:6%;">Pos.</th>
+            <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:left;font-size:7pt;width:52%;">Beschreibung / Descrizione</th>
+            <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:12%;">Menge / Qta</th>
+            <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:15%;">Preis / Prezzo</th>
+            <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:15%;">Gesamt / Totale</th>
+        </tr>
+    </thead>
+    <tbody>';
+
+        $i = 1;
+        foreach ($angebot->positionen as $pos) {
+            $bg = ($i % 2 == 0) ? 'background-color:#f7fafc;' : '';
+            $html .= '<tr>
+            <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;' . $bg . '">' . $i . '</td>
+            <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;' . $bg . '">' . e($pos->beschreibung) . '</td>
+            <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bg . '">' . number_format($pos->anzahl, 2, ',', '.') . ' ' . e($pos->einheit ?? 'Stk') . '</td>
+            <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bg . '">' . number_format($pos->einzelpreis, 2, ',', '.') . ' EUR</td>
+            <td style="padding:1.5mm;border-bottom:1px solid #e2e8f0;text-align:right;' . $bg . '">' . number_format($pos->gesamtpreis, 2, ',', '.') . ' EUR</td>
+        </tr>';
+            $i++;
+        }
+
+        $html .= '</tbody>
+</table>
+
+<div style="display:table;width:100%;">
+    <div style="display:table-cell;width:55%;"></div>
+    <div style="display:table-cell;width:45%;">
+        <table style="width:100%;border-collapse:collapse;">
             <tr>
-                <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:left;font-size:7pt;width:6%;">Pos.</th>
-                <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:left;font-size:7pt;width:52%;">Beschreibung / Descrizione</th>
-                <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:12%;">Menge / Qta</th>
-                <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:15%;">Preis / Prezzo</th>
-                <th style="background-color:#2c7a7b;color:white;font-weight:bold;padding:2mm 1.5mm;text-align:right;font-size:7pt;width:15%;">Gesamt / Totale</th>
+                <td style="background-color:#38b2ac;color:white;font-size:10pt;padding:2mm;">GESAMTBETRAG / TOTALE</td>
+                <td style="background-color:#38b2ac;color:white;font-size:10pt;padding:2mm;text-align:right;font-weight:bold;">' . number_format($angebot->netto_summe, 2, ',', '.') . ' EUR</td>
             </tr>
-        </thead>
-        <tbody>
-            ' . $positionenHtml . '
-        </tbody>
-    </table>
-
-    <div style="display:table;width:100%;">
-        <div style="display:table-cell;width:55%;"></div>
-        <div style="display:table-cell;width:45%;">
-            <table style="width:100%;border-collapse:collapse;">
-                <tr>
-                    <td style="background-color:#38b2ac;color:white;font-size:10pt;padding:2mm;">GESAMTBETRAG / TOTALE</td>
-                    <td style="background-color:#38b2ac;color:white;font-size:10pt;padding:2mm;text-align:right;font-weight:bold;">' . number_format($angebot->netto_summe, 2, ',', '.') . ' EUR</td>
-                </tr>
-            </table>
-            <div style="text-align:right;font-size:6pt;color:#718096;font-style:italic;margin-top:1mm;">
-                Preise ohne MwSt. / Prezzi senza IVA.
-            </div>
+        </table>
+        <div style="text-align:right;font-size:6pt;color:#718096;font-style:italic;margin-top:1mm;">
+            Preise ohne MwSt. / Prezzi senza IVA.
         </div>
     </div>
+</div>
 
-    ' . $validityHtml . '
-    ' . $bemerkungHtml . '
+' . ($angebot->gueltig_bis ? '<div style="margin-top:4mm;padding:2mm;background-color:#fefcbf;border:1px solid #ecc94b;font-size:7pt;text-align:center;">
+    <strong style="color:#b7791f;">Gueltig bis ' . $angebot->gueltig_bis->format('d.m.Y') . '</strong> |
+    <em>Valido fino al ' . $angebot->gueltig_bis->format('d.m.Y') . '</em>
+</div>' : '') . '
 
-    <div style="position:fixed;bottom:5mm;left:8mm;right:8mm;font-size:6pt;text-align:center;color:#a0aec0;padding-top:2mm;border-top:1px solid #e2e8f0;">
-        ' . e($firmenname) . ' | ' . e($strasse) . ' ' . e($hausnummer) . ', ' . e($plz) . ' ' . e($ort) . '
-        ' . ($telefon ? ' | ' . e($telefon) : '') . ($email ? ' | ' . e($email) : '') . '
-    </div>
+' . ($angebot->bemerkung_kunde ? '<div style="margin-top:3mm;padding:2mm;background-color:#f7fafc;border:1px solid #e2e8f0;font-size:7pt;">
+    <div style="font-weight:bold;color:#2c7a7b;margin-bottom:1mm;font-size:7pt;">Bemerkungen / Note</div>
+    ' . nl2br(e($angebot->bemerkung_kunde)) . '
+</div>' : '') . '
+
+<div style="position:fixed;bottom:5mm;left:8mm;right:8mm;font-size:6pt;text-align:center;color:#a0aec0;padding-top:2mm;border-top:1px solid #e2e8f0;">
+    ' . $firma . ' | ' . $strasse . ', ' . $plzOrt . '
+    ' . ($telefon ? ' | ' . e($telefon) : '') . ($email ? ' | ' . e($email) : '') . '
+</div>
 
 </body>
 </html>';
@@ -464,19 +400,24 @@ class AngebotController extends Controller
         return $html;
     }
 
+    // =======================================================================
+    // E-MAIL VERSAND
+    // =======================================================================
+
     public function showVersand(Angebot $angebot)
     {
         $angebot->load(['positionen']);
 
         $email = $angebot->empfaenger_email;
-
         $betreff = 'Angebot ' . $angebot->angebotsnummer . ' / Offerta ' . $angebot->angebotsnummer;
-
         $text = $this->getStandardEmailText($angebot);
 
         return view('angebote.versand', compact('angebot', 'email', 'betreff', 'text'));
     }
 
+    /**
+     * E-Mail senden - verwendet auch loadHTML!
+     */
     public function versenden(Request $request, Angebot $angebot)
     {
         $data = $request->validate([
@@ -486,7 +427,7 @@ class AngebotController extends Controller
         ]);
 
         try {
-            $profil = Unternehmensprofil::aktiv();
+            $profil = Unternehmensprofil::first();
 
             if (!$profil || !$profil->hatSmtpKonfiguration()) {
                 return back()->with('error', 'SMTP-Konfiguration fehlt im Unternehmensprofil.');
@@ -506,10 +447,9 @@ class AngebotController extends Controller
             $absenderEmail = $profil->smtp_benutzername;
             $absenderName = $profil->smtp_absender_name ?: $profil->firmenname;
 
+            // PDF mit loadHTML generieren (NICHT loadView!)
             $angebot->load(['positionen', 'fatturaProfile', 'adresse']);
-            $unternehmen = $profil;
-
-            $html = $this->generatePdfHtml($angebot, $unternehmen);
+            $html = $this->generatePdfHtml($angebot, $profil);
 
             $pdf = Pdf::loadHTML($html)
                 ->setPaper('a4', 'portrait')
@@ -561,7 +501,7 @@ class AngebotController extends Controller
 
     protected function getStandardEmailText(Angebot $angebot): string
     {
-        $unternehmen = Unternehmensprofil::aktiv();
+        $unternehmen = Unternehmensprofil::first();
         $firma = $unternehmen->firmenname ?? 'Resch GmbH';
 
         $gueltigBis = $angebot->gueltig_bis ? $angebot->gueltig_bis->format('d.m.Y') : '';
@@ -586,6 +526,10 @@ class AngebotController extends Controller
 
         return $text;
     }
+
+    // =======================================================================
+    // STATUS & KONVERTIERUNG
+    // =======================================================================
 
     public function setStatus(Request $request, Angebot $angebot)
     {
@@ -623,6 +567,10 @@ class AngebotController extends Controller
         }
     }
 
+    // =======================================================================
+    // LOESCHEN
+    // =======================================================================
+
     public function destroy(Angebot $angebot)
     {
         if ($angebot->rechnung_id) {
@@ -636,6 +584,10 @@ class AngebotController extends Controller
             ->route('angebote.index')
             ->with('success', 'Angebot ' . $nr . ' geloescht.');
     }
+
+    // =======================================================================
+    // KOPIEREN
+    // =======================================================================
 
     public function kopieren(Angebot $angebot)
     {
