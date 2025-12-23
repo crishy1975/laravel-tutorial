@@ -505,10 +505,11 @@ class AngebotController extends Controller
         $firma = $unternehmen->firmenname ?? 'Resch GmbH';
 
         $gueltigBis = $angebot->gueltig_bis ? $angebot->gueltig_bis->format('d.m.Y') : '';
+        $nettoFormatiert = number_format($angebot->netto_summe, 2, ',', '.') . ' EUR';
 
         $text = "Sehr geehrte Damen und Herren,\n\n";
         $text .= "anbei erhalten Sie unser Angebot {$angebot->angebotsnummer} vom {$angebot->datum->format('d.m.Y')}.\n\n";
-        $text .= "Angebotssumme: {$angebot->brutto_formatiert} (inkl. MwSt)\n";
+        $text .= "Angebotssumme: {$nettoFormatiert} (ohne MwSt)\n";
         if ($gueltigBis) {
             $text .= "Gueltig bis: {$gueltigBis}\n";
         }
@@ -516,8 +517,8 @@ class AngebotController extends Controller
         $text .= "Mit freundlichen Gruessen\n{$firma}\n\n";
         $text .= "---\n\n";
         $text .= "Gentili Signore e Signori,\n\n";
-        $text .= "in allegato trovate la nostra offerta {$angebot->netto_formatiert} del {$angebot->datum->format('d.m.Y')}.\n\n";
-        $text .= "Importo totale: {$angebot->netto_formatiert} (IVA inclusa)\n";
+        $text .= "in allegato trovate la nostra offerta {$angebot->angebotsnummer} del {$angebot->datum->format('d.m.Y')}.\n\n";
+        $text .= "Importo totale: {$nettoFormatiert} (senza IVA)\n";
         if ($gueltigBis) {
             $text .= "Valida fino al: {$gueltigBis}\n";
         }
