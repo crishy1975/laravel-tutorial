@@ -516,8 +516,8 @@ class AngebotController extends Controller
         $text .= "Mit freundlichen Gruessen\n{$firma}\n\n";
         $text .= "---\n\n";
         $text .= "Gentili Signore e Signori,\n\n";
-        $text .= "in allegato trovate la nostra offerta {$angebot->netto_formatiert} del {$angebot->datum->format('d.m.Y')}.\n\n";
-        $text .= "Importo totale: {$angebot->netto_formatiert} (IVA inclusa)\n";
+        $text .= "in allegato trovate la nostra offerta {$angebot->nett} del {$angebot->datum->format('d.m.Y')}.\n\n";
+        $text .= "Importo totale: {$angebot->brutto_formatiert} (IVA inclusa)\n";
         if ($gueltigBis) {
             $text .= "Valida fino al: {$gueltigBis}\n";
         }
