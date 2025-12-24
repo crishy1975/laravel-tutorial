@@ -191,7 +191,7 @@ class DashboardController extends Controller
         try {
             $letzteMahnung = Mahnung::orderByDesc('created_at')->first();
             $tageSeitMahnung = $letzteMahnung 
-                ? $letzteMahnung->created_at->diffInDays(now()) 
+                ? (int) $letzteMahnung->created_at->diffInDays(now()) 
                 : null;
         } catch (\Exception $e) {
             // Mahnung-Tabelle existiert evtl. nicht
@@ -205,7 +205,7 @@ class DashboardController extends Controller
                 ->orderByDesc('updated_at')
                 ->first();
             $tageSeitMatch = $letzterMatch 
-                ? $letzterMatch->updated_at->diffInDays(now())
+                ? (int) $letzterMatch->updated_at->diffInDays(now())
                 : null;
             
             // Ungematchte Buchungen
