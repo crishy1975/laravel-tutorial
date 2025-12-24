@@ -7,6 +7,7 @@ use App\Http\Controllers\ToolsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdresseController;
 use App\Http\Controllers\GebaeudeController;
+use App\Http\Controllers\GebaeudeLogController;  // ⭐ NEU
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\TimelineController;
 use App\Http\Controllers\ArtikelGebaeudeController;
@@ -118,6 +119,29 @@ Route::middleware(['auth', 'verified'])
         Route::post('/{id}/rechnung', [GebaeudeController::class, 'createRechnung'])
             ->whereNumber('id')
             ->name('rechnung.create');
+
+        // ═══════════════════════════════════════════════════════════
+        // ⭐ NEU: Gebäude-Logs (Aktivitäts-Protokoll)
+        // ═══════════════════════════════════════════════════════════
+        Route::get('/{gebaeude}/logs', [GebaeudeLogController::class, 'index'])
+            ->whereNumber('gebaeude')
+            ->name('logs.index');
+
+        Route::post('/{gebaeude}/logs', [GebaeudeLogController::class, 'store'])
+            ->whereNumber('gebaeude')
+            ->name('logs.store');
+
+        Route::post('/{gebaeude}/logs/notiz', [GebaeudeLogController::class, 'quickNotiz'])
+            ->whereNumber('gebaeude')
+            ->name('logs.notiz');
+
+        Route::post('/{gebaeude}/logs/telefonat', [GebaeudeLogController::class, 'telefonat'])
+            ->whereNumber('gebaeude')
+            ->name('logs.telefonat');
+
+        Route::post('/{gebaeude}/logs/problem', [GebaeudeLogController::class, 'problem'])
+            ->whereNumber('gebaeude')
+            ->name('logs.problem');
     });
 
 // Gebäude Aufschlag-Routes (DIREKT danach, NICHT in einer Gruppe!)
@@ -132,6 +156,22 @@ Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'remo
 Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufschlag'])
     ->middleware(['auth'])
     ->name('gebaeude.aufschlag.get');
+
+// ⭐ NEU: Gebäude-Log Einzel-Aktionen (außerhalb der Gruppe)
+Route::delete('gebaeude-logs/{log}', [GebaeudeLogController::class, 'destroy'])
+    ->middleware(['auth'])
+    ->whereNumber('log')
+    ->name('gebaeude.logs.destroy');
+
+Route::post('gebaeude-logs/{log}/erledigt', [GebaeudeLogController::class, 'erinnerungErledigt'])
+    ->middleware(['auth'])
+    ->whereNumber('log')
+    ->name('gebaeude.logs.erledigt');
+
+// ⭐ NEU: Dashboard - Alle offenen Erinnerungen
+Route::get('gebaeude-erinnerungen', [GebaeudeLogController::class, 'alleErinnerungen'])
+    ->middleware(['auth'])
+    ->name('gebaeude.erinnerungen');
 
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -190,187 +230,139 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->whereNumber('tour')
         ->name('tour.gebaeude.bulkDetach');
 
-    // Resource (ohne show) → index/create/store/edit/update/destroy
+    // Standard Resource Routes (index, create, store, edit, update, destroy)
     Route::resource('tour', TourController::class)->except(['show']);
+
+    // Gebäude einer Tour zuordnen
+    Route::post('/tour/{tour}/gebaeude', [TourController::class, 'attach'])
+        ->whereNumber('tour')
+        ->name('tour.gebaeude.attach');
+
+    // Reihenfolge innerhalb einer Tour ändern
+    Route::patch('/tour/{tour}/gebaeude/reorder', [TourController::class, 'reorderGebaeude'])
+        ->whereNumber('tour')
+        ->name('tour.gebaeude.reorder');
 });
 
 
 // ══════════════════════════════════════════════════════════
 // RECHNUNGEN
 // ══════════════════════════════════════════════════════════
+use App\Http\Controllers\RechnungLogController;
 
+Route::middleware(['auth', 'verified'])->group(function () {
+    // Rechnungs-Index
+    Route::get('/rechnung', [RechnungController::class, 'index'])->name('rechnung.index');
 
+    // Neue Rechnung
+    Route::get('/rechnung/create', [RechnungController::class, 'create'])->name('rechnung.create');
+    Route::post('/rechnung', [RechnungController::class, 'store'])->name('rechnung.store');
 
-// Rechnungen Routes (falls noch nicht vorhanden)
-Route::prefix('rechnung')->name('rechnung.')->middleware(['auth'])->group(function () {
+    // Rechnung anzeigen/bearbeiten
+    Route::get('/rechnung/{id}', [RechnungController::class, 'edit'])->name('rechnung.edit');
+    Route::put('/rechnung/{id}', [RechnungController::class, 'update'])->name('rechnung.update');
+    Route::delete('/rechnung/{id}', [RechnungController::class, 'destroy'])->name('rechnung.destroy');
 
-    // Übersicht (falls noch nicht vorhanden)
-    Route::get('/', [RechnungController::class, 'index'])->name('index');
+    // Positionen verwalten
+    Route::post('/rechnung/{rechnung}/position', [RechnungController::class, 'addPosition'])
+        ->name('rechnung.position.add');
+    Route::put('/rechnung-position/{position}', [RechnungController::class, 'updatePosition'])
+        ->name('rechnung.position.update');
+    Route::delete('/rechnung-position/{position}', [RechnungController::class, 'deletePosition'])
+        ->name('rechnung.position.delete');
+    Route::post('/rechnung/{rechnung}/position/reorder', [RechnungController::class, 'reorderPositions'])
+        ->name('rechnung.position.reorder');
 
-    // Erstellen/Bearbeiten
-    Route::get('/create', [RechnungController::class, 'create'])->name('create');
-    Route::post('/store', [RechnungController::class, 'store'])->name('store');
-    Route::get('/{id}/edit', [RechnungController::class, 'edit'])->name('edit');
-    Route::put('/{id}', [RechnungController::class, 'update'])->name('update');
-    Route::delete('/{id}', [RechnungController::class, 'destroy'])->name('destroy');
+    // Status & Aktionen
+    Route::post('/rechnung/{rechnung}/status', [RechnungController::class, 'setStatus'])
+        ->name('rechnung.status');
+    Route::post('/rechnung/{rechnung}/storno', [RechnungController::class, 'storno'])
+        ->name('rechnung.storno');
+    Route::post('/rechnung/{rechnung}/bezahlt', [RechnungController::class, 'markAsBezahlt'])
+        ->name('rechnung.bezahlt');
 
-    // ⭐ PDF ROUTES (FEHLTEN!)
-    Route::get('/{id}/pdf', [RechnungController::class, 'generatePdf'])->name('pdf');
-    Route::get('/{id}/pdf/preview', [RechnungController::class, 'previewPdf'])->name('pdf.preview');
-    Route::get('/{id}/pdf/download', [RechnungController::class, 'downloadPdf'])->name('pdf.download');
+    // PDF
+    Route::get('/rechnung/{id}/pdf', [RechnungController::class, 'pdf'])->name('rechnung.pdf');
 
-    // Status ändern
-    Route::post('/{id}/status', [RechnungController::class, 'updateStatus'])->name('status.update');
+    // XML Export
+    Route::get('/rechnung/{id}/xml', [RechnungController::class, 'xml'])->name('rechnung.xml');
+    Route::get('/rechnung/{id}/xml/download', [RechnungController::class, 'xmlDownload'])->name('rechnung.xml.download');
 
-    // FatturaPA XML
-    Route::get('/{id}/xml', [RechnungController::class, 'generateXml'])->name('xml');
-    Route::get('/{id}/xml/download', [RechnungController::class, 'downloadXml'])->name('xml.download');
-    Route::post('/{id}/xml/send', [RechnungController::class, 'sendXml'])->name('xml.send');
-    Route::post('/{id}/mark-sent', [App\Http\Controllers\RechnungController::class, 'markAsSent'])->name('mark-sent');
+    // Duplizieren
+    Route::post('/rechnung/{rechnung}/duplicate', [RechnungController::class, 'duplicate'])
+        ->name('rechnung.duplicate');
 });
 
-// ═══════════════════════════════════════════════════════════
-// FATTURAPA XML LOG MANAGEMENT (direkt über Log-ID)
-// ═══════════════════════════════════════════════════════════
-Route::middleware(['auth'])->prefix('fattura-xml')->name('fattura.xml.')->group(function () {
-    // Download über Log-ID
-    Route::get('{logId}/download', [RechnungController::class, 'downloadXmlByLog'])->name('download');
 
-    // Log löschen
-    Route::delete('{logId}', [RechnungController::class, 'deleteXmlLog'])->name('delete');
-});
-
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 // PREIS-AUFSCHLÄGE
-// ═══════════════════════════════════════════════════════════
-
-Route::middleware(['auth'])->prefix('preis-aufschlaege')->name('preis-aufschlaege.')->group(function () {
+// ══════════════════════════════════════════════════════════
+Route::prefix('preis-aufschlaege')->name('preis-aufschlaege.')->middleware(['auth'])->group(function () {
+    // Übersicht globale Aufschläge
     Route::get('/', [PreisAufschlagController::class, 'index'])->name('index');
-    Route::post('/global', [PreisAufschlagController::class, 'storeGlobal'])->name('store-global');
-    Route::delete('/global/{id}', [PreisAufschlagController::class, 'destroyGlobal'])->name('destroy-global');
+
+    // Globalen Aufschlag setzen
+    Route::post('/global', [PreisAufschlagController::class, 'storeGlobal'])->name('global.store');
+
+    // Globalen Aufschlag löschen
+    Route::delete('/global/{id}', [PreisAufschlagController::class, 'destroyGlobal'])->name('global.destroy');
+
+    // Gebäude-Aufschläge Übersicht
+    Route::get('/gebaeude', [PreisAufschlagController::class, 'indexGebaeude'])->name('gebaeude');
+
+    // Aufschlag für ein Gebäude setzen
+    Route::post('/gebaeude/{gebaeude}', [PreisAufschlagController::class, 'storeGebaeude'])->name('gebaeude.store');
+
+    // Aufschlag für ein Gebäude entfernen
+    Route::delete('/gebaeude/{gebaeude}', [PreisAufschlagController::class, 'destroyGebaeude'])->name('gebaeude.destroy');
+
+    // Aufschlag für ein Gebäude anzeigen
+    Route::get('/gebaeude/{gebaeude}/show', [PreisAufschlagController::class, 'showGebaeude'])->name('gebaeude.show');
+
+    // Vorschau
     Route::post('/preview', [PreisAufschlagController::class, 'preview'])->name('preview');
 });
 
+
 // ══════════════════════════════════════════════════════════
 // UNTERNEHMENSPROFIL
-// ══════════════════════════════════════════════════════════  
-
-// routes/web.php
-// ⭐ Unternehmensprofil Routes hinzufügen
-
-// ═══════════════════════════════════════════════════════════════════════════
-// UNTERNEHMENSPROFIL
-// ═══════════════════════════════════════════════════════════════════════════
-Route::prefix('einstellungen/profil')->name('unternehmensprofil.')->group(function () {
-
-    // Übersicht
-    Route::get('/', [UnternehmensprofilController::class, 'index'])
-        ->name('index');
-
-    // Bearbeiten
-    Route::get('/bearbeiten', [UnternehmensprofilController::class, 'bearbeiten'])
-        ->name('bearbeiten');
-
-    // Speichern
-    Route::post('/speichern', [UnternehmensprofilController::class, 'speichern'])
-        ->name('speichern');
-
-    // Logo
-    Route::post('/logo/hochladen', [UnternehmensprofilController::class, 'logoHochladen'])
-        ->name('logo.hochladen');
-    Route::delete('/logo/loeschen', [UnternehmensprofilController::class, 'logoLoeschen'])
-        ->name('logo.loeschen');
-
-    // SMTP Testen
-    Route::get('/smtp/testen', [UnternehmensprofilController::class, 'smtpTesten'])
-        ->name('smtp.testen');
-    Route::get('/pec-smtp/testen', [UnternehmensprofilController::class, 'pecSmtpTesten'])
-        ->name('pec-smtp.testen');
-
-    // Backup/Import
-    Route::post('/duplizieren', [UnternehmensprofilController::class, 'duplizieren'])
-        ->name('duplizieren');
-    Route::get('/exportieren', [UnternehmensprofilController::class, 'exportieren'])
-        ->name('exportieren');
-    Route::post('/importieren', [UnternehmensprofilController::class, 'importieren'])
-        ->name('importieren');
+// ══════════════════════════════════════════════════════════
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/unternehmensprofil', [UnternehmensprofilController::class, 'edit'])
+        ->name('unternehmensprofil.edit');
+    Route::put('/unternehmensprofil', [UnternehmensprofilController::class, 'update'])
+        ->name('unternehmensprofil.update');
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// RECHNUNG E-MAIL VERSAND
-// ═══════════════════════════════════════════════════════════════════════════
-Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])
-    ->name('rechnung.email.send');
-// ═══════════════════════════════════════════════════════════
-// 🧾 FATTURAPA ROUTES
-// ═══════════════════════════════════════════════════════════
-// Diese Routes in routes/web.php einfügen (im RechnungController-Bereich)!
 
-// FatturaPA XML Management
-Route::prefix('rechnung/{id}')->name('rechnung.')->group(function () {
+// ══════════════════════════════════════════════════════════
+// FATTURA PROFILE
+// ══════════════════════════════════════════════════════════
+use App\Http\Controllers\FatturaProfileController;
 
-    // XML Generierung
-    Route::post('xml/generate', [RechnungController::class, 'generateXml'])
-        ->name('xml.generate');
-
-    // XML Regenerierung (überschreibt altes)
-    Route::post('xml/regenerate', [RechnungController::class, 'regenerateXml'])
-        ->name('xml.regenerate');
-
-    // XML Preview (ohne Speichern)
-    Route::get('xml/preview', [RechnungController::class, 'previewXml'])
-        ->name('xml.preview');
-
-    // XML Download
-    Route::get('xml/download', [RechnungController::class, 'downloadXml'])
-        ->name('xml.download');
-
-    // XML Logs anzeigen
-    Route::get('xml/logs', [RechnungController::class, 'xmlLogs'])
-        ->name('xml.logs');
-
-    // Debug-Info
-    Route::get('xml/debug', [RechnungController::class, 'debugXml'])
-        ->name('xml.debug');
+Route::prefix('fattura-profile')->name('fattura-profile.')->middleware(['auth'])->group(function () {
+    Route::get('/', [FatturaProfileController::class, 'index'])->name('index');
+    Route::get('/create', [FatturaProfileController::class, 'create'])->name('create');
+    Route::post('/', [FatturaProfileController::class, 'store'])->name('store');
+    Route::get('/{id}/edit', [FatturaProfileController::class, 'edit'])->name('edit');
+    Route::put('/{id}', [FatturaProfileController::class, 'update'])->name('update');
+    Route::delete('/{id}', [FatturaProfileController::class, 'destroy'])->name('destroy');
 });
 
-// FatturaXmlLog Management (direkt über Log-ID)
-Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
 
-    // Download über Log-ID
-    Route::get('{logId}/download', [RechnungController::class, 'downloadXmlByLog'])
-        ->name('download');
-
-    // Log löschen
-    Route::delete('{logId}', [RechnungController::class, 'deleteXmlLog'])
-        ->name('delete');
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// RECHNUNG LOG ROUTES
-// In routes/web.php einfügen
-// ═══════════════════════════════════════════════════════════════════════════
-
-use App\Http\Controllers\RechnungLogController;
-
-// Log-Übersicht für eine Rechnung
+// ══════════════════════════════════════════════════════════
+// RECHNUNGS-LOGS
+// ══════════════════════════════════════════════════════════
 Route::get('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'index'])
     ->name('rechnung.logs.index');
 
-// Neuen Log-Eintrag erstellen
 Route::post('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'store'])
     ->name('rechnung.logs.store');
 
-// Log-Eintrag aktualisieren
-Route::put('/rechnung/logs/{log}', [RechnungLogController::class, 'update'])
-    ->name('rechnung.logs.update');
-
-// Log-Eintrag löschen
-Route::delete('/rechnung/logs/{log}', [RechnungLogController::class, 'destroy'])
+Route::delete('/rechnung-logs/{log}', [RechnungLogController::class, 'destroy'])
     ->name('rechnung.logs.destroy');
 
-// Erinnerung als erledigt markieren
-Route::post('/rechnung/logs/{log}/erledigt', [RechnungLogController::class, 'erinnerungErledigt'])
+Route::post('/rechnung-logs/{log}/erledigt', [RechnungLogController::class, 'erinnerungErledigt'])
     ->name('rechnung.logs.erledigt');
 
 // Quick-Actions
