@@ -362,12 +362,14 @@ class DashboardController extends Controller
                 ->limit(50)
                 ->get()
                 ->map(function($log) {
-                    $titel = 'Gebäude #' . $log->gebaeude_id;
+                    $codex = null;
+                    $name = 'Gebäude #' . $log->gebaeude_id;
+                    
                     if ($log->gebaeude) {
-                        $titel = $log->gebaeude->codex 
-                            ?? $log->gebaeude->gebaeude_name 
+                        $codex = $log->gebaeude->codex;
+                        $name = $log->gebaeude->gebaeude_name 
                             ?? $log->gebaeude->strasse 
-                            ?? $titel;
+                            ?? $name;
                     }
                     
                     // Datum: erinnerung_datum oder created_at als Fallback
@@ -376,7 +378,10 @@ class DashboardController extends Controller
                     return (object)[
                         'id' => $log->id,
                         'typ' => 'gebaeude',
-                        'titel' => $titel,
+                        'codex' => $codex,
+                        'name' => $name,
+                        'rechnungsnummer' => null,
+                        'titel' => $codex ? "{$codex} - {$name}" : $name,
                         'beschreibung' => $log->beschreibung,
                         'erinnerung_datum' => $datum,
                         'prioritaet' => $log->prioritaet ?? 'normal',
@@ -406,11 +411,9 @@ class DashboardController extends Controller
             // Finde Erinnerungen:
             // 1. Mit erinnerung_datum gesetzt (klassische Erinnerung)
             // 2. ODER vom Typ 'erinnerung' (auch ohne Datum)
-            $query = RechnungLog::with('rechnung')
+            $query = RechnungLog::with(['rechnung', 'rechnung.gebaeude'])
                 ->where(function($q) {
-                    // Klassisch: erinnerung_datum ist gesetzt
                     $q->whereNotNull('erinnerung_datum')
-                      // ODER: Typ ist 'erinnerung'
                       ->orWhere('typ', 'erinnerung');
                 })
                 ->where(function($q) {
@@ -422,10 +425,6 @@ class DashboardController extends Controller
             
             $logs = $query->get();
             
-            Log::info('Dashboard Rechnungs-Erinnerungen', [
-                'count' => $logs->count()
-            ]);
-            
             if ($logs->isEmpty()) {
                 return collect();
             }
@@ -436,6 +435,24 @@ class DashboardController extends Controller
                 if ($log->rechnung) {
                     if (isset($log->rechnung->jahr) && isset($log->rechnung->laufnummer)) {
                         $nummer = $log->rechnung->jahr . '/' . str_pad($log->rechnung->laufnummer, 4, '0', STR_PAD_LEFT);
+                    }
+                }
+                
+                // Gebäude-Daten aus Rechnung (Snapshot-Felder oder Beziehung)
+                $codex = null;
+                $gebName = null;
+                
+                if ($log->rechnung) {
+                    // Erst Snapshot-Felder versuchen
+                    $codex = $log->rechnung->geb_codex ?? null;
+                    $gebName = $log->rechnung->geb_name ?? null;
+                    
+                    // Fallback: Gebäude-Beziehung
+                    if (!$codex && $log->rechnung->gebaeude) {
+                        $codex = $log->rechnung->gebaeude->codex;
+                    }
+                    if (!$gebName && $log->rechnung->gebaeude) {
+                        $gebName = $log->rechnung->gebaeude->gebaeude_name;
                     }
                 }
                 
@@ -453,7 +470,10 @@ class DashboardController extends Controller
                 return (object)[
                     'id' => $log->id,
                     'typ' => 'rechnung',
-                    'titel' => 'Rechnung ' . $nummer,
+                    'codex' => $codex,
+                    'name' => $gebName,
+                    'rechnungsnummer' => $nummer,
+                    'titel' => 'RE ' . $nummer,
                     'beschreibung' => $log->beschreibung ?? $log->titel ?? '',
                     'erinnerung_datum' => $datum,
                     'prioritaet' => $log->prioritaet ?? 'normal',

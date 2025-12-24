@@ -160,10 +160,6 @@
                         @if($alleErinnerungen->count() > 0)
                             <span class="badge bg-warning text-dark ms-2">{{ $alleErinnerungen->count() }}</span>
                         @endif
-                        {{-- Debug: Zeige Anzahl pro Typ --}}
-                        <small class="text-muted ms-3" style="font-size: 0.7rem;">
-                            (Gebäude: {{ $gebaeudeErinnerungen->count() }}, Rechnungen: {{ $rechnungErinnerungen->count() }})
-                        </small>
                     </h5>
                     <div class="btn-group btn-group-sm" role="group">
                         <a href="{{ route('gebaeude.erinnerungen') }}" class="btn btn-outline-primary">
@@ -192,7 +188,9 @@
                             @endphp
                             <div class="list-group-item erinnerung-item @if($istUeberfaellig) bg-danger bg-opacity-10 @elseif($istHeute) bg-warning bg-opacity-10 @endif"
                                  id="erinnerung-{{ $erinnerung->typ }}-{{ $erinnerung->id }}">
-                                <div class="d-flex align-items-center gap-3">
+                                
+                                {{-- Desktop Ansicht --}}
+                                <div class="d-none d-md-flex align-items-center gap-3">
                                     {{-- Checkbox --}}
                                     <div class="flex-shrink-0">
                                         <button type="button" 
@@ -221,18 +219,27 @@
                                         </div>
                                     </div>
                                     
-                                    {{-- Icon --}}
+                                    {{-- Typ-Icon --}}
                                     <div class="flex-shrink-0">
                                         <span class="badge bg-{{ $erinnerung->farbe }} rounded-circle p-2">
                                             <i class="{{ $erinnerung->icon }}"></i>
                                         </span>
                                     </div>
                                     
-                                    {{-- Inhalt --}}
+                                    {{-- Codex --}}
+                                    <div class="flex-shrink-0" style="width: 80px;">
+                                        @if($erinnerung->codex)
+                                            <span class="badge bg-dark font-monospace">{{ $erinnerung->codex }}</span>
+                                        @elseif($erinnerung->typ === 'rechnung' && isset($erinnerung->rechnungsnummer))
+                                            <span class="badge bg-success font-monospace">{{ $erinnerung->rechnungsnummer }}</span>
+                                        @endif
+                                    </div>
+                                    
+                                    {{-- Name + Beschreibung --}}
                                     <div class="flex-grow-1 min-w-0">
                                         <div class="d-flex align-items-center gap-2 mb-1">
                                             <a href="{{ $erinnerung->link }}" class="fw-bold text-decoration-none text-truncate">
-                                                {{ $erinnerung->titel }}
+                                                {{ $erinnerung->name ?? $erinnerung->titel }}
                                             </a>
                                             @if($erinnerung->prioritaet !== 'normal')
                                                 <span class="badge @if($erinnerung->prioritaet === 'kritisch') bg-danger @elseif($erinnerung->prioritaet === 'hoch') bg-warning text-dark @else bg-secondary @endif">
@@ -246,12 +253,66 @@
                                     </div>
                                     
                                     {{-- Link --}}
-                                    <div class="flex-shrink-0 d-none d-md-block">
+                                    <div class="flex-shrink-0">
                                         <a href="{{ $erinnerung->link }}" class="btn btn-sm btn-outline-secondary">
                                             <i class="bi bi-arrow-right"></i>
                                         </a>
                                     </div>
                                 </div>
+                                
+                                {{-- Mobile Ansicht --}}
+                                <div class="d-md-none">
+                                    <div class="d-flex align-items-start gap-2">
+                                        {{-- Checkbox --}}
+                                        <button type="button" 
+                                                class="btn btn-outline-success btn-sm rounded-circle erledigt-btn flex-shrink-0 mt-1"
+                                                data-typ="{{ $erinnerung->typ }}"
+                                                data-id="{{ $erinnerung->id }}"
+                                                style="width: 40px; height: 40px;">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                        
+                                        {{-- Content --}}
+                                        <div class="flex-grow-1 min-w-0">
+                                            {{-- Erste Zeile: Codex/Nummer + Datum --}}
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="badge bg-{{ $erinnerung->farbe }}">
+                                                        <i class="{{ $erinnerung->icon }} me-1"></i>
+                                                        @if($erinnerung->codex)
+                                                            {{ $erinnerung->codex }}
+                                                        @elseif($erinnerung->typ === 'rechnung' && isset($erinnerung->rechnungsnummer))
+                                                            {{ $erinnerung->rechnungsnummer }}
+                                                        @else
+                                                            {{ $erinnerung->typ === 'gebaeude' ? 'Gebäude' : 'Rechnung' }}
+                                                        @endif
+                                                    </span>
+                                                    @if($erinnerung->prioritaet !== 'normal')
+                                                        <span class="badge @if($erinnerung->prioritaet === 'kritisch') bg-danger @elseif($erinnerung->prioritaet === 'hoch') bg-warning text-dark @else bg-secondary @endif">
+                                                            !
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                                <span class="badge @if($istUeberfaellig) bg-danger @elseif($istHeute) bg-warning text-dark @else bg-secondary @endif">
+                                                    {{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->format('d.m.') }}
+                                                </span>
+                                            </div>
+                                            
+                                            {{-- Zweite Zeile: Name --}}
+                                            <a href="{{ $erinnerung->link }}" class="fw-bold text-decoration-none d-block text-truncate mb-1">
+                                                {{ $erinnerung->name ?? $erinnerung->titel }}
+                                            </a>
+                                            
+                                            {{-- Dritte Zeile: Beschreibung --}}
+                                            @if($erinnerung->beschreibung)
+                                                <p class="mb-0 small text-muted text-truncate">
+                                                    {{ Str::limit($erinnerung->beschreibung, 60) }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                                
                             </div>
                         @endforeach
                     </div>
@@ -286,19 +347,37 @@
     color: white !important;
 }
 
+.font-monospace {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85em;
+}
+
 /* Mobile Optimierungen */
 @media (max-width: 767.98px) {
     .card-body { padding: 0.75rem; }
     
     .fs-3 { font-size: 1.5rem !important; }
     
-    .erledigt-btn {
-        width: 44px !important;
-        height: 44px !important;
-    }
-    
     .list-group-item {
         padding: 0.75rem !important;
+    }
+    
+    .erledigt-btn {
+        width: 40px !important;
+        height: 40px !important;
+    }
+    
+    /* Quick Actions auf Mobile kompakter */
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Tablet */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .list-group-item {
+        padding: 0.75rem 1rem !important;
     }
 }
 </style>
