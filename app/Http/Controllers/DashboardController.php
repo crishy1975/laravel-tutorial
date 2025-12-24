@@ -9,6 +9,8 @@ use App\Models\Mahnung;
 use App\Models\BankBuchung;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
@@ -339,37 +341,69 @@ class DashboardController extends Controller
     private function getRechnungErinnerungen()
     {
         try {
-            return RechnungLog::with('rechnung')
+            // Debug: Prüfe ob Tabelle existiert
+            if (!Schema::hasTable('rechnung_logs')) {
+                Log::warning('Dashboard: Tabelle rechnung_logs existiert nicht');
+                return collect();
+            }
+            
+            $query = RechnungLog::with('rechnung')
                 ->whereNotNull('erinnerung_datum')
-                ->where('erinnerung_erledigt', false)
+                ->where(function($q) {
+                    $q->where('erinnerung_erledigt', false)
+                      ->orWhereNull('erinnerung_erledigt');
+                })
                 ->orderBy('erinnerung_datum')
-                ->limit(50)
-                ->get()
-                ->map(function($log) {
-                    // Rechnungsnummer zusammenbauen (falls kein Accessor)
-                    $nummer = '#' . $log->rechnung_id;
-                    if ($log->rechnung) {
-                        if (method_exists($log->rechnung, 'getRechnungsnummerAttribute')) {
-                            $nummer = $log->rechnung->rechnungsnummer;
-                        } elseif ($log->rechnung->jahr && $log->rechnung->laufnummer) {
-                            $nummer = $log->rechnung->jahr . '/' . str_pad($log->rechnung->laufnummer, 4, '0', STR_PAD_LEFT);
-                        }
+                ->limit(50);
+            
+            // Debug: Zeige SQL
+            Log::info('Dashboard Rechnungs-Erinnerungen Query', [
+                'sql' => $query->toSql(),
+                'count' => $query->count()
+            ]);
+            
+            $logs = $query->get();
+            
+            if ($logs->isEmpty()) {
+                Log::info('Dashboard: Keine Rechnungs-Erinnerungen gefunden');
+                return collect();
+            }
+            
+            return $logs->map(function($log) {
+                // Rechnungsnummer zusammenbauen
+                $nummer = '#' . $log->rechnung_id;
+                if ($log->rechnung) {
+                    if (isset($log->rechnung->jahr) && isset($log->rechnung->laufnummer)) {
+                        $nummer = $log->rechnung->jahr . '/' . str_pad($log->rechnung->laufnummer, 4, '0', STR_PAD_LEFT);
                     }
-                    
-                    return (object)[
-                        'id' => $log->id,
-                        'typ' => 'rechnung',
-                        'titel' => 'Rechnung ' . $nummer,
-                        'beschreibung' => $log->beschreibung,
-                        'erinnerung_datum' => $log->erinnerung_datum,
-                        'prioritaet' => $log->prioritaet ?? 'normal',
-                        'link' => route('rechnung.edit', $log->rechnung_id),
-                        'erledigt_route' => route('rechnung.logs.erledigt', $log->id),
-                        'icon' => 'bi-receipt',
-                        'farbe' => 'success',
-                    ];
-                });
+                }
+                
+                // Route prüfen - Fallback falls nicht existiert
+                $erledigtRoute = '#';
+                try {
+                    $erledigtRoute = route('rechnung.logs.erledigt', $log->id);
+                } catch (\Exception $e) {
+                    Log::warning('Route rechnung.logs.erledigt existiert nicht');
+                }
+                
+                return (object)[
+                    'id' => $log->id,
+                    'typ' => 'rechnung',
+                    'titel' => 'Rechnung ' . $nummer,
+                    'beschreibung' => $log->beschreibung ?? $log->titel ?? '',
+                    'erinnerung_datum' => $log->erinnerung_datum,
+                    'prioritaet' => $log->prioritaet ?? 'normal',
+                    'link' => route('rechnung.edit', $log->rechnung_id),
+                    'erledigt_route' => $erledigtRoute,
+                    'icon' => 'bi-receipt',
+                    'farbe' => 'success',
+                ];
+            });
         } catch (\Exception $e) {
+            Log::error('Fehler beim Laden der Rechnungs-Erinnerungen', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return collect();
         }
     }

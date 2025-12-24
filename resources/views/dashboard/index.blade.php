@@ -165,6 +165,10 @@
                         @if($alleErinnerungen->count() > 0)
                             <span class="badge bg-warning text-dark ms-2">{{ $alleErinnerungen->count() }}</span>
                         @endif
+                        {{-- Debug: Zeige Anzahl pro Typ --}}
+                        <small class="text-muted ms-3" style="font-size: 0.7rem;">
+                            (Gebäude: {{ $gebaeudeErinnerungen->count() }}, Rechnungen: {{ $rechnungErinnerungen->count() }})
+                        </small>
                     </h5>
                     <div class="btn-group btn-group-sm" role="group">
                         <a href="{{ route('gebaeude.erinnerungen') }}" class="btn btn-outline-primary">
