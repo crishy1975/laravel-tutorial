@@ -166,56 +166,60 @@
         <table class="table table-hover align-middle mb-0">
           <thead>
             <tr class="bg-primary text-white">
-              <th class="border-0 py-3">Name</th>
-              <th class="border-0 py-3">Adresse</th>
-              <th class="border-0 py-3">Kontakt</th>
-              <th class="border-0 py-3">Steuerdaten</th>
-              <th class="border-0 py-3 text-end" style="width:120px;">Aktionen</th>
+              <th class="border-0 py-3" style="width: 22%;">Name</th>
+              <th class="border-0 py-3" style="width: 30%;">Adresse</th>
+              <th class="border-0 py-3" style="width: 20%;">Kontakt</th>
+              <th class="border-0 py-3" style="width: 15%;">Steuerdaten</th>
+              <th class="border-0 py-3 text-end" style="width: 13%;">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             @foreach($adressen as $adr)
             <tr>
               <td>
-                <div class="d-flex align-items-center">
-                  <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
-                    <i class="bi bi-person-fill text-primary"></i>
-                  </div>
-                  <div>
-                    <div class="fw-semibold">{{ $adr->name }}</div>
-                    @if($adr->firma && $adr->firma !== $adr->name)
-                      <small class="text-muted">{{ Str::limit($adr->firma, 30) }}</small>
+                <div class="fw-semibold">
+                  <i class="bi bi-person-fill text-primary me-1"></i>
+                  {{ $adr->name }}
+                </div>
+                @if($adr->firma && $adr->firma !== $adr->name)
+                  <small class="text-muted ps-4">{{ Str::limit($adr->firma, 35) }}</small>
+                @endif
+              </td>
+              <td>
+                <div>
+                  @if($adr->strasse)
+                    <div class="mb-1">
+                      <i class="bi bi-geo-alt-fill text-success me-1"></i>
+                      {{ $adr->strasse }} {{ $adr->hausnummer }}
+                    </div>
+                  @endif
+                  <div class="@if($adr->strasse) ps-4 @endif">
+                    <span class="text-muted">{{ $adr->plz }}</span> 
+                    <strong>{{ $adr->wohnort }}</strong>
+                    @if($adr->provinz) 
+                      <span class="badge bg-light text-dark ms-1">{{ $adr->provinz }}</span> 
+                    @endif
+                    @if($adr->land && $adr->land !== 'IT')
+                      <span class="badge bg-secondary ms-1">{{ $adr->land }}</span>
                     @endif
                   </div>
                 </div>
               </td>
               <td>
-                <div class="small">
-                  @if($adr->strasse)
-                    <i class="bi bi-geo-alt text-success me-1"></i>
-                    {{ $adr->strasse }} {{ $adr->hausnummer }}<br>
-                  @endif
-                  <span class="text-muted ps-3">{{ $adr->plz }}</span> {{ $adr->wohnort }}
-                  @if($adr->provinz) 
-                    <span class="badge bg-light text-dark ms-1">{{ $adr->provinz }}</span> 
-                  @endif
-                </div>
-              </td>
-              <td>
                 @if($adr->telefon)
-                  <div class="small mb-1">
-                    <i class="bi bi-telephone text-info me-1"></i>
+                  <div class="mb-1">
+                    <i class="bi bi-telephone-fill text-info me-1"></i>
                     <a href="tel:{{ $adr->telefon }}" class="text-decoration-none">{{ $adr->telefon }}</a>
                   </div>
                 @endif
                 @if($adr->email)
-                  <div class="small text-truncate" style="max-width: 200px;">
-                    <i class="bi bi-envelope text-warning me-1"></i>
+                  <div class="text-truncate" style="max-width: 220px;">
+                    <i class="bi bi-envelope-fill text-warning me-1"></i>
                     <a href="mailto:{{ $adr->email }}" class="text-decoration-none">{{ $adr->email }}</a>
                   </div>
                 @endif
                 @if(!$adr->telefon && !$adr->email)
-                  <span class="text-muted small">-</span>
+                  <span class="text-muted">-</span>
                 @endif
               </td>
               <td>
