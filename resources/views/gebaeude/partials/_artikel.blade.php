@@ -1,9 +1,5 @@
 {{-- resources/views/gebaeude/partials/_artikel.blade.php --}}
-{{-- ⭐ FINALE VERSION mit:
-   1. basis_jahr = AKTUELLES Jahr (nicht nächstes!)
-   2. Kumulative Erhöhungen seit basis_jahr
-   3. basis_jahr als Tooltip (nicht sichtbar)
---}}
+{{-- MOBIL-OPTIMIERT: Card-Layout auf Smartphones, Tabelle auf Desktop --}}
 
 @php
   /** @var \App\Models\Gebaeude $gebaeude */
@@ -12,11 +8,9 @@
   $naechstesJahr = $aktuellesJahr + 1;
 
   if ($hasId) {
-      // Aufschlag-Info für Banner
       $aufschlagNaechstesJahr = $gebaeude->getAufschlagProzent($naechstesJahr);
       $hatIndividuell = $gebaeude->hatIndividuellenAufschlag();
       
-      // Summe berechnen (mit kumulativer Erhöhung pro Artikel)
       $serverSumAktiv = 0.0;
       foreach (($gebaeude->artikel ?? []) as $artikel) {
           if (!$artikel->aktiv) continue;
@@ -24,7 +18,6 @@
           $basisJahr = $artikel->basis_jahr ?? $aktuellesJahr;
           $basisPreis = $artikel->basis_preis ?? $artikel->einzelpreis;
           
-          // ⭐ KUMULATIVE Erhöhung seit basis_jahr
           $preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
               $basisPreis,
               $basisJahr,
@@ -39,97 +32,198 @@
       $hatIndividuell = false;
   }
 
-  // Datensätze nur laden, wenn ID vorhanden
   $artikelListe = $hasId ? ($gebaeude->artikel ?? []) : [];
 @endphp
 
-<div class="row g-4">
+<div class="row g-3">
 
-  {{-- Kopf --}}
+  {{-- Header - kompakter auf Mobile --}}
   <div class="col-12">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-receipt text-muted"></i>
         <span class="fw-semibold">Artikel / Positionen</span>
       </div>
-      <div class="d-flex align-items-center gap-4">
+      <div class="d-flex flex-wrap align-items-center gap-3">
         <div class="form-check form-switch m-0">
           <input class="form-check-input" type="checkbox" id="art-only-active" checked {{ $hasId ? '' : 'disabled' }}>
-          <label class="form-check-label" for="art-only-active">Nur aktive anzeigen</label>
+          <label class="form-check-label small" for="art-only-active">Nur aktive</label>
         </div>
-        <div class="text-muted small">
-          Summe (aktiv): <span id="art-summe-head">{{ number_format($serverSumAktiv, 2, ',', '.') }}</span> €
+        <div class="text-muted small fw-semibold">
+          Summe: <span id="art-summe-head" class="text-primary">{{ number_format($serverSumAktiv, 2, ',', '.') }}</span> EUR
         </div>
       </div>
     </div>
     
-    {{-- ⭐ Aufschlag-Info-Banner --}}
     @if($hasId && $aufschlagNaechstesJahr != 0)
-    <div class="alert alert-info py-2 px-3 mt-2 mb-0 d-flex align-items-center gap-2">
+    <div class="alert alert-info py-2 px-3 mt-2 mb-0 small">
       <i class="bi bi-info-circle"></i>
-      <div class="small">
-        <strong>Preis-Aufschlag ab {{ $naechstesJahr }}:</strong> 
-        @if($aufschlagNaechstesJahr > 0)
-          <span class="text-success">+{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
-        @else
-          <span class="text-danger">{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
-        @endif
-        @if($hatIndividuell)
-          <span class="badge bg-warning text-dark ms-1">Individuell</span>
-        @else
-          <span class="badge bg-primary ms-1">Global</span>
-        @endif
-        <span class="text-muted">| Neue Preise gelten ab {{ $aktuellesJahr }}</span>
-      </div>
+      <strong>Aufschlag {{ $naechstesJahr }}:</strong> 
+      @if($aufschlagNaechstesJahr > 0)
+        <span class="text-success">+{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
+      @else
+        <span class="text-danger">{{ number_format($aufschlagNaechstesJahr, 2, ',', '.') }}%</span>
+      @endif
+      @if($hatIndividuell)
+        <span class="badge bg-warning text-dark">Indiv.</span>
+      @endif
     </div>
     @endif
     
     <hr class="mt-2 mb-0">
   </div>
 
-  {{-- Hinweis auf Create-Seite --}}
   @unless($hasId)
     <div class="col-12">
-      <div class="alert alert-info py-2 mb-0">
-        Bitte Gebäude zuerst speichern – danach können Artikel erfasst und bearbeitet werden.
+      <div class="alert alert-info py-2 mb-0 small">
+        <i class="bi bi-info-circle"></i>
+        Bitte Gebaeude zuerst speichern - danach koennen Artikel erfasst werden.
       </div>
     </div>
   @endunless
 
-  {{-- Tabelle --}}
-  <div class="col-12">
+  {{-- MOBILE: Neu-Eingabe als Card --}}
+  <div class="col-12 d-md-none">
+    <div class="card bg-light border-success" id="art-new-card">
+      <div class="card-body p-2">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-plus-circle text-success"></i>
+          <strong class="small">Neuer Artikel</strong>
+        </div>
+        <div class="row g-2">
+          <div class="col-12">
+            <input type="text" class="form-control form-control-sm" id="new-beschreibung-mobile" 
+                   placeholder="Beschreibung" {{ $hasId ? '' : 'disabled' }}>
+          </div>
+          <div class="col-6">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">Anz</span>
+              <input type="number" class="form-control text-end" id="new-anzahl-mobile" 
+                     step="0.01" min="0" value="1" {{ $hasId ? '' : 'disabled' }}>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">EUR</span>
+              <input type="number" class="form-control text-end" id="new-einzelpreis-mobile" 
+                     step="0.01" min="0" value="0.00" {{ $hasId ? '' : 'disabled' }}>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="new-aktiv-mobile" {{ $hasId ? 'checked' : 'disabled' }}>
+                <label class="form-check-label small" for="new-aktiv-mobile">Aktiv</label>
+              </div>
+              <button type="button" id="btn-add-art-mobile" class="btn btn-sm btn-success" {{ $hasId ? '' : 'disabled' }}>
+                <i class="bi bi-check2-circle"></i> Hinzufuegen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{-- MOBILE: Artikel als Cards --}}
+  <div class="col-12 d-md-none" id="art-cards-mobile">
+    @foreach($artikelListe as $p)
+      @php 
+        $basisJahr = $p->basis_jahr ?? $aktuellesJahr;
+        $basisPreis = $p->basis_preis ?? $p->einzelpreis;
+        $anzeigePreis = $gebaeude->berechnePreisMitKumulativerErhoehung($basisPreis, $basisJahr, $aktuellesJahr);
+        $rowTotal = (float)$p->anzahl * $anzeigePreis;
+      @endphp
+      <div class="card mb-2 art-card-mobile {{ $p->aktiv ? '' : 'opacity-50' }}" 
+           data-id="{{ $p->id }}" 
+           data-aktiv="{{ $p->aktiv ? '1' : '0' }}"
+           data-basis-preis="{{ $basisPreis }}"
+           data-basis-jahr="{{ $basisJahr }}">
+        <div class="card-body p-2">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="flex-grow-1 me-2">
+              <input type="text" class="form-control form-control-sm fw-semibold" 
+                     data-field="beschreibung" value="{{ $p->beschreibung }}">
+            </div>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-primary d-none" data-role="btn-save">
+                <i class="bi bi-save2"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger" data-role="btn-delete">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label small text-muted mb-0">Anzahl</label>
+              <input type="number" class="form-control form-control-sm text-end" 
+                     data-field="anzahl" step="0.01" value="{{ number_format((float)$p->anzahl, 2, '.', '') }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small text-muted mb-0">Preis</label>
+              <input type="number" class="form-control form-control-sm text-end" 
+                     data-field="einzelpreis" step="0.01" value="{{ number_format($anzeigePreis, 2, '.', '') }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label small text-muted mb-0">Gesamt</label>
+              <input type="text" class="form-control form-control-sm text-end bg-light" 
+                     data-field="gesamtpreis" value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }}>
+              <label class="form-check-label small">Aktiv</label>
+            </div>
+            <small class="text-muted">Basis: {{ $basisJahr }}</small>
+          </div>
+        </div>
+      </div>
+    @endforeach
+    
+    @if(count($artikelListe) == 0 && $hasId)
+      <div class="text-center text-muted py-4">
+        <i class="bi bi-inbox fs-1"></i>
+        <p class="mb-0 mt-2">Keine Artikel vorhanden</p>
+      </div>
+    @endif
+  </div>
+
+  {{-- DESKTOP: Klassische Tabelle --}}
+  <div class="col-12 d-none d-md-block">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0" id="art-table">
         <thead class="table-light">
           <tr>
-            <th style="width: 40px;" title="Ziehen für Sortierung"><i class="bi bi-grip-vertical"></i></th>
+            <th style="width: 40px;"><i class="bi bi-grip-vertical"></i></th>
             <th>Beschreibung</th>
-            <th style="width: 120px;">Anzahl</th>
-            <th style="width: 140px;">Einzelpreis (€)</th>
-            <th style="width: 140px;">Gesamt (€)</th>
-            <th style="width: 120px;">Aktiv</th>
-            <th class="text-end" style="width: 120px;">Aktionen</th>
+            <th style="width: 100px;">Anzahl</th>
+            <th style="width: 120px;">Einzelpreis</th>
+            <th style="width: 120px;">Gesamt</th>
+            <th style="width: 80px;">Aktiv</th>
+            <th class="text-end" style="width: 100px;">Aktionen</th>
           </tr>
         </thead>
         <tbody id="art-tbody">
-
           {{-- Eingabezeile: Neu --}}
           <tr id="art-new-row" class="table-secondary">
-            <td class="text-center">
-              <i class="bi bi-plus-circle text-success"></i>
+            <td class="text-center"><i class="bi bi-plus-circle text-success"></i></td>
+            <td>
+              <input type="text" class="form-control form-control-sm" id="new-beschreibung" 
+                     placeholder="Beschreibung" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="text" class="form-control" id="new-beschreibung" placeholder="Beschreibung" {{ $hasId ? '' : 'disabled' }}>
+              <input type="number" class="form-control form-control-sm text-end" id="new-anzahl" 
+                     step="0.01" min="0" value="1" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="number" class="form-control text-end" id="new-anzahl" step="0.01" min="0" value="1" {{ $hasId ? '' : 'disabled' }}>
+              <input type="number" class="form-control form-control-sm text-end" id="new-einzelpreis" 
+                     step="0.01" min="0" value="0.00" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="number" class="form-control text-end" id="new-einzelpreis" step="0.01" min="0" value="0.00" 
-                     title="Basispreis ab {{ $aktuellesJahr }}" {{ $hasId ? '' : 'disabled' }}>
-            </td>
-            <td>
-              <input type="text" class="form-control text-end" id="new-gesamtpreis" value="0,00" disabled>
+              <input type="text" class="form-control form-control-sm text-end" id="new-gesamtpreis" 
+                     value="0,00" disabled>
             </td>
             <td>
               <div class="form-check form-switch m-0">
@@ -138,263 +232,277 @@
             </td>
             <td class="text-end">
               <button type="button" id="btn-add-art" class="btn btn-sm btn-success" {{ $hasId ? '' : 'disabled' }}>
-                <i class="bi bi-check2-circle"></i> Hinzufügen
+                <i class="bi bi-check2-circle"></i>
               </button>
             </td>
           </tr>
 
-          {{-- Bestehende Datensätze --}}
+          {{-- Bestehende Artikel --}}
           @foreach($artikelListe as $p)
             @php 
               $basisJahr = $p->basis_jahr ?? $aktuellesJahr;
               $basisPreis = $p->basis_preis ?? $p->einzelpreis;
-              
-              // ⭐ KUMULATIVE Erhöhung berechnen
-              $anzeigePreis = $gebaeude->berechnePreisMitKumulativerErhoehung(
-                  $basisPreis,
-                  $basisJahr,
-                  $aktuellesJahr
-              );
-              
+              $anzeigePreis = $gebaeude->berechnePreisMitKumulativerErhoehung($basisPreis, $basisJahr, $aktuellesJahr);
               $rowTotal = (float)$p->anzahl * $anzeigePreis;
-              
-              // Tooltip-Text erstellen
-              $tooltip = "Basispreis: " . number_format($basisPreis, 2, ',', '.') . " € (seit {$basisJahr})";
-              if ($anzeigePreis != $basisPreis) {
-                  $jahre = $aktuellesJahr - $basisJahr;
-                  $tooltip .= " | Erhöht über {$jahre} Jahr(e)";
-              }
             @endphp
-            <tr data-id="{{ $p->id }}" 
-                draggable="true" 
+            <tr data-id="{{ $p->id }}" draggable="true" 
                 data-aktiv="{{ $p->aktiv ? '1' : '0' }}"
                 data-basis-preis="{{ $basisPreis }}"
                 data-basis-jahr="{{ $basisJahr }}"
                 data-aktuelles-jahr="{{ $aktuellesJahr }}">
               <td class="text-center" style="cursor: move;">
-                <i class="bi bi-grip-vertical text-muted" data-role="drag-handle" title="Ziehen zum Sortieren"></i>
+                <i class="bi bi-grip-vertical text-muted"></i>
               </td>
               <td>
-                <input type="text" class="form-control" data-field="beschreibung" value="{{ $p->beschreibung }}" {{ $hasId ? '' : 'disabled' }}>
+                <input type="text" class="form-control form-control-sm" data-field="beschreibung" 
+                       value="{{ $p->beschreibung }}">
               </td>
               <td>
-                <input type="number" class="form-control text-end" data-field="anzahl" step="0.01" min="0" 
-                       value="{{ number_format((float)$p->anzahl, 2, '.', '') }}" {{ $hasId ? '' : 'disabled' }}>
+                <input type="number" class="form-control form-control-sm text-end" data-field="anzahl" 
+                       step="0.01" value="{{ number_format((float)$p->anzahl, 2, '.', '') }}">
               </td>
               <td>
-                {{-- ⭐ Tooltip statt sichtbarem Text --}}
-                <input type="number" class="form-control text-end" data-field="einzelpreis" step="0.01" min="0" 
-                       value="{{ number_format($anzeigePreis, 2, '.', '') }}" 
-                       title="{{ $tooltip }}"
-                       {{ $hasId ? '' : 'disabled' }}>
+                <input type="number" class="form-control form-control-sm text-end" data-field="einzelpreis" 
+                       step="0.01" value="{{ number_format($anzeigePreis, 2, '.', '') }}"
+                       title="Basis: {{ number_format($basisPreis, 2, ',', '.') }} EUR ({{ $basisJahr }})">
               </td>
               <td>
-                <input type="text" class="form-control text-end" data-field="gesamtpreis" 
+                <input type="text" class="form-control form-control-sm text-end" data-field="gesamtpreis" 
                        value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
               </td>
               <td>
                 <div class="form-check form-switch m-0">
-                  <input class="form-check-input" type="checkbox" data-field="aktiv" 
-                         {{ $p->aktiv ? 'checked' : '' }} {{ $hasId ? '' : 'disabled' }}>
+                  <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }}>
                 </div>
               </td>
               <td class="text-end">
-                <div class="btn-group">
-                  <button type="button" class="btn btn-sm btn-primary d-none" data-role="btn-save" 
-                          title="Speichern" {{ $hasId ? '' : 'disabled' }}>
+                <div class="btn-group btn-group-sm">
+                  <button type="button" class="btn btn-primary d-none" data-role="btn-save">
                     <i class="bi bi-save2"></i>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger" data-role="btn-delete" 
-                          title="Löschen" {{ $hasId ? '' : 'disabled' }}>
+                  <button type="button" class="btn btn-outline-danger" data-role="btn-delete">
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
               </td>
             </tr>
           @endforeach
-
         </tbody>
-        <tfoot>
-          <tr class="table-light">
-            <td colspan="4" class="text-end fw-semibold">Summe (aktiv):</td>
-            <td>
-              <input type="text" class="form-control text-end fw-semibold" id="art-summe-foot"
-                     value="{{ number_format($serverSumAktiv, 2, ',', '.') }}" disabled>
-            </td>
+        <tfoot class="table-light">
+          <tr class="fw-bold">
+            <td colspan="4" class="text-end">Summe (aktiv):</td>
+            <td class="text-end" id="art-summe-foot">{{ number_format($serverSumAktiv, 2, ',', '.') }} EUR</td>
             <td colspan="2"></td>
           </tr>
         </tfoot>
       </table>
     </div>
   </div>
+
 </div>
 
-{{-- Data-Container für JS --}}
-<div id="artikel-root"
-     data-csrf="{{ csrf_token() }}"
-     data-aktuelles-jahr="{{ $aktuellesJahr }}"
-     data-route-store="{{ $hasId ? route('gebaeude.artikel.store', $gebaeude->id) : '' }}"
-     data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
-     data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
-     data-route-reorder="{{ $hasId ? route('gebaeude.artikel.reorder', $gebaeude->id) : '' }}">
+{{-- Daten fuer JS --}}
+@if($hasId)
+<div id="art-root"
+  data-csrf="{{ csrf_token() }}"
+  data-route-store="{{ route('gebaeude.artikel.store', $gebaeude->id) }}"
+  data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
+  data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
+  data-route-reorder="{{ route('gebaeude.artikel.reorder', $gebaeude->id) }}"
+  data-aktuelles-jahr="{{ $aktuellesJahr }}">
 </div>
 
-@verbatim
 <script>
-(function(){
-  var root = document.getElementById('artikel-root');
-  var CSRF = (root && root.dataset && root.dataset.csrf) || '';
-  var AKTUELLES_JAHR = parseInt((root && root.dataset && root.dataset.aktuellesJahr) || '0');
-  var ROUTE_STORE   = (root && root.dataset && root.dataset.routeStore)   || '';
-  var ROUTE_UPDATE0 = (root && root.dataset && root.dataset.routeUpdate0) || '';
-  var ROUTE_DELETE0 = (root && root.dataset && root.dataset.routeDelete0) || '';
-  var ROUTE_REORDER = (root && root.dataset && root.dataset.routeReorder) || '';
+(function() {
+  var root = document.getElementById('art-root');
+  if (!root) return;
 
-  var tbody     = document.getElementById('art-tbody');
-  var sumHead   = document.getElementById('art-summe-head');
-  var sumFoot   = document.getElementById('art-summe-foot');
-  var onlyActive = document.getElementById('art-only-active');
+  var CSRF = root.dataset.csrf || '';
+  var ROUTE_STORE = root.dataset.routeStore || '';
+  var ROUTE_UPDATE0 = root.dataset.routeUpdate0 || '';
+  var ROUTE_DELETE0 = root.dataset.routeDelete0 || '';
+  var ROUTE_REORDER = root.dataset.routeReorder || '';
+  var AKTUELLES_JAHR = parseInt(root.dataset.aktuellesJahr) || new Date().getFullYear();
 
-  if (!ROUTE_STORE) return;
+  var tbody = document.getElementById('art-tbody');
+  var cardsContainer = document.getElementById('art-cards-mobile');
+  var sumHead = document.getElementById('art-summe-head');
+  var sumFoot = document.getElementById('art-summe-foot');
+  var filterSwitch = document.getElementById('art-only-active');
 
-  function euro(v){
-    var n = Number.isFinite(+v) ? +v : 0;
-    return n.toLocaleString('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  }
-
-  function parseNum(v){
-    var x = parseFloat(String(v).replace(',', '.'));
-    return Number.isFinite(x) ? x : 0;
-  }
-
-  function isActive(tr){
-    var cb = tr.querySelector('[data-field="aktiv"]');
-    return cb ? cb.checked : false;
-  }
-
-  function applyActiveFilter(){
-    var showOnly = onlyActive && onlyActive.checked;
-    (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
-      var active = isActive(tr);
-      tr.style.display = (showOnly && !active) ? 'none' : '';
-    });
-  }
-
-  if (onlyActive){
-    onlyActive.addEventListener('change', applyActiveFilter);
-  }
-
-  function markDirty(tr, dirty){
-    var btnSave = tr.querySelector('[data-role="btn-save"]');
-    if (!btnSave) return;
-    if (dirty) {
-      btnSave.classList.remove('d-none');
-    } else {
-      btnSave.classList.add('d-none');
-    }
-  }
-
-  function recalcRowTotal(tr){
-    var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
-    var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
-    var total  = anzahl * preis;
-
-    var inp = tr.querySelector('[data-field="gesamtpreis"]');
-    if (inp) {
-      inp.value = euro(total);
-    }
-  }
-
-  function recalcSum(){
-    var sum = 0;
-    (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
-      if (!isActive(tr)) return;
-      var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
-      var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
-      sum += (anzahl * preis);
-    });
-
-    if (sumHead) sumHead.textContent = euro(sum);
-    if (sumFoot) sumFoot.value = euro(sum);
-  }
-
-  // ⭐ Neuen Artikel hinzufügen
-  var btnAdd = document.getElementById('btn-add-art');
-  if (btnAdd){
-    btnAdd.addEventListener('click', async function(){
-      var beschr = (document.getElementById('new-beschreibung').value || '').trim();
-      var anzahl = parseNum(document.getElementById('new-anzahl').value);
-      var preis  = parseNum(document.getElementById('new-einzelpreis').value);
-      var aktiv  = document.getElementById('new-aktiv').checked;
-
-      if (!beschr) {
-        alert('Bitte Beschreibung eingeben!');
-        return;
-      }
-
-      try {
-        var res = await fetch(ROUTE_STORE, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            beschreibung: beschr,
-            anzahl: anzahl,
-            einzelpreis: preis,
-            basis_preis: preis,
-            basis_jahr: AKTUELLES_JAHR,  // ⭐ AKTUELLES Jahr!
-            aktiv: aktiv
-          })
-        });
-
-        var isJson = (res.headers.get('content-type') || '').includes('application/json');
-        var json = null;
-
-        if (isJson) {
-          json = await res.json();
-        }
-
-        if (!res.ok || (json && json.ok === false)) {
-          throw new Error((json && json.message) || 'Fehler beim Speichern.');
-        }
-
-        window.location.reload();
-      } catch (err){
-        console.error(err);
-        alert('Fehler beim Hinzufügen: ' + err.message);
-      }
-    });
-  }
-
+  // Desktop inputs
+  var newBeschreibung = document.getElementById('new-beschreibung');
   var newAnzahl = document.getElementById('new-anzahl');
-  var newPreis  = document.getElementById('new-einzelpreis');
-  var newTotal  = document.getElementById('new-gesamtpreis');
+  var newEinzelpreis = document.getElementById('new-einzelpreis');
+  var newGesamtpreis = document.getElementById('new-gesamtpreis');
+  var newAktiv = document.getElementById('new-aktiv');
+  var btnAdd = document.getElementById('btn-add-art');
 
-  function updateNewRow(){
-    var a = parseNum(newAnzahl.value);
-    var p = parseNum(newPreis.value);
-    if (newTotal) newTotal.value = euro(a * p);
+  // Mobile inputs
+  var newBeschreibungM = document.getElementById('new-beschreibung-mobile');
+  var newAnzahlM = document.getElementById('new-anzahl-mobile');
+  var newEinzelpreisM = document.getElementById('new-einzelpreis-mobile');
+  var newAktivM = document.getElementById('new-aktiv-mobile');
+  var btnAddM = document.getElementById('btn-add-art-mobile');
+
+  function parseNum(v) {
+    if (typeof v === 'number') return v;
+    return parseFloat(String(v).replace(',', '.')) || 0;
   }
 
-  if (newAnzahl) newAnzahl.addEventListener('input', updateNewRow);
-  if (newPreis)  newPreis.addEventListener('input', updateNewRow);
+  function formatDE(n) {
+    return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 
-  // ⭐ Zeile speichern
-  async function saveRow(tr){
-    var id = tr.getAttribute('data-id');
+  function recalcSum() {
+    var sum = 0;
+    // Desktop
+    if (tbody) {
+      tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
+        if (tr.style.display === 'none') return;
+        var cb = tr.querySelector('[data-field="aktiv"]');
+        if (!cb || !cb.checked) return;
+        var anz = parseNum(tr.querySelector('[data-field="anzahl"]').value);
+        var ep = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
+        sum += anz * ep;
+      });
+    }
+    // Mobile
+    if (cardsContainer) {
+      cardsContainer.querySelectorAll('.art-card-mobile[data-id]').forEach(function(card) {
+        if (card.style.display === 'none') return;
+        var cb = card.querySelector('[data-field="aktiv"]');
+        if (!cb || !cb.checked) return;
+        var anz = parseNum(card.querySelector('[data-field="anzahl"]').value);
+        var ep = parseNum(card.querySelector('[data-field="einzelpreis"]').value);
+        sum += anz * ep;
+      });
+    }
+    
+    var formatted = formatDE(sum);
+    if (sumHead) sumHead.textContent = formatted;
+    if (sumFoot) sumFoot.textContent = formatted + ' EUR';
+  }
+
+  function recalcRowTotal(container) {
+    var anz = parseNum(container.querySelector('[data-field="anzahl"]').value);
+    var ep = parseNum(container.querySelector('[data-field="einzelpreis"]').value);
+    var total = anz * ep;
+    var field = container.querySelector('[data-field="gesamtpreis"]');
+    if (field) field.value = formatDE(total);
+  }
+
+  function applyActiveFilter() {
+    var onlyActive = filterSwitch && filterSwitch.checked;
+    // Desktop
+    if (tbody) {
+      tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
+        var cb = tr.querySelector('[data-field="aktiv"]');
+        var isActive = cb && cb.checked;
+        tr.style.display = (onlyActive && !isActive) ? 'none' : '';
+      });
+    }
+    // Mobile
+    if (cardsContainer) {
+      cardsContainer.querySelectorAll('.art-card-mobile[data-id]').forEach(function(card) {
+        var cb = card.querySelector('[data-field="aktiv"]');
+        var isActive = cb && cb.checked;
+        card.style.display = (onlyActive && !isActive) ? 'none' : '';
+        card.classList.toggle('opacity-50', !isActive);
+      });
+    }
+    recalcSum();
+  }
+
+  if (filterSwitch) {
+    filterSwitch.addEventListener('change', applyActiveFilter);
+  }
+
+  function markDirty(container, dirty) {
+    var btn = container.querySelector('[data-role="btn-save"]');
+    if (btn) btn.classList.toggle('d-none', !dirty);
+  }
+
+  // Desktop: Gesamtpreis bei Eingabe neu berechnen
+  if (newAnzahl && newEinzelpreis && newGesamtpreis) {
+    [newAnzahl, newEinzelpreis].forEach(function(el) {
+      el.addEventListener('input', function() {
+        var total = parseNum(newAnzahl.value) * parseNum(newEinzelpreis.value);
+        newGesamtpreis.value = formatDE(total);
+      });
+    });
+  }
+
+  async function addArtikel(beschr, anzahl, preis, aktiv) {
+    if (!beschr) {
+      alert('Bitte Beschreibung eingeben.');
+      return false;
+    }
+
+    try {
+      var res = await fetch(ROUTE_STORE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          beschreibung: beschr,
+          anzahl: anzahl,
+          einzelpreis: preis,
+          basis_preis: preis,
+          basis_jahr: AKTUELLES_JAHR,
+          aktiv: aktiv
+        })
+      });
+
+      var json = await res.json();
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.message || 'Fehler');
+      }
+
+      window.location.reload();
+      return true;
+    } catch (err) {
+      alert('Fehler: ' + err.message);
+      return false;
+    }
+  }
+
+  // Desktop hinzufuegen
+  if (btnAdd) {
+    btnAdd.addEventListener('click', function() {
+      addArtikel(
+        newBeschreibung.value.trim(),
+        parseNum(newAnzahl.value),
+        parseNum(newEinzelpreis.value),
+        newAktiv.checked
+      );
+    });
+  }
+
+  // Mobile hinzufuegen
+  if (btnAddM) {
+    btnAddM.addEventListener('click', function() {
+      addArtikel(
+        newBeschreibungM.value.trim(),
+        parseNum(newAnzahlM.value),
+        parseNum(newEinzelpreisM.value),
+        newAktivM.checked
+      );
+    });
+  }
+
+  async function saveRow(container) {
+    var id = container.getAttribute('data-id');
     if (!id) return;
 
-    var beschr = (tr.querySelector('[data-field="beschreibung"]').value || '').trim();
-    var anzahl = parseNum(tr.querySelector('[data-field="anzahl"]').value);
-    var preis  = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
-    var cb     = tr.querySelector('[data-field="aktiv"]');
-    var aktiv  = cb ? cb.checked : false;
+    var beschr = container.querySelector('[data-field="beschreibung"]').value.trim();
+    var anzahl = parseNum(container.querySelector('[data-field="anzahl"]').value);
+    var preis = parseNum(container.querySelector('[data-field="einzelpreis"]').value);
+    var cb = container.querySelector('[data-field="aktiv"]');
+    var aktiv = cb ? cb.checked : false;
 
     var url = ROUTE_UPDATE0.replace(/\/0$/, '/' + id);
 
@@ -411,7 +519,7 @@
           anzahl: anzahl,
           einzelpreis: preis,
           basis_preis: preis,
-          basis_jahr: AKTUELLES_JAHR,  // ⭐ AKTUELLES Jahr!
+          basis_jahr: AKTUELLES_JAHR,
           aktiv: aktiv
         })
       });
@@ -420,187 +528,174 @@
       if (isJson) {
         var json = await res.json();
         if (!res.ok || json.ok === false) {
-          throw new Error(json.message || 'Fehler beim Speichern.');
+          throw new Error(json.message || 'Fehler');
         }
-      } else if (!res.ok) {
-        throw new Error('Fehler beim Speichern (HTTP ' + res.status + ').');
       }
 
-      // ⭐ Data-Attribute aktualisieren
-      tr.setAttribute('data-basis-preis', preis);
-      tr.setAttribute('data-basis-jahr', AKTUELLES_JAHR);
-
-      markDirty(tr, false);
-      recalcRowTotal(tr);
+      container.setAttribute('data-basis-preis', preis);
+      container.setAttribute('data-basis-jahr', AKTUELLES_JAHR);
+      markDirty(container, false);
+      recalcRowTotal(container);
       recalcSum();
     } catch (err) {
-      console.error(err);
-      alert('Fehler beim Speichern: ' + err.message);
+      alert('Fehler: ' + err.message);
       throw err;
     }
   }
 
-  if (tbody){
-    tbody.addEventListener('input', function(e){
-      var inp = e.target;
-      var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
-      if (!tr) return;
+  async function deleteRow(container) {
+    var id = container.getAttribute('data-id');
+    if (!id) return;
+    if (!confirm('Position wirklich loeschen?')) return;
 
-      if (inp.matches && inp.matches('[data-field="anzahl"], [data-field="einzelpreis"]')) {
-        recalcRowTotal(tr);
+    var url = ROUTE_DELETE0.replace(/\/0$/, '/' + id);
+
+    try {
+      var res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ _method: 'DELETE' })
+      });
+
+      var isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (isJson) {
+        var json = await res.json();
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.message || 'Fehler');
+        }
       }
 
+      container.remove();
+      recalcSum();
+    } catch (err) {
+      alert('Fehler: ' + err.message);
+    }
+  }
+
+  // Event-Handler fuer Desktop-Tabelle
+  if (tbody) {
+    tbody.addEventListener('input', function(e) {
+      var tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      if (e.target.matches('[data-field="anzahl"], [data-field="einzelpreis"]')) {
+        recalcRowTotal(tr);
+      }
       markDirty(tr, true);
       recalcSum();
     });
 
-    tbody.addEventListener('change', async function(e){
-      var inp = e.target;
-      var tr  = inp.closest ? inp.closest('tr[data-id]') : null;
+    tbody.addEventListener('change', async function(e) {
+      var tr = e.target.closest('tr[data-id]');
       if (!tr) return;
-
-      if (inp.matches && inp.matches('[data-field="aktiv"]')) {
-        var cb = inp;
-        var previousChecked = !cb.checked;
-
+      if (e.target.matches('[data-field="aktiv"]')) {
         try {
           await saveRow(tr);
           applyActiveFilter();
         } catch (err) {
-          cb.checked = previousChecked;
+          e.target.checked = !e.target.checked;
           applyActiveFilter();
-          recalcSum();
         }
-
-        return;
       }
     });
 
-    // Drag & Drop
-    var dragSrc = null;
+    tbody.addEventListener('click', async function(e) {
+      var tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
 
-    tbody.addEventListener('dragstart', function(e){
-      var row = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      if (e.target.closest('[data-role="btn-delete"]')) {
+        await deleteRow(tr);
+      }
+      if (e.target.closest('[data-role="btn-save"]')) {
+        await saveRow(tr);
+      }
+    });
+
+    // Drag & Drop fuer Desktop
+    var dragSrc = null;
+    tbody.addEventListener('dragstart', function(e) {
+      var row = e.target.closest('tr[data-id]');
       if (!row) return;
-      e.dataTransfer.effectAllowed = 'move';
       dragSrc = row;
       row.classList.add('opacity-50');
     });
-
-    tbody.addEventListener('dragend', function(e){
-      if (dragSrc){
-        dragSrc.classList.remove('opacity-50');
-        dragSrc = null;
-      }
+    tbody.addEventListener('dragend', function() {
+      if (dragSrc) dragSrc.classList.remove('opacity-50');
+      dragSrc = null;
     });
-
-    tbody.addEventListener('dragover', function(e){
+    tbody.addEventListener('dragover', function(e) {
       if (!dragSrc) return;
-      var row = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      var row = e.target.closest('tr[data-id]');
       if (!row || row === dragSrc) return;
       e.preventDefault();
     });
-
-    tbody.addEventListener('drop', async function(e){
+    tbody.addEventListener('drop', async function(e) {
       if (!dragSrc) return;
-      var target = e.target.closest ? e.target.closest('tr[data-id]') : null;
+      var target = e.target.closest('tr[data-id]');
       if (!target || target === dragSrc) return;
       e.preventDefault();
 
       var rect = target.getBoundingClientRect();
       var before = (e.clientY - rect.top) < (rect.height / 2);
-
-      if (before) {
-        tbody.insertBefore(dragSrc, target);
-      } else {
-        tbody.insertBefore(dragSrc, target.nextSibling);
-      }
+      tbody.insertBefore(dragSrc, before ? target : target.nextSibling);
 
       var ids = [];
-      (tbody ? tbody.querySelectorAll('tr[data-id]') : []).forEach(function(tr){
-        if (tr.style.display !== 'none') {
-          ids.push(tr.getAttribute('data-id'));
-        }
+      tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
+        ids.push(tr.getAttribute('data-id'));
       });
 
-      try {
-        var res = await fetch(ROUTE_REORDER, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ ids: ids })
-        });
+      await fetch(ROUTE_REORDER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        body: JSON.stringify({ ids: ids })
+      });
+    });
+  }
 
-        var isJson = (res.headers.get('content-type') || '').includes('application/json');
-        if (isJson) {
-          var json = await res.json();
-          if (!res.ok || json.ok === false) {
-            throw new Error(json.message || 'Fehler beim Sortieren.');
-          }
-        } else if (!res.ok) {
-          throw new Error('Fehler beim Sortieren (HTTP ' + res.status + ').');
+  // Event-Handler fuer Mobile-Cards
+  if (cardsContainer) {
+    cardsContainer.addEventListener('input', function(e) {
+      var card = e.target.closest('.art-card-mobile[data-id]');
+      if (!card) return;
+      if (e.target.matches('[data-field="anzahl"], [data-field="einzelpreis"]')) {
+        recalcRowTotal(card);
+      }
+      markDirty(card, true);
+      recalcSum();
+    });
+
+    cardsContainer.addEventListener('change', async function(e) {
+      var card = e.target.closest('.art-card-mobile[data-id]');
+      if (!card) return;
+      if (e.target.matches('[data-field="aktiv"]')) {
+        try {
+          await saveRow(card);
+          applyActiveFilter();
+        } catch (err) {
+          e.target.checked = !e.target.checked;
+          applyActiveFilter();
         }
-      } catch (err) {
-        console.error(err);
-        alert('Fehler beim Sortieren: ' + err.message);
       }
     });
 
-    tbody.addEventListener('click', async function(e){
-      var btnDel  = e.target.closest ? e.target.closest('[data-role="btn-delete"]') : null;
-      var btnSave = e.target.closest ? e.target.closest('[data-role="btn-save"]')   : null;
-      var tr      = e.target.closest ? e.target.closest('tr[data-id]')             : null;
-      if (!tr) return;
-      var id = tr.getAttribute('data-id');
+    cardsContainer.addEventListener('click', async function(e) {
+      var card = e.target.closest('.art-card-mobile[data-id]');
+      if (!card) return;
 
-      if (btnDel){
-        if (!confirm('Diese Position wirklich löschen?')) return;
-        var url = ROUTE_DELETE0.replace(/\/0$/, '/' + id);
-
-        try {
-          var res = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-TOKEN': CSRF,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify({ _method: 'DELETE' })
-          });
-
-          var isJson = (res.headers.get('content-type') || '').includes('application/json');
-          if (isJson){
-            var json = await res.json();
-            if (!res.ok || json.ok === false){
-              throw new Error(json.message || 'Fehler beim Löschen.');
-            }
-          } else if (!res.ok){
-            throw new Error('Fehler beim Löschen (HTTP ' + res.status + ').');
-          }
-
-          tr.remove();
-          recalcSum();
-        } catch (err){
-          console.error(err);
-          alert('Fehler beim Löschen: ' + err.message);
-        }
-        return;
+      if (e.target.closest('[data-role="btn-delete"]')) {
+        await deleteRow(card);
       }
-
-      if (btnSave){
-        try {
-          await saveRow(tr);
-        } catch (err) {
-          // Fehler schon behandelt
-        }
+      if (e.target.closest('[data-role="btn-save"]')) {
+        await saveRow(card);
       }
     });
   }
 
+  applyActiveFilter();
   recalcSum();
 })();
 </script>
-@endverbatim
+@endif
