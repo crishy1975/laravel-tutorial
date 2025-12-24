@@ -119,7 +119,18 @@
               @endif
             </button>
           </li>
-          {{-- ⭐ NEU: Protokoll-Tab --}}
+          {{-- ⭐ NEU: Dokumente-Tab --}}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link px-2 px-md-3" id="tab-dokumente" data-bs-toggle="tab"
+              data-bs-target="#content-dokumente" type="button" role="tab">
+              <i class="bi bi-folder2-open"></i>
+              <span class="d-none d-md-inline ms-1">Dokumente</span>
+              @if(!empty($gebaeude->id) && ($gebaeude->dokumente_count ?? 0) > 0)
+                <span class="badge bg-secondary ms-1">{{ $gebaeude->dokumente_count }}</span>
+              @endif
+            </button>
+          </li>
+          {{-- Protokoll-Tab --}}
           <li class="nav-item" role="presentation">
             <button class="nav-link px-2 px-md-3" id="tab-protokoll" data-bs-toggle="tab"
               data-bs-target="#content-protokoll" type="button" role="tab">
@@ -183,7 +194,11 @@
         <div class="tab-pane fade" id="content-rechnungen" role="tabpanel">
           @include('gebaeude.partials._rechnungen', ['gebaeude' => $gebaeude])
         </div>
-        {{-- ⭐ NEU: Protokoll Tab-Content --}}
+        {{-- ⭐ NEU: Dokumente Tab-Content --}}
+        <div class="tab-pane fade" id="content-dokumente" role="tabpanel">
+          @include('gebaeude-dokumente._dokumente', ['gebaeude' => $gebaeude])
+        </div>
+        {{-- Protokoll Tab-Content --}}
         <div class="tab-pane fade" id="content-protokoll" role="tabpanel">
           @include('gebaeude.partials._log_timeline', ['gebaeude' => $gebaeude])
         </div>
@@ -217,11 +232,15 @@
   </div>
 </div>
 
+{{-- ═══════════════════════════════════════════════════════════ --}}
 {{-- Modals AUSSERHALB des Formulars --}}
+{{-- ═══════════════════════════════════════════════════════════ --}}
 @if(!empty($gebaeude->id))
   @include('gebaeude.partials._aufschlag_modals', ['gebaeude' => $gebaeude])
-  {{-- ⭐ NEU: Log-Modals --}}
+  {{-- Log-Modals --}}
   @include('gebaeude.partials._log_modals', ['gebaeude' => $gebaeude])
+  {{-- ⭐ NEU: Dokumente-Modals (Kamera, Upload, Bearbeiten, Loeschen) --}}
+  @include('gebaeude-dokumente._dokumente_modals', ['gebaeude' => $gebaeude])
 @endif
 
 @endsection
