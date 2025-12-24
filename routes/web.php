@@ -284,6 +284,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('rechnung.storno');
     Route::post('/rechnung/{rechnung}/bezahlt', [RechnungController::class, 'markAsBezahlt'])
         ->name('rechnung.bezahlt');
+    Route::post('/rechnung/{rechnung}/mark-sent', [RechnungController::class, 'markAsSent'])
+        ->name('rechnung.mark-sent');
 
     // PDF
     Route::get('/rechnung/{id}/pdf', [RechnungController::class, 'pdf'])->name('rechnung.pdf');
