@@ -42,6 +42,11 @@
                     <i class="bi bi-telephone"></i>
                     <span class="ms-1">Telefonat</span>
                 </button>
+                <button type="button" class="btn btn-sm btn-outline-warning flex-fill flex-md-grow-0" 
+                        data-bs-toggle="modal" data-bs-target="#modalErinnerung">
+                    <i class="bi bi-bell"></i>
+                    <span class="ms-1">Erinnerung</span>
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-danger flex-fill flex-md-grow-0" 
                         data-bs-toggle="modal" data-bs-target="#modalProblem">
                     <i class="bi bi-exclamation-triangle"></i>
