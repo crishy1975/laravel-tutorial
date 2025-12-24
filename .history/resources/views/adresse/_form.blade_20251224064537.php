@@ -34,7 +34,7 @@
   <div class="card-body p-2 p-md-3">
     <div class="row g-3">
       {{-- Strasse --}}
-      <div class="col-8 col-md-9">
+      <div class="col-8 col-md-9"> 
         <label for="strasse" class="form-label small mb-1">Strasse</label>
         <input type="text" id="strasse" name="strasse"
           class="form-control @error('strasse') is-invalid @enderror"
