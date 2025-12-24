@@ -266,6 +266,41 @@ class GebaeudeLogController extends Controller
     }
 
     /**
+     * Erinnerung erstellen
+     */
+    public function erinnerung(Request $request, int $gebaeudeId)
+    {
+        $gebaeude = Gebaeude::findOrFail($gebaeudeId);
+        
+        $data = $request->validate([
+            'beschreibung' => ['required', 'string', 'max:2000'],
+            'erinnerung_datum' => ['required', 'date', 'after_or_equal:today'],
+            'prioritaet' => ['nullable', 'in:niedrig,normal,hoch,kritisch'],
+        ]);
+        
+        $log = GebaeudeLog::create([
+            'gebaeude_id' => $gebaeude->id,
+            'typ' => GebaeudeLogTyp::ERINNERUNG,
+            'titel' => 'Erinnerung',
+            'beschreibung' => $data['beschreibung'],
+            'user_id' => Auth::id(),
+            'prioritaet' => $data['prioritaet'] ?? 'normal',
+            'erinnerung_datum' => $data['erinnerung_datum'],
+            'erinnerung_erledigt' => false,
+        ]);
+        
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Erinnerung erstellt fuer ' . \Carbon\Carbon::parse($data['erinnerung_datum'])->format('d.m.Y'),
+                'log' => $log,
+            ]);
+        }
+        
+        return back()->with('success', 'Erinnerung wurde fuer den ' . \Carbon\Carbon::parse($data['erinnerung_datum'])->format('d.m.Y') . ' erstellt.');
+    }
+
+    /**
      * Alle offenen Erinnerungen (Dashboard-Widget)
      */
     public function alleErinnerungen()
