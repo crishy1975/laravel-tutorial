@@ -12,3 +12,8 @@ log
     
 angebote
     x standard texte dynamisch
+
+dokumente
+    dokumente
+    notizen
+    texte
