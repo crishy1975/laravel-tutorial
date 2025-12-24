@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
-use App\Enums\GebaeudeLogTyp;  // ⭐ NEU
+use App\Enums\GebaeudeLogTyp;
 
 class Gebaeude extends Model
 {
@@ -170,7 +170,7 @@ class Gebaeude extends Model
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ⭐ NEU: LOG RELATIONSHIPS
+    // ⭐ LOG RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════
 
     /**
@@ -222,7 +222,7 @@ class Gebaeude extends Model
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ⭐ NEU: LOG HELPER METHODS
+    // ⭐ LOG HELPER METHODS
     // ═══════════════════════════════════════════════════════════
 
     /**
@@ -258,6 +258,86 @@ class Gebaeude extends Model
     public function anzahlOffeneErinnerungen(): int
     {
         return $this->offeneErinnerungen()->count();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 📁 DOKUMENTE RELATIONSHIPS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Alle Dokumente dieses Gebaeudes (ohne archivierte)
+     */
+    public function dokumente(): HasMany
+    {
+        return $this->hasMany(GebaeudeDocument::class, 'gebaeude_id')
+            ->where('ist_archiviert', false)
+            ->orderByDesc('ist_wichtig')
+            ->orderByDesc('created_at');
+    }
+
+    /**
+     * Alle Dokumente (inkl. archivierte)
+     */
+    public function alleDokumente(): HasMany
+    {
+        return $this->hasMany(GebaeudeDocument::class, 'gebaeude_id')
+            ->orderByDesc('created_at');
+    }
+
+    /**
+     * Nur wichtige Dokumente
+     */
+    public function wichtigeDokumente(): HasMany
+    {
+        return $this->dokumente()->where('ist_wichtig', true);
+    }
+
+    /**
+     * Nur Bilder
+     */
+    public function bilder(): HasMany
+    {
+        return $this->dokumente()->where('dateityp', 'like', 'image/%');
+    }
+
+    /**
+     * Nur PDFs
+     */
+    public function pdfs(): HasMany
+    {
+        return $this->dokumente()->where('dateiendung', 'pdf');
+    }
+
+    /**
+     * Dokumente nach Kategorie
+     */
+    public function dokumenteNachKategorie(string $kategorie): HasMany
+    {
+        return $this->dokumente()->where('kategorie', $kategorie);
+    }
+
+    /**
+     * Anzahl Dokumente (fuer Listen-Anzeige)
+     */
+    public function getDokumenteCountAttribute(): int
+    {
+        return $this->dokumente()->count();
+    }
+
+    /**
+     * Gesamtgroesse aller Dokumente
+     */
+    public function getDokumenteGroesseAttribute(): int
+    {
+        return $this->dokumente()->sum('dateigroesse');
+    }
+
+    /**
+     * Hat wichtige Dokumente?
+     */
+    public function hatWichtigeDokumente(): bool
+    {
+        return $this->dokumente()->where('ist_wichtig', true)->exists();
     }
 
     // ═══════════════════════════════════════════════════════════
