@@ -28,8 +28,8 @@
         </div>
     @endif
 
-    <div class="row justify-content-center">
-        <div class="col-lg-7 col-xl-6">
+    <div class="row">
+        <div class="col-lg-8">
             
             {{-- Hauptformular --}}
             <form method="POST" action="" id="formFromGebaeude">
@@ -177,6 +177,89 @@
                                 <code class="bg-white px-1">A{{ now()->year }}/XXXX</code>. 
                                 Nach dem Erstellen koennen Sie alles noch bearbeiten.
                             </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Sidebar --}}
+        <div class="col-lg-4">
+            {{-- Schnellinfo --}}
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light py-2">
+                    <i class="bi bi-info-circle"></i>
+                    <span class="fw-semibold ms-1">So funktioniert's</span>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item py-3">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-success rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">1</span>
+                                <div>
+                                    <div class="fw-semibold">Gebaeude waehlen</div>
+                                    <small class="text-muted">Mit Suchfunktion</small>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="list-group-item py-3">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">2</span>
+                                <div>
+                                    <div class="fw-semibold">Optional: Titel & Datum</div>
+                                    <small class="text-muted">Oder automatisch</small>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="list-group-item py-3">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-primary rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">3</span>
+                                <div>
+                                    <div class="fw-semibold">Angebot erstellen</div>
+                                    <small class="text-muted">Danach bearbeitbar</small>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            {{-- Was wird uebernommen --}}
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-success text-white py-2">
+                    <i class="bi bi-check2-circle"></i>
+                    <span class="fw-semibold ms-1">Wird uebernommen</span>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0 ps-3">
+                        <li class="mb-2">Alle <strong>aktiven Artikel</strong> mit Preisen</li>
+                        <li class="mb-2"><strong>Rechnungsempfaenger</strong> als Kunde</li>
+                        <li class="mb-2"><strong>MwSt-Satz</strong> aus Fattura-Profil</li>
+                        <li class="mb-2"><strong>Gebaeude-Daten</strong> (Codex, Adresse)</li>
+                        <li>CUP/CIG falls vorhanden</li>
+                    </ul>
+                </div>
+            </div>
+
+            {{-- Statistik --}}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light py-2">
+                    <i class="bi bi-graph-up"></i>
+                    <span class="fw-semibold ms-1">Statistik {{ now()->year }}</span>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <div class="fs-4 fw-bold text-primary">{{ \App\Models\Angebot::whereYear('created_at', now()->year)->count() }}</div>
+                                <small class="text-muted">Angebote</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <div class="fs-4 fw-bold text-success">{{ \App\Models\Angebot::whereYear('created_at', now()->year)->where('status', 'angenommen')->count() }}</div>
+                                <small class="text-muted">Angenommen</small>
+                            </div>
                         </div>
                     </div>
                 </div>
