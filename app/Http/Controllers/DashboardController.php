@@ -162,83 +162,121 @@ class DashboardController extends Controller
      */
     private function getStatistiken(): array
     {
-        // Offene Rechnungen
-        $offeneRechnungen = Rechnung::whereIn('status', ['draft', 'sent'])
-            ->where(function($q) {
-                $q->whereNull('storniert_am');
-            })
-            ->count();
+        // Offene Rechnungen (mit Model-Scopes)
+        $offeneRechnungen = 0;
+        $ueberfaelligeRechnungen = 0;
+        $offenerBetrag = 0;
         
-        // Überfällige Rechnungen
-        $ueberfaelligeRechnungen = Rechnung::where('status', 'sent')
-            ->whereNull('storniert_am')
-            ->where('faellig_am', '<', now())
-            ->count();
-        
-        // Offener Gesamtbetrag
-        $offenerBetrag = Rechnung::whereIn('status', ['draft', 'sent'])
-            ->whereNull('storniert_am')
-            ->sum('total_brutto');
+        try {
+            // Nutze die existierenden Scopes aus dem Rechnung Model
+            $offeneRechnungen = Rechnung::offen()->count();
+            $ueberfaelligeRechnungen = Rechnung::ueberfaellig()->count();
+            $offenerBetrag = Rechnung::unbezahlt()->sum('zahlbar_betrag');
+        } catch (\Exception $e) {
+            // Fallback falls Scopes nicht existieren
+            try {
+                $offeneRechnungen = Rechnung::whereIn('status', ['draft', 'sent'])->count();
+                $ueberfaelligeRechnungen = Rechnung::where('status', 'sent')
+                    ->where('zahlungsziel', '<', now())
+                    ->count();
+                $offenerBetrag = Rechnung::whereIn('status', ['draft', 'sent'])
+                    ->sum('zahlbar_betrag');
+            } catch (\Exception $e2) {
+                // Tabelle existiert evtl. nicht
+            }
+        }
         
         // Tage seit letztem Mahnlauf
-        $letzteMahnung = Mahnung::orderByDesc('created_at')->first();
-        $tageSeitMahnung = $letzteMahnung 
-            ? $letzteMahnung->created_at->diffInDays(now()) 
-            : null;
+        $tageSeitMahnung = null;
+        try {
+            $letzteMahnung = Mahnung::orderByDesc('created_at')->first();
+            $tageSeitMahnung = $letzteMahnung 
+                ? $letzteMahnung->created_at->diffInDays(now()) 
+                : null;
+        } catch (\Exception $e) {
+            // Mahnung-Tabelle existiert evtl. nicht
+        }
         
         // Tage seit letztem Buchungsmatch
-        $letzterMatch = BankBuchung::whereNotNull('rechnung_id')
-            ->orderByDesc('matched_at')
-            ->first();
-        $tageSeitMatch = $letzterMatch && $letzterMatch->matched_at
-            ? Carbon::parse($letzterMatch->matched_at)->diffInDays(now())
-            : null;
+        $tageSeitMatch = null;
+        $unmatchedBuchungen = 0;
+        try {
+            $letzterMatch = BankBuchung::whereNotNull('rechnung_id')
+                ->orderByDesc('updated_at')
+                ->first();
+            $tageSeitMatch = $letzterMatch 
+                ? $letzterMatch->updated_at->diffInDays(now())
+                : null;
+            
+            // Ungematchte Buchungen
+            $unmatchedBuchungen = BankBuchung::whereNull('rechnung_id')
+                ->where('ignoriert', false)
+                ->where('betrag', '>', 0)
+                ->count();
+        } catch (\Exception $e) {
+            // BankBuchung-Tabelle existiert evtl. nicht
+        }
         
-        // Ungematchte Buchungen
-        $unmatchedBuchungen = BankBuchung::whereNull('rechnung_id')
-            ->where('ignoriert', false)
-            ->where('betrag', '>', 0)
-            ->count();
+        // Offene Erinnerungen (Gebäude)
+        $offeneGebaeudeErinnerungen = 0;
+        try {
+            $offeneGebaeudeErinnerungen = GebaeudeLog::whereNotNull('erinnerung_datum')
+                ->where(function($q) {
+                    $q->where('erinnerung_erledigt', false)
+                      ->orWhereNull('erinnerung_erledigt');
+                })
+                ->count();
+        } catch (\Exception $e) {
+            // GebaeudeLog-Tabelle existiert evtl. nicht
+        }
         
-        // Offene Erinnerungen
-        $offeneGebaeudeErinnerungen = GebaeudeLog::whereNotNull('erinnerung_datum')
-            ->where(function($q) {
-                $q->where('erinnerung_erledigt', false)
-                  ->orWhereNull('erinnerung_erledigt');
-            })
-            ->count();
-        
-        $offeneRechnungErinnerungen = RechnungLog::whereNotNull('erinnerung_datum')
-            ->where('erinnerung_erledigt', false)
-            ->count();
+        // Offene Erinnerungen (Rechnungen)
+        $offeneRechnungErinnerungen = 0;
+        try {
+            $offeneRechnungErinnerungen = RechnungLog::whereNotNull('erinnerung_datum')
+                ->where('erinnerung_erledigt', false)
+                ->count();
+        } catch (\Exception $e) {
+            // RechnungLog-Tabelle existiert evtl. nicht
+        }
         
         // Heute fällige Erinnerungen
-        $heuteFaellig = GebaeudeLog::whereNotNull('erinnerung_datum')
-            ->whereDate('erinnerung_datum', today())
-            ->where(function($q) {
-                $q->where('erinnerung_erledigt', false)
-                  ->orWhereNull('erinnerung_erledigt');
-            })
-            ->count();
+        $heuteFaellig = 0;
+        try {
+            $heuteFaellig = GebaeudeLog::whereNotNull('erinnerung_datum')
+                ->whereDate('erinnerung_datum', today())
+                ->where(function($q) {
+                    $q->where('erinnerung_erledigt', false)
+                      ->orWhereNull('erinnerung_erledigt');
+                })
+                ->count();
+        } catch (\Exception $e) {}
         
-        $heuteFaellig += RechnungLog::whereNotNull('erinnerung_datum')
-            ->whereDate('erinnerung_datum', today())
-            ->where('erinnerung_erledigt', false)
-            ->count();
+        try {
+            $heuteFaellig += RechnungLog::whereNotNull('erinnerung_datum')
+                ->whereDate('erinnerung_datum', today())
+                ->where('erinnerung_erledigt', false)
+                ->count();
+        } catch (\Exception $e) {}
         
         // Überfällige Erinnerungen
-        $ueberfaelligeErinnerungen = GebaeudeLog::whereNotNull('erinnerung_datum')
-            ->where('erinnerung_datum', '<', today())
-            ->where(function($q) {
-                $q->where('erinnerung_erledigt', false)
-                  ->orWhereNull('erinnerung_erledigt');
-            })
-            ->count();
+        $ueberfaelligeErinnerungen = 0;
+        try {
+            $ueberfaelligeErinnerungen = GebaeudeLog::whereNotNull('erinnerung_datum')
+                ->where('erinnerung_datum', '<', today())
+                ->where(function($q) {
+                    $q->where('erinnerung_erledigt', false)
+                      ->orWhereNull('erinnerung_erledigt');
+                })
+                ->count();
+        } catch (\Exception $e) {}
         
-        $ueberfaelligeErinnerungen += RechnungLog::whereNotNull('erinnerung_datum')
-            ->where('erinnerung_datum', '<', today())
-            ->where('erinnerung_erledigt', false)
-            ->count();
+        try {
+            $ueberfaelligeErinnerungen += RechnungLog::whereNotNull('erinnerung_datum')
+                ->where('erinnerung_datum', '<', today())
+                ->where('erinnerung_erledigt', false)
+                ->count();
+        } catch (\Exception $e) {}
         
         return [
             'offene_rechnungen' => $offeneRechnungen,
@@ -258,29 +296,41 @@ class DashboardController extends Controller
      */
     private function getGebaeudeErinnerungen()
     {
-        return GebaeudeLog::with('gebaeude')
-            ->whereNotNull('erinnerung_datum')
-            ->where(function($q) {
-                $q->where('erinnerung_erledigt', false)
-                  ->orWhereNull('erinnerung_erledigt');
-            })
-            ->orderBy('erinnerung_datum')
-            ->limit(50)
-            ->get()
-            ->map(function($log) {
-                return (object)[
-                    'id' => $log->id,
-                    'typ' => 'gebaeude',
-                    'titel' => $log->gebaeude->codex ?? $log->gebaeude->gebaeude_name ?? 'Gebäude #'.$log->gebaeude_id,
-                    'beschreibung' => $log->beschreibung,
-                    'erinnerung_datum' => $log->erinnerung_datum,
-                    'prioritaet' => $log->prioritaet,
-                    'link' => route('gebaeude.edit', $log->gebaeude_id) . '#content-protokoll',
-                    'erledigt_route' => route('gebaeude.logs.erledigt', $log->id),
-                    'icon' => 'bi-building',
-                    'farbe' => 'primary',
-                ];
-            });
+        try {
+            return GebaeudeLog::with('gebaeude')
+                ->whereNotNull('erinnerung_datum')
+                ->where(function($q) {
+                    $q->where('erinnerung_erledigt', false)
+                      ->orWhereNull('erinnerung_erledigt');
+                })
+                ->orderBy('erinnerung_datum')
+                ->limit(50)
+                ->get()
+                ->map(function($log) {
+                    $titel = 'Gebäude #' . $log->gebaeude_id;
+                    if ($log->gebaeude) {
+                        $titel = $log->gebaeude->codex 
+                            ?? $log->gebaeude->gebaeude_name 
+                            ?? $log->gebaeude->strasse 
+                            ?? $titel;
+                    }
+                    
+                    return (object)[
+                        'id' => $log->id,
+                        'typ' => 'gebaeude',
+                        'titel' => $titel,
+                        'beschreibung' => $log->beschreibung,
+                        'erinnerung_datum' => $log->erinnerung_datum,
+                        'prioritaet' => $log->prioritaet ?? 'normal',
+                        'link' => route('gebaeude.edit', $log->gebaeude_id) . '#content-protokoll',
+                        'erledigt_route' => route('gebaeude.logs.erledigt', $log->id),
+                        'icon' => 'bi-building',
+                        'farbe' => 'primary',
+                    ];
+                });
+        } catch (\Exception $e) {
+            return collect();
+        }
     }
 
     /**
@@ -288,26 +338,40 @@ class DashboardController extends Controller
      */
     private function getRechnungErinnerungen()
     {
-        return RechnungLog::with('rechnung')
-            ->whereNotNull('erinnerung_datum')
-            ->where('erinnerung_erledigt', false)
-            ->orderBy('erinnerung_datum')
-            ->limit(50)
-            ->get()
-            ->map(function($log) {
-                return (object)[
-                    'id' => $log->id,
-                    'typ' => 'rechnung',
-                    'titel' => 'Rechnung ' . ($log->rechnung->rechnungsnummer ?? '#'.$log->rechnung_id),
-                    'beschreibung' => $log->beschreibung,
-                    'erinnerung_datum' => $log->erinnerung_datum,
-                    'prioritaet' => $log->prioritaet ?? 'normal',
-                    'link' => route('rechnung.edit', $log->rechnung_id),
-                    'erledigt_route' => route('rechnung.logs.erledigt', $log->id),
-                    'icon' => 'bi-receipt',
-                    'farbe' => 'success',
-                ];
-            });
+        try {
+            return RechnungLog::with('rechnung')
+                ->whereNotNull('erinnerung_datum')
+                ->where('erinnerung_erledigt', false)
+                ->orderBy('erinnerung_datum')
+                ->limit(50)
+                ->get()
+                ->map(function($log) {
+                    // Rechnungsnummer zusammenbauen (falls kein Accessor)
+                    $nummer = '#' . $log->rechnung_id;
+                    if ($log->rechnung) {
+                        if (method_exists($log->rechnung, 'getRechnungsnummerAttribute')) {
+                            $nummer = $log->rechnung->rechnungsnummer;
+                        } elseif ($log->rechnung->jahr && $log->rechnung->laufnummer) {
+                            $nummer = $log->rechnung->jahr . '/' . str_pad($log->rechnung->laufnummer, 4, '0', STR_PAD_LEFT);
+                        }
+                    }
+                    
+                    return (object)[
+                        'id' => $log->id,
+                        'typ' => 'rechnung',
+                        'titel' => 'Rechnung ' . $nummer,
+                        'beschreibung' => $log->beschreibung,
+                        'erinnerung_datum' => $log->erinnerung_datum,
+                        'prioritaet' => $log->prioritaet ?? 'normal',
+                        'link' => route('rechnung.edit', $log->rechnung_id),
+                        'erledigt_route' => route('rechnung.logs.erledigt', $log->id),
+                        'icon' => 'bi-receipt',
+                        'farbe' => 'success',
+                    ];
+                });
+        } catch (\Exception $e) {
+            return collect();
+        }
     }
 
     /**
@@ -320,17 +384,24 @@ class DashboardController extends Controller
             'id' => ['required', 'integer'],
         ]);
         
-        if ($request->typ === 'gebaeude') {
-            $log = GebaeudeLog::findOrFail($request->id);
-        } else {
-            $log = RechnungLog::findOrFail($request->id);
+        try {
+            if ($request->typ === 'gebaeude') {
+                $log = GebaeudeLog::findOrFail($request->id);
+            } else {
+                $log = RechnungLog::findOrFail($request->id);
+            }
+            
+            $log->update(['erinnerung_erledigt' => true]);
+            
+            return response()->json([
+                'ok' => true,
+                'message' => 'Erledigt!',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Fehler: ' . $e->getMessage(),
+            ], 500);
         }
-        
-        $log->update(['erinnerung_erledigt' => true]);
-        
-        return response()->json([
-            'ok' => true,
-            'message' => 'Erledigt!',
-        ]);
     }
 }
