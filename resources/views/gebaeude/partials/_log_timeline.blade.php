@@ -1,6 +1,14 @@
 {{-- resources/views/gebaeude/partials/_log_timeline.blade.php --}}
-{{-- Zeigt die letzten Aktivitäten als kompakte Timeline --}}
+{{-- Zeigt die letzten Aktivitaeten als kompakte Timeline --}}
 {{-- Einbinden: @include('gebaeude.partials._log_timeline', ['gebaeude' => $gebaeude]) --}}
+
+{{-- ⭐ Prüfung: Gebäude muss existieren und gespeichert sein --}}
+@if(!isset($gebaeude) || !$gebaeude->id)
+    <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle me-2"></i>
+        Das Protokoll ist erst nach dem Speichern des Gebäudes verfügbar.
+    </div>
+@else
 
 @php
     $logs = $gebaeude->logs()->limit(10)->get();
@@ -163,3 +171,5 @@
     }
 }
 </style>
+
+@endif
