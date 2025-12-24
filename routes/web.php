@@ -142,6 +142,10 @@ Route::middleware(['auth', 'verified'])
         Route::post('/{gebaeude}/logs/problem', [GebaeudeLogController::class, 'problem'])
             ->whereNumber('gebaeude')
             ->name('logs.problem');
+
+        Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])
+            ->whereNumber('gebaeude')
+            ->name('logs.erinnerung');
     });
 
 // Gebäude Aufschlag-Routes (DIREKT danach, NICHT in einer Gruppe!)
