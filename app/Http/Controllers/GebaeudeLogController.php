@@ -147,7 +147,7 @@ class GebaeudeLogController extends Controller
     /**
      * Erinnerung als erledigt markieren
      */
-    public function erinnerungErledigt(int $id)
+    public function erledigt(int $id)
     {
         $log = GebaeudeLog::findOrFail($id);
         
@@ -166,7 +166,7 @@ class GebaeudeLogController extends Controller
     /**
      * Schnell eine Notiz hinzufügen (für Modal)
      */
-    public function quickNotiz(Request $request, int $gebaeudeId)
+    public function notiz(Request $request, int $gebaeudeId)
     {
         $gebaeude = Gebaeude::findOrFail($gebaeudeId);
         
@@ -175,11 +175,14 @@ class GebaeudeLogController extends Controller
             'prioritaet' => ['nullable', 'in:niedrig,normal,hoch,kritisch'],
         ]);
         
-        $log = GebaeudeLog::notiz(
-            $gebaeude->id,
-            $data['beschreibung'],
-            $data['prioritaet'] ?? 'normal'
-        );
+        $log = GebaeudeLog::create([
+            'gebaeude_id' => $gebaeude->id,
+            'typ' => GebaeudeLogTyp::NOTIZ,
+            'titel' => 'Notiz',
+            'beschreibung' => $data['beschreibung'],
+            'user_id' => Auth::id(),
+            'prioritaet' => $data['prioritaet'] ?? 'normal',
+        ]);
         
         if ($request->expectsJson()) {
             return response()->json([
@@ -205,12 +208,16 @@ class GebaeudeLogController extends Controller
             'kontakt_telefon' => ['nullable', 'string', 'max:50'],
         ]);
         
-        $log = GebaeudeLog::telefonat(
-            $gebaeude->id,
-            $data['beschreibung'],
-            $data['kontakt_person'] ?? null,
-            $data['kontakt_telefon'] ?? null
-        );
+        $log = GebaeudeLog::create([
+            'gebaeude_id' => $gebaeude->id,
+            'typ' => GebaeudeLogTyp::TELEFONAT_EINGEHEND,
+            'titel' => 'Telefonat',
+            'beschreibung' => $data['beschreibung'],
+            'user_id' => Auth::id(),
+            'prioritaet' => 'normal',
+            'kontakt_person' => $data['kontakt_person'] ?? null,
+            'kontakt_telefon' => $data['kontakt_telefon'] ?? null,
+        ]);
         
         if ($request->expectsJson()) {
             return response()->json([
@@ -301,14 +308,18 @@ class GebaeudeLogController extends Controller
     }
 
     /**
-     * Alle offenen Erinnerungen (Dashboard-Widget)
+     * Alle offenen Erinnerungen (Dashboard)
      */
-    public function alleErinnerungen()
+    public function erinnerungen()
     {
         $erinnerungen = GebaeudeLog::with('gebaeude')
-            ->offeneErinnerungen()
+            ->whereNotNull('erinnerung_datum')
+            ->where(function($q) {
+                $q->where('erinnerung_erledigt', false)
+                  ->orWhereNull('erinnerung_erledigt');
+            })
             ->orderBy('erinnerung_datum')
-            ->limit(50)
+            ->limit(100)
             ->get();
         
         if (request()->expectsJson()) {
