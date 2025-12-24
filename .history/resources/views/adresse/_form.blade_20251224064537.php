@@ -11,7 +11,7 @@
   </div>
   <div class="card-body p-2 p-md-3">
     <div class="row g-3">
-      {{-- Name / Firma --}}
+      {{-- Name / Firma --}} 
       <div class="col-12">
         <label for="name" class="form-label small mb-1">Name / Firma <span class="text-danger">*</span></label>
         <input type="text" id="name" name="name"
