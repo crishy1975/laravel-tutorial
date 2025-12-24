@@ -31,3 +31,6 @@ paolo
     daten importieren
     view für arbeiten anpassen
     links, anruf, email, what app, maps
+    
+backup
+    hostinger täglich sichern
