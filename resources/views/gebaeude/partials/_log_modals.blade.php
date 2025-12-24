@@ -214,6 +214,98 @@
 </div>
 
 {{-- ═══════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Erinnerung --}}
+{{-- ═══════════════════════════════════════════════════════════ --}}
+<div class="modal fade" id="modalErinnerung" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('gebaeude.logs.erinnerung', $gebaeude->id) }}">
+                @csrf
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="bi bi-bell-fill me-2"></i>Erinnerung erstellen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="erinnerung_datum" class="form-label">
+                            Erinnerung am <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" class="form-control" id="erinnerung_datum" 
+                               name="erinnerung_datum" required
+                               min="{{ now()->format('Y-m-d') }}"
+                               value="{{ now()->addDays(7)->format('Y-m-d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Schnellauswahl</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary date-preset" 
+                                    data-days="1">Morgen</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary date-preset" 
+                                    data-days="3">In 3 Tagen</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary date-preset" 
+                                    data-days="7">In 1 Woche</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary date-preset" 
+                                    data-days="14">In 2 Wochen</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary date-preset" 
+                                    data-days="30">In 1 Monat</button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="erinnerung_beschreibung" class="form-label">
+                            Woran erinnern? <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="erinnerung_beschreibung" name="beschreibung" 
+                                  rows="4" required maxlength="2000"
+                                  placeholder="z.B. Nachfragen ob Reinigung zufriedenstellend war..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="erinnerung_prioritaet" class="form-label">Prioritaet</label>
+                        <select class="form-select" id="erinnerung_prioritaet" name="prioritaet">
+                            <option value="niedrig">Niedrig</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="hoch">Hoch</option>
+                            <option value="kritisch">Kritisch</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-bell me-1"></i> Erinnerung erstellen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Schnellauswahl fuer Datum
+    document.querySelectorAll('.date-preset').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const days = parseInt(this.dataset.days);
+            const date = new Date();
+            date.setDate(date.getDate() + days);
+            const formatted = date.toISOString().split('T')[0];
+            document.getElementById('erinnerung_datum').value = formatted;
+            
+            // Button hervorheben
+            document.querySelectorAll('.date-preset').forEach(b => b.classList.remove('btn-secondary', 'text-white'));
+            this.classList.add('btn-secondary', 'text-white');
+        });
+    });
+});
+</script>
+
+{{-- ═══════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Neuer Log-Eintrag (erweitert) --}}
 {{-- ═══════════════════════════════════════════════════════════ --}}
 <div class="modal fade" id="modalNeuerLog" tabindex="-1">
