@@ -30,27 +30,22 @@
 
     {{-- Statistik-Karten --}}
     <div class="row g-3 mb-4">
-        {{-- Offene Rechnungen --}}
+        {{-- Rechnung zu schreiben --}}
         <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 @if($stats['ueberfaellige_rechnungen'] > 0) border-start border-danger border-4 @endif">
+            <div class="card border-0 shadow-sm h-100 @if($stats['rechnung_zu_schreiben'] > 0) border-start border-primary border-4 @endif">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="text-muted small mb-1">Offene Rechnungen</div>
-                            <div class="fs-3 fw-bold text-dark">{{ $stats['offene_rechnungen'] }}</div>
-                            @if($stats['ueberfaellige_rechnungen'] > 0)
-                                <span class="badge bg-danger">{{ $stats['ueberfaellige_rechnungen'] }} überfällig</span>
-                            @endif
+                            <div class="text-muted small mb-1">Rechnung zu schreiben</div>
+                            <div class="fs-3 fw-bold text-dark">{{ $stats['rechnung_zu_schreiben'] }}</div>
+                            <span class="small text-muted">Gebäude</span>
                         </div>
                         <div class="bg-primary bg-opacity-10 rounded-circle p-2">
-                            <i class="bi bi-receipt text-primary fs-4"></i>
+                            <i class="bi bi-pencil-square text-primary fs-4"></i>
                         </div>
                     </div>
-                    <div class="mt-2 small text-muted">
-                        {{ number_format($stats['offener_betrag'], 2, ',', '.') }} € offen
-                    </div>
                 </div>
-                <a href="{{ route('rechnung.index', ['status' => 'sent']) }}" class="stretched-link"></a>
+                <a href="{{ route('gebaeude.index', ['rechnung_schreiben' => 1]) }}" class="stretched-link"></a>
             </div>
         </div>
 
@@ -136,8 +131,8 @@
                         <a href="{{ route('rechnung.create') }}" class="btn btn-outline-primary">
                             <i class="bi bi-plus-circle me-1"></i>Neue Rechnung
                         </a>
-                        <a href="{{ route('gebaeude.create') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-building-add me-1"></i>Neues Gebäude
+                        <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-building me-1"></i>Gebäude
                         </a>
                         <a href="{{ route('reinigungsplanung.index') }}" class="btn btn-outline-success">
                             <i class="bi bi-calendar-check me-1"></i>Reinigungsplanung
@@ -145,8 +140,8 @@
                         <a href="{{ route('mahnungen.mahnlauf') }}" class="btn btn-outline-warning">
                             <i class="bi bi-envelope-exclamation me-1"></i>Mahnlauf
                         </a>
-                        <a href="{{ route('bank.autoMatchProgress') }}" class="btn btn-outline-info">
-                            <i class="bi bi-arrow-left-right me-1"></i>Auto-Match
+                        <a href="{{ route('bank.index') }}" class="btn btn-outline-info">
+                            <i class="bi bi-bank me-1"></i>Bankbuchungen
                         </a>
                     </div>
                 </div>
