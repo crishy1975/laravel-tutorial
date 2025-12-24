@@ -220,16 +220,27 @@
                     <i class="bi bi-building me-2"></i>Gebaeude
                 </div>
                 <div class="card-body">
-                    <h6 class="mb-1">{{ $gebaeude->gebaeude_name ?: '-' }}</h6>
                     @if($gebaeude->codex)
-                        <span class="badge bg-dark font-monospace">{{ $gebaeude->codex }}</span>
+                        <span class="badge bg-dark font-monospace mb-2">{{ $gebaeude->codex }}</span>
                     @endif
-                    <div class="small text-muted mt-2">
-                        @if($gebaeude->strasse)
-                            {{ $gebaeude->strasse }} {{ $gebaeude->hausnummer }}<br>
+                    <h6 class="mb-2">
+                        {{ $gebaeude->gebaeude_name ?: ($gebaeude->strasse ? $gebaeude->strasse . ' ' . $gebaeude->hausnummer : 'Gebaeude #' . $gebaeude->id) }}
+                    </h6>
+                    <div class="small text-muted">
+                        @if($gebaeude->strasse || $gebaeude->plz || $gebaeude->wohnort)
+                            @if($gebaeude->strasse)
+                                {{ $gebaeude->strasse }} {{ $gebaeude->hausnummer }}<br>
+                            @endif
+                            @if($gebaeude->plz || $gebaeude->wohnort)
+                                {{ $gebaeude->plz }} {{ $gebaeude->wohnort }}
+                            @endif
+                        @else
+                            <em>Keine Adresse hinterlegt</em>
                         @endif
-                        {{ $gebaeude->plz }} {{ $gebaeude->wohnort }}
                     </div>
+                    <a href="{{ route('gebaeude.edit', $gebaeude->id) }}" class="btn btn-sm btn-outline-primary mt-2 w-100">
+                        <i class="bi bi-pencil me-1"></i>Bearbeiten
+                    </a>
                 </div>
             </div>
 
@@ -261,6 +272,21 @@
             </div>
 
             {{-- Statistik --}}
+            @php
+                $gesamtLogs = $gebaeude->logs()->count();
+                $diesenMonat = $gebaeude->logs()->whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->count();
+                $alleErinnerungen = $gebaeude->logs()->whereNotNull('erinnerung_datum')->count();
+                $offeneErinnerungen = $gebaeude->logs()
+                    ->whereNotNull('erinnerung_datum')
+                    ->where(function($q) {
+                        $q->where('erinnerung_erledigt', false)
+                          ->orWhereNull('erinnerung_erledigt');
+                    })
+                    ->count();
+                $offeneProbleme = $gebaeude->logs()
+                    ->whereIn('typ', ['reklamation', 'problem', 'mangel', 'schadensmeldung'])
+                    ->count();
+            @endphp
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-light">
                     <i class="bi bi-bar-chart me-2"></i>Statistik
@@ -268,25 +294,23 @@
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                         <span class="small">Gesamt</span>
-                        <span class="badge bg-secondary">{{ $gebaeude->logs()->count() }}</span>
+                        <span class="badge bg-secondary">{{ $gesamtLogs }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center py-2">
                         <span class="small">Diesen Monat</span>
-                        <span class="badge bg-primary">
-                            {{ $gebaeude->logs()->whereMonth('created_at', now()->month)->count() }}
-                        </span>
+                        <span class="badge bg-primary">{{ $diesenMonat }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                        <span class="small">Offene Erinnerungen</span>
-                        <span class="badge bg-warning text-dark">
-                            {{ $gebaeude->offeneErinnerungen()->count() }}
-                        </span>
+                        <span class="small">Erinnerungen (gesamt)</span>
+                        <span class="badge bg-info">{{ $alleErinnerungen }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center py-2">
-                        <span class="small">Offene Probleme</span>
-                        <span class="badge bg-danger">
-                            {{ $gebaeude->offeneProbleme()->count() }}
-                        </span>
+                        <span class="small">Erinnerungen (offen)</span>
+                        <span class="badge bg-warning text-dark">{{ $offeneErinnerungen }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                        <span class="small">Probleme/Reklamationen</span>
+                        <span class="badge bg-danger">{{ $offeneProbleme }}</span>
                     </li>
                 </ul>
             </div>

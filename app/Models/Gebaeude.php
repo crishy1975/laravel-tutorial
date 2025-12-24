@@ -199,8 +199,10 @@ class Gebaeude extends Model
     {
         return $this->hasMany(GebaeudeLog::class)
             ->whereNotNull('erinnerung_datum')
-            ->where('erinnerung_erledigt', false)
-            ->where('erinnerung_datum', '<=', now())
+            ->where(function($q) {
+                $q->where('erinnerung_erledigt', false)
+                  ->orWhereNull('erinnerung_erledigt');
+            })
             ->orderBy('erinnerung_datum');
     }
 
