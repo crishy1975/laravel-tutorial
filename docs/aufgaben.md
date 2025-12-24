@@ -29,4 +29,5 @@ paolo
     paolo integrieren
     gebäude ohne post und rechnungsadresse aktzepieren
     daten importieren
-    view für 
+    view für arbeiten anpassen
+    links, anruf, email, what app, maps
