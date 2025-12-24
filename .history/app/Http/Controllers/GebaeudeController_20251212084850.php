@@ -25,30 +25,17 @@ class GebaeudeController extends Controller
     /**
      * Gebäude bearbeiten: lädt Beziehungen + Auswahllisten.
      */
- 
     public function edit(Request $request, $id)
     {
         $gebaeude = Gebaeude::with([
             'postadresse',
             'rechnungsempfaenger',
-            // Touren (Plural) nach Pivot sortiert
             'touren' => fn($q) => $q->orderBy('tourgebaeude.reihenfolge'),
-            // Timeline eager laden
             'timelines' => fn($q) => $q->orderBy('datum', 'desc')->orderBy('id', 'desc'),
-            // ⭐ Rechnungen laden (für Tab-Badge)
-            'rechnungen',
-            // ⭐ Logs laden (für Protokoll-Tab)
-            'logs' => fn($q) => $q->orderByDesc('created_at')->limit(50),
-            // ⭐ NEU: Dokumente laden (für Dokumente-Tab)
-            'dokumente' => fn($q) => $q->where('ist_archiviert', false)
-                                       ->orderByDesc('ist_wichtig')
-                                       ->orderByDesc('created_at'),
         ])->findOrFail($id);
 
-        // Adress-Auswahl
         $adressen = Adresse::orderBy('name')->get(['id', 'name', 'wohnort']);
 
-        // Fattura-Profile (robust: nur laden, wenn Tabelle existiert)
         $fatturaProfiles = collect();
         try {
             if (Schema::hasTable('fattura_profile')) {
@@ -59,7 +46,6 @@ class GebaeudeController extends Controller
             $fatturaProfiles = collect();
         }
 
-        // Codex-Präfix-Vorschläge
         $codexPrefixTips = Gebaeude::query()
             ->select(['codex', 'strasse', 'wohnort'])
             ->whereNotNull('codex')
@@ -87,14 +73,11 @@ class GebaeudeController extends Controller
             ->sortBy('prefix')
             ->take(300);
 
-        // Optionaler Rücksprung-Link
         $returnTo = $request->query('returnTo', url()->current());
 
-        // Touren-Auswahl
         $tourenAlle = Tour::orderBy('name')->get(['id', 'name', 'beschreibung', 'aktiv']);
         $tourenMap  = $tourenAlle->keyBy('id');
 
-        // View
         return view('gebaeude.form', compact(
             'gebaeude',
             'adressen',
@@ -105,7 +88,6 @@ class GebaeudeController extends Controller
             'fatturaProfiles'
         ));
     }
-
 
     /**
      * Gebäude aktualisieren inkl. Pivot (Touren) und FatturaPA-Feldern.

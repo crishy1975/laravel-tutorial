@@ -25,7 +25,7 @@ class GebaeudeController extends Controller
     /**
      * Gebäude bearbeiten: lädt Beziehungen + Auswahllisten.
      */
- 
+        */
     public function edit(Request $request, $id)
     {
         $gebaeude = Gebaeude::with([
