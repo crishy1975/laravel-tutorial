@@ -1,228 +1,131 @@
 {{-- resources/views/gebaeude/partials/_einteilung.blade.php --}}
-{{-- Reines Feld-Partial: wird im Hauptformular (create/edit) eingebunden.
-     WICHTIG: Kein eigenes <form> hier! Alle Buttons arbeiten mit fetch().
---}}
+{{-- MOBIL-OPTIMIERT --}}
 
 <div class="row g-3">
 
-  {{-- Monate m01..m12 (Checkboxen) --}}
+  {{-- Monate - 3er Grid auf Mobile, 4er auf Desktop --}}
   <div class="col-12">
-    <label class="form-label fw-semibold">Monate</label>
+    <label class="form-label small fw-semibold mb-2">Monate</label>
 
     @php
-      // Hilfsarray: [Feldname, Anzeigename]
       $monate = [
-        ['m01', 'Jänner'],   ['m02', 'Februar'],  ['m03', 'März'],
-        ['m04', 'April'],    ['m05', 'Mai'],      ['m06', 'Juni'],
-        ['m07', 'Juli'],     ['m08', 'August'],   ['m09', 'September'],
-        ['m10', 'Oktober'],  ['m11', 'November'], ['m12', 'Dezember'],
+        ['m01', 'Jan'], ['m02', 'Feb'], ['m03', 'Maer'],
+        ['m04', 'Apr'], ['m05', 'Mai'], ['m06', 'Jun'],
+        ['m07', 'Jul'], ['m08', 'Aug'], ['m09', 'Sep'],
+        ['m10', 'Okt'], ['m11', 'Nov'], ['m12', 'Dez'],
       ];
     @endphp
 
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2">
+    <div class="row row-cols-3 row-cols-sm-4 row-cols-md-6 g-2">
       @foreach($monate as [$feld, $label])
         <div class="col">
-          {{-- Hidden 0: sorgt dafür, dass bei "unchecked" eine 0 im Request ankommt --}}
           <input type="hidden" name="{{ $feld }}" value="0">
           <div class="form-check">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              id="{{ $feld }}"
-              name="{{ $feld }}"
-              value="1"
-              @checked( (int)old($feld, $gebaeude->{$feld} ?? 0) === 1 )
-            >
-            <label class="form-check-label" for="{{ $feld }}">{{ $label }}</label>
+            <input class="form-check-input" type="checkbox" id="{{ $feld }}" name="{{ $feld }}" value="1"
+              @checked((int)old($feld, $gebaeude->{$feld} ?? 0) === 1)>
+            <label class="form-check-label small" for="{{ $feld }}">{{ $label }}</label>
           </div>
-          @error($feld)
-            <div class="text-danger small">{{ $message }}</div>
-          @enderror
         </div>
       @endforeach
     </div>
   </div>
 
-  {{-- Geplante Reinigungen (Number) --}}
-  <div class="col-md-6">
-    <div class="form-floating">
-      <input
-        type="number" min="0"
-        id="geplante_reinigungen" name="geplante_reinigungen"
-        class="form-control @error('geplante_reinigungen') is-invalid @enderror"
-        value="{{ old('geplante_reinigungen', $gebaeude->geplante_reinigungen ?? 1) }}">
-      <label for="geplante_reinigungen">Geplante Reinigungen</label>
-      @error('geplante_reinigungen') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+  {{-- Geplante / Gemachte Reinigungen --}}
+  <div class="col-6">
+    <label for="geplante_reinigungen" class="form-label small mb-1">Geplante</label>
+    <input type="number" min="0" id="geplante_reinigungen" name="geplante_reinigungen"
+      class="form-control @error('geplante_reinigungen') is-invalid @enderror"
+      value="{{ old('geplante_reinigungen', $gebaeude->geplante_reinigungen ?? 1) }}">
+    @error('geplante_reinigungen') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Gemachte Reinigungen (Number) --}}
-  <div class="col-md-6">
-    <div class="form-floating">
-      <input
-        type="number" min="0"
-        id="gemachte_reinigungen" name="gemachte_reinigungen"
-        class="form-control @error('gemachte_reinigungen') is-invalid @enderror"
-        value="{{ old('gemachte_reinigungen', $gebaeude->gemachte_reinigungen ?? 0) }}">
-      <label for="gemachte_reinigungen">Gemachte Reinigungen</label>
-      @error('gemachte_reinigungen') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    </div>
+  <div class="col-6">
+    <label for="gemachte_reinigungen" class="form-label small mb-1">Gemachte</label>
+    <input type="number" min="0" id="gemachte_reinigungen" name="gemachte_reinigungen"
+      class="form-control @error('gemachte_reinigungen') is-invalid @enderror"
+      value="{{ old('gemachte_reinigungen', $gebaeude->gemachte_reinigungen ?? 0) }}">
+    @error('gemachte_reinigungen') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Rechnung schreiben (Switch) --}}
-  <div class="col-md-6">
-    {{-- Hidden 0: auch wenn Switch aus ist, 0 speichern --}}
+  {{-- Switches --}}
+  <div class="col-6">
     <input type="hidden" name="rechnung_schreiben" value="0">
-    <div class="form-check form-switch mt-2">
-      <input
-        class="form-check-input @error('rechnung_schreiben') is-invalid @enderror"
-        type="checkbox" role="switch"
-        id="rechnung_schreiben" name="rechnung_schreiben" value="1"
-        @checked( (int)old('rechnung_schreiben', $gebaeude->rechnung_schreiben ?? 0) === 1 )
-      >
-      <label class="form-check-label fw-semibold" for="rechnung_schreiben">
-        Rechnung schreiben
-      </label>
-      @error('rechnung_schreiben') <div class="text-danger small">{{ $message }}</div> @enderror
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="rechnung_schreiben" name="rechnung_schreiben" value="1"
+        @checked((int)old('rechnung_schreiben', $gebaeude->rechnung_schreiben ?? 0) === 1)>
+      <label class="form-check-label small" for="rechnung_schreiben">Rechnung schreiben</label>
     </div>
   </div>
 
-  {{-- Fällig (Switch) + Live-Badge --}}
-  <div class="col-md-6">
-    {{-- Hidden 0: auch wenn Switch aus ist, 0 speichern --}}
+  <div class="col-6">
     <input type="hidden" name="faellig" value="0">
-
-    <div class="d-flex flex-column gap-2 mt-2">
-      <div class="d-flex align-items-center gap-2">
-        <div class="form-check form-switch m-0">
-          <input
-            class="form-check-input @error('faellig') is-invalid @enderror"
-            type="checkbox" role="switch"
-            id="faellig" name="faellig" value="1"
-            @checked( (int)old('faellig', $gebaeude->faellig ?? 0) === 1 )
-          >
-          <label class="form-check-label fw-semibold" for="faellig">
-            Fällig
-          </label>
-          @error('faellig') <div class="text-danger small">{{ $message }}</div> @enderror
-        </div>
-
-        {{-- Status-Badge (wird vom Button unten live aktualisiert) --}}
-
-      </div>
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="faellig" name="faellig" value="1"
+        @checked((int)old('faellig', $gebaeude->faellig ?? 0) === 1)>
+      <label class="form-check-label small" for="faellig">Faellig</label>
     </div>
   </div>
 
-  {{-- =========================== --}}
-  {{-- 🔘 Globale Aktionen (unten) --}}
-  {{-- =========================== --}}
-  {{-- ⭐ NUR anzeigen wenn Gebäude bereits existiert (hat ID) --}}
+  {{-- Aktionen - nur wenn Gebaeude existiert --}}
   @if(!empty($gebaeude->id))
   <div class="col-12">
-    <div class="d-flex align-items-center justify-content-end gap-3">
-      {{-- Fälligkeit (nur dieses Gebäude) neu berechnen --}}
+    <div class="d-flex flex-column flex-sm-row gap-2 justify-content-end">
       <button type="button" id="btn-recalc-faellig" class="btn btn-outline-primary btn-sm">
-        <i class="bi bi-arrow-repeat"></i>
-        Fälligkeit jetzt prüfen
+        <i class="bi bi-arrow-repeat"></i> Faelligkeit pruefen
       </button>
-
-      {{-- ALLE gemachte_reinigungen global zurücksetzen --}}
-      <button
-        type="button"
-        id="btn-reset-gemachte"
-        class="btn btn-outline-danger btn-sm">
-        <i class="bi bi-arrow-counterclockwise"></i>
-        Gemachte Reinigungen (ALLE) zurücksetzen
+      <button type="button" id="btn-reset-gemachte" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-arrow-counterclockwise"></i> Gemachte zuruecksetzen
       </button>
     </div>
   </div>
   @else
   <div class="col-12">
-    <div class="alert alert-info mb-0">
-      <i class="bi bi-info-circle"></i>
-      Die Fälligkeits-Aktionen stehen erst nach dem Speichern des Gebäudes zur Verfügung.
+    <div class="alert alert-info py-2 mb-0 small">
+      <i class="bi bi-info-circle"></i> Aktionen erst nach Speichern verfuegbar.
     </div>
   </div>
   @endif
 
 </div>
 
-{{-- ⭐ Datenträger NUR wenn Gebäude existiert --}}
 @if(!empty($gebaeude->id))
-<div
-  id="einteilung-root"
+<div id="einteilung-root"
   data-csrf="{{ csrf_token() }}"
-  {{-- Pro-Gebäude-Neuberechnung (JSON): --}}
   data-route-recalc="{{ route('gebaeude.faellig.recalc', $gebaeude->id) }}"
-  {{-- Globales Zurücksetzen „gemachte_reinigungen" (Redirect/Flash): --}}
   data-route-reset="{{ route('gebaeude.resetGemachteReinigungen') }}">
 </div>
 
-@verbatim
 <script>
-(function () {
-  var root       = document.getElementById('einteilung-root');
-  var btnReset   = document.getElementById('btn-reset-gemachte');
-  var btnRecalc  = document.getElementById('btn-recalc-faellig');
-  var badge      = document.getElementById('faellig-badge');
+(function() {
+  var root = document.getElementById('einteilung-root');
+  var btnReset = document.getElementById('btn-reset-gemachte');
+  var btnRecalc = document.getElementById('btn-recalc-faellig');
   var chkFaellig = document.getElementById('faellig');
 
   if (!root) return;
 
-  var CSRF         = root.dataset ? (root.dataset.csrf || '') : '';
-  var ROUTE_RECALC = root.dataset ? (root.dataset.routeRecalc || '') : '';
-  var ROUTE_RESET  = root.dataset ? (root.dataset.routeReset  || '') : '';
+  var CSRF = root.dataset.csrf || '';
+  var ROUTE_RECALC = root.dataset.routeRecalc || '';
+  var ROUTE_RESET = root.dataset.routeReset || '';
 
-  /* ---------------------------------
-   * A) Fälligkeit für *dieses* Gebäude prüfen
-   *     - erwartet JSON: { ok: true, faellig: 0|1 }
-   *     - aktualisiert Badge + Switch live
-   * --------------------------------- */
   if (btnRecalc) {
-    btnRecalc.addEventListener('click', async function () {
-      if (!ROUTE_RECALC) {
-        alert('Route für Fälligkeit nicht gefunden.');
-        return;
-      }
+    btnRecalc.addEventListener('click', async function() {
+      if (!ROUTE_RECALC) return;
       btnRecalc.disabled = true;
       var oldHtml = btnRecalc.innerHTML;
-      btnRecalc.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Prüfe…';
+      btnRecalc.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
       try {
         var res = await fetch(ROUTE_RECALC, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
           body: JSON.stringify({})
         });
-
-        var json = {};
-        try { json = await res.json(); } catch (e) {}
-
-        if (!res.ok || json.ok === false) {
-          throw new Error(json.message || ('HTTP ' + res.status));
-        }
-
-        // Live-Update UI (Badge nur, wenn vorhanden)
-        var isFaellig = !!json.faellig;
-
-        if (badge) {
-          badge.textContent = isFaellig ? 'FÄLLIG' : 'nicht fällig';
-          badge.classList.toggle('text-bg-danger', isFaellig);
-          badge.classList.toggle('text-bg-secondary', !isFaellig);
-        }
-
-        // Switch im Formular mitziehen (damit "Speichern" den Status mitnimmt)
-        if (chkFaellig) {
-          chkFaellig.checked = isFaellig;
-        }
+        var json = await res.json();
+        if (!res.ok || json.ok === false) throw new Error(json.message || 'Fehler');
+        if (chkFaellig) chkFaellig.checked = !!json.faellig;
       } catch (err) {
-        console.error(err);
-        alert('Fälligkeit konnte nicht berechnet werden: ' + err.message);
+        alert('Fehler: ' + err.message);
       } finally {
         btnRecalc.disabled = false;
         btnRecalc.innerHTML = oldHtml;
@@ -230,19 +133,10 @@
     });
   }
 
-  /* ---------------------------------
-   * B) ALLE „gemachte_reinigungen" global auf 0 setzen
-   *     - klassischer Redirect/Flash: kein JSON notwendig
-   * --------------------------------- */
   if (btnReset) {
-    btnReset.addEventListener('click', async function () {
-      if (!ROUTE_RESET) {
-        alert('Route für Reset nicht gefunden.');
-        return;
-      }
-      if (!confirm('Alle „gemachte Reinigungen" wirklich auf 0 setzen? Diese Aktion betrifft ALLE Gebäude.')) {
-        return;
-      }
+    btnReset.addEventListener('click', async function() {
+      if (!ROUTE_RESET) return;
+      if (!confirm('Alle gemachten Reinigungen auf 0 setzen?')) return;
 
       try {
         var res = await fetch(ROUTE_RESET, {
@@ -251,16 +145,12 @@
           body: new URLSearchParams({ confirm: 'YES' })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-
-        // Nach Redirect/Flash Seite neu laden → Meldung sichtbar, Zahlen frisch
         window.location.reload();
       } catch (err) {
-        console.error(err);
-        alert('Fehler beim Zurücksetzen: ' + err.message);
+        alert('Fehler: ' + err.message);
       }
     });
   }
 })();
 </script>
-@endverbatim
 @endif

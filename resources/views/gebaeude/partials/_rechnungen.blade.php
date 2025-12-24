@@ -1,109 +1,128 @@
-{{-- Tab: Rechnungen zu diesem Gebäude --}}
-{{-- Dieser Tab ist READ-ONLY (keine Form-Felder) und zeigt nur die Liste --}}
+{{-- resources/views/gebaeude/partials/_rechnungen.blade.php --}}
+{{-- MOBIL-OPTIMIERT: Card-Layout auf Smartphones --}}
 
 @if(!isset($gebaeude) || !$gebaeude->id)
     <div class="alert alert-info">
         <i class="bi bi-info-circle"></i>
-        Rechnungen können erst nach dem Erstellen des Gebäudes angezeigt werden.
+        Rechnungen erst nach Erstellen des Gebaeudes verfuegbar.
     </div>
 @else
+    @php
+        $rechnungen = $gebaeude->rechnungen()->orderByDesc('rechnungsdatum')->orderByDesc('id')->get();
+        $statusConfig = [
+            'draft' => ['class' => 'secondary', 'icon' => 'pencil-square', 'label' => 'Entwurf'],
+            'sent' => ['class' => 'info', 'icon' => 'send', 'label' => 'Versendet'],
+            'paid' => ['class' => 'success', 'icon' => 'check-circle-fill', 'label' => 'Bezahlt'],
+            'cancelled' => ['class' => 'danger', 'icon' => 'x-circle', 'label' => 'Storniert'],
+            'overdue' => ['class' => 'warning', 'icon' => 'exclamation-triangle', 'label' => 'Ueberfaellig'],
+        ];
+    @endphp
+
     <div class="row g-3">
-        {{-- Header mit Button --}}
+        {{-- Header --}}
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
                 <div>
-                    <h5 class="mb-0">
-                        <i class="bi bi-receipt"></i>
-                        Rechnungen zu diesem Gebäude
-                    </h5>
-                    <small class="text-muted">
-                        Gesamt: {{ $gebaeude->rechnungen->count() }} Rechnungen
-                    </small>
+                    <h6 class="mb-0">
+                        <i class="bi bi-receipt"></i> Rechnungen
+                    </h6>
+                    <small class="text-muted">{{ $rechnungen->count() }} Rechnungen</small>
                 </div>
                 <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
-                   class="btn btn-success">
+                   class="btn btn-success btn-sm">
                     <i class="bi bi-plus-circle"></i> Neue Rechnung
                 </a>
             </div>
         </div>
 
-        @if($gebaeude->rechnungen->isEmpty())
-            {{-- Keine Rechnungen vorhanden --}}
+        @if($rechnungen->isEmpty())
             <div class="col-12">
-                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                <div class="alert alert-info d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
                     <div>
-                        <i class="bi bi-info-circle"></i>
-                        Noch keine Rechnungen für dieses Gebäude erstellt.
+                        <i class="bi bi-info-circle"></i> Noch keine Rechnungen erstellt.
                     </div>
                     <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
-                       class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Erste Rechnung erstellen
+                       class="btn btn-primary btn-sm">
+                        <i class="bi bi-plus-circle"></i> Erste Rechnung
                     </a>
                 </div>
             </div>
         @else
-            {{-- Rechnungsliste --}}
-            <div class="col-12">
+            {{-- MOBILE: Cards --}}
+            <div class="col-12 d-md-none">
+                @foreach($rechnungen as $rechnung)
+                    @php $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status]; @endphp
+                    <div class="card mb-2">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong>{{ $rechnung->rechnungsnummer ?? '-' }}</strong>
+                                    <div class="text-muted small">{{ $rechnung->rechnungsdatum?->format('d.m.Y') }}</div>
+                                </div>
+                                <span class="badge bg-{{ $config['class'] }}">
+                                    <i class="bi bi-{{ $config['icon'] }}"></i> {{ $config['label'] }}
+                                </span>
+                            </div>
+                            <div class="small text-muted mb-2">{{ Str::limit($rechnung->re_name ?? '-', 30) }}</div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="fw-bold">{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} EUR</span>
+                                    <span class="text-muted small">(netto: {{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }})</span>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-primary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    @if($rechnung->status !== 'draft')
+                                    <a href="{{ route('rechnung.pdf', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
+                                        <i class="bi bi-file-pdf"></i>
+                                    </a>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            {{-- DESKTOP: Tabelle --}}
+            <div class="col-12 d-none d-md-block">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover table-sm">
                         <thead class="table-light">
                             <tr>
-                                <th>Rechnung-Nr.</th>
+                                <th>Nr.</th>
                                 <th>Datum</th>
                                 <th>Status</th>
-                                <th>Empfänger</th>
+                                <th>Empfaenger</th>
                                 <th class="text-end">Netto</th>
-                                <th class="text-end">MwSt.</th>
                                 <th class="text-end">Brutto</th>
-                                <th class="text-center">Aktionen</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($gebaeude->rechnungen()->orderByDesc('rechnungsdatum')->orderByDesc('id')->get() as $rechnung)
+                            @foreach($rechnungen as $rechnung)
+                                @php $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status]; @endphp
                                 <tr>
                                     <td><strong>{{ $rechnung->rechnungsnummer ?? '-' }}</strong></td>
-                                    <td>{{ $rechnung->rechnungsdatum ? $rechnung->rechnungsdatum->format('d.m.Y') : '-' }}</td>
+                                    <td>{{ $rechnung->rechnungsdatum?->format('d.m.Y') }}</td>
                                     <td>
-                                        @php
-                                            $statusConfig = [
-                                                'draft' => ['class' => 'secondary', 'icon' => 'pencil-square', 'label' => 'Entwurf'],
-                                                'sent' => ['class' => 'info', 'icon' => 'send', 'label' => 'Versendet'],
-                                                'paid' => ['class' => 'success', 'icon' => 'check-circle-fill', 'label' => 'Bezahlt'],
-                                                'cancelled' => ['class' => 'danger', 'icon' => 'x-circle', 'label' => 'Storniert'],
-                                                'overdue' => ['class' => 'warning', 'icon' => 'exclamation-triangle', 'label' => 'Überfällig'],
-                                            ];
-                                            $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question-circle', 'label' => $rechnung->status];
-                                        @endphp
                                         <span class="badge bg-{{ $config['class'] }}">
-                                            <i class="bi bi-{{ $config['icon'] }}"></i>
-                                            {{ $config['label'] }}
+                                            <i class="bi bi-{{ $config['icon'] }}"></i> {{ $config['label'] }}
                                         </span>
                                     </td>
-                                    <td>
-                                        <div>{{ Str::limit($rechnung->re_name ?? '-', 35) }}</div>
-                                        @if($rechnung->re_wohnort)
-                                            <small class="text-muted">{{ $rechnung->re_wohnort }}</small>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">{{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }} €</td>
-                                    <td class="text-end">{{ number_format($rechnung->mwst_betrag ?? 0, 2, ',', '.') }} €</td>
+                                    <td>{{ Str::limit($rechnung->re_name ?? '-', 25) }}</td>
+                                    <td class="text-end">{{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }}</td>
+                                    <td class="text-end"><strong>{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }}</strong></td>
                                     <td class="text-end">
-                                        <strong>{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} €</strong>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ route('rechnung.edit', $rechnung->id) }}" 
-                                               class="btn btn-outline-primary" 
-                                               title="Bearbeiten">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-primary">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                             @if($rechnung->status !== 'draft')
-                                                <a href="{{ route('rechnung.pdf', $rechnung->id) }}" 
-                                                   class="btn btn-outline-secondary" 
-                                                   target="_blank"
-                                                   title="PDF öffnen">
-                                                    <i class="bi bi-file-pdf"></i>
-                                                </a>
+                                            <a href="{{ route('rechnung.pdf', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
+                                                <i class="bi bi-file-pdf"></i>
+                                            </a>
                                             @endif
                                         </div>
                                     </td>
@@ -112,40 +131,9 @@
                         </tbody>
                         <tfoot class="table-light">
                             <tr class="fw-bold">
-                                <td colspan="4">Gesamt ({{ $gebaeude->rechnungen->count() }} Rechnungen)</td>
-                                <td class="text-end">{{ number_format($gebaeude->rechnungen->sum('netto_summe'), 2, ',', '.') }} €</td>
-                                <td class="text-end">{{ number_format($gebaeude->rechnungen->sum('mwst_betrag'), 2, ',', '.') }} €</td>
-                                <td class="text-end">{{ number_format($gebaeude->rechnungen->sum('brutto_summe'), 2, ',', '.') }} €</td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td colspan="4" class="text-success">
-                                    <i class="bi bi-check-circle"></i> Davon bezahlt
-                                </td>
-                                <td class="text-end text-success">
-                                    {{ number_format($gebaeude->rechnungen->where('status', 'paid')->sum('netto_summe'), 2, ',', '.') }} €
-                                </td>
-                                <td class="text-end text-success">
-                                    {{ number_format($gebaeude->rechnungen->where('status', 'paid')->sum('mwst_betrag'), 2, ',', '.') }} €
-                                </td>
-                                <td class="text-end text-success">
-                                    {{ number_format($gebaeude->rechnungen->where('status', 'paid')->sum('brutto_summe'), 2, ',', '.') }} €
-                                </td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td colspan="4" class="text-warning">
-                                    <i class="bi bi-exclamation-triangle"></i> Davon offen
-                                </td>
-                                <td class="text-end text-warning">
-                                    {{ number_format($gebaeude->rechnungen->whereIn('status', ['sent', 'overdue'])->sum('netto_summe'), 2, ',', '.') }} €
-                                </td>
-                                <td class="text-end text-warning">
-                                    {{ number_format($gebaeude->rechnungen->whereIn('status', ['sent', 'overdue'])->sum('mwst_betrag'), 2, ',', '.') }} €
-                                </td>
-                                <td class="text-end text-warning">
-                                    {{ number_format($gebaeude->rechnungen->whereIn('status', ['sent', 'overdue'])->sum('brutto_summe'), 2, ',', '.') }} €
-                                </td>
+                                <td colspan="4">Gesamt</td>
+                                <td class="text-end">{{ number_format($rechnungen->sum('netto_summe'), 2, ',', '.') }}</td>
+                                <td class="text-end">{{ number_format($rechnungen->sum('brutto_summe'), 2, ',', '.') }}</td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -153,75 +141,64 @@
                 </div>
             </div>
 
-            {{-- Statistik-Karten --}}
+            {{-- Statistik-Karten - responsive --}}
             <div class="col-12">
-                <div class="row g-3">
-                    <div class="col-md-3">
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
                         <div class="card border-secondary h-100">
-                            <div class="card-body text-center">
-                                <i class="bi bi-pencil-square fs-2 text-secondary"></i>
-                                <h6 class="text-muted mt-2 mb-1">Entwürfe</h6>
-                                <h3 class="mb-0">{{ $gebaeude->rechnungen->where('status', 'draft')->count() }}</h3>
+                            <div class="card-body text-center p-2">
+                                <i class="bi bi-pencil-square text-secondary"></i>
+                                <div class="small text-muted">Entwuerfe</div>
+                                <strong>{{ $rechnungen->where('status', 'draft')->count() }}</strong>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <div class="card border-info h-100">
-                            <div class="card-body text-center">
-                                <i class="bi bi-send fs-2 text-info"></i>
-                                <h6 class="text-muted mt-2 mb-1">Versendet</h6>
-                                <h3 class="mb-0">{{ $gebaeude->rechnungen->where('status', 'sent')->count() }}</h3>
+                            <div class="card-body text-center p-2">
+                                <i class="bi bi-send text-info"></i>
+                                <div class="small text-muted">Versendet</div>
+                                <strong>{{ $rechnungen->where('status', 'sent')->count() }}</strong>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <div class="card border-success h-100">
-                            <div class="card-body text-center">
-                                <i class="bi bi-check-circle-fill fs-2 text-success"></i>
-                                <h6 class="text-muted mt-2 mb-1">Bezahlt</h6>
-                                <h3 class="mb-0 text-success">{{ $gebaeude->rechnungen->where('status', 'paid')->count() }}</h3>
+                            <div class="card-body text-center p-2">
+                                <i class="bi bi-check-circle text-success"></i>
+                                <div class="small text-muted">Bezahlt</div>
+                                <strong class="text-success">{{ $rechnungen->where('status', 'paid')->count() }}</strong>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6 col-md-3">
                         <div class="card border-warning h-100">
-                            <div class="card-body text-center">
-                                <i class="bi bi-exclamation-triangle fs-2 text-warning"></i>
-                                <h6 class="text-muted mt-2 mb-1">Überfällig</h6>
-                                <h3 class="mb-0 text-warning">{{ $gebaeude->rechnungen->where('status', 'overdue')->count() }}</h3>
+                            <div class="card-body text-center p-2">
+                                <i class="bi bi-exclamation-triangle text-warning"></i>
+                                <div class="small text-muted">Offen</div>
+                                <strong class="text-warning">{{ $rechnungen->whereIn('status', ['sent', 'overdue'])->count() }}</strong>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {{-- Umsatz-Übersicht --}}
+            {{-- Umsatz kompakt --}}
             <div class="col-12">
                 <div class="card border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <i class="bi bi-graph-up"></i> Umsatz-Übersicht
-                    </div>
-                    <div class="card-body">
+                    <div class="card-body p-2">
                         <div class="row text-center">
-                            <div class="col-md-4">
-                                <div class="border-end">
-                                    <small class="text-muted d-block mb-1">Gesamt-Umsatz</small>
-                                    <h4 class="mb-0">{{ number_format($gebaeude->rechnungen->sum('brutto_summe'), 2, ',', '.') }} €</h4>
-                                </div>
+                            <div class="col-4 border-end">
+                                <small class="text-muted d-block">Gesamt</small>
+                                <strong>{{ number_format($rechnungen->sum('brutto_summe'), 2, ',', '.') }}</strong>
                             </div>
-                            <div class="col-md-4">
-                                <div class="border-end">
-                                    <small class="text-muted d-block mb-1">Bezahlt</small>
-                                    <h4 class="mb-0 text-success">
-                                        {{ number_format($gebaeude->rechnungen->where('status', 'paid')->sum('brutto_summe'), 2, ',', '.') }} €
-                                    </h4>
-                                </div>
+                            <div class="col-4 border-end">
+                                <small class="text-muted d-block">Bezahlt</small>
+                                <strong class="text-success">{{ number_format($rechnungen->where('status', 'paid')->sum('brutto_summe'), 2, ',', '.') }}</strong>
                             </div>
-                            <div class="col-md-4">
-                                <small class="text-muted d-block mb-1">Offen</small>
-                                <h4 class="mb-0 text-warning">
-                                    {{ number_format($gebaeude->rechnungen->whereIn('status', ['sent', 'overdue'])->sum('brutto_summe'), 2, ',', '.') }} €
-                                </h4>
+                            <div class="col-4">
+                                <small class="text-muted d-block">Offen</small>
+                                <strong class="text-warning">{{ number_format($rechnungen->whereIn('status', ['sent', 'overdue'])->sum('brutto_summe'), 2, ',', '.') }}</strong>
                             </div>
                         </div>
                     </div>
