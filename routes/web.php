@@ -18,12 +18,21 @@ use App\Http\Controllers\BankBuchungController;
 use App\Http\Controllers\MahnungController;
 use App\Http\Controllers\AngebotController;
 use App\Http\Controllers\GebaeudeLogController;
+use App\Http\Controllers\DashboardController;
 
 
-// Home / Dashboard Redirect
-Route::get('/', fn() => redirect()->route('gebaeude.index'))
+// Home / Dashboard
+Route::get('/', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('home');
+
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
+
+Route::post('/dashboard/erledigt', [DashboardController::class, 'erledigtAjax'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard.erledigt');
 
 
 
