@@ -80,8 +80,56 @@
     @error('wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
+  {{-- ═══════════════════════════════════════════════════════════ --}}
+  {{-- ⭐ NEU: Kontaktdaten --}}
+  {{-- ═══════════════════════════════════════════════════════════ --}}
+  
+  <div class="col-12">
+    <hr class="my-2">
+    <small class="text-muted"><i class="bi bi-telephone me-1"></i>Kontaktdaten</small>
+  </div>
+
+  {{-- Telefon --}}
+  <div class="col-6 col-md-4">
+    <label for="telefon" class="form-label small mb-1">
+      <i class="bi bi-telephone d-none d-sm-inline"></i> Telefon
+    </label>
+    <input type="tel" id="telefon" name="telefon"
+      class="form-control @error('telefon') is-invalid @enderror"
+      value="{{ old('telefon', $gebaeude->telefon ?? '') }}"
+      placeholder="+39 0123 456789">
+    @error('telefon') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
+
+  {{-- Handy --}}
+  <div class="col-6 col-md-4">
+    <label for="handy" class="form-label small mb-1">
+      <i class="bi bi-phone d-none d-sm-inline"></i> Handy
+    </label>
+    <input type="tel" id="handy" name="handy"
+      class="form-control @error('handy') is-invalid @enderror"
+      value="{{ old('handy', $gebaeude->handy ?? '') }}"
+      placeholder="+39 333 1234567">
+    @error('handy') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
+
+  {{-- Email --}}
+  <div class="col-12 col-md-4">
+    <label for="email" class="form-label small mb-1">
+      <i class="bi bi-envelope d-none d-sm-inline"></i> E-Mail
+    </label>
+    <input type="email" id="email" name="email"
+      class="form-control @error('email') is-invalid @enderror"
+      value="{{ old('email', $gebaeude->email ?? '') }}"
+      placeholder="kontakt@beispiel.it">
+    @error('email') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
+
+  {{-- ═══════════════════════════════════════════════════════════ --}}
+
   {{-- Bemerkung --}}
   <div class="col-12">
+    <hr class="my-2">
     <label for="bemerkung" class="form-label small mb-1">
       <i class="bi bi-chat-left-text d-none d-sm-inline"></i> Bemerkung
     </label>
