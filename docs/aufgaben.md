@@ -11,9 +11,15 @@ log
     log auch in angebote
     
 angebote
-    x standard texte dynamisch
+    standard texte dynamisch
 
 dokumente
     dokumente
     notizen
     texte
+
+dashboard
+    errinerungen
+    aufgaben
+    begrüßung
+    
