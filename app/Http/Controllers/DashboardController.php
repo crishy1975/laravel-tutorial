@@ -117,7 +117,8 @@ class DashboardController extends Controller
      */
     private function getBegruessung(string $name): array
     {
-        $now = Carbon::now();
+        // Zeitzone für Italien/Deutschland (MEZ/MESZ)
+        $now = Carbon::now('Europe/Rome');
         $stunde = $now->hour;
         $istWochenende = $now->isWeekend();
         
