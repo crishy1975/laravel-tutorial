@@ -27,3 +27,6 @@ dashboard
 
 paolo
     paolo integrieren
+    gebäude ohne post und rechnungsadresse aktzepieren
+    daten importieren
+    view für 
