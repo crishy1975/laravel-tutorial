@@ -5,22 +5,22 @@
 <div class="container-fluid px-2 px-md-4 py-3">
 
     {{-- Begrüßung --}}
-    <div class="card border-0 shadow-sm mb-4 bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 50%, #3a7ca5 100%);">
         <div class="card-body text-white py-4">
             <div class="row align-items-center">
                 <div class="col-auto">
                     <span style="font-size: 3rem;">{{ $begruessung['emoji'] }}</span>
                 </div>
                 <div class="col">
-                    <h4 class="mb-1 fw-bold">{{ $begruessung['spruch'] }}</h4>
-                    <p class="mb-0 opacity-75">
+                    <h4 class="mb-1 fw-bold text-white">{{ $begruessung['spruch'] }}</h4>
+                    <p class="mb-0" style="color: rgba(255,255,255,0.85);">
                         <i class="bi bi-calendar3 me-1"></i>{{ $begruessung['datum'] }}
                         <span class="mx-2">•</span>
                         <i class="bi bi-clock me-1"></i>{{ $begruessung['uhrzeit'] }} Uhr
                     </p>
                 </div>
                 <div class="col-auto d-none d-md-block">
-                    <button class="btn btn-light btn-sm" onclick="location.reload();" title="Neuer Spruch">
+                    <button class="btn btn-outline-light btn-sm" onclick="location.reload();" title="Neuer Spruch">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
                 </div>
@@ -212,11 +212,11 @@
                                             <div class="small fw-bold">{{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->format('d.m.') }}</div>
                                             <div style="font-size: 0.65rem;">
                                                 @if($istUeberfaellig)
-                                                    {{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->diffInDays(now()) }}d
+                                                    {{ (int) \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->diffInDays(now()) }}d
                                                 @elseif($istHeute)
                                                     Heute
                                                 @else
-                                                    {{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->locale('de')->dayName }}
+                                                    {{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->locale('de')->shortDayName }}
                                                 @endif
                                             </div>
                                         </div>
