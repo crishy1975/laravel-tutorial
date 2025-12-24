@@ -288,11 +288,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // PDF
     Route::get('/rechnung/{id}/pdf', [RechnungController::class, 'pdf'])->name('rechnung.pdf');
 
-    // XML Export
+    // XML Export & FatturaPA
     Route::get('/rechnung/{id}/xml', [RechnungController::class, 'xml'])->name('rechnung.xml');
     Route::get('/rechnung/{id}/xml/download', [RechnungController::class, 'xmlDownload'])->name('rechnung.xml.download');
     Route::get('/rechnung/{id}/xml/preview', [RechnungController::class, 'xmlPreview'])->name('rechnung.xml.preview');
     Route::post('/rechnung/{id}/xml/regenerate', [RechnungController::class, 'xmlRegenerate'])->name('rechnung.xml.regenerate');
+    Route::delete('/fattura-xml/{log}', [RechnungController::class, 'xmlDelete'])->name('fattura.xml.delete');
+    Route::get('/fattura-xml/{log}/download', [RechnungController::class, 'xmlLogDownload'])->name('fattura.xml.download');
+    Route::get('/rechnung/{id}/fattura/history', [RechnungController::class, 'fatturaHistory'])->name('rechnung.fattura.history');
 
     // Duplizieren
     Route::post('/rechnung/{rechnung}/duplicate', [RechnungController::class, 'duplicate'])
