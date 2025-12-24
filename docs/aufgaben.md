@@ -21,5 +21,7 @@ dokumente
 dashboard
     errinerungen
     aufgaben
+        buchungen sind schon x tage alt
+        mahnungen schon seit x tagen nicht verschickt
     begrüßung
     
