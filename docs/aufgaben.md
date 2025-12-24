@@ -1,5 +1,5 @@
 mahnungen
-    show ohne rn-nr
+    x show ohne rn-nr
     x wenn rechnung bezahlt muss sie verschwinden
     tage runden
 
@@ -11,4 +11,4 @@ log
     log auch in angebote
     
 angebote
-    standard texte dynamisch
+    x standard texte dynamisch
