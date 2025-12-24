@@ -19,7 +19,7 @@ use App\Http\Controllers\MahnungController;
 use App\Http\Controllers\AngebotController;
 use App\Http\Controllers\GebaeudeLogController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GebaeudeDocumentController;
+
 
 
 // Home / Dashboard
