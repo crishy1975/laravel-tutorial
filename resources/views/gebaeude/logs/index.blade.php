@@ -248,6 +248,10 @@
                                 data-bs-toggle="modal" data-bs-target="#modalTelefonat">
                             <i class="bi bi-telephone me-2"></i>Telefonat
                         </button>
+                        <button type="button" class="btn btn-outline-warning btn-sm text-start" 
+                                data-bs-toggle="modal" data-bs-target="#modalErinnerung">
+                            <i class="bi bi-bell me-2"></i>Erinnerung
+                        </button>
                         <button type="button" class="btn btn-outline-danger btn-sm text-start" 
                                 data-bs-toggle="modal" data-bs-target="#modalProblem">
                             <i class="bi bi-exclamation-triangle me-2"></i>Problem
@@ -303,6 +307,10 @@
         <button type="button" class="btn btn-outline-info flex-fill" 
                 data-bs-toggle="modal" data-bs-target="#modalTelefonat">
             <i class="bi bi-telephone"></i>
+        </button>
+        <button type="button" class="btn btn-outline-warning flex-fill" 
+                data-bs-toggle="modal" data-bs-target="#modalErinnerung">
+            <i class="bi bi-bell"></i>
         </button>
         <button type="button" class="btn btn-outline-danger flex-fill" 
                 data-bs-toggle="modal" data-bs-target="#modalProblem">
