@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use App\Enums\GebaeudeLogTyp;  // ⭐ NEU
 
 class Gebaeude extends Model
 {
@@ -19,8 +20,8 @@ class Gebaeude extends Model
     protected $table = 'gebaeude';
 
     protected $fillable = [
-        'legacy_id',      // ⭐ NEU
-        'legacy_mid',     // ⭐ NEU
+        'legacy_id',
+        'legacy_mid',
         'codex',
         'postadresse_id',
         'rechnungsempfaenger_id',
@@ -146,7 +147,7 @@ class Gebaeude extends Model
     }
 
     /**
-     * Aktuell gültiger gebäude-spezifischer Aufschlag (falls vorhanden)
+     * Aktuell gueltiger gebaeude-spezifischer Aufschlag (falls vorhanden)
      */
     public function gebaeudeAufschlag(): HasOne
     {
@@ -160,7 +161,7 @@ class Gebaeude extends Model
     }
 
     /**
-     * Alle Aufschläge für dieses Gebäude (Historie)
+     * Alle Aufschlaege fuer dieses Gebaeude (Historie)
      */
     public function alleGebaeudeAufschlaege(): HasMany
     {
@@ -169,18 +170,107 @@ class Gebaeude extends Model
     }
 
     // ═══════════════════════════════════════════════════════════
+    // ⭐ NEU: LOG RELATIONSHIPS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Alle Log-Eintraege fuer dieses Gebaeude
+     */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(GebaeudeLog::class)
+            ->orderByDesc('created_at');
+    }
+
+    /**
+     * Nur die letzten X Log-Eintraege
+     */
+    public function letzteAktivitaeten(int $anzahl = 10): HasMany
+    {
+        return $this->hasMany(GebaeudeLog::class)
+            ->orderByDesc('created_at')
+            ->limit($anzahl);
+    }
+
+    /**
+     * Offene Erinnerungen fuer dieses Gebaeude
+     */
+    public function offeneErinnerungen(): HasMany
+    {
+        return $this->hasMany(GebaeudeLog::class)
+            ->whereNotNull('erinnerung_datum')
+            ->where('erinnerung_erledigt', false)
+            ->where('erinnerung_datum', '<=', now())
+            ->orderBy('erinnerung_datum');
+    }
+
+    /**
+     * Offene Probleme/Reklamationen
+     */
+    public function offeneProbleme(): HasMany
+    {
+        return $this->hasMany(GebaeudeLog::class)
+            ->whereIn('typ', [
+                GebaeudeLogTyp::REKLAMATION->value,
+                GebaeudeLogTyp::PROBLEM->value,
+                GebaeudeLogTyp::MANGEL->value,
+                GebaeudeLogTyp::SCHADENSMELDUNG->value,
+            ])
+            ->orderByDesc('created_at');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ NEU: LOG HELPER METHODS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Schnell einen Log-Eintrag hinzufuegen
+     */
+    public function logEintrag(
+        GebaeudeLogTyp $typ,
+        ?string $beschreibung = null,
+        array $metadata = []
+    ): GebaeudeLog {
+        return GebaeudeLog::log($this->id, $typ, $beschreibung, $metadata);
+    }
+
+    /**
+     * Notiz hinzufuegen
+     */
+    public function notizHinzufuegen(string $text, string $prioritaet = 'normal'): GebaeudeLog
+    {
+        return GebaeudeLog::notiz($this->id, $text, $prioritaet);
+    }
+
+    /**
+     * Hat offene Probleme?
+     */
+    public function hatOffeneProbleme(): bool
+    {
+        return $this->offeneProbleme()->exists();
+    }
+
+    /**
+     * Anzahl offener Erinnerungen
+     */
+    public function anzahlOffeneErinnerungen(): int
+    {
+        return $this->offeneErinnerungen()->count();
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // 🧮 PREIS-AUFSCHLAG LOGIK
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Ermittelt den anzuwendenden Aufschlag für dieses Gebäude.
+     * Ermittelt den anzuwendenden Aufschlag fuer dieses Gebaeude.
      * 
-     * Priorität:
-     * 1. Gebäude-spezifischer Aufschlag (falls vorhanden und gültig)
-     * 2. Globaler Aufschlag für das Jahr
+     * Prioritaet:
+     * 1. Gebaeude-spezifischer Aufschlag (falls vorhanden und gueltig)
+     * 2. Globaler Aufschlag fuer das Jahr
      * 
      * @param int|null $jahr Jahr (Standard: aktuelles Jahr)
-     * @param Carbon|null $datum Datum für Gültigkeitsprüfung
+     * @param Carbon|null $datum Datum fuer Gueltigkeitspruefung
      * @return float Aufschlag in Prozent
      */
     public function getAufschlagProzent(?int $jahr = null, ?Carbon $datum = null): float
@@ -188,7 +278,7 @@ class Gebaeude extends Model
         $jahr = $jahr ?? now()->year;
         $datum = $datum ?? now();
 
-        // 1. Prüfe gebäude-spezifischen Aufschlag
+        // 1. Pruefe gebaeude-spezifischen Aufschlag
         $gebaeudeAufschlag = GebaeudeAufschlag::fuerGebaeude($this->id)
             ->gueltig($datum)
             ->first();
@@ -202,9 +292,9 @@ class Gebaeude extends Model
     }
 
     /**
-     * Hat dieses Gebäude einen individuellen Aufschlag?
+     * Hat dieses Gebaeude einen individuellen Aufschlag?
      * 
-     * @param Carbon|null $datum Datum für Gültigkeitsprüfung
+     * @param Carbon|null $datum Datum fuer Gueltigkeitspruefung
      * @return bool
      */
     public function hatIndividuellenAufschlag(?Carbon $datum = null): bool
@@ -217,12 +307,12 @@ class Gebaeude extends Model
     }
 
     /**
-     * Setzt einen individuellen Aufschlag für dieses Gebäude.
+     * Setzt einen individuellen Aufschlag fuer dieses Gebaeude.
      * 
      * @param float $prozent Aufschlag in %
-     * @param string|null $grund Begründung
-     * @param Carbon|null $gueltigAb Ab wann gültig (Standard: heute)
-     * @param Carbon|null $gueltigBis Bis wann gültig (NULL = unbegrenzt)
+     * @param string|null $grund Begruendung
+     * @param Carbon|null $gueltigAb Ab wann gueltig (Standard: heute)
+     * @param Carbon|null $gueltigBis Bis wann gueltig (NULL = unbegrenzt)
      * @return GebaeudeAufschlag
      */
     public function setAufschlag(
@@ -231,7 +321,7 @@ class Gebaeude extends Model
         ?Carbon $gueltigAb = null,
         ?Carbon $gueltigBis = null
     ): GebaeudeAufschlag {
-        // Alte Aufschläge beenden (gueltig_bis auf gestern setzen)
+        // Alte Aufschlaege beenden (gueltig_bis auf gestern setzen)
         $gestern = now()->subDay();
 
         GebaeudeAufschlag::where('gebaeude_id', $this->id)
@@ -266,7 +356,7 @@ class Gebaeude extends Model
      * Berechnet Artikelpreis MIT Aufschlag.
      * 
      * @param float $basispreis Original-Einzelpreis
-     * @param int|null $jahr Jahr für Aufschlag
+     * @param int|null $jahr Jahr fuer Aufschlag
      * @return float Neuer Preis
      */
     public function berechnePreisMitAufschlag(float $basispreis, ?int $jahr = null): float
@@ -397,10 +487,10 @@ class Gebaeude extends Model
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Erstellt automatisch eine Rechnung aus diesem Gebäude.
+     * Erstellt automatisch eine Rechnung aus diesem Gebaeude.
      * Preise werden automatisch mit Aufschlag berechnet.
      * 
-     * @param array<string, mixed> $overrides Optionale Überschreibungen
+     * @param array<string, mixed> $overrides Optionale Ueberschreibungen
      * @return Rechnung Die erstellte Rechnung im Status 'draft'
      */
     public function createRechnung(array $overrides = []): Rechnung
@@ -408,13 +498,12 @@ class Gebaeude extends Model
         return Rechnung::createFromGebaeude($this, $overrides);
     }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🔧 NEUE METHODE für Gebaeude Model
-// ═══════════════════════════════════════════════════════════════════════════
-// Diese Methode in App\Models\Gebaeude.php einfügen!
+    // ═══════════════════════════════════════════════════════════
+    // 🔧 KUMULATIVER AUFSCHLAG
+    // ═══════════════════════════════════════════════════════════
 
     /**
-     * ⭐ NEU: Berechnet kumulativen Aufschlag von basis_jahr bis ziel_jahr
+     * Berechnet kumulativen Aufschlag von basis_jahr bis ziel_jahr
      * 
      * Beispiel:
      * - basis_jahr = 2021, ziel_jahr = 2024
@@ -427,14 +516,14 @@ class Gebaeude extends Model
      */
     public function getKumulativerAufschlagFaktor(int $basisJahr, int $zielJahr): float
     {
-        // Wenn basis_jahr >= ziel_jahr → kein Aufschlag
+        // Wenn basis_jahr >= ziel_jahr -> kein Aufschlag
         if ($basisJahr >= $zielJahr) {
             return 1.0;
         }
 
         $faktor = 1.0;
 
-        // Für jedes Jahr zwischen basis_jahr und ziel_jahr
+        // Fuer jedes Jahr zwischen basis_jahr und ziel_jahr
         for ($jahr = $basisJahr + 1; $jahr <= $zielJahr; $jahr++) {
             $aufschlag = $this->getAufschlagProzent($jahr);
 
@@ -446,7 +535,7 @@ class Gebaeude extends Model
     }
 
     /**
-     * ⭐ NEU: Berechnet Preis mit kumulativem Aufschlag
+     * Berechnet Preis mit kumulativem Aufschlag
      * 
      * @param float $basisPreis Original-Preis
      * @param int $basisJahr Ab welchem Jahr gilt dieser Preis
@@ -464,57 +553,4 @@ class Gebaeude extends Model
 
         return round($basisPreis * $faktor, 2);
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 📊 BEISPIEL-NUTZUNG
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /*
-// Beispiel 1: Artikel von 2021
-$artikel->basis_preis = 100.00;
-$artikel->basis_jahr = 2021;
-
-// Heute ist 2024
-$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
-    $artikel->basis_preis,
-    $artikel->basis_jahr
-);
-
-// Berechnung:
-// 2022: 100 * 1.03 = 103.00
-// 2023: 103 * 1.04 = 107.12
-// 2024: 107.12 * 1.03 = 110.33
-// → Ergebnis: 110.33 €
-
-// Beispiel 2: Neuer Artikel von 2024
-$artikel->basis_preis = 100.00;
-$artikel->basis_jahr = 2024;
-
-// Heute ist 2024
-$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
-    $artikel->basis_preis,
-    $artikel->basis_jahr
-);
-
-// Berechnung:
-// basis_jahr (2024) >= aktuelles Jahr (2024)
-// → Faktor = 1.0
-// → Ergebnis: 100.00 € (keine Erhöhung!)
-
-// Beispiel 3: Artikel von 2024, berechnet für 2026
-$artikel->basis_preis = 100.00;
-$artikel->basis_jahr = 2024;
-
-// Berechne für 2026
-$preis = $gebaeude->berechnePreisMitKumulativerErhoehung(
-    $artikel->basis_preis,
-    $artikel->basis_jahr,
-    2026
-);
-
-// Berechnung:
-// 2025: 100 * 1.03 = 103.00
-// 2026: 103 * 1.05 = 108.15
-// → Ergebnis: 108.15 €
-*/
 }
