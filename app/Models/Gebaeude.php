@@ -30,6 +30,9 @@ class Gebaeude extends Model
         'hausnummer',
         'plz',
         'wohnort',
+        'telefon',           // ⭐ NEU
+        'handy',             // ⭐ NEU
+        'email',             // ⭐ NEU
         'land',
         'bemerkung',
         'veraendert',
@@ -87,6 +90,58 @@ class Gebaeude extends Model
         'm11' => 'boolean',
         'm12' => 'boolean',
     ];
+
+    // ═══════════════════════════════════════════════════════════
+    // 📞 KONTAKT-HELPER
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Hat das Gebäude Kontaktdaten?
+     */
+    public function hatKontaktdaten(): bool
+    {
+        return !empty($this->telefon) || !empty($this->handy) || !empty($this->email);
+    }
+
+    /**
+     * Primäre Telefonnummer (Handy bevorzugt)
+     */
+    public function getPrimaereTelefonnummerAttribute(): ?string
+    {
+        return $this->handy ?: $this->telefon;
+    }
+
+    /**
+     * Alle Kontaktdaten als Array
+     */
+    public function getKontaktdatenAttribute(): array
+    {
+        return array_filter([
+            'telefon' => $this->telefon,
+            'handy'   => $this->handy,
+            'email'   => $this->email,
+        ]);
+    }
+
+    /**
+     * Kontaktdaten formatiert für Anzeige
+     */
+    public function getKontaktdatenFormatiertAttribute(): string
+    {
+        $parts = [];
+        
+        if ($this->handy) {
+            $parts[] = "📱 {$this->handy}";
+        }
+        if ($this->telefon) {
+            $parts[] = "📞 {$this->telefon}";
+        }
+        if ($this->email) {
+            $parts[] = "✉️ {$this->email}";
+        }
+        
+        return implode(' | ', $parts);
+    }
 
     // ═══════════════════════════════════════════════════════════
     // 🔗 RELATIONSHIPS
