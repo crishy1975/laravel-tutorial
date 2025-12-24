@@ -119,6 +119,25 @@
               @endif
             </button>
           </li>
+          {{-- ⭐ NEU: Protokoll-Tab --}}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link px-2 px-md-3" id="tab-protokoll" data-bs-toggle="tab"
+              data-bs-target="#content-protokoll" type="button" role="tab">
+              <i class="bi bi-journal-text"></i>
+              <span class="d-none d-md-inline ms-1">Protokoll</span>
+              @if(!empty($gebaeude->id))
+                @php
+                  $offeneErinnerungen = $gebaeude->offeneErinnerungen()->count();
+                  $offeneProbleme = $gebaeude->offeneProbleme()->count();
+                @endphp
+                @if($offeneErinnerungen > 0 || $offeneProbleme > 0)
+                  <span class="badge bg-warning text-dark ms-1">
+                    {{ $offeneErinnerungen + $offeneProbleme }}
+                  </span>
+                @endif
+              @endif
+            </button>
+          </li>
         </ul>
       </div>
     </div>
@@ -164,6 +183,10 @@
         <div class="tab-pane fade" id="content-rechnungen" role="tabpanel">
           @include('gebaeude.partials._rechnungen', ['gebaeude' => $gebaeude])
         </div>
+        {{-- ⭐ NEU: Protokoll Tab-Content --}}
+        <div class="tab-pane fade" id="content-protokoll" role="tabpanel">
+          @include('gebaeude.partials._log_timeline', ['gebaeude' => $gebaeude])
+        </div>
       </div>
 
       {{-- Footer - Sticky auf Mobile --}}
@@ -196,7 +219,9 @@
 
 {{-- Modals AUSSERHALB des Formulars --}}
 @if(!empty($gebaeude->id))
-@include('gebaeude.partials._aufschlag_modals', ['gebaeude' => $gebaeude])
+  @include('gebaeude.partials._aufschlag_modals', ['gebaeude' => $gebaeude])
+  {{-- ⭐ NEU: Log-Modals --}}
+  @include('gebaeude.partials._log_modals', ['gebaeude' => $gebaeude])
 @endif
 
 @endsection
