@@ -590,69 +590,14 @@ Route::prefix('angebote')->name('angebote.')->middleware(['auth'])->group(functi
 
 Route::get('/test-pdf', function () {
     $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><h1>Test PDF</h1><p>Umlaute: ä ö ü ß</p></body></html>';
-
+    
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)
         ->setPaper('a4', 'portrait')
         ->setOption('defaultFont', 'DejaVu Sans');
-
+    
     return $pdf->stream('test.pdf');
 });
 
-// ═══════════════════════════════════════════════════════════
-// 📁 GEBÄUDE-DOKUMENTE
-// ═══════════════════════════════════════════════════════════
-
-Route::middleware(['auth', 'verified'])->group(function () {
-
-    // Index: Alle Dokumente
-    Route::get('/gebaeude/dokumente', [GebaeudeDocumentController::class, 'index'])
-        ->name('gebaeude.dokumente.index');
-
-    // Upload: Einzelnes Dokument
-    Route::post('/gebaeude/{gebaeude}/dokumente', [GebaeudeDocumentController::class, 'store'])
-        ->whereNumber('gebaeude')
-        ->name('gebaeude.dokumente.store');
-
-    // Upload: Mehrere Dokumente (AJAX)
-    Route::post('/gebaeude/{gebaeude}/dokumente/multiple', [GebaeudeDocumentController::class, 'storeMultiple'])
-        ->whereNumber('gebaeude')
-        ->name('gebaeude.dokumente.storeMultiple');
-
-    // Update: Metadaten bearbeiten
-    Route::put('/gebaeude/dokumente/{dokument}', [GebaeudeDocumentController::class, 'update'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.update');
-
-    // Delete: Dokument löschen
-    Route::delete('/gebaeude/dokumente/{dokument}', [GebaeudeDocumentController::class, 'destroy'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.destroy');
-
-    // Download
-    Route::get('/gebaeude/dokumente/{dokument}/download', [GebaeudeDocumentController::class, 'download'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.download');
-
-    // Preview (Bilder, PDFs)
-    Route::get('/gebaeude/dokumente/{dokument}/preview', [GebaeudeDocumentController::class, 'preview'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.preview');
-
-    // Thumbnail (Bilder)
-    Route::get('/gebaeude/dokumente/{dokument}/thumbnail', [GebaeudeDocumentController::class, 'thumbnail'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.thumbnail');
-
-    // Toggle: Wichtig markieren (AJAX)
-    Route::post('/gebaeude/dokumente/{dokument}/wichtig', [GebaeudeDocumentController::class, 'toggleWichtig'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.toggleWichtig');
-
-    // Toggle: Archivieren (AJAX)
-    Route::post('/gebaeude/dokumente/{dokument}/archiv', [GebaeudeDocumentController::class, 'toggleArchiv'])
-        ->whereNumber('dokument')
-        ->name('gebaeude.dokumente.toggleArchiv');
-});
 
 
 

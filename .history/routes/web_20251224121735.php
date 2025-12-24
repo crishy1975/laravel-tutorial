@@ -590,11 +590,11 @@ Route::prefix('angebote')->name('angebote.')->middleware(['auth'])->group(functi
 
 Route::get('/test-pdf', function () {
     $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><h1>Test PDF</h1><p>Umlaute: ä ö ü ß</p></body></html>';
-
+    
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)
         ->setPaper('a4', 'portrait')
         ->setOption('defaultFont', 'DejaVu Sans');
-
+    
     return $pdf->stream('test.pdf');
 });
 
@@ -652,6 +652,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/gebaeude/dokumente/{dokument}/archiv', [GebaeudeDocumentController::class, 'toggleArchiv'])
         ->whereNumber('dokument')
         ->name('gebaeude.dokumente.toggleArchiv');
+
 });
 
 
