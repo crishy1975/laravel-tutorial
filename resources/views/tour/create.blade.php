@@ -1,121 +1,159 @@
 {{-- resources/views/tour/create.blade.php --}}
-{{-- Neue Tour anlegen – mit returnTo-Unterstützung und korrekten Routen (singular "tour") --}}
+{{-- MOBIL-OPTIMIERT: Cards mit Farben, Sticky Footer --}}
 
 @extends('layouts.app')
 
 @section('content')
-<div class="container py-4">
+<div class="container-fluid px-2 px-md-4 py-3">
 
-    {{-- Überschrift + Zurück-Button (nutzt returnTo, wenn vorhanden) --}}
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
-        <h3 class="mb-0">
-            <i class="bi bi-plus-circle"></i> Neue Tour anlegen
-        </h3>
+  {{-- Header --}}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">
+      <i class="bi bi-plus-circle text-primary"></i>
+      <span class="d-none d-sm-inline">Neue Tour</span>
+      <span class="d-sm-none">Neu</span>
+    </h4>
+    @php
+      $backUrl = request()->query('returnTo') ?: route('tour.index');
+    @endphp
+    <a href="{{ $backUrl }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i>
+      <span class="d-none d-sm-inline ms-1">Zurueck</span>
+    </a>
+  </div>
 
-        @php
-        $backUrl = request()->query('returnTo') ?: route('tour.index');
-        @endphp
-        <a href="{{ $backUrl }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Zurück
-        </a>
+  {{-- Validierungsfehler --}}
+  @if($errors->any())
+    <div class="alert alert-danger py-2">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>Bitte korrigieren:</strong>
+      </div>
+      <ul class="mb-0 mt-1 small">
+        @foreach($errors->all() as $e)
+          <li>{{ $e }}</li>
+        @endforeach
+      </ul>
     </div>
+  @endif
 
-    {{-- Validierungsfehler --}}
-    @if($errors->any())
-    <div class="alert alert-danger">
-        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle"></i> Bitte Eingaben prüfen:</div>
-        <ul class="mb-0">
-            @foreach($errors->all() as $e)
-            <li>{{ $e }}</li>
-            @endforeach
-        </ul>
-    </div>
+  {{-- Formular --}}
+  <form method="POST" action="{{ route('tour.store') }}" id="tourForm">
+    @csrf
+
+    @if(!empty(request()->query('returnTo')))
+      <input type="hidden" name="returnTo" value="{{ request()->query('returnTo') }}">
     @endif
 
-    {{-- Formular: POST auf korrekte Route `tour.store` (singular) --}}
-    <form method="POST" action="{{ route('tour.store') }}" class="card">
-        @csrf
+    {{-- Grunddaten Card --}}
+    <div class="card mb-3">
+      <div class="card-header bg-primary text-white py-2">
+        <i class="bi bi-signpost-2-fill"></i>
+        <span class="fw-semibold ms-1">Grunddaten</span>
+      </div>
+      <div class="card-body p-2 p-md-3">
+        <div class="row g-3">
+          {{-- Name --}}
+          <div class="col-12 col-md-8">
+            <label for="name" class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+            <input type="text" id="name" name="name"
+              class="form-control @error('name') is-invalid @enderror"
+              value="{{ old('name') }}"
+              placeholder="Bezeichnung der Tour"
+              required maxlength="255" autocomplete="off">
+            @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+          </div>
 
-        {{-- returnTo durchreichen, damit der Controller sauber zurückleiten kann --}}
-        @if(!empty(request()->query('returnTo')))
-        <input type="hidden" name="returnTo" value="{{ request()->query('returnTo') }}">
-        @endif
-
-        @php
-        // Vorschlag für nächste Reihenfolge (1-basiert, passend zu deinem reorder)
-        $nextOrder = (int) ((\App\Models\Tour::max('reihenfolge') ?? 0) + 1);
-        @endphp
-
-        <div class="card-body">
-            <div class="row g-3">
-
-                {{-- Name --}}
-                <div class="col-md-6">
-                    <label for="name" class="form-label">Name *</label>
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        class="form-control @error('name') is-invalid @enderror"
-                        required
-                        maxlength="255"
-                        value="{{ old('name') }}"
-                        placeholder="Bezeichnung der Tour"
-                        autocomplete="off">
-                    @error('name')
-                    <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                {{-- Aktiv (ein-/ausblenden) --}}
-                <div class="col-md-3">
-                    <label class="form-label d-block">Aktiv</label>
-
-                    {{-- Hidden 0, damit beim Uncheck eine 0 gesendet wird --}}
-                    <input type="hidden" name="aktiv" value="0">
-
-                    <div class="form-check form-switch">
-                        <input
-                            class="form-check-input"
-                            type="checkbox"
-                            role="switch"
-                            id="aktiv"
-                            name="aktiv"
-                            value="1"
-                            @checked(old('aktiv', 1)==1) {{-- Standard aktiv = 1 --}}>
-                        <label class="form-check-label" for="aktiv">Tour in Listen anzeigen</label>
-                    </div>
-                    @error('aktiv')
-                    <div class="text-danger small mt-1">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                {{-- Beschreibung --}}
-                <div class="col-12">
-                    <label for="beschreibung" class="form-label">Beschreibung</label>
-                    <textarea
-                        id="beschreibung"
-                        name="beschreibung"
-                        rows="4"
-                        class="form-control @error('beschreibung') is-invalid @enderror"
-                        placeholder="Kurzbeschreibung oder Hinweise …">{{ old('beschreibung') }}</textarea>
-                    @error('beschreibung')
-                    <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
-
+          {{-- Aktiv --}}
+          <div class="col-12 col-md-4">
+            <label class="form-label small mb-1">Status</label>
+            <div class="form-control bg-light d-flex align-items-center">
+              <input type="hidden" name="aktiv" value="0">
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="aktiv" name="aktiv" value="1"
+                       @checked(old('aktiv', 1) == 1)>
+                <label class="form-check-label" for="aktiv">Aktiv</label>
+              </div>
             </div>
+            @error('aktiv') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
+          </div>
         </div>
+      </div>
+    </div>
 
-        <div class="card-footer d-flex gap-2 justify-content-end">
+    {{-- Beschreibung Card --}}
+    <div class="card mb-3">
+      <div class="card-header bg-secondary text-white py-2">
+        <i class="bi bi-card-text"></i>
+        <span class="fw-semibold ms-1">Beschreibung</span>
+      </div>
+      <div class="card-body p-2 p-md-3">
+        <textarea id="beschreibung" name="beschreibung" rows="4"
+          class="form-control @error('beschreibung') is-invalid @enderror"
+          placeholder="Kurzbeschreibung oder Hinweise...">{{ old('beschreibung') }}</textarea>
+        @error('beschreibung') <div class="invalid-feedback">{{ $message }}</div> @enderror
+      </div>
+    </div>
+
+    {{-- Info Card --}}
+    <div class="card bg-light mb-3">
+      <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-center gap-2 text-muted small">
+          <i class="bi bi-info-circle"></i>
+          <span>Nach dem Speichern koennen Gebaeude zur Tour hinzugefuegt werden.</span>
+        </div>
+      </div>
+    </div>
+
+    {{-- Sticky Footer Mobile --}}
+    <div class="sticky-bottom-bar d-md-none">
+      <div class="d-flex gap-2">
+        <a href="{{ $backUrl }}" class="btn btn-outline-secondary flex-fill">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </a>
+        <button type="submit" class="btn btn-primary flex-fill">
+          <i class="bi bi-check-lg"></i> Speichern
+        </button>
+      </div>
+    </div>
+
+    {{-- Desktop Footer --}}
+    <div class="d-none d-md-block">
+      <div class="card bg-light">
+        <div class="card-body py-2 px-3">
+          <div class="d-flex gap-2">
             <a href="{{ $backUrl }}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Abbrechen
+              <i class="bi bi-arrow-left"></i> Abbrechen
             </a>
             <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save"></i> Speichern
+              <i class="bi bi-check2-circle"></i> Speichern
             </button>
+          </div>
         </div>
-    </form>
+      </div>
+    </div>
+  </form>
 
 </div>
+
+@push('styles')
+<style>
+.sticky-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #dee2e6;
+  padding: 12px 16px;
+  z-index: 1030;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+@media (max-width: 767.98px) {
+  .container-fluid { padding-bottom: 80px; }
+  .form-control, .form-select { min-height: 44px; font-size: 16px !important; }
+}
+</style>
+@endpush
 @endsection

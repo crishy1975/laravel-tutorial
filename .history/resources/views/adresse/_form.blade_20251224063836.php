@@ -1,4 +1,4 @@
-{{-- resources/views/adresse/_form.blade.php --}} 
+{{-- resources/views/adresse/_form.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Cards mit Farben, Touch-freundliche Inputs --}}
 
 {{-- ═══════════════════════════════════════════════════════════ --}}
