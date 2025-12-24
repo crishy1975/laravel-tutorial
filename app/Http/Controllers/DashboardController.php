@@ -164,20 +164,24 @@ class DashboardController extends Controller
      */
     private function getStatistiken(): array
     {
-        // Offene Rechnungen (mit Model-Scopes)
-        $offeneRechnungen = 0;
+        // Gebäude mit "Rechnung zu schreiben"
+        $rechnungZuSchreiben = 0;
+        try {
+            $rechnungZuSchreiben = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
+        } catch (\Exception $e) {
+            // Gebaeude-Tabelle existiert evtl. nicht
+        }
+        
+        // Überfällige Rechnungen (für Info)
         $ueberfaelligeRechnungen = 0;
         $offenerBetrag = 0;
         
         try {
-            // Nutze die existierenden Scopes aus dem Rechnung Model
-            $offeneRechnungen = Rechnung::offen()->count();
             $ueberfaelligeRechnungen = Rechnung::ueberfaellig()->count();
             $offenerBetrag = Rechnung::unbezahlt()->sum('zahlbar_betrag');
         } catch (\Exception $e) {
-            // Fallback falls Scopes nicht existieren
+            // Fallback
             try {
-                $offeneRechnungen = Rechnung::whereIn('status', ['draft', 'sent'])->count();
                 $ueberfaelligeRechnungen = Rechnung::where('status', 'sent')
                     ->where('zahlungsziel', '<', now())
                     ->count();
@@ -324,7 +328,7 @@ class DashboardController extends Controller
         } catch (\Exception $e) {}
         
         return [
-            'offene_rechnungen' => $offeneRechnungen,
+            'rechnung_zu_schreiben' => $rechnungZuSchreiben,
             'ueberfaellige_rechnungen' => $ueberfaelligeRechnungen,
             'offener_betrag' => $offenerBetrag,
             'tage_seit_mahnung' => $tageSeitMahnung,
