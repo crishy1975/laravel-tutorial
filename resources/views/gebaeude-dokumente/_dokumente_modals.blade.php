@@ -5,6 +5,8 @@
     Benötigt: $gebaeude
 --}}
 
+<!-- DEBUG: Dokumente-Modals geladen für Gebäude #{{ $gebaeude->id ?? 'NICHT GESETZT' }} -->
+
 @if(isset($gebaeude) && $gebaeude->id)
     @php
         $kategorien = \App\Models\GebaeudeDocument::KATEGORIEN;
@@ -110,7 +112,8 @@
                 <form method="POST" 
                       action="{{ route('gebaeude.dokumente.store', $gebaeude->id) }}" 
                       enctype="multipart/form-data"
-                      id="formDokumentUpload">
+                      id="formDokumentUpload"
+                      onsubmit="return validateUploadForm()">
                     @csrf
                     <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title">
@@ -147,8 +150,6 @@
                                            accept=".{{ implode(',.', $erlaubteEndungen) }}">
                                 </div>
                             </div>
-                            {{-- Verstecktes Haupt-Input für Form-Submit --}}
-                            <input type="file" class="d-none" id="uploadDateiMobile" name="datei" required>
                         </div>
 
                         {{-- Desktop: Standard File Input --}}
@@ -157,15 +158,16 @@
                                 Datei auswählen <span class="text-danger">*</span>
                             </label>
                             <input type="file" 
-                                   class="form-control form-control-lg" 
+                                   class="form-control form-control-lg upload-datei-input" 
                                    id="uploadDatei" 
-                                   name="datei" 
-                                   required
                                    accept=".{{ implode(',.', $erlaubteEndungen) }}">
                             <div class="form-text">
                                 Erlaubt: PDF, DOC(X), XLS(X), Bilder, TXT (max. {{ $maxSize }} MB)
                             </div>
                         </div>
+
+                        {{-- HAUPT-INPUT für Form-Submit (wird per JS befüllt) --}}
+                        <input type="file" class="d-none" id="uploadDateiHidden" name="datei">
 
                         {{-- Vorschau --}}
                         <div class="mb-3 text-center d-none" id="uploadPreview">
@@ -177,6 +179,12 @@
                             <i class="bi bi-file-earmark me-2"></i>
                             <span id="uploadDateiName"></span>
                             <span class="badge bg-secondary ms-2" id="uploadDateiGroesse"></span>
+                        </div>
+
+                        {{-- Fehler-Meldung --}}
+                        <div class="alert alert-danger d-none mb-3" id="uploadFehler">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Bitte wählen Sie eine Datei aus.
                         </div>
 
                         <div class="row g-3">
@@ -352,6 +360,20 @@
     {{-- 📜 JavaScript --}}
     {{-- ═══════════════════════════════════════════════════════════ --}}
     <script>
+    // Validierung für Upload-Form
+    function validateUploadForm() {
+        const hiddenInput = document.getElementById('uploadDateiHidden');
+        const fehlerDiv = document.getElementById('uploadFehler');
+        
+        if (!hiddenInput || !hiddenInput.files || hiddenInput.files.length === 0) {
+            fehlerDiv.classList.remove('d-none');
+            return false;
+        }
+        
+        fehlerDiv.classList.add('d-none');
+        return true;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
@@ -413,32 +435,30 @@
         // ═══════════════════════════════════════════════════════════
         const uploadPreview = document.getElementById('uploadPreview');
         const uploadDateiInfo = document.getElementById('uploadDateiInfo');
+        const uploadFehler = document.getElementById('uploadFehler');
         const uploadTitel = document.getElementById('uploadTitel');
+        const uploadDateiHidden = document.getElementById('uploadDateiHidden');
         const formUpload = document.getElementById('formDokumentUpload');
 
-        // Mobile: Verschiedene Inputs
+        // Alle Datei-Inputs (Mobile + Desktop)
         document.querySelectorAll('.upload-datei-input').forEach(input => {
             input.addEventListener('change', function() {
                 const file = this.files[0];
                 if (!file) return;
 
-                // In Haupt-Input kopieren
-                const mainInput = document.getElementById('uploadDateiMobile');
+                // In Hidden-Input kopieren für Form-Submit
                 const dt = new DataTransfer();
                 dt.items.add(file);
-                mainInput.files = dt.files;
+                uploadDateiHidden.files = dt.files;
 
                 handleFileSelected(file);
             });
         });
 
-        // Desktop: Standard Input
-        document.getElementById('uploadDatei')?.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) handleFileSelected(file);
-        });
-
         function handleFileSelected(file) {
+            // Fehler ausblenden
+            uploadFehler.classList.add('d-none');
+            
             // Titel vorschlagen
             if (!uploadTitel.value) {
                 uploadTitel.value = file.name.replace(/\.[^/.]+$/, '');
@@ -473,6 +493,9 @@
             formUpload.reset();
             uploadPreview.classList.add('d-none');
             uploadDateiInfo.classList.add('d-none');
+            uploadFehler.classList.add('d-none');
+            // Hidden Input leeren
+            uploadDateiHidden.value = '';
         });
 
         // ═══════════════════════════════════════════════════════════
