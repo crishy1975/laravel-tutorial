@@ -292,6 +292,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/rechnung/{id}/xml', [RechnungController::class, 'xml'])->name('rechnung.xml');
     Route::get('/rechnung/{id}/xml/download', [RechnungController::class, 'xmlDownload'])->name('rechnung.xml.download');
     Route::get('/rechnung/{id}/xml/preview', [RechnungController::class, 'xmlPreview'])->name('rechnung.xml.preview');
+    Route::post('/rechnung/{id}/xml/regenerate', [RechnungController::class, 'xmlRegenerate'])->name('rechnung.xml.regenerate');
 
     // Duplizieren
     Route::post('/rechnung/{rechnung}/duplicate', [RechnungController::class, 'duplicate'])
