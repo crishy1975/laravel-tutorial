@@ -106,8 +106,8 @@ class ImportPaoloWeb extends Command
             return;
         }
 
-        // Bereits importiert? (legacy_id prüfen)
-        $exists = Gebaeude::where('legacy_id', $data['id'])->exists();
+        // Bereits importiert? (paoloweb_id prüfen)
+        $exists = Gebaeude::where('paoloweb_id', $data['id'])->exists();
         if ($exists) {
             $this->stats['skipped_exists']++;
             $this->stats['skipped']++;
@@ -194,7 +194,7 @@ class ImportPaoloWeb extends Command
         $monatsFlags = $this->calculateMonthFlags($data);
 
         $gebaeudeData = [
-            'legacy_id'           => (int) $data['id'],
+            'paoloweb_id'         => (int) $data['id'],
             'codex'               => strtolower(trim($data['Codex'] ?? '')),
             'gebaeude_name'       => $gebaeudeName,
             'strasse'             => trim($data['Strasse'] ?? ''),
