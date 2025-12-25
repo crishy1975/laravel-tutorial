@@ -176,10 +176,10 @@
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
             <h6 class="mb-0 small">
                 <i class="bi bi-building"></i>
-                @if($gebaeude->count() < $stats['gesamt'])
-                    {{ $gebaeude->count() }} von {{ $stats['gesamt'] }} Gebäude
+                @if($gebaeude->total() > $gebaeude->perPage())
+                    {{ $gebaeude->firstItem() }}-{{ $gebaeude->lastItem() }} von {{ $gebaeude->total() }} Gebäude
                 @else
-                    {{ $gebaeude->count() }} Gebäude
+                    {{ $gebaeude->total() }} Gebäude
                 @endif
             </h6>
             @if($stats['offen'] > 0)
@@ -333,19 +333,22 @@
         @endif
     </div>
 
+    {{-- Pagination --}}
+    @if($gebaeude->hasPages())
+        <div class="d-flex justify-content-center mt-3">
+            {{ $gebaeude->links() }}
+        </div>
+    @endif
+
     {{-- Legende (kleiner auf Mobile) --}}
     <div class="mt-2 small text-muted" style="font-size: 0.75rem;">
         <i class="bi bi-info-circle"></i>
         Erledigt = Reinigung seit letzter Fälligkeit. Fälligkeit basiert auf aktiven Monaten (m01-m12).
-        @if($gebaeude->count() < $stats['gesamt'])
-            <br><i class="bi bi-exclamation-triangle text-warning"></i>
-            <strong>Es werden nur 20 Ergebnisse angezeigt.</strong> Verwenden Sie die Filter um die Suche einzugrenzen.
-        @endif
     </div>
 </div>
 
 {{-- Modals (außerhalb Container für korrektes Overlay) --}}
-@foreach($gebaeude->filter(fn($g) => !$g->ist_erledigt) as $g)
+@foreach($gebaeude->getCollection()->filter(fn($g) => !$g->ist_erledigt) as $g)
     <div class="modal fade" id="modalErledigt{{ $g->id }}" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
