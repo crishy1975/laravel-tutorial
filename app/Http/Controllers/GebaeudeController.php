@@ -127,8 +127,14 @@ class GebaeudeController extends Controller
                 'land'                   => 'nullable|string|max:50',
                 'bemerkung'              => 'nullable|string',
 
-                'postadresse_id'         => 'required|integer|exists:adressen,id',
-                'rechnungsempfaenger_id' => 'required|integer|exists:adressen,id',
+                // ⭐ GEÄNDERT: Adressen jetzt optional
+                'postadresse_id'         => 'nullable|integer|exists:adressen,id',
+                'rechnungsempfaenger_id' => 'nullable|integer|exists:adressen,id',
+
+                // ⭐ NEU: Kontaktfelder
+                'telefon'                => 'nullable|string|max:50',
+                'handy'                  => 'nullable|string|max:50',
+                'email'                  => 'nullable|email|max:255',
 
                 'm01' => 'required|in:0,1',
                 'm02' => 'required|in:0,1',
@@ -158,11 +164,10 @@ class GebaeudeController extends Controller
                 'fattura_profile_id'          => 'nullable|integer|exists:fattura_profile,id',
                 'bank_match_text_template'    => 'nullable|string',
             ], [
-                'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
-                'rechnungsempfaenger_id.required' => 'Bitte einen Rechnungsempfänger auswählen.',
                 'rechnungsempfaenger_id.exists'   => 'Der ausgewählte Rechnungsempfänger ist ungültig.',
                 'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen" darf nicht größer sein als „Geplante Reinigungen".',
+                'email.email'                     => 'Bitte eine gültige E-Mail-Adresse eingeben.',
             ]);
 
             $request->validate([
@@ -410,7 +415,18 @@ class GebaeudeController extends Controller
             ->sortBy('prefix')
             ->take(300);
 
-        return view('gebaeude.form', compact('gebaeude', 'adressen', 'codexPrefixTips', 'fatturaProfiles'));
+        // ⭐ NEU: tourenAlle und tourenMap für neue Gebäude
+        $tourenAlle = Tour::orderBy('name')->get(['id', 'name', 'beschreibung', 'aktiv']);
+        $tourenMap  = $tourenAlle->keyBy('id');
+
+        return view('gebaeude.form', compact(
+            'gebaeude', 
+            'adressen', 
+            'codexPrefixTips', 
+            'fatturaProfiles',
+            'tourenAlle',
+            'tourenMap'
+        ));
     }
 
     /**
@@ -431,8 +447,14 @@ class GebaeudeController extends Controller
                 'land'                   => 'nullable|string|max:50',
                 'bemerkung'              => 'nullable|string',
 
-                'postadresse_id'         => 'required|integer|exists:adressen,id',
-                'rechnungsempfaenger_id' => 'required|integer|exists:adressen,id',
+                // ⭐ GEÄNDERT: Adressen jetzt optional
+                'postadresse_id'         => 'nullable|integer|exists:adressen,id',
+                'rechnungsempfaenger_id' => 'nullable|integer|exists:adressen,id',
+
+                // ⭐ NEU: Kontaktfelder
+                'telefon'                => 'nullable|string|max:50',
+                'handy'                  => 'nullable|string|max:50',
+                'email'                  => 'nullable|email|max:255',
 
                 'm01' => 'required|in:0,1',
                 'm02' => 'required|in:0,1',
@@ -462,11 +484,10 @@ class GebaeudeController extends Controller
                 'fattura_profile_id'          => 'nullable|integer|exists:fattura_profile,id',
                 'bank_match_text_template'    => 'nullable|string',
             ], [
-                'postadresse_id.required'         => 'Bitte eine Postadresse auswählen.',
                 'postadresse_id.exists'           => 'Die ausgewählte Postadresse ist ungültig.',
-                'rechnungsempfaenger_id.required' => 'Bitte einen Rechnungsempfänger auswählen.',
                 'rechnungsempfaenger_id.exists'   => 'Der ausgewählte Rechnungsempfänger ist ungültig.',
                 'gemachte_reinigungen.lte'        => '„Gemachte Reinigungen" darf nicht größer sein als „Geplante Reinigungen".',
+                'email.email'                     => 'Bitte eine gültige E-Mail-Adresse eingeben.',
             ]);
 
             $validated['geplante_reinigungen'] = isset($validated['geplante_reinigungen']) ? (int)$validated['geplante_reinigungen'] : null;
@@ -550,128 +571,65 @@ class GebaeudeController extends Controller
             'ids'               => ['required', 'array', 'min:1'],
             'ids.*'             => ['integer', 'exists:gebaeude,id'],
             'tour_id'           => ['required', 'integer', 'exists:tour,id'],
-            'pivot_reihenfolge' => ['nullable', 'integer', 'min:1'],
-            'returnTo'          => ['nullable', 'string'],
+            'replace_existing'  => ['nullable', 'in:0,1'],
         ]);
 
-        $ids   = $data['ids'];
-        $tour  = Tour::findOrFail($data['tour_id']);
-        $order = $data['pivot_reihenfolge'] ?? null;
+        $gebaeudeIds     = $data['ids'];
+        $tourId          = $data['tour_id'];
+        $replaceExisting = ($data['replace_existing'] ?? '0') === '1';
 
-        DB::transaction(function () use ($ids, $tour, $order) {
-            foreach ($ids as $gid) {
-                $reihenfolge = $order ?: ((int) DB::table('tourgebaeude')
-                    ->where('tour_id', $tour->id)
-                    ->max('reihenfolge') + 1);
+        $countAttached = 0;
 
-                $gebaeude = Gebaeude::findOrFail($gid);
-                $gebaeude->touren()->syncWithoutDetaching([
-                    $tour->id => ['reihenfolge' => $reihenfolge],
-                ]);
+        DB::transaction(function () use ($gebaeudeIds, $tourId, $replaceExisting, &$countAttached) {
+            foreach ($gebaeudeIds as $gid) {
+                $g = Gebaeude::find($gid);
+                if (!$g) continue;
+
+                if ($replaceExisting) {
+                    $g->touren()->sync([$tourId => ['reihenfolge' => 1]]);
+                } else {
+                    $already = $g->touren()->wherePivot('tour_id', $tourId)->exists();
+                    if (!$already) {
+                        $maxOrd = $g->touren()->max('reihenfolge') ?? 0;
+                        $g->touren()->attach($tourId, ['reihenfolge' => $maxOrd + 1]);
+                    }
+                }
+
+                $countAttached++;
             }
         });
 
-        $to = $this->safeReturnTo($data['returnTo'] ?? null, route('gebaeude.index'));
-
-        return redirect()->to($to)
-            ->with('success', 'Ausgewählte Gebäude wurden mit der Tour verknüpft.');
+        return back()->with('success', "{$countAttached} Gebäude wurden der Tour zugeordnet.");
     }
 
     /**
-     * Timeline-Eintrag speichern + Gebäude-Status aktualisieren.
+     * Timeline-Eintrag speichern.
      */
-    public function timelineStore(Request $request, int $id)
+    public function storeTimeline(Request $request, Gebaeude $gebaeude)
     {
-        $debugId = (string) Str::uuid();
-
-        $gebaeude = Gebaeude::findOrFail($id);
-
-        try {
-            $data = $request->validate([
-                'datum'     => ['nullable', 'date'],
-                'bemerkung' => ['nullable', 'string'],
-            ]);
-        } catch (ValidationException $ve) {
-            Log::warning('timelineStore VALIDATION FAILED', [
-                'debugId'  => $debugId,
-                'gebaeude' => $gebaeude->id,
-                'errors'   => $ve->errors(),
-                'payload'  => $request->all(),
-            ]);
-            throw $ve;
-        }
-
-        $user   = $request->user();
-        $datum  = $data['datum'] ?? now()->toDateString();
-        $note   = $data['bemerkung'] ?? null;
-
-        Log::info('timelineStore START', [
-            'debugId'     => $debugId,
-            'gebaeude_id' => $gebaeude->id,
-            'user_id'     => $user?->id,
-            'datum'       => $datum,
-            'bemerkung'   => $note,
+        $data = $request->validate([
+            'datum'     => 'required|date',
+            'eintrag'   => 'nullable|string|max:5000',
+            'ma_id'     => 'nullable|integer|exists:users,id',
         ]);
 
-        try {
-            DB::beginTransaction();
+        $data['gebaeude_id'] = $gebaeude->id;
 
-            $timeline = Timeline::create([
-                'gebaeude_id' => $gebaeude->id,
-                'datum'       => $datum,
-                'bemerkung'   => $note,
-                'person_name' => $user?->name ?? 'Unbekannt',
-                'person_id'   => $user?->id ?? 0,
-            ]);
+        Timeline::create($data);
 
-            $updates = [
-                'rechnung_schreiben'   => 1,
-                'gemachte_reinigungen' => DB::raw('COALESCE(gemachte_reinigungen,0) + 1'),
-            ];
-
-            try {
-                if (Schema::hasColumn('gebaeude', 'letzter_termin')) {
-                    $updates['letzter_termin'] = $datum;
-                }
-            } catch (Throwable $e) {
-                // ignore
-            }
-
-            Gebaeude::whereKey($gebaeude->id)->update($updates);
-
-            DB::commit();
-
-            Log::info('timelineStore COMMIT', [
-                'debugId'     => $debugId,
-                'timeline_id' => $timeline->id,
-                'gebaeude_id' => $gebaeude->id,
-            ]);
-
-            return back()->with('success', "Timeline-Eintrag hinzugefügt und Status aktualisiert. (Debug-ID: {$debugId})");
-        } catch (Throwable $e) {
-            DB::rollBack();
-
-            Log::error('timelineStore ERROR', [
-                'debugId'     => $debugId,
-                'type'        => get_class($e),
-                'message'     => $e->getMessage(),
-                'trace_top'   => collect($e->getTrace())->take(5),
-                'payload'     => $request->all(),
-                'gebaeude_id' => $gebaeude->id,
-            ]);
-
-            return back()
-                ->withInput()
-                ->with('error', "Timeline konnte nicht gespeichert werden. (Debug-ID: {$debugId})");
+        // Nach Speichern: gemachte_reinigungen +1
+        if ($gebaeude->gemachte_reinigungen !== null) {
+            $gebaeude->increment('gemachte_reinigungen');
         }
+
+        return back()->with('success', 'Timeline-Eintrag gespeichert.');
     }
 
     /**
      * Timeline-Eintrag löschen.
      */
-    public function timelineDestroy(Request $request, int $id, int $timeline)
+    public function destroyTimeline(Gebaeude $gebaeude, $timeline)
     {
-        $gebaeude = Gebaeude::findOrFail($id);
         $entry = Timeline::where('id', $timeline)
             ->where('gebaeude_id', $gebaeude->id)
             ->firstOrFail();
