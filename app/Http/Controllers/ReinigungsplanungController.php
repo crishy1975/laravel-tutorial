@@ -122,15 +122,28 @@ class ReinigungsplanungController extends Controller
             $gebaeude = $gebaeude->filter(fn($g) => $g->ist_erledigt);
         }
 
-        // Statistiken (vor Limit berechnen!)
+        // Statistiken (vor Pagination!)
         $stats = [
             'gesamt'   => $gebaeude->count(),
             'offen'    => $gebaeude->filter(fn($g) => !$g->ist_erledigt)->count(),
             'erledigt' => $gebaeude->filter(fn($g) => $g->ist_erledigt)->count(),
         ];
 
-        // ⭐ Ergebnisse auf 20 begrenzen
-        $gebaeude = $gebaeude->take(20);
+        // ⭐ Pagination (20 pro Seite)
+        $perPage = 20;
+        $currentPage = $request->input('page', 1);
+        $pagedData = $gebaeude->forPage($currentPage, $perPage);
+        
+        $gebaeude = new \Illuminate\Pagination\LengthAwarePaginator(
+            $pagedData->values(),
+            $stats['gesamt'],
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $filters, // Filter an Pagination-Links anhängen
+            ]
+        );
 
         // Touren für Dropdown
         $touren = Tour::orderBy('name')->get(['id', 'name', 'aktiv']);
