@@ -145,8 +145,7 @@ Route::middleware(['auth', 'verified'])
             ->whereNumber('gebaeude')->name('logs.problem');
         Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])
             ->whereNumber('gebaeude')->name('logs.erinnerung');
-        Route::delete('/gebaeude/bulk-destroy', [GebaeudeController::class, 'bulkDestroy'])
-            ->name('gebaeude.bulkDestroy');
+        
     });
 
 // ⭐ NEU: Gebäude-Log Einzelaktionen (außerhalb der Gruppe)
