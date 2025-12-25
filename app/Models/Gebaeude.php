@@ -22,6 +22,7 @@ class Gebaeude extends Model
     protected $fillable = [
         'legacy_id',
         'legacy_mid',
+        'paoloweb_id',
         'codex',
         'postadresse_id',
         'rechnungsempfaenger_id',
