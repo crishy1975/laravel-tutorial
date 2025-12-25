@@ -20,6 +20,8 @@ use App\Http\Controllers\AngebotController;
 use App\Http\Controllers\GebaeudeLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GebaeudeDocumentController;
+use App\Http\Controllers\FaelligkeitsSimulatorController;
+
 
 
 // Home / Dashboard
