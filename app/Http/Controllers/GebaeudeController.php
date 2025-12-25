@@ -604,6 +604,8 @@ class GebaeudeController extends Controller
 
     /**
      * Timeline-Eintrag speichern.
+     * 
+     * ⭐ NEU: rechnung_schreiben wird nur auf 1 gesetzt, wenn ein FatturaPA-Profil vorhanden ist
      */
     public function storeTimeline(Request $request, Gebaeude $gebaeude)
     {
@@ -622,7 +624,18 @@ class GebaeudeController extends Controller
             $gebaeude->increment('gemachte_reinigungen');
         }
 
-        return back()->with('success', 'Timeline-Eintrag gespeichert.');
+        // ⭐ NEU: rechnung_schreiben nur auf 1 setzen, wenn FatturaPA-Profil vorhanden
+        $message = 'Timeline-Eintrag gespeichert.';
+        
+        if ($gebaeude->fattura_profile_id) {
+            $gebaeude->update(['rechnung_schreiben' => 1]);
+            $message .= ' Rechnung schreiben aktiviert.';
+        } else {
+            // Kein Profil → Hinweis geben
+            $message .= ' (Kein FatturaPA-Profil - Rechnung schreiben bleibt deaktiviert)';
+        }
+
+        return back()->with('success', $message);
     }
 
     /**
