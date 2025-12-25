@@ -13,15 +13,50 @@ class ReinigungsplanungController extends Controller
 {
     /**
      * Reinigungsplanung-Übersicht mit Filtern
+     * ⭐ NEU: Filter werden in Session gespeichert
      */
     public function index(Request $request)
     {
-        // Filter-Parameter
-        $filterCodex    = $request->input('codex', '');
-        $filterGebaeude = $request->input('gebaeude', '');
-        $filterMonat    = $request->input('monat', ''); // Leer = alle Monate
-        $filterTour     = $request->input('tour', '');
-        $filterStatus   = $request->input('status', ''); // '', 'offen', 'erledigt'
+        // ⭐ Session-Key für Filter
+        $sessionKey = 'reinigungsplanung_filter';
+        
+        // Wenn clear_filter gesetzt → Session löschen und redirect
+        if ($request->has('clear_filter')) {
+            $request->session()->forget($sessionKey);
+            return redirect()->route('reinigungsplanung.index');
+        }
+        
+        // Prüfen ob Query-Parameter vorhanden sind
+        $hasQueryParams = $request->hasAny(['codex', 'gebaeude', 'monat', 'tour', 'status']);
+        
+        // Filter aus Request oder Session
+        if ($hasQueryParams) {
+            // Query-Parameter → in Session speichern
+            $filters = [
+                'codex'    => $request->input('codex', ''),
+                'gebaeude' => $request->input('gebaeude', ''),
+                'monat'    => $request->input('monat', ''),
+                'tour'     => $request->input('tour', ''),
+                'status'   => $request->input('status', ''),
+            ];
+            $request->session()->put($sessionKey, $filters);
+        } else {
+            // Keine Query-Parameter → aus Session laden (falls vorhanden)
+            $filters = $request->session()->get($sessionKey, [
+                'codex'    => '',
+                'gebaeude' => '',
+                'monat'    => '',
+                'tour'     => '',
+                'status'   => '',
+            ]);
+        }
+        
+        // Filter-Werte extrahieren
+        $filterCodex    = $filters['codex'] ?? '';
+        $filterGebaeude = $filters['gebaeude'] ?? '';
+        $filterMonat    = $filters['monat'] ?? '';
+        $filterTour     = $filters['tour'] ?? '';
+        $filterStatus   = $filters['status'] ?? '';
 
         // Query aufbauen
         $query = Gebaeude::query()->with(['touren']);
@@ -66,7 +101,7 @@ class ReinigungsplanungController extends Controller
             // Letzte Reinigung aus Timeline
             $letzteReinigung = $g->lastCleaningDate();
             
-            // ⭐ NEUE LOGIK: Erledigt basierend auf Fälligkeits-Intervallen
+            // Erledigt basierend auf Fälligkeits-Intervallen
             $erledigt = $this->istGebaeudeErledigt($g, $letzteReinigung);
 
             // Nächste Fälligkeit berechnen
@@ -131,7 +166,7 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ Ermittelt die aktiven Monate eines Gebäudes (m01-m12)
+     * Ermittelt die aktiven Monate eines Gebäudes (m01-m12)
      * 
      * @param Gebaeude $gebaeude
      * @return array Array mit Monatsnummern [1, 4, 7, 10] für quartalsweise
@@ -151,7 +186,7 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ Ermittelt den letzten Fälligkeitstermin vor/an einem Datum
+     * Ermittelt den letzten Fälligkeitstermin vor/an einem Datum
      * 
      * @param Gebaeude $gebaeude
      * @param Carbon|null $datum Referenzdatum (Standard: heute)
@@ -192,7 +227,7 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ Ermittelt den nächsten Fälligkeitstermin nach einem Datum
+     * Ermittelt den nächsten Fälligkeitstermin nach einem Datum
      * 
      * @param Gebaeude $gebaeude
      * @param Carbon|null $datum Referenzdatum (Standard: heute)
@@ -232,7 +267,7 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ Prüft ob ein Gebäude "erledigt" ist
+     * Prüft ob ein Gebäude "erledigt" ist
      * 
      * Logik:
      * - Ermittle den letzten Fälligkeitstermin basierend auf m01-m12
@@ -287,11 +322,14 @@ class ReinigungsplanungController extends Controller
             'person_name' => $user->name,
         ]);
 
-        // ⭐ Gebäude aktualisieren: rechnung_schreiben = true
-        $gebaeude->update([
-            'rechnung_schreiben' => true,
-            'letzter_termin'     => $datum,
-        ]);
+        // Gebäude aktualisieren: rechnung_schreiben = true (nur wenn FatturaPA-Profil vorhanden)
+        $updateData = ['letzter_termin' => $datum];
+        
+        if ($gebaeude->fattura_profile_id) {
+            $updateData['rechnung_schreiben'] = true;
+        }
+        
+        $gebaeude->update($updateData);
 
         // Fälligkeitsstatus neu berechnen
         $gebaeude->recomputeFaellig();
@@ -311,12 +349,16 @@ class ReinigungsplanungController extends Controller
      */
     public function export(Request $request)
     {
-        // Gleiche Filter wie index()
-        $filterCodex    = $request->input('codex', '');
-        $filterGebaeude = $request->input('gebaeude', '');
-        $filterMonat    = $request->input('monat', '');
-        $filterTour     = $request->input('tour', '');
-        $filterStatus   = $request->input('status', '');
+        // ⭐ NEU: Filter auch aus Session laden für Export
+        $sessionKey = 'reinigungsplanung_filter';
+        $filters = $request->session()->get($sessionKey, []);
+        
+        // Query-Parameter überschreiben Session
+        $filterCodex    = $request->input('codex', $filters['codex'] ?? '');
+        $filterGebaeude = $request->input('gebaeude', $filters['gebaeude'] ?? '');
+        $filterMonat    = $request->input('monat', $filters['monat'] ?? '');
+        $filterTour     = $request->input('tour', $filters['tour'] ?? '');
+        $filterStatus   = $request->input('status', $filters['status'] ?? '');
 
         $query = Gebaeude::query()->with(['touren']);
 

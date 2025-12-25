@@ -88,6 +88,12 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="bi bi-funnel"></i> Filter
+                    @php
+                        $activeFilters = collect([$filterCodex, $filterGebaeude, $filterMonat, $filterTour, $filterStatus])->filter()->count();
+                    @endphp
+                    @if($activeFilters > 0)
+                        <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
+                    @endif
                 </h6>
                 <i class="bi bi-chevron-down d-md-none"></i>
             </div>
@@ -148,9 +154,16 @@
                             <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
                                 <i class="bi bi-search"></i>
                             </button>
-                            <a href="{{ route('reinigungsplanung.index') }}" class="btn btn-outline-secondary btn-sm">
-                                <i class="bi bi-x-lg"></i>
-                            </a>
+                            {{-- ⭐ Filter löschen inkl. Session --}}
+                            @if($activeFilters > 0)
+                                <a href="{{ route('reinigungsplanung.index', ['clear_filter' => 1]) }}" class="btn btn-outline-secondary btn-sm" title="Filter zurücksetzen">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            @else
+                                <a href="{{ route('reinigungsplanung.index') }}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </form>
@@ -186,37 +199,29 @@
                             <th style="width: 100px;">Codex</th>
                             <th>Gebäude</th>
                             <th>Adresse</th>
-                            <th>Tour(en)</th>
+                            <th style="width: 120px;">Tour(en)</th>
                             <th style="width: 120px;">Letzte Reinigung</th>
                             <th style="width: 120px;">Nächste Fälligkeit</th>
                             <th style="width: 100px;" class="text-center">Status</th>
-                            <th style="width: 120px;" class="text-center no-print">Aktion</th>
+                            <th style="width: 100px;" class="text-end">Aktion</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($gebaeude as $g)
                             <tr class="{{ $g->ist_erledigt ? 'table-success' : '' }}">
                                 <td>
-                                    <a href="{{ route('gebaeude.edit', $g->id) }}" class="fw-bold text-decoration-none">
+                                    <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none fw-bold">
                                         {{ $g->codex ?: '-' }}
                                     </a>
                                 </td>
-                                <td>
-                                    <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none">
-                                        {{ $g->gebaeude_name ?: '(kein Name)' }}
-                                    </a>
-                                </td>
-                                <td class="text-muted small">
-                                    @if($g->strasse || $g->wohnort)
-                                        {{ $g->strasse }} {{ $g->hausnummer }}@if($g->strasse && $g->wohnort),@endif
-                                        {{ $g->plz }} {{ $g->wohnort }}
-                                    @else
-                                        -
-                                    @endif
+                                <td>{{ $g->gebaeude_name ?: '(kein Name)' }}</td>
+                                <td class="small">
+                                    {{ $g->strasse }} {{ $g->hausnummer }}
+                                    @if($g->wohnort), {{ $g->plz }} {{ $g->wohnort }}@endif
                                 </td>
                                 <td>
                                     @forelse($g->touren as $tour)
-                                        <span class="badge bg-secondary">{{ $tour->name }}</span>
+                                        <span class="badge bg-info text-dark">{{ $tour->name }}</span>
                                     @empty
                                         <span class="text-muted small">-</span>
                                     @endforelse
@@ -224,7 +229,6 @@
                                 <td>
                                     @if($g->letzte_reinigung_datum)
                                         {{ $g->letzte_reinigung_datum->format('d.m.Y') }}
-                                        <br><small class="text-muted">{{ $g->letzte_reinigung_datum->diffForHumans() }}</small>
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
@@ -232,30 +236,26 @@
                                 <td>
                                     @if($g->naechste_faelligkeit)
                                         {{ $g->naechste_faelligkeit->format('d.m.Y') }}
-                                        @if($g->naechste_faelligkeit->isPast())
-                                            <br><small class="text-danger">überfällig</small>
-                                        @elseif($g->naechste_faelligkeit->isCurrentMonth())
-                                            <br><small class="text-warning">diesen Monat</small>
-                                        @endif
                                     @else
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
                                 <td class="text-center">
                                     @if($g->ist_erledigt)
-                                        <span class="badge bg-success"><i class="bi bi-check-circle"></i> Erledigt</span>
+                                        <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                     @else
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Offen</span>
+                                        <span class="badge bg-warning text-dark">Offen</span>
                                     @endif
                                 </td>
-                                <td class="text-center no-print">
+                                <td class="text-end">
                                     @if(!$g->ist_erledigt)
-                                        <button type="button" class="btn btn-sm btn-success" 
-                                                data-bs-toggle="modal" data-bs-target="#modalErledigt{{ $g->id }}">
-                                            <i class="bi bi-check-lg"></i> Erledigt
+                                        <button type="button" class="btn btn-success btn-sm" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#modalErledigt{{ $g->id }}">
+                                            <i class="bi bi-check-lg"></i>
                                         </button>
                                     @else
-                                        <a href="{{ route('gebaeude.edit', $g->id) }}" class="btn btn-sm btn-outline-secondary">
+                                        <a href="{{ route('gebaeude.edit', $g->id) }}" class="btn btn-outline-secondary btn-sm">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     @endif
@@ -269,72 +269,48 @@
             {{-- Mobile: Card-Liste --}}
             <div class="d-lg-none">
                 @foreach($gebaeude as $g)
-                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }}">
-                        <div class="p-2">
-                            {{-- Zeile 1: Codex, Name, Status --}}
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <div class="flex-grow-1 min-width-0">
-                                    <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none">
-                                        <span class="fw-bold text-primary">{{ $g->codex ?: '-' }}</span>
-                                        <span class="text-dark ms-1">{{ Str::limit($g->gebaeude_name ?: '(kein Name)', 25) }}</span>
-                                    </a>
-                                </div>
-                                <div class="ms-2 flex-shrink-0">
-                                    @if($g->ist_erledigt)
-                                        <span class="badge bg-success"><i class="bi bi-check"></i></span>
-                                    @else
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i></span>
-                                    @endif
-                                </div>
+                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }} p-2">
+                        {{-- Zeile 1: Codex, Name, Status --}}
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="flex-grow-1 min-width-0">
+                                <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none">
+                                    <span class="fw-bold text-primary">{{ $g->codex ?: '-' }}</span>
+                                    <span class="text-dark">{{ Str::limit($g->gebaeude_name ?: '(kein Name)', 25) }}</span>
+                                </a>
                             </div>
-
-                            {{-- Zeile 2: Adresse --}}
-                            <div class="small text-muted mb-1">
-                                <i class="bi bi-geo-alt"></i>
-                                @if($g->strasse || $g->wohnort)
-                                    {{ $g->strasse }} {{ $g->hausnummer }}, {{ $g->plz }} {{ $g->wohnort }}
+                            <div class="flex-shrink-0 ms-2">
+                                @if($g->ist_erledigt)
+                                    <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                 @else
-                                    Keine Adresse
+                                    <span class="badge bg-warning text-dark">Offen</span>
                                 @endif
                             </div>
+                        </div>
 
-                            {{-- Zeile 3: Tour, Letzte Reinigung, Nächste Fälligkeit --}}
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <div class="small">
-                                    {{-- Tour --}}
-                                    @forelse($g->touren as $tour)
-                                        <span class="badge bg-secondary me-1">{{ $tour->name }}</span>
-                                    @empty
-                                        <span class="text-muted">Keine Tour</span>
-                                    @endforelse
-                                </div>
-                                <div class="small text-end">
-                                    {{-- Letzte Reinigung --}}
-                                    <span class="text-muted">
-                                        <i class="bi bi-calendar3"></i>
-                                        @if($g->letzte_reinigung_datum)
-                                            {{ $g->letzte_reinigung_datum->format('d.m.') }}
-                                        @else
-                                            -
-                                        @endif
-                                    </span>
-                                    {{-- Nächste Fälligkeit --}}
-                                    <span class="ms-2 {{ $g->naechste_faelligkeit && $g->naechste_faelligkeit->isPast() ? 'text-danger' : 'text-info' }}">
-                                        <i class="bi bi-arrow-right"></i>
-                                        @if($g->naechste_faelligkeit)
-                                            {{ $g->naechste_faelligkeit->format('d.m.') }}
-                                        @else
-                                            -
-                                        @endif
-                                    </span>
-                                </div>
+                        {{-- Zeile 2: Adresse & Tour --}}
+                        <div class="small text-muted mb-1">
+                            <i class="bi bi-geo-alt"></i>
+                            {{ $g->strasse }} {{ $g->hausnummer }}@if($g->wohnort), {{ $g->wohnort }}@endif
+                            @if($g->touren->isNotEmpty())
+                                <span class="ms-2">
+                                    @foreach($g->touren as $tour)
+                                        <span class="badge bg-info text-dark">{{ $tour->name }}</span>
+                                    @endforeach
+                                </span>
+                            @endif
+                        </div>
+
+                        {{-- Zeile 3: Datum & Aktion --}}
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="small">
+                                <span class="text-muted">Letzte:</span>
+                                {{ $g->letzte_reinigung_datum ? $g->letzte_reinigung_datum->format('d.m.Y') : '-' }}
+                                <span class="text-muted ms-2">Nächste:</span>
+                                {{ $g->naechste_faelligkeit ? $g->naechste_faelligkeit->format('d.m.Y') : '-' }}
                             </div>
-
-                            {{-- Zeile 4: Button --}}
-                            <div class="d-flex justify-content-end">
+                            <div>
                                 @if(!$g->ist_erledigt)
-                                    <button type="button" 
-                                            class="btn btn-success btn-sm py-1 px-2" 
+                                    <button type="button" class="btn btn-success btn-sm py-1 px-2" 
                                             data-bs-toggle="modal" 
                                             data-bs-target="#modalErledigt{{ $g->id }}">
                                         <i class="bi bi-check-lg"></i> Erledigt
