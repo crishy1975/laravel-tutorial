@@ -263,25 +263,28 @@ class ImportPaoloWeb extends Command
     }
 
     /**
-     * Erstellt Timeline-Einträge
+     * Erstellt Timeline-Einträge für LetzteKontrolle und LetzteReinigung
      */
     protected function createTimelineEntries(?Gebaeude $gebaeude, array $data, bool $isDryRun): void
     {
-        if (!$gebaeude || !$gebaeude->id) {
+        // Im echten Modus brauchen wir eine gültige Gebäude-ID
+        if (!$isDryRun && (!$gebaeude || !$gebaeude->id)) {
             return;
         }
 
+        $gebaeudeId = $gebaeude?->id ?? 0;
+        
         $kontrolle = $data['LetzteKontrolle'] ?? null;
         $reinigung = $data['LetzteReinigung'] ?? null;
 
-        // LetzteKontrolle
+        // LetzteKontrolle → Timeline
         if (!empty($kontrolle) && $kontrolle !== '0000-00-00') {
-            $this->createTimeline($gebaeude->id, $kontrolle, 'Kontrolle (Import)', $isDryRun);
+            $this->createTimeline($gebaeudeId, $kontrolle, 'Kontrolle (Import)', $isDryRun);
         }
 
-        // LetzteReinigung (nur wenn anderes Datum als Kontrolle)
+        // LetzteReinigung → Timeline (nur wenn anderes Datum als Kontrolle)
         if (!empty($reinigung) && $reinigung !== '0000-00-00' && $reinigung !== $kontrolle) {
-            $this->createTimeline($gebaeude->id, $reinigung, 'Reinigung (Import)', $isDryRun);
+            $this->createTimeline($gebaeudeId, $reinigung, 'Reinigung (Import)', $isDryRun);
         }
     }
 
