@@ -586,7 +586,8 @@ class GebaeudeController extends Controller
                 } else {
                     $already = $g->touren()->wherePivot('tour_id', $tourId)->exists();
                     if (!$already) {
-                        $maxOrd = $g->touren()->max('reihenfolge') ?? 0;
+                        // ⭐ FIX: Tabellenname explizit angeben wegen Ambiguität
+                        $maxOrd = $g->touren()->max('tourgebaeude.reihenfolge') ?? 0;
                         $g->touren()->attach($tourId, ['reihenfolge' => $maxOrd + 1]);
                     }
                 }
