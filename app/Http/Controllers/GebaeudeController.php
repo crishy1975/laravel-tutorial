@@ -192,13 +192,9 @@ class GebaeudeController extends Controller
                 $validated[$flag] = (int)($validated[$flag] ?? 0) === 1 ? 1 : 0;
             }
 
+            // ⭐ Codex: Komplett speichern (nur lowercase)
             if ($request->filled('codex')) {
-                $raw = (string)$request->input('codex');
-                if (preg_match('/^[A-Za-z]+/', $raw, $m)) {
-                    $validated['codex'] = strtolower($m[0]);
-                } else {
-                    $validated['codex'] = null;
-                }
+                $validated['codex'] = strtolower(trim($request->input('codex')));
             }
 
             $attach = [];
