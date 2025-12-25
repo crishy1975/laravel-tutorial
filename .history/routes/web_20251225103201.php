@@ -661,31 +661,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Fälligkeits-Simulator
-// ═══════════════════════════════════════════════════════════════════════════
-
-Route::prefix('faelligkeit')->name('faelligkeit.')->group(function () {
-    // Simulator-Ansicht
-    Route::get('/', [FaelligkeitsSimulatorController::class, 'index'])
-        ->name('index');
-
-    // Simulation durchführen (AJAX)
-    Route::post('/simuliere', [FaelligkeitsSimulatorController::class, 'simuliere'])
-        ->name('simuliere');
-
-    // Echtes Gebäude prüfen (AJAX)
-    Route::post('/pruefe-gebaeude', [FaelligkeitsSimulatorController::class, 'pruefeGebaeude'])
-        ->name('pruefeGebaeude');
-
-    // Batch-Update aller Gebäude (AJAX)
-    Route::post('/batch-update', [FaelligkeitsSimulatorController::class, 'batchUpdate'])
-        ->name('batchUpdate');
-
-    // Einzelnes Gebäude aktualisieren (AJAX)
-    Route::post('/gebaeude/{id}/update', [FaelligkeitsSimulatorController::class, 'updateGebaeude'])
-        ->name('updateGebaeude');
-});
 
 
 
