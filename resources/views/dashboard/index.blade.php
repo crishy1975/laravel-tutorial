@@ -49,6 +49,25 @@
             </div>
         </div>
 
+        {{-- ⭐ NEU: Fällige Reinigungen --}}
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 shadow-sm h-100 @if($stats['faellige_reinigungen'] > 0) border-start border-danger border-4 @endif">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-muted small mb-1">Fällige Reinigungen</div>
+                            <div class="fs-3 fw-bold text-dark">{{ $stats['faellige_reinigungen'] }}</div>
+                            <span class="small text-muted">Gebäude</span>
+                        </div>
+                        <div class="bg-danger bg-opacity-10 rounded-circle p-2">
+                            <i class="bi bi-calendar-x text-danger fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+                <a href="{{ route('reinigungsplanung.index', ['status' => 'offen']) }}" class="stretched-link"></a>
+            </div>
+        </div>
+
         {{-- Erinnerungen --}}
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 @if($stats['ueberfaellige_erinnerungen'] > 0) border-start border-warning border-4 @endif">
@@ -69,29 +88,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        {{-- Mahnungen --}}
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100 @if($stats['tage_seit_mahnung'] !== null && $stats['tage_seit_mahnung'] > 14) border-start border-info border-4 @endif">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small mb-1">Letzter Mahnlauf</div>
-                            @if($stats['tage_seit_mahnung'] !== null)
-                                <div class="fs-3 fw-bold text-dark">{{ $stats['tage_seit_mahnung'] }}</div>
-                                <span class="small text-muted">Tage her</span>
-                            @else
-                                <div class="fs-5 text-muted">Noch nie</div>
-                            @endif
-                        </div>
-                        <div class="bg-info bg-opacity-10 rounded-circle p-2">
-                            <i class="bi bi-envelope-exclamation text-info fs-4"></i>
-                        </div>
-                    </div>
-                </div>
-                <a href="{{ route('mahnungen.index') }}" class="stretched-link"></a>
             </div>
         </div>
 
@@ -143,6 +139,11 @@
                         <a href="{{ route('bank.index') }}" class="btn btn-outline-info">
                             <i class="bi bi-bank me-1"></i>Bankbuchungen
                         </a>
+                        
+                        {{-- ⭐ NEU: Fälligkeiten aktualisieren --}}
+                        <button type="button" class="btn btn-outline-danger" id="btnFaelligkeitUpdate" title="Fälligkeits-Flags aller Gebäude aktualisieren">
+                            <i class="bi bi-arrow-repeat me-1"></i>Fälligkeiten
+                        </button>
                     </div>
                 </div>
             </div>
@@ -173,89 +174,67 @@
                     <div class="list-group list-group-flush" id="erinnerungen-liste">
                         @foreach($alleErinnerungen as $erinnerung)
                             @php
-                                $istUeberfaellig = \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->isPast() && !\Carbon\Carbon::parse($erinnerung->erinnerung_datum)->isToday();
-                                $istHeute = \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->isToday();
+                                $datum = \Carbon\Carbon::parse($erinnerung->erinnerung_datum);
+                                $istHeute = $datum->isToday();
+                                $istUeberfaellig = $datum->isPast() && !$istHeute;
                             @endphp
-                            <div class="list-group-item erinnerung-item @if($istUeberfaellig) bg-danger bg-opacity-10 @elseif($istHeute) bg-warning bg-opacity-10 @endif"
+                            <div class="list-group-item erinnerung-item @if($istUeberfaellig) border-start border-danger border-3 @elseif($istHeute) border-start border-warning border-3 @endif" 
                                  id="erinnerung-{{ $erinnerung->typ }}-{{ $erinnerung->id }}">
-                                
-                                {{-- Desktop Ansicht --}}
+                                 
+                                {{-- Desktop Layout --}}
                                 <div class="d-none d-md-flex align-items-center gap-3">
-                                    {{-- Checkbox --}}
-                                    <div class="flex-shrink-0">
-                                        <button type="button" 
-                                                class="btn btn-outline-success btn-sm rounded-circle erledigt-btn"
-                                                data-typ="{{ $erinnerung->typ }}"
-                                                data-id="{{ $erinnerung->id }}"
-                                                title="Als erledigt markieren"
-                                                style="width: 38px; height: 38px;">
-                                            <i class="bi bi-check-lg"></i>
-                                        </button>
-                                    </div>
+                                    {{-- Erledigt-Button --}}
+                                    <button type="button" 
+                                            class="btn btn-outline-success erledigt-btn flex-shrink-0" 
+                                            title="Als erledigt markieren"
+                                            data-typ="{{ $erinnerung->typ }}"
+                                            data-id="{{ $erinnerung->id }}"
+                                            style="width: 40px; height: 40px;">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
                                     
-                                    {{-- Datum --}}
-                                    <div class="flex-shrink-0 text-center" style="width: 55px;">
-                                        <div class="badge @if($istUeberfaellig) bg-danger @elseif($istHeute) bg-warning text-dark @else bg-secondary @endif p-2 w-100">
-                                            <div class="small fw-bold">{{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->format('d.m.') }}</div>
-                                            <div style="font-size: 0.65rem;">
-                                                @if($istUeberfaellig)
-                                                    {{ (int) \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->diffInDays(now()) }}d
-                                                @elseif($istHeute)
-                                                    Heute
-                                                @else
-                                                    {{ \Carbon\Carbon::parse($erinnerung->erinnerung_datum)->locale('de')->shortDayName }}
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {{-- Typ-Icon --}}
-                                    <div class="flex-shrink-0">
-                                        <span class="badge bg-{{ $erinnerung->farbe }} rounded-circle p-2">
-                                            <i class="{{ $erinnerung->icon }}"></i>
-                                        </span>
-                                    </div>
-                                    
-                                    {{-- Codex --}}
-                                    <div class="flex-shrink-0" style="width: 80px;">
+                                    {{-- Typ-Badge --}}
+                                    <span class="badge bg-{{ $erinnerung->farbe }} flex-shrink-0" style="width: 100px;">
+                                        <i class="{{ $erinnerung->icon }} me-1"></i>
                                         @if($erinnerung->codex)
-                                            <span class="badge bg-dark font-monospace">{{ $erinnerung->codex }}</span>
+                                            {{ $erinnerung->codex }}
                                         @elseif($erinnerung->typ === 'rechnung' && isset($erinnerung->rechnungsnummer))
-                                            <span class="badge bg-success font-monospace">{{ $erinnerung->rechnungsnummer }}</span>
+                                            {{ $erinnerung->rechnungsnummer }}
+                                        @else
+                                            {{ $erinnerung->typ === 'gebaeude' ? 'Gebäude' : 'Rechnung' }}
+                                        @endif
+                                    </span>
+                                    
+                                    {{-- Priorität --}}
+                                    @if($erinnerung->prioritaet !== 'normal')
+                                        <span class="badge @if($erinnerung->prioritaet === 'kritisch') bg-danger @elseif($erinnerung->prioritaet === 'hoch') bg-warning text-dark @else bg-secondary @endif">
+                                            !
+                                        </span>
+                                    @endif
+                                    
+                                    {{-- Content --}}
+                                    <div class="flex-grow-1 min-w-0">
+                                        <a href="{{ $erinnerung->link }}" class="fw-bold text-decoration-none">
+                                            {{ $erinnerung->name ?? $erinnerung->titel }}
+                                        </a>
+                                        @if($erinnerung->beschreibung)
+                                            <span class="text-muted ms-2">{{ Str::limit($erinnerung->beschreibung, 80) }}</span>
                                         @endif
                                     </div>
                                     
-                                    {{-- Name + Beschreibung --}}
-                                    <div class="flex-grow-1 min-w-0">
-                                        <div class="d-flex align-items-center gap-2 mb-1">
-                                            <a href="{{ $erinnerung->link }}" class="fw-bold text-decoration-none text-truncate">
-                                                {{ $erinnerung->name ?? $erinnerung->titel }}
-                                            </a>
-                                            @if($erinnerung->prioritaet !== 'normal')
-                                                <span class="badge @if($erinnerung->prioritaet === 'kritisch') bg-danger @elseif($erinnerung->prioritaet === 'hoch') bg-warning text-dark @else bg-secondary @endif">
-                                                    {{ ucfirst($erinnerung->prioritaet) }}
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <p class="mb-0 small text-muted text-truncate">
-                                            {{ Str::limit($erinnerung->beschreibung, 80) }}
-                                        </p>
-                                    </div>
-                                    
-                                    {{-- Link --}}
-                                    <div class="flex-shrink-0">
-                                        <a href="{{ $erinnerung->link }}" class="btn btn-sm btn-outline-secondary">
-                                            <i class="bi bi-arrow-right"></i>
-                                        </a>
-                                    </div>
+                                    {{-- Datum --}}
+                                    <span class="badge @if($istUeberfaellig) bg-danger @elseif($istHeute) bg-warning text-dark @else bg-secondary @endif flex-shrink-0">
+                                        {{ $datum->format('d.m.Y') }}
+                                    </span>
                                 </div>
                                 
-                                {{-- Mobile Ansicht --}}
+                                {{-- Mobile Layout --}}
                                 <div class="d-md-none">
                                     <div class="d-flex align-items-start gap-2">
-                                        {{-- Checkbox --}}
+                                        {{-- Erledigt-Button --}}
                                         <button type="button" 
-                                                class="btn btn-outline-success btn-sm rounded-circle erledigt-btn flex-shrink-0 mt-1"
+                                                class="btn btn-outline-success erledigt-btn flex-shrink-0" 
+                                                title="Als erledigt markieren"
                                                 data-typ="{{ $erinnerung->typ }}"
                                                 data-id="{{ $erinnerung->id }}"
                                                 style="width: 40px; height: 40px;">
@@ -311,6 +290,20 @@
         </div>
     </div>
 
+</div>
+
+{{-- ⭐ Toast für Fälligkeits-Feedback --}}
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="faelligkeitToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="bi bi-calendar-check text-success me-2"></i>
+            <strong class="me-auto">Fälligkeiten</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="faelligkeitToastBody">
+            <!-- Dynamisch -->
+        </div>
+    </div>
 </div>
 
 @push('styles')
@@ -423,6 +416,68 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    // ⭐ Fälligkeiten aktualisieren Button
+    const btnFaelligkeit = document.getElementById('btnFaelligkeitUpdate');
+    if (btnFaelligkeit) {
+        btnFaelligkeit.addEventListener('click', function() {
+            const btn = this;
+            const originalHtml = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Läuft...';
+            
+            fetch('{{ route("dashboard.faelligkeit-update") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                
+                // Toast anzeigen
+                const toastBody = document.getElementById('faelligkeitToastBody');
+                const toastEl = document.getElementById('faelligkeitToast');
+                
+                if (data.ok) {
+                    toastBody.innerHTML = `
+                        <i class="bi bi-check-circle text-success me-1"></i>
+                        ${data.message}
+                        <div class="mt-2 small">
+                            <span class="badge bg-primary">${data.stats.faellig} fällig</span>
+                            <span class="badge bg-secondary">${data.stats.nicht_faellig} OK</span>
+                            <span class="badge bg-warning text-dark">${data.stats.geaendert} geändert</span>
+                        </div>
+                    `;
+                    toastEl.classList.remove('bg-danger');
+                    toastEl.classList.add('bg-success', 'text-white');
+                } else {
+                    toastBody.innerHTML = `<i class="bi bi-x-circle text-danger me-1"></i> ${data.message}`;
+                    toastEl.classList.remove('bg-success');
+                    toastEl.classList.add('bg-danger', 'text-white');
+                }
+                
+                const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+                toast.show();
+                
+                // Nach Erfolg: Statistik-Karte aktualisieren
+                if (data.ok) {
+                    setTimeout(() => location.reload(), 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                alert('Fehler beim Aktualisieren der Fälligkeiten');
+            });
+        });
+    }
 });
 </script>
 @endpush
