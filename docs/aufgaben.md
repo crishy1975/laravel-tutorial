@@ -36,5 +36,6 @@ backup
     hostinger täglich sichern
 
 reinigung
-    
+    suche auf 20 red.
+    filter speichern
 

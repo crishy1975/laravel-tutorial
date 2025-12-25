@@ -145,8 +145,7 @@ Route::middleware(['auth', 'verified'])
             ->whereNumber('gebaeude')->name('logs.problem');
         Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])
             ->whereNumber('gebaeude')->name('logs.erinnerung');
-        Route::delete('/gebaeude/bulk-destroy', [GebaeudeController::class, 'bulkDestroy'])
-            ->name('gebaeude.bulkDestroy');
+
     });
 
 // ⭐ NEU: Gebäude-Log Einzelaktionen (außerhalb der Gruppe)
@@ -177,6 +176,9 @@ Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'remo
 Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufschlag'])
     ->middleware(['auth'])
     ->name('gebaeude.aufschlag.get');
+
+Route::delete('/gebaeude/bulk-destroy', [GebaeudeController::class, 'bulkDestroy'])
+    ->name('gebaeude.bulkDestroy');
 
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
 Route::middleware(['auth', 'verified'])->group(function () {
