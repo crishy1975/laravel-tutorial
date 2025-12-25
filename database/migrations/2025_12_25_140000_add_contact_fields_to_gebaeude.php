@@ -7,21 +7,29 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * paoloWeb Import-ID
+     * Run the migrations.
      */
     public function up(): void
     {
         Schema::table('gebaeude', function (Blueprint $table) {
-            $table->unsignedInteger('paoloweb_id')->nullable()->after('legacy_mid')->comment('ID aus paoloWeb Import');
-            $table->index('paoloweb_id');
+            // Adressen optional machen (falls noch nicht nullable)
+            $table->unsignedBigInteger('postadresse_id')->nullable()->change();
+            $table->unsignedBigInteger('rechnungsempfaenger_id')->nullable()->change();
+            
+            // Neue Kontaktfelder
+            $table->string('telefon', 50)->nullable()->after('wohnort');
+            $table->string('handy', 50)->nullable()->after('telefon');
+            $table->string('email', 255)->nullable()->after('handy');
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down(): void
     {
         Schema::table('gebaeude', function (Blueprint $table) {
-            $table->dropIndex(['paoloweb_id']);
-            $table->dropColumn('paoloweb_id');
+            $table->dropColumn(['telefon', 'handy', 'email']);
         });
     }
 };
