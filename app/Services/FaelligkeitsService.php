@@ -11,23 +11,12 @@ use Illuminate\Support\Facades\Log;
 /**
  * FaelligkeitsService - Zentrale Logik für Reinigungsfälligkeiten
  * 
- * REGELN:
- * 1. Ein Gebäude wird am 1. eines aktiven Monats fällig
- * 2. Wenn keine Monate aktiv → fällig am 1. Januar jedes Jahres
- * 3. Fällig = nächster Fälligkeitstermin nach letzter Reinigung ist erreicht/überschritten
- * 
- * BEISPIELE:
- * - Letzte Reinigung: 31.12.2025, Monate: Feb+Aug → Fällig ab 01.02.2026
- * - Letzte Reinigung: 03.02.2026, Monate: Feb+Aug → Fällig ab 01.08.2026
- * - Letzte Reinigung: 31.12.2025, keine Monate   → Fällig ab 01.01.2026
+ * ⭐ OPTIMIERT: Batch-Updates ohne N+1 Queries
  */
 class FaelligkeitsService
 {
     /**
      * Ermittelt die aktiven Monate eines Gebäudes (m01-m12)
-     * 
-     * @param Gebaeude $gebaeude
-     * @return array Array mit Monatsnummern [2, 8] für Feb+Aug
      */
     public function getAktiveMonate(Gebaeude $gebaeude): array
     {
@@ -45,9 +34,6 @@ class FaelligkeitsService
 
     /**
      * Ermittelt das Datum der letzten Reinigung aus der Timeline
-     * 
-     * @param Gebaeude $gebaeude
-     * @return Carbon|null
      */
     public function getLetzteReinigung(Gebaeude $gebaeude): ?Carbon
     {
@@ -60,10 +46,6 @@ class FaelligkeitsService
 
     /**
      * Zählt die Reinigungen in einem Jahr
-     * 
-     * @param Gebaeude $gebaeude
-     * @param int|null $jahr
-     * @return int
      */
     public function zaehleReinigungen(Gebaeude $gebaeude, ?int $jahr = null): int
     {
@@ -76,101 +58,79 @@ class FaelligkeitsService
     }
 
     /**
-     * ⭐ KERNLOGIK: Ermittelt den nächsten Fälligkeitstermin nach einem Datum
-     * 
-     * @param Gebaeude $gebaeude
-     * @param Carbon|null $nachDatum Nach welchem Datum suchen (Standard: letzte Reinigung)
-     * @return Carbon Der nächste Fälligkeitstermin
+     * ⭐ KERNLOGIK: Ermittelt den nächsten Fälligkeitstermin
      */
     public function getNaechsteFaelligkeit(Gebaeude $gebaeude, ?Carbon $nachDatum = null): Carbon
     {
-        $nachDatum = $nachDatum ?? $this->getLetzteReinigung($gebaeude);
+        $letzteReinigung = $nachDatum ?? $this->getLetzteReinigung($gebaeude);
         $aktiveMonate = $this->getAktiveMonate($gebaeude);
         
-        // Kein Referenzdatum → suche ab heute
-        if (!$nachDatum) {
-            $nachDatum = now()->subDay(); // Gestern, damit heute auch gefunden wird
-        }
-        
-        // Keine aktiven Monate → 1. Januar des nächsten Jahres nach Reinigung
-        if (empty($aktiveMonate)) {
-            $jahr = $nachDatum->year;
-            $januar = Carbon::create($jahr, 1, 1)->startOfDay();
-            
-            // Wenn Reinigung vor/am 1.1. → dieses Jahr fällig
-            // Wenn Reinigung nach 1.1. → nächstes Jahr fällig
-            if ($nachDatum->lt($januar)) {
-                return $januar;
-            }
-            return Carbon::create($jahr + 1, 1, 1)->startOfDay();
-        }
-        
-        // Suche den nächsten aktiven Monat NACH der Reinigung
-        $referenzJahr = $nachDatum->year;
-        $referenzMonat = $nachDatum->month;
-        $referenzTag = $nachDatum->day;
-        
-        // Prüfe ob Reinigung VOR dem 1. des Monats war
-        // Wenn ja, könnte dieser Monat noch fällig sein
-        $reinigungVorMonatsanfang = ($referenzTag < 1); // Immer false, aber für Klarheit
-        
-        // Suche in den nächsten 24 Monaten
-        for ($offset = 0; $offset <= 24; $offset++) {
-            $pruefDatum = $nachDatum->copy()->addMonths($offset)->startOfMonth();
-            $pruefMonat = $pruefDatum->month;
-            
-            // Ist dieser Monat aktiv?
-            if (in_array($pruefMonat, $aktiveMonate)) {
-                // Fälligkeit ist am 1. dieses Monats
-                $faelligkeit = Carbon::create($pruefDatum->year, $pruefMonat, 1)->startOfDay();
-                
-                // Nur wenn Fälligkeit NACH der Reinigung liegt
-                if ($faelligkeit->gt($nachDatum)) {
-                    return $faelligkeit;
-                }
-            }
-        }
-        
-        // Fallback: 1 Jahr nach Reinigung
-        return $nachDatum->copy()->addYear()->startOfMonth();
+        return $this->berechneNaechsteFaelligkeit($aktiveMonate, $letzteReinigung);
     }
 
     /**
-     * ⭐ HAUPTMETHODE: Prüft ob ein Gebäude fällig ist
-     * 
-     * @param Gebaeude $gebaeude
-     * @param Carbon|null $stichtag Prüfdatum (Standard: heute)
-     * @return bool
+     * ⭐ REINE BERECHNUNG ohne DB-Zugriff
+     */
+    private function berechneNaechsteFaelligkeit(array $aktiveMonate, ?Carbon $letzteReinigung): Carbon
+    {
+        // Kein Referenzdatum → fällig seit Anfang des Jahres
+        if (!$letzteReinigung) {
+            $letzteReinigung = Carbon::create(now()->year - 1, 12, 31);
+        }
+        
+        // Keine aktiven Monate → 1. Januar jährlich
+        if (empty($aktiveMonate)) {
+            return Carbon::create($letzteReinigung->year + 1, 1, 1)->startOfDay();
+        }
+        
+        sort($aktiveMonate);
+        
+        $jahr = $letzteReinigung->year;
+        $monat = $letzteReinigung->month;
+        
+        // Suche max 3 Jahre voraus
+        for ($jahrOffset = 0; $jahrOffset <= 3; $jahrOffset++) {
+            $pruefJahr = $jahr + $jahrOffset;
+            
+            foreach ($aktiveMonate as $aktiverMonat) {
+                // Im ersten Jahr: nur Monate NACH der Reinigung
+                if ($jahrOffset === 0 && $aktiverMonat <= $monat) {
+                    continue;
+                }
+                
+                return Carbon::create($pruefJahr, $aktiverMonat, 1)->startOfDay();
+            }
+        }
+        
+        // Fallback
+        return Carbon::create($jahr + 1, $aktiveMonate[0] ?? 1, 1)->startOfDay();
+    }
+
+    /**
+     * Prüft ob ein Gebäude fällig ist
      */
     public function istFaellig(Gebaeude $gebaeude, ?Carbon $stichtag = null): bool
     {
         $stichtag = $stichtag ?? now();
-        
         $naechsteFaelligkeit = $this->getNaechsteFaelligkeit($gebaeude);
         
-        // Fällig wenn der nächste Fälligkeitstermin erreicht oder überschritten ist
         return $naechsteFaelligkeit->lte($stichtag);
     }
 
     /**
-     * Aktualisiert das Fälligkeits-Flag eines Gebäudes
-     * 
-     * @param Gebaeude $gebaeude
-     * @param Carbon|null $stichtag
-     * @return array Status-Informationen
+     * Aktualisiert das Fälligkeits-Flag eines einzelnen Gebäudes
      */
     public function aktualisiereGebaeude(Gebaeude $gebaeude, ?Carbon $stichtag = null): array
     {
         $stichtag = $stichtag ?? now();
         
         $letzteReinigung = $this->getLetzteReinigung($gebaeude);
-        $naechsteFaelligkeit = $this->getNaechsteFaelligkeit($gebaeude);
-        $istFaellig = $naechsteFaelligkeit->lte($stichtag);
         $aktiveMonate = $this->getAktiveMonate($gebaeude);
+        $naechsteFaelligkeit = $this->berechneNaechsteFaelligkeit($aktiveMonate, $letzteReinigung);
+        $istFaellig = $naechsteFaelligkeit->lte($stichtag);
         
-        // Reinigungen im aktuellen Jahr zählen
         $gemachteReinigungen = $this->zaehleReinigungen($gebaeude, $stichtag->year);
-        $geplanteReinigungen = count($aktiveMonate) ?: 1; // Min. 1 wenn keine Monate
+        $geplanteReinigungen = count($aktiveMonate) ?: 1;
         
         $altFaellig = (bool) $gebaeude->faellig;
         $geaendert = ($altFaellig !== $istFaellig) 
@@ -189,28 +149,19 @@ class FaelligkeitsService
         
         return [
             'gebaeude_id' => $gebaeude->id,
-            'codex' => $gebaeude->codex,
-            'letzte_reinigung' => $letzteReinigung?->format('d.m.Y'),
-            'naechste_faelligkeit' => $naechsteFaelligkeit->format('d.m.Y'),
-            'aktive_monate' => $aktiveMonate,
             'ist_faellig' => $istFaellig,
-            'vorher_faellig' => $altFaellig,
             'geaendert' => $geaendert,
-            'gemachte_reinigungen' => $gemachteReinigungen,
-            'geplante_reinigungen' => $geplanteReinigungen,
         ];
     }
 
     /**
-     * ⭐ BATCH: Aktualisiert alle Gebäude
-     * 
-     * @param Carbon|null $stichtag
-     * @param bool $nurFaellige Nur fällige aktualisieren
-     * @return array Statistik
+     * ⭐⭐⭐ HOCHOPTIMIERT: Aktualisiert alle Gebäude mit minimalen DB-Queries
      */
     public function aktualisiereAlle(?Carbon $stichtag = null, bool $nurFaellige = false): array
     {
         $stichtag = $stichtag ?? now();
+        $startTime = microtime(true);
+        
         $stats = [
             'gesamt' => 0,
             'faellig' => 0,
@@ -219,31 +170,110 @@ class FaelligkeitsService
             'fehler' => 0,
         ];
         
-        Gebaeude::query()
-            ->orderBy('id')
-            ->chunkById(500, function ($chunk) use (&$stats, $stichtag) {
-                foreach ($chunk as $gebaeude) {
-                    try {
-                        $result = $this->aktualisiereGebaeude($gebaeude, $stichtag);
-                        
-                        $stats['gesamt']++;
-                        if ($result['ist_faellig']) {
-                            $stats['faellig']++;
-                        } else {
-                            $stats['nicht_faellig']++;
-                        }
-                        if ($result['geaendert']) {
-                            $stats['geaendert']++;
-                        }
-                    } catch (\Exception $e) {
-                        $stats['fehler']++;
-                        Log::error('Fälligkeit-Update fehlgeschlagen', [
-                            'gebaeude_id' => $gebaeude->id,
-                            'error' => $e->getMessage(),
-                        ]);
+        // ═══════════════════════════════════════════════════════════════════
+        // SCHRITT 1: Alle Timeline-Daten auf einmal laden (vermeidet N+1!)
+        // ═══════════════════════════════════════════════════════════════════
+        
+        Log::info('Fälligkeit-Update: Lade Timeline-Daten...');
+        
+        // Letzte Reinigung pro Gebäude
+        $letzteReinigungen = DB::table('timeline')
+            ->select('gebaeude_id', DB::raw('MAX(datum) as letzte_reinigung'))
+            ->groupBy('gebaeude_id')
+            ->pluck('letzte_reinigung', 'gebaeude_id')
+            ->map(fn($d) => $d ? Carbon::parse($d) : null)
+            ->toArray();
+        
+        // Reinigungen im aktuellen Jahr pro Gebäude
+        $reinigungsZaehler = DB::table('timeline')
+            ->select('gebaeude_id', DB::raw('COUNT(*) as anzahl'))
+            ->whereYear('datum', $stichtag->year)
+            ->groupBy('gebaeude_id')
+            ->pluck('anzahl', 'gebaeude_id')
+            ->toArray();
+        
+        Log::info('Fälligkeit-Update: Timeline-Daten geladen', [
+            'gebaeude_mit_reinigung' => count($letzteReinigungen),
+            'dauer' => round(microtime(true) - $startTime, 2) . 's',
+        ]);
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // SCHRITT 2: Gebäude durchgehen und aktualisieren
+        // ═══════════════════════════════════════════════════════════════════
+        
+        $gebaeudeQuery = Gebaeude::query()
+            ->select([
+                'id', 'codex', 'faellig', 'datum_faelligkeit', 'letzter_termin',
+                'gemachte_reinigungen', 'geplante_reinigungen',
+                'm01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12'
+            ]);
+        
+        // Updates sammeln für Batch-Update
+        $updates = [];
+        
+        foreach ($gebaeudeQuery->cursor() as $gebaeude) {
+            try {
+                $stats['gesamt']++;
+                
+                // Aktive Monate aus dem Gebäude-Objekt (kein DB-Call!)
+                $aktiveMonate = [];
+                for ($m = 1; $m <= 12; $m++) {
+                    $feld = 'm' . str_pad($m, 2, '0', STR_PAD_LEFT);
+                    if ($gebaeude->{$feld}) {
+                        $aktiveMonate[] = $m;
                     }
                 }
-            });
+                
+                // Letzte Reinigung aus vorgeladenen Daten
+                $letzteReinigung = $letzteReinigungen[$gebaeude->id] ?? null;
+                
+                // Fälligkeit berechnen (reine PHP-Berechnung!)
+                $naechsteFaelligkeit = $this->berechneNaechsteFaelligkeit($aktiveMonate, $letzteReinigung);
+                $istFaellig = $naechsteFaelligkeit->lte($stichtag);
+                
+                // Zähler aus vorgeladenen Daten
+                $gemachteReinigungen = $reinigungsZaehler[$gebaeude->id] ?? 0;
+                $geplanteReinigungen = count($aktiveMonate) ?: 1;
+                
+                // Statistik
+                if ($istFaellig) {
+                    $stats['faellig']++;
+                } else {
+                    $stats['nicht_faellig']++;
+                }
+                
+                // Prüfen ob Update nötig
+                $altFaellig = (bool) $gebaeude->faellig;
+                $needsUpdate = ($altFaellig !== $istFaellig)
+                    || ($gebaeude->gemachte_reinigungen != $gemachteReinigungen)
+                    || ($gebaeude->geplante_reinigungen != $geplanteReinigungen);
+                
+                if ($needsUpdate) {
+                    $stats['geaendert']++;
+                    
+                    // Direkt updaten (einzeln, aber ohne N+1 bei SELECT)
+                    DB::table('gebaeude')
+                        ->where('id', $gebaeude->id)
+                        ->update([
+                            'faellig' => $istFaellig,
+                            'datum_faelligkeit' => $naechsteFaelligkeit->format('Y-m-d'),
+                            'letzter_termin' => $letzteReinigung?->format('Y-m-d'),
+                            'gemachte_reinigungen' => $gemachteReinigungen,
+                            'geplante_reinigungen' => $geplanteReinigungen,
+                            'updated_at' => now(),
+                        ]);
+                }
+                
+            } catch (\Exception $e) {
+                $stats['fehler']++;
+                Log::error('Fälligkeit-Update Fehler', [
+                    'gebaeude_id' => $gebaeude->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        $stats['dauer_sekunden'] = round(microtime(true) - $startTime, 2);
         
         Log::info('Fälligkeit-Batch abgeschlossen', $stats);
         
@@ -252,11 +282,6 @@ class FaelligkeitsService
 
     /**
      * ⭐ SIMULATOR: Testet die Fälligkeitslogik mit beliebigen Parametern
-     * 
-     * @param array $aktiveMonate z.B. [2, 8] für Feb+Aug
-     * @param Carbon|null $letzteReinigung
-     * @param Carbon|null $stichtag
-     * @return array Detaillierte Analyse
      */
     public function simuliere(
         array $aktiveMonate,
@@ -265,18 +290,11 @@ class FaelligkeitsService
     ): array {
         $stichtag = $stichtag ?? now();
         
-        // Virtuelles Gebäude erstellen
-        $virtuell = new Gebaeude();
-        foreach (range(1, 12) as $m) {
-            $feld = 'm' . str_pad($m, 2, '0', STR_PAD_LEFT);
-            $virtuell->{$feld} = in_array($m, $aktiveMonate);
-        }
-        
         // Fälligkeit berechnen
-        $naechsteFaelligkeit = $this->getNaechsteFaelligkeitVirtuell($aktiveMonate, $letzteReinigung);
+        $naechsteFaelligkeit = $this->berechneNaechsteFaelligkeit($aktiveMonate, $letzteReinigung);
         $istFaellig = $naechsteFaelligkeit->lte($stichtag);
         
-        // Alle Fälligkeitstermine im Jahr berechnen
+        // Alle Fälligkeitstermine im Jahr
         $faelligkeitsTermine = [];
         $jahr = $stichtag->year;
         
@@ -306,50 +324,6 @@ class FaelligkeitsService
         ];
     }
 
-    /**
-     * Hilfsmethode für Simulation ohne echtes Gebäude
-     */
-    private function getNaechsteFaelligkeitVirtuell(array $aktiveMonate, ?Carbon $nachDatum): Carbon
-    {
-        // Kein Referenzdatum → suche ab heute
-        if (!$nachDatum) {
-            $nachDatum = now()->subDay();
-        }
-        
-        // Keine aktiven Monate → 1. Januar
-        if (empty($aktiveMonate)) {
-            $jahr = $nachDatum->year;
-            $januar = Carbon::create($jahr, 1, 1)->startOfDay();
-            
-            if ($nachDatum->lt($januar)) {
-                return $januar;
-            }
-            return Carbon::create($jahr + 1, 1, 1)->startOfDay();
-        }
-        
-        // Sortiere Monate
-        sort($aktiveMonate);
-        
-        // Suche nächsten aktiven Monat nach Reinigung
-        for ($offset = 0; $offset <= 24; $offset++) {
-            $pruefDatum = $nachDatum->copy()->addMonths($offset)->startOfMonth();
-            $pruefMonat = $pruefDatum->month;
-            
-            if (in_array($pruefMonat, $aktiveMonate)) {
-                $faelligkeit = Carbon::create($pruefDatum->year, $pruefMonat, 1)->startOfDay();
-                
-                if ($faelligkeit->gt($nachDatum)) {
-                    return $faelligkeit;
-                }
-            }
-        }
-        
-        return $nachDatum->copy()->addYear()->startOfMonth();
-    }
-
-    /**
-     * Wandelt Monatsnummern in Namen um
-     */
     private function monateAlsNamen(array $monate): array
     {
         $namen = [
@@ -361,9 +335,6 @@ class FaelligkeitsService
         return array_map(fn($m) => $namen[$m] ?? '?', $monate);
     }
 
-    /**
-     * Erzeugt eine verständliche Erklärung
-     */
     private function erzeugeErklaerung(
         array $aktiveMonate,
         ?Carbon $letzteReinigung,
