@@ -11,5 +11,9 @@ parameter:
 
     - wird am 1. august fällig
 
-    3. 
+    3. letze Reinigung: 31.12.2025
+    keine monate
+    wird am 01.01.2026 fällig
+
+    
 
