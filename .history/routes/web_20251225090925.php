@@ -177,9 +177,6 @@ Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufs
     ->middleware(['auth'])
     ->name('gebaeude.aufschlag.get');
 
-Route::delete('/gebaeude/bulk-destroy', [GebaeudeController::class, 'bulkDestroy'])
-    ->name('gebaeude.bulkDestroy');
-
 // 🧾 Artikel-Positionen (Einzel-ID: Update/Destroy)
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/artikel-gebaeude/{id}',    [ArtikelGebaeudeController::class, 'update'])
