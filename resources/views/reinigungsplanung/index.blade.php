@@ -176,7 +176,11 @@
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
             <h6 class="mb-0 small">
                 <i class="bi bi-building"></i>
-                {{ $gebaeude->count() }} Gebäude
+                @if($gebaeude->count() < $stats['gesamt'])
+                    {{ $gebaeude->count() }} von {{ $stats['gesamt'] }} Gebäude
+                @else
+                    {{ $gebaeude->count() }} Gebäude
+                @endif
             </h6>
             @if($stats['offen'] > 0)
                 <span class="badge bg-warning text-dark">{{ $stats['offen'] }} offen</span>
@@ -333,6 +337,10 @@
     <div class="mt-2 small text-muted" style="font-size: 0.75rem;">
         <i class="bi bi-info-circle"></i>
         Erledigt = Reinigung seit letzter Fälligkeit. Fälligkeit basiert auf aktiven Monaten (m01-m12).
+        @if($gebaeude->count() < $stats['gesamt'])
+            <br><i class="bi bi-exclamation-triangle text-warning"></i>
+            <strong>Es werden nur 20 Ergebnisse angezeigt.</strong> Verwenden Sie die Filter um die Suche einzugrenzen.
+        @endif
     </div>
 </div>
 

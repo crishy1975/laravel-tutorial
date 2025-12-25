@@ -122,12 +122,15 @@ class ReinigungsplanungController extends Controller
             $gebaeude = $gebaeude->filter(fn($g) => $g->ist_erledigt);
         }
 
-        // Statistiken
+        // Statistiken (vor Limit berechnen!)
         $stats = [
             'gesamt'   => $gebaeude->count(),
             'offen'    => $gebaeude->filter(fn($g) => !$g->ist_erledigt)->count(),
             'erledigt' => $gebaeude->filter(fn($g) => $g->ist_erledigt)->count(),
         ];
+
+        // ⭐ Ergebnisse auf 20 begrenzen
+        $gebaeude = $gebaeude->take(20);
 
         // Touren für Dropdown
         $touren = Tour::orderBy('name')->get(['id', 'name', 'aktiv']);
