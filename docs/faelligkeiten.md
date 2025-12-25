@@ -1,4 +1,7 @@
 parameter:
-    letze Reinigung
+    letze Reinigung: 31.12.2025
+    monate: februar, august
 
-    monate: 
+    - wird am 1. februar fällig
+
+    
