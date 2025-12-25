@@ -208,8 +208,8 @@ class ImportPaoloWeb extends Command
             'bemerkung'           => $bemerkung ?: null,
             'rechnung_schreiben'  => 0,
             'faellig'             => 0,
-            'geplante_reinigungen' => null,
-            'gemachte_reinigungen' => null,
+            'geplante_reinigungen' => 1,  // ⭐ Default: 1
+            'gemachte_reinigungen' => 0,  // ⭐ Default: 0
             // Monats-Flags
             'm01' => $monatsFlags[1],
             'm02' => $monatsFlags[2],
