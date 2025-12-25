@@ -7,6 +7,8 @@ use App\Models\RechnungLog;
 use App\Models\Rechnung;
 use App\Models\Mahnung;
 use App\Models\BankBuchung;
+use App\Models\Gebaeude;
+use App\Services\FaelligkeitsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -15,6 +17,10 @@ use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
+    public function __construct(
+        protected FaelligkeitsService $faelligkeitsService
+    ) {}
+
     /**
      * Freche Sprüche für die Begrüßung
      */
@@ -113,6 +119,37 @@ class DashboardController extends Controller
     }
 
     /**
+     * ⭐ NEU: Fälligkeiten aktualisieren (AJAX)
+     */
+    public function aktualisiereFaelligkeiten(Request $request)
+    {
+        try {
+            $stats = $this->faelligkeitsService->aktualisiereAlle();
+            
+            return response()->json([
+                'ok' => true,
+                'message' => sprintf(
+                    'Fälligkeiten aktualisiert: %d geprüft, %d fällig, %d geändert',
+                    $stats['gesamt'],
+                    $stats['faellig'],
+                    $stats['geaendert']
+                ),
+                'stats' => $stats,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Fehler bei Fälligkeits-Update', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'ok' => false,
+                'message' => 'Fehler: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Begrüßung mit zufälligem Spruch
      */
     private function getBegruessung(string $name): array
@@ -168,10 +205,16 @@ class DashboardController extends Controller
         // Gebäude mit "Rechnung zu schreiben"
         $rechnungZuSchreiben = 0;
         try {
-            $rechnungZuSchreiben = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
+            $rechnungZuSchreiben = Gebaeude::where('rechnung_schreiben', true)->count();
         } catch (\Exception $e) {
             // Gebaeude-Tabelle existiert evtl. nicht
         }
+        
+        // ⭐ NEU: Fällige Reinigungen
+        $faelligeReinigungen = 0;
+        try {
+            $faelligeReinigungen = Gebaeude::where('faellig', true)->count();
+        } catch (\Exception $e) {}
         
         // Überfällige Rechnungen (für Info)
         $ueberfaelligeRechnungen = 0;
@@ -204,29 +247,33 @@ class DashboardController extends Controller
             // Mahnung-Tabelle existiert evtl. nicht
         }
         
-        // Tage seit letztem Buchungsmatch
+        // Tage seit letztem Bank-Match
         $tageSeitMatch = null;
         $unmatchedBuchungen = 0;
         try {
-            $letzterMatch = BankBuchung::whereNotNull('rechnung_id')
-                ->orderByDesc('updated_at')
-                ->first();
-            $tageSeitMatch = $letzterMatch 
-                ? (int) $letzterMatch->updated_at->diffInDays(now())
-                : null;
-            
-            // Ungematchte Buchungen
-            $unmatchedBuchungen = BankBuchung::whereNull('rechnung_id')
-                ->where('ignoriert', false)
-                ->where('betrag', '>', 0)
-                ->count();
-        } catch (\Exception $e) {
-            // BankBuchung-Tabelle existiert evtl. nicht
-        }
+            if (Schema::hasTable('bank_buchungen')) {
+                $letzteGematchte = BankBuchung::whereNotNull('rechnung_id')
+                    ->orderByDesc('updated_at')
+                    ->first();
+                $tageSeitMatch = $letzteGematchte 
+                    ? (int) $letzteGematchte->updated_at->diffInDays(now()) 
+                    : null;
+                
+                // Nicht zugeordnete Buchungen (nur Haben/Eingang)
+                $unmatchedBuchungen = BankBuchung::whereNull('rechnung_id')
+                    ->where('haben', '>', 0)
+                    ->count();
+            }
+        } catch (\Exception $e) {}
         
-        // Offene Erinnerungen (Gebäude) - inkl. typ='erinnerung'
+        // Offene Erinnerungen
         $offeneGebaeudeErinnerungen = 0;
+        $offeneRechnungErinnerungen = 0;
+        $heuteFaellig = 0;
+        $ueberfaelligeErinnerungen = 0;
+        
         try {
+            // Gebäude-Erinnerungen
             $offeneGebaeudeErinnerungen = GebaeudeLog::where(function($q) {
                     $q->whereNotNull('erinnerung_datum')
                       ->orWhere('typ', 'erinnerung');
@@ -236,71 +283,20 @@ class DashboardController extends Controller
                       ->orWhereNull('erinnerung_erledigt');
                 })
                 ->count();
-        } catch (\Exception $e) {
-            // GebaeudeLog-Tabelle existiert evtl. nicht
-        }
-        
-        // Offene Erinnerungen (Rechnungen) - inkl. typ='erinnerung'
-        $offeneRechnungErinnerungen = 0;
-        try {
-            $offeneRechnungErinnerungen = RechnungLog::where(function($q) {
-                    $q->whereNotNull('erinnerung_datum')
-                      ->orWhere('typ', 'erinnerung');
-                })
+                
+            // Heute fällig (Gebäude)
+            $heuteFaellig += GebaeudeLog::whereDate('erinnerung_datum', today())
                 ->where(function($q) {
                     $q->where('erinnerung_erledigt', false)
                       ->orWhereNull('erinnerung_erledigt');
                 })
                 ->count();
-        } catch (\Exception $e) {
-            // RechnungLog-Tabelle existiert evtl. nicht
-        }
-        
-        // Heute fällige Erinnerungen
-        $heuteFaellig = 0;
-        try {
-            // Gebäude-Erinnerungen heute fällig (inkl. typ='erinnerung' ohne Datum = created_at heute)
-            $heuteFaellig = GebaeudeLog::where(function($q) {
-                    $q->whereDate('erinnerung_datum', today())
+                
+            // Überfällig (Gebäude)
+            $ueberfaelligeErinnerungen += GebaeudeLog::where(function($q) {
+                    $q->whereDate('erinnerung_datum', '<', today())
                       ->orWhere(function($q2) {
                           $q2->where('typ', 'erinnerung')
-                             ->whereNull('erinnerung_datum')
-                             ->whereDate('created_at', today());
-                      });
-                })
-                ->where(function($q) {
-                    $q->where('erinnerung_erledigt', false)
-                      ->orWhereNull('erinnerung_erledigt');
-                })
-                ->count();
-        } catch (\Exception $e) {}
-        
-        try {
-            // Rechnungs-Erinnerungen heute fällig (inkl. typ='erinnerung' ohne Datum = created_at heute)
-            $heuteFaellig += RechnungLog::where(function($q) {
-                    $q->whereDate('erinnerung_datum', today())
-                      ->orWhere(function($q2) {
-                          $q2->where('typ', 'erinnerung')
-                             ->whereNull('erinnerung_datum')
-                             ->whereDate('created_at', today());
-                      });
-                })
-                ->where(function($q) {
-                    $q->where('erinnerung_erledigt', false)
-                      ->orWhereNull('erinnerung_erledigt');
-                })
-                ->count();
-        } catch (\Exception $e) {}
-        
-        // Überfällige Erinnerungen
-        $ueberfaelligeErinnerungen = 0;
-        try {
-            // Gebäude-Erinnerungen überfällig (inkl. typ='erinnerung' ohne Datum = created_at vor heute)
-            $ueberfaelligeErinnerungen = GebaeudeLog::where(function($q) {
-                    $q->where('erinnerung_datum', '<', today())
-                      ->orWhere(function($q2) {
-                          $q2->where('typ', 'erinnerung')
-                             ->whereNull('erinnerung_datum')
                              ->whereDate('created_at', '<', today());
                       });
                 })
@@ -312,24 +308,45 @@ class DashboardController extends Controller
         } catch (\Exception $e) {}
         
         try {
-            // Rechnungs-Erinnerungen überfällig (inkl. typ='erinnerung' ohne Datum = created_at vor heute)
-            $ueberfaelligeErinnerungen += RechnungLog::where(function($q) {
-                    $q->where('erinnerung_datum', '<', today())
-                      ->orWhere(function($q2) {
-                          $q2->where('typ', 'erinnerung')
-                             ->whereNull('erinnerung_datum')
-                             ->whereDate('created_at', '<', today());
-                      });
-                })
-                ->where(function($q) {
-                    $q->where('erinnerung_erledigt', false)
-                      ->orWhereNull('erinnerung_erledigt');
-                })
-                ->count();
+            // Rechnungs-Erinnerungen
+            if (Schema::hasTable('rechnung_logs')) {
+                $offeneRechnungErinnerungen = RechnungLog::where(function($q) {
+                        $q->whereNotNull('erinnerung_datum')
+                          ->orWhere('typ', 'erinnerung');
+                    })
+                    ->where(function($q) {
+                        $q->where('erinnerung_erledigt', false)
+                          ->orWhereNull('erinnerung_erledigt');
+                    })
+                    ->count();
+                    
+                // Heute fällig (Rechnungen)
+                $heuteFaellig += RechnungLog::whereDate('erinnerung_datum', today())
+                    ->where(function($q) {
+                        $q->where('erinnerung_erledigt', false)
+                          ->orWhereNull('erinnerung_erledigt');
+                    })
+                    ->count();
+                    
+                // Überfällig (Rechnungen)
+                $ueberfaelligeErinnerungen += RechnungLog::where(function($q) {
+                        $q->whereDate('erinnerung_datum', '<', today())
+                          ->orWhere(function($q2) {
+                              $q2->where('typ', 'erinnerung')
+                                 ->whereDate('created_at', '<', today());
+                          });
+                    })
+                    ->where(function($q) {
+                        $q->where('erinnerung_erledigt', false)
+                          ->orWhereNull('erinnerung_erledigt');
+                    })
+                    ->count();
+            }
         } catch (\Exception $e) {}
         
         return [
             'rechnung_zu_schreiben' => $rechnungZuSchreiben,
+            'faellige_reinigungen' => $faelligeReinigungen,
             'ueberfaellige_rechnungen' => $ueberfaelligeRechnungen,
             'offener_betrag' => $offenerBetrag,
             'tage_seit_mahnung' => $tageSeitMahnung,
@@ -347,9 +364,6 @@ class DashboardController extends Controller
     private function getGebaeudeErinnerungen()
     {
         try {
-            // Finde Erinnerungen:
-            // 1. Mit erinnerung_datum gesetzt (klassische Erinnerung)
-            // 2. ODER vom Typ 'erinnerung' (auch ohne Datum)
             return GebaeudeLog::with('gebaeude')
                 ->where(function($q) {
                     $q->whereNotNull('erinnerung_datum')
@@ -373,7 +387,6 @@ class DashboardController extends Controller
                             ?? $name;
                     }
                     
-                    // Datum: erinnerung_datum oder created_at als Fallback
                     $datum = $log->erinnerung_datum ?? $log->created_at;
                     
                     return (object)[
@@ -403,15 +416,10 @@ class DashboardController extends Controller
     private function getRechnungErinnerungen()
     {
         try {
-            // Debug: Prüfe ob Tabelle existiert
             if (!Schema::hasTable('rechnung_logs')) {
-                Log::warning('Dashboard: Tabelle rechnung_logs existiert nicht');
                 return collect();
             }
             
-            // Finde Erinnerungen:
-            // 1. Mit erinnerung_datum gesetzt (klassische Erinnerung)
-            // 2. ODER vom Typ 'erinnerung' (auch ohne Datum)
             $query = RechnungLog::with(['rechnung', 'rechnung.gebaeude'])
                 ->where(function($q) {
                     $q->whereNotNull('erinnerung_datum')
@@ -431,7 +439,6 @@ class DashboardController extends Controller
             }
             
             return $logs->map(function($log) {
-                // Rechnungsnummer zusammenbauen
                 $nummer = '#' . $log->rechnung_id;
                 if ($log->rechnung) {
                     if (isset($log->rechnung->jahr) && isset($log->rechnung->laufnummer)) {
@@ -439,16 +446,13 @@ class DashboardController extends Controller
                     }
                 }
                 
-                // Gebäude-Daten aus Rechnung (Snapshot-Felder oder Beziehung)
                 $codex = null;
                 $gebName = null;
                 
                 if ($log->rechnung) {
-                    // Erst Snapshot-Felder versuchen
                     $codex = $log->rechnung->geb_codex ?? null;
                     $gebName = $log->rechnung->geb_name ?? null;
                     
-                    // Fallback: Gebäude-Beziehung
                     if (!$codex && $log->rechnung->gebaeude) {
                         $codex = $log->rechnung->gebaeude->codex;
                     }
@@ -457,16 +461,12 @@ class DashboardController extends Controller
                     }
                 }
                 
-                // Datum: erinnerung_datum oder created_at als Fallback
                 $datum = $log->erinnerung_datum ?? $log->created_at;
                 
-                // Route prüfen - Fallback falls nicht existiert
                 $erledigtRoute = '#';
                 try {
                     $erledigtRoute = route('rechnung.logs.erledigt', $log->id);
-                } catch (\Exception $e) {
-                    Log::warning('Route rechnung.logs.erledigt existiert nicht');
-                }
+                } catch (\Exception $e) {}
                 
                 return (object)[
                     'id' => $log->id,
@@ -487,7 +487,6 @@ class DashboardController extends Controller
         } catch (\Exception $e) {
             Log::error('Fehler beim Laden der Rechnungs-Erinnerungen', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
             ]);
             return collect();
         }
