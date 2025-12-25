@@ -6,7 +6,7 @@
             <column name="Strasse">Seiserleite </column> -> strasse
             <column name="Hausnummer">37</column>
             <column name="Intern"></column>hausnummer = hausnummer + Intern
-            <column name="Wohnort">Vahrn</column>
+            <column name="Wohnort">Vahrn</column> 
             <column name="Telefon">3384693481</column>
             <column name="Handy">3384693481</column>
             <column name="Email">resch.ohg@gmail.com</column>
