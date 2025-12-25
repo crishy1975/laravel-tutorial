@@ -1,9 +1,9 @@
 <column name="id">1</column>
-            <column name="Herkunft">0</column>
+            <column name="Herkunft">0</column> nicht beaachten
             <column name="Codex">gam43_</column> -> codex
             <column name="Vorname">Christian</column>
             <column name="Nachname">Resch</column> -> gebäudenamen= vorname+nachname
-            <column name="Strasse">Seiserleite </column> ->
+            <column name="Strasse">Seiserleite </column> -> strasse
             <column name="Hausnummer">37</column>
             <column name="Intern"></column>hausnummer = hausnummer + Intern
             <column name="Wohnort">Vahrn</column>
