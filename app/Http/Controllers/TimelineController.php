@@ -93,9 +93,15 @@ class TimelineController extends Controller
             $tableGebaeude = $gebaeude->getTable();
             $updates       = [];
 
+            // ⭐ GEÄNDERT: rechnung_schreiben NUR setzen wenn FatturaPA-Profil vorhanden!
             if (Schema::hasColumn($tableGebaeude, 'rechnung_schreiben')) {
-                $updates['rechnung_schreiben'] = 1;
+                // Nur wenn ein FatturaPA-Profil zugewiesen ist
+                if ($gebaeude->fattura_profile_id) {
+                    $updates['rechnung_schreiben'] = 1;
+                }
+                // Sonst: rechnung_schreiben bleibt unverändert (nicht in $updates)
             }
+
             if (Schema::hasColumn($tableGebaeude, 'gemachte_reinigungen')) {
                 $updates['gemachte_reinigungen'] = DB::raw('COALESCE(gemachte_reinigungen,0) + 1');
             }
@@ -110,13 +116,14 @@ class TimelineController extends Controller
             DB::commit();
 
             Log::info('timelineStore COMMIT', [
-                'debugId'      => $debugId,
-                'timeline_id'  => $timeline->id,
-                'gebaeude_id'  => $gebaeude->id,
-                'set_updates'  => $updates,
+                'debugId'            => $debugId,
+                'timeline_id'        => $timeline->id,
+                'gebaeude_id'        => $gebaeude->id,
+                'set_updates'        => $updates,
+                'fattura_profile_id' => $gebaeude->fattura_profile_id,
             ]);
 
-            // 6) ➕ NEU: Fälligkeit direkt nach erfolgreichem Commit neu berechnen
+            // 6) Fälligkeit direkt nach erfolgreichem Commit neu berechnen
             //    Erwartet die Methode Gebaeude::recomputeFaellig() (wie von uns vorgeschlagen).
             $faellig = null;
             try {
@@ -133,18 +140,30 @@ class TimelineController extends Controller
 
             // 7) Response je nach Erwartung: JSON oder Redirect
             if ($request->expectsJson()) {
+                // ⭐ NEU: Info über rechnung_schreiben im Response
+                $rechnungSchreibenAktiviert = isset($updates['rechnung_schreiben']) && $updates['rechnung_schreiben'] == 1;
+                
                 return response()->json([
-                    'ok'           => true,
-                    'message'      => 'Timeline-Eintrag hinzugefügt.',
-                    'timeline_id'  => $timeline->id,
-                    'faellig'      => is_bool($faellig) ? (int) $faellig : (int) ($gebaeude->faellig ?? 0),
-                    'debugId'      => $debugId,
+                    'ok'                          => true,
+                    'message'                     => 'Timeline-Eintrag hinzugefügt.',
+                    'timeline_id'                 => $timeline->id,
+                    'faellig'                     => is_bool($faellig) ? (int) $faellig : (int) ($gebaeude->faellig ?? 0),
+                    'rechnung_schreiben_aktiviert' => $rechnungSchreibenAktiviert,
+                    'debugId'                     => $debugId,
                 ], 201);
+            }
+
+            // ⭐ NEU: Unterschiedliche Meldung je nach FatturaPA-Profil
+            $message = 'Timeline-Eintrag hinzugefügt.';
+            if (isset($updates['rechnung_schreiben'])) {
+                $message .= ' Rechnung schreiben aktiviert.';
+            } elseif (!$gebaeude->fattura_profile_id) {
+                $message .= ' (Kein FatturaPA-Profil - Rechnung schreiben bleibt unverändert)';
             }
 
             return redirect()
                 ->to($returnTo ?: route('gebaeude.edit', $gebaeude->id))
-                ->with('success', "Timeline-Eintrag hinzugefügt. (Debug-ID: {$debugId})");
+                ->with('success', $message);
         } catch (Throwable $e) {
             DB::rollBack();
 
