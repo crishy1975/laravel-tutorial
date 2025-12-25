@@ -145,7 +145,6 @@ Route::middleware(['auth', 'verified'])
             ->whereNumber('gebaeude')->name('logs.problem');
         Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])
             ->whereNumber('gebaeude')->name('logs.erinnerung');
-
     });
 
 // ⭐ NEU: Gebäude-Log Einzelaktionen (außerhalb der Gruppe)
