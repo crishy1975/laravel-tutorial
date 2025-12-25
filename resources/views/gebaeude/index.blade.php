@@ -17,6 +17,9 @@
         </div>
         <div class="d-flex gap-2">
             {{-- Desktop Buttons --}}
+            <button type="button" class="btn btn-danger d-none d-md-inline-flex" id="open-delete-modal" style="display: none !important;">
+                <i class="bi bi-trash"></i> Ausgewählte löschen
+            </button>
             <button type="button" class="btn btn-success d-none d-md-inline-flex" id="open-bulk-modal">
                 <i class="bi bi-link-45deg"></i> Mit Tour verknüpfen
             </button>
@@ -33,6 +36,11 @@
                     <li>
                         <a class="dropdown-item" href="#" id="open-bulk-modal-mobile">
                             <i class="bi bi-link-45deg"></i> Mit Tour verknüpfen
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item text-danger" href="#" id="open-delete-modal-mobile">
+                            <i class="bi bi-trash"></i> Ausgewählte löschen
                         </a>
                     </li>
                 </ul>
@@ -168,7 +176,8 @@
                                 <span class="d-none d-md-inline">Suchen</span>
                             </button>
                             @if($activeFilters > 0)
-                                <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary btn-sm">
+                                {{-- ⭐ Filter löschen inkl. Session --}}
+                                <a href="{{ route('gebaeude.index', ['clear_filter' => 1]) }}" class="btn btn-outline-secondary btn-sm" title="Filter zurücksetzen">
                                     <i class="bi bi-x-lg"></i>
                                 </a>
                             @endif
@@ -406,6 +415,48 @@
         </div>
     </div>
 </div>
+
+{{-- ⭐ NEU: Modal für Bulk-Löschen --}}
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="bulk-delete-form" method="POST" action="{{ route('gebaeude.bulkDestroy') }}">
+                @csrf
+                @method('DELETE')
+                <div class="modal-header bg-danger text-white py-2">
+                    <h6 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> Gebäude löschen
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger py-2 mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Achtung!</strong> Diese Aktion kann nicht rückgängig gemacht werden.
+                    </div>
+                    
+                    <p class="mb-3">
+                        Möchten Sie wirklich <strong id="delete-count">0</strong> Gebäude löschen?
+                    </p>
+                    
+                    <div class="small text-muted mb-3" id="delete-preview" style="max-height: 150px; overflow-y: auto;">
+                        {{-- Wird per JavaScript gefüllt --}}
+                    </div>
+
+                    <div id="delete-ids-container"></div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Endgültig löschen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('styles')
@@ -525,6 +576,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectionBadge = document.getElementById('selection-count');
     const countNumber = document.getElementById('count-number');
     const modalInfo = document.getElementById('modal-selection-info');
+    
+    // ⭐ NEU: Delete-Button Elemente
+    const btnDelete = document.getElementById('open-delete-modal');
+    const btnDeleteMobile = document.getElementById('open-delete-modal-mobile');
 
     // Auswahl-Zähler aktualisieren
     function updateSelectionCount() {
@@ -532,8 +587,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (count > 0) {
             selectionBadge.style.display = 'inline-flex';
             countNumber.textContent = count;
+            // ⭐ Delete-Button einblenden
+            if (btnDelete) btnDelete.style.cssText = '';
         } else {
             selectionBadge.style.display = 'none';
+            // ⭐ Delete-Button ausblenden
+            if (btnDelete) btnDelete.style.cssText = 'display: none !important;';
         }
         
         // Mobile Cards visuell markieren
@@ -571,7 +630,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Modal
+    // ═══════════════════════════════════════════════════════════
+    // BULK ATTACH MODAL
+    // ═══════════════════════════════════════════════════════════
+    
     const modalEl = document.getElementById('bulkAttachModal');
     const bsModal = modalEl ? new bootstrap.Modal(modalEl) : null;
 
@@ -616,6 +678,70 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('bulk-modal-form').reset();
         });
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ NEU: BULK DELETE MODAL
+    // ═══════════════════════════════════════════════════════════
+    
+    const deleteModalEl = document.getElementById('bulkDeleteModal');
+    const bsDeleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+
+    function openDeleteModal() {
+        const selectedCheckboxes = allChecks().filter(ch => ch.checked);
+        const selected = selectedCheckboxes.map(ch => parseInt(ch.value, 10));
+        
+        if (selected.length === 0) {
+            alert('Bitte mindestens ein Gebäude auswählen.');
+            return;
+        }
+
+        // Anzahl aktualisieren
+        document.getElementById('delete-count').textContent = selected.length;
+
+        // IDs einfügen
+        const container = document.getElementById('delete-ids-container');
+        container.innerHTML = '';
+        selected.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'ids[]';
+            input.value = id;
+            container.appendChild(input);
+        });
+
+        // Vorschau der ausgewählten Gebäude
+        const preview = document.getElementById('delete-preview');
+        preview.innerHTML = '';
+        selectedCheckboxes.forEach(ch => {
+            // Finde die Zeile/Card und extrahiere Namen
+            const row = ch.closest('tr') || ch.closest('.gebaeude-card');
+            if (row) {
+                const link = row.querySelector('a[href*="gebaeude"]');
+                const text = link ? link.textContent.trim() : 'ID: ' + ch.value;
+                const item = document.createElement('div');
+                item.innerHTML = '<i class="bi bi-building text-muted"></i> ' + text;
+                preview.appendChild(item);
+            }
+        });
+
+        bsDeleteModal.show();
+    }
+
+    // Delete Modal Buttons
+    if (btnDelete) btnDelete.addEventListener('click', openDeleteModal);
+    if (btnDeleteMobile) btnDeleteMobile.addEventListener('click', openDeleteModal);
+
+    // Delete Modal Reset
+    if (deleteModalEl) {
+        deleteModalEl.addEventListener('hidden.bs.modal', () => {
+            document.getElementById('delete-ids-container').innerHTML = '';
+            document.getElementById('delete-preview').innerHTML = '';
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SONSTIGE
+    // ═══════════════════════════════════════════════════════════
 
     // Desktop: Zeilen-Klick (außer Checkbox/Buttons)
     document.querySelectorAll('#gebaeudeTable tbody tr').forEach(row => {

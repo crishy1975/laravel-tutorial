@@ -278,14 +278,52 @@ class GebaeudeController extends Controller
      */
     public function index(Request $request)
     {
-        // Filter-Parameter
-        $codex          = trim($request->get('codex', ''));
-        $gebaeude_name  = trim($request->get('gebaeude_name', ''));
-        $strasse        = trim($request->get('strasse', ''));
-        $hausnummer     = trim($request->get('hausnummer', ''));
-        $wohnort        = trim($request->get('wohnort', ''));
-        $filterTour     = $request->get('tour', '');      // ⭐ NEU: 'mit', 'ohne', oder Tour-ID
-        $filterRechnung = $request->get('rechnung', '');  // ⭐ NEU: '1' = zu schreiben, '0' = erledigt
+        // ⭐ NEU: Filter aus Session laden falls keine Query-Parameter
+        $sessionKey = 'gebaeude_filter';
+        
+        // Wenn clear_filter gesetzt → Session löschen und redirect
+        if ($request->has('clear_filter')) {
+            $request->session()->forget($sessionKey);
+            return redirect()->route('gebaeude.index');
+        }
+        
+        // Prüfen ob Query-Parameter vorhanden sind
+        $hasQueryParams = $request->hasAny(['codex', 'gebaeude_name', 'strasse', 'hausnummer', 'wohnort', 'tour', 'rechnung']);
+        
+        // Filter aus Request oder Session
+        if ($hasQueryParams) {
+            // Query-Parameter → in Session speichern
+            $filters = [
+                'codex'         => trim($request->get('codex', '')),
+                'gebaeude_name' => trim($request->get('gebaeude_name', '')),
+                'strasse'       => trim($request->get('strasse', '')),
+                'hausnummer'    => trim($request->get('hausnummer', '')),
+                'wohnort'       => trim($request->get('wohnort', '')),
+                'tour'          => $request->get('tour', ''),
+                'rechnung'      => $request->get('rechnung', ''),
+            ];
+            $request->session()->put($sessionKey, $filters);
+        } else {
+            // Keine Query-Parameter → aus Session laden (falls vorhanden)
+            $filters = $request->session()->get($sessionKey, [
+                'codex'         => '',
+                'gebaeude_name' => '',
+                'strasse'       => '',
+                'hausnummer'    => '',
+                'wohnort'       => '',
+                'tour'          => '',
+                'rechnung'      => '',
+            ]);
+        }
+        
+        // Filter-Werte extrahieren
+        $codex          = $filters['codex'] ?? '';
+        $gebaeude_name  = $filters['gebaeude_name'] ?? '';
+        $strasse        = $filters['strasse'] ?? '';
+        $hausnummer     = $filters['hausnummer'] ?? '';
+        $wohnort        = $filters['wohnort'] ?? '';
+        $filterTour     = $filters['tour'] ?? '';
+        $filterRechnung = $filters['rechnung'] ?? '';
 
         // Query aufbauen mit Touren eager loading
         $query = Gebaeude::query()->with('touren');
@@ -307,21 +345,18 @@ class GebaeudeController extends Controller
             $query->where('wohnort', 'like', "%{$wohnort}%");
         }
 
-        // ⭐ NEU: Filter Tour
+        // Filter Tour
         if ($filterTour === 'ohne') {
-            // Gebäude OHNE Tour
             $query->whereDoesntHave('touren');
         } elseif ($filterTour === 'mit') {
-            // Gebäude MIT mindestens einer Tour
             $query->whereHas('touren');
         } elseif ($filterTour !== '' && is_numeric($filterTour)) {
-            // Spezifische Tour
             $query->whereHas('touren', function ($q) use ($filterTour) {
                 $q->where('tour.id', $filterTour);
             });
         }
 
-        // ⭐ NEU: Filter Rechnung
+        // Filter Rechnung
         if ($filterRechnung === '1') {
             $query->where('rechnung_schreiben', true);
         } elseif ($filterRechnung === '0') {
@@ -336,10 +371,10 @@ class GebaeudeController extends Controller
               ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
               ->orderBy('hausnummer');
 
-        // Pagination
-        $gebaeude = $query->paginate(25)->appends($request->query());
+        // Pagination - Filter an URL anhängen
+        $gebaeude = $query->paginate(25)->appends($filters);
 
-        // ⭐ NEU: Statistiken berechnen
+        // Statistiken berechnen
         $stats = [
             'gesamt'         => Gebaeude::count(),
             'rechnung_offen' => Gebaeude::where('rechnung_schreiben', true)->count(),
@@ -347,7 +382,7 @@ class GebaeudeController extends Controller
             'ohne_tour'      => Gebaeude::whereDoesntHave('touren')->count(),
         ];
 
-        // ⭐ NEU: Touren für Dropdown laden
+        // Touren für Dropdown laden
         $touren = Tour::orderBy('aktiv', 'desc')
                       ->orderBy('name')
                       ->get(['id', 'name', 'aktiv']);
@@ -597,6 +632,47 @@ class GebaeudeController extends Controller
         });
 
         return back()->with('success', "{$countAttached} Gebäude wurden der Tour zugeordnet.");
+    }
+
+    /**
+     * ⭐ NEU: Mehrere Gebäude auf einmal löschen (Bulk Delete)
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:gebaeude,id'],
+        ]);
+
+        $ids = $data['ids'];
+        $count = 0;
+        $errors = [];
+
+        DB::transaction(function () use ($ids, &$count, &$errors) {
+            foreach ($ids as $id) {
+                try {
+                    $gebaeude = Gebaeude::find($id);
+                    if ($gebaeude) {
+                        // SoftDelete - Gebäude wird nicht wirklich gelöscht
+                        $gebaeude->delete();
+                        $count++;
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "ID {$id}: " . $e->getMessage();
+                    Log::error('Bulk Delete Fehler', ['id' => $id, 'error' => $e->getMessage()]);
+                }
+            }
+        });
+
+        if ($count > 0) {
+            $message = "{$count} Gebäude wurden gelöscht.";
+            if (!empty($errors)) {
+                $message .= " " . count($errors) . " Fehler aufgetreten.";
+            }
+            return back()->with('success', $message);
+        }
+
+        return back()->with('error', 'Keine Gebäude konnten gelöscht werden.');
     }
 
     /**
