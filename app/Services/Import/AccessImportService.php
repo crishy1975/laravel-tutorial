@@ -769,6 +769,7 @@ class AccessImportService
             'gebaeude_id'   => $gebaeudeId,
             'datum'         => $datum,
             'bemerkung'     => 'Import aus Access (ID: ' . $legacyId . ')',
+            'person_name'   => 'Import',  // Pflichtfeld!
             'verrechnen'    => !$verrechnet,
             'verrechnet_am' => $verrechnet ? $datum : null,
         ];
