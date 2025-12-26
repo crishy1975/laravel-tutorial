@@ -465,12 +465,14 @@ class AccessImportService
         $gebaeude = null;
         $rechnungsempfaenger = null;
         $postadresse = null;
+        $fatturaProfile = null;
 
         if ($gebaeudeId) {
-            $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse'])->find($gebaeudeId);
+            $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'postadresse', 'fatturaProfile'])->find($gebaeudeId);
             if ($gebaeude) {
                 $rechnungsempfaenger = $gebaeude->rechnungsempfaenger;
                 $postadresse = $gebaeude->postadresse;
+                $fatturaProfile = $gebaeude->fatturaProfile;
             }
         }
 
@@ -513,7 +515,18 @@ class AccessImportService
         );
 
         // Fattura-Profil VOM GEBÄUDE übernehmen (nicht aus IVA berechnen!)
-        $fatturaProfileId = $gebaeude?->fattura_profile_id;
+        $fatturaProfileId = $fatturaProfile?->id;
+        $profileBezeichnung = $fatturaProfile?->bezeichnung;
+        $profilMwstSatz = $fatturaProfile?->mwst_satz ?? $ivaSettings['mwst_satz'];
+        $profilSplitPayment = $fatturaProfile?->split_payment ?? $ivaSettings['split_payment'];
+        $profilRitenuta = $fatturaProfile?->ritenuta ?? $hatRitenuta;
+        $profilRitenutaProzent = $profilRitenuta ? 4.0 : 0.0;
+        
+        // Reverse Charge: Profil 1 = "Firma, Reverse Charge" oder MwSt = 0%
+        $profilReverseCharge = false;
+        if ($fatturaProfileId === 1 || $profilMwstSatz == 0) {
+            $profilReverseCharge = true;
+        }
 
         $data = [
             'legacy_id'              => $legacyId,
@@ -534,13 +547,14 @@ class AccessImportService
             'ritenuta_betrag'        => $ritenutaBetrag,
             'zahlbar_betrag'         => $zahlbarBetrag,
 
-            // Fattura-Profil
-            'mwst_satz'              => $ivaSettings['mwst_satz'],
-            'split_payment'          => $ivaSettings['split_payment'],
-            'reverse_charge'         => $ivaSettings['reverse_charge'],
-            'ritenuta'               => $hatRitenuta,
-            'ritenuta_prozent'       => $ritenutaProzent,
+            // Fattura-Profil (vom Gebäude-Profil!)
             'fattura_profile_id'     => $fatturaProfileId,
+            'profile_bezeichnung'    => $profileBezeichnung,
+            'mwst_satz'              => $profilMwstSatz,
+            'split_payment'          => $profilSplitPayment,
+            'reverse_charge'         => $profilReverseCharge,
+            'ritenuta'               => $profilRitenuta,
+            'ritenuta_prozent'       => $profilRitenutaProzent,
 
             // FatturaPA-Felder
             'fattura_causale'        => $this->cleanString((string) $item->Causale),
