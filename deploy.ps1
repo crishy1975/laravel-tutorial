@@ -5,8 +5,6 @@
     Laedt Dateien per SFTP hoch und fuehrt Server-Befehle aus
 .PARAMETER DryRun
     Nur anzeigen was passieren wuerde
-.PARAMETER SkipSSH
-    Nur Upload, keine SSH-Befehle
 .PARAMETER Force
     Ohne Bestaetigung ausfuehren
 .PARAMETER Account
@@ -19,7 +17,6 @@
 
 param(
     [switch]$DryRun,
-    [switch]$SkipSSH,
     [switch]$Force,
     [int]$Account = 0
 )
@@ -50,6 +47,7 @@ $Accounts = @{
 $GlobalConfig = @{
     LOCAL_PATH    = "C:\Users\Christian\Documents\entwicklung\laravel-tutorial"
     WINSCP_PATH   = "C:\Program Files (x86)\WinSCP\WinSCP.com"
+    IMPORT_PATH   = "C:\Users\Christian\Documents\entwicklung\laravel-tutorial\storage\import"
 }
 
 # ==============================================================================
@@ -67,12 +65,20 @@ $SyncFolders = @(
     @{ Local = "public\js";            Remote = "public/js";            Delete = $true  }
     @{ Local = "public\build";         Remote = "public/build";         Delete = $true  }
     @{ Local = "public\images";        Remote = "public/images";        Delete = $false }
-    @{ Local = "storage\import";       Remote = "storage/import";       Delete = $false }
 )
 
 $SyncFiles = @(
     "composer.json"
     "composer.lock"
+)
+
+# XML-Dateien für Import
+$ImportFiles = @(
+    "Adressen.xml"
+    "GebaeudeAbfrage.xml"
+    "DatumAusfuehrung.xml"
+    "FatturaPA.xml"
+    "ArtikelGebaeude.xml"
 )
 
 # ==============================================================================
@@ -108,6 +114,17 @@ function Show-Warning {
     Write-Host "[WARNUNG] $Text" -ForegroundColor Yellow
 }
 
+function Show-Info {
+    param([string]$Text)
+    Write-Host "[INFO] $Text" -ForegroundColor Cyan
+}
+
+function Confirm-Step {
+    param([string]$Question)
+    $answer = Read-Host "$Question (j/n)"
+    return ($answer -eq "j" -or $answer -eq "J" -or $answer -eq "y" -or $answer -eq "Y")
+}
+
 function Show-AccountMenu {
     Write-Host ""
     Write-Host "  Waehle das Ziel-Konto:" -ForegroundColor White
@@ -126,159 +143,426 @@ function Show-AccountMenu {
     return [int]$choice
 }
 
-function Deploy-ToAccount {
+# ==============================================================================
+#  SCHRITT 1: LARAVEL-PROJEKT HOCHLADEN
+# ==============================================================================
+
+function Upload-LaravelProject {
     param(
-        [int]$AccountId,
         [hashtable]$AccountConfig,
-        [switch]$DryRun,
-        [switch]$SkipSSH
+        [int]$AccountId
     )
     
-    Show-Header "DEPLOYMENT: $($AccountConfig.Name)"
+    Show-Header "SCHRITT 1: Laravel-Projekt hochladen"
     
     Write-Host "  Server:  $($AccountConfig.SFTP_HOST)" -ForegroundColor White
     Write-Host "  User:    $($AccountConfig.SFTP_USER)" -ForegroundColor White
     Write-Host "  Remote:  $($AccountConfig.REMOTE_PATH)" -ForegroundColor White
-    Write-Host "  Website: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Cyan
     Write-Host ""
     
-    # ========================================
-    # WINSCP SCRIPT ERSTELLEN
-    # ========================================
-    
-    Show-Step 1 4 "Erstelle Upload-Script..."
-    
+    # WinSCP Script erstellen
     $WinSCPScript = "option batch abort`n"
     $WinSCPScript += "option confirm off`n"
     $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
     $WinSCPScript += "`n"
+    
+    # Wartungsmodus aktivieren
     $WinSCPScript += "# Wartungsmodus aktivieren`n"
     $WinSCPScript += "call php $($AccountConfig.REMOTE_PATH)/artisan down --quiet 2>&1 || true`n"
     $WinSCPScript += "`n"
     
-    # Ordner hinzufuegen
+    # Remote-Ordner erstellen
+    $WinSCPScript += "# Remote-Ordner erstellen (falls nicht vorhanden)`n"
+    foreach ($folder in $SyncFolders) {
+        $localPath = Join-Path $GlobalConfig.LOCAL_PATH $folder.Local
+        $remotePath = "$($AccountConfig.REMOTE_PATH)/$($folder.Remote)"
+        
+        if (Test-Path $localPath) {
+            $WinSCPScript += "call mkdir -p `"$remotePath`" 2>/dev/null || true`n"
+        }
+    }
+    $WinSCPScript += "`n"
+    
+    # Ordner synchronisieren
     foreach ($folder in $SyncFolders) {
         $localPath = Join-Path $GlobalConfig.LOCAL_PATH $folder.Local
         $remotePath = "$($AccountConfig.REMOTE_PATH)/$($folder.Remote)"
         
         if (Test-Path $localPath) {
             $deleteFlag = ""
-            if ($folder.Delete) { 
-                $deleteFlag = "-delete" 
-            }
+            if ($folder.Delete) { $deleteFlag = "-delete" }
             $WinSCPScript += "echo Synchronisiere $($folder.Local)/...`n"
             $WinSCPScript += "synchronize remote $deleteFlag `"$localPath`" `"$remotePath`"`n"
             $WinSCPScript += "`n"
         }
     }
     
-    # Einzelne Dateien hinzufuegen
+    # Einzelne Dateien
     foreach ($file in $SyncFiles) {
         $localFile = Join-Path $GlobalConfig.LOCAL_PATH $file
         if (Test-Path $localFile) {
             $WinSCPScript += "echo Lade $file...`n"
             $WinSCPScript += "put `"$localFile`" `"$($AccountConfig.REMOTE_PATH)/`"`n"
-            $WinSCPScript += "`n"
         }
     }
     
-    $WinSCPScript += "close`n"
-    $WinSCPScript += "exit`n"
+    $WinSCPScript += "`nclose`nexit`n"
     
-    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_winscp_$AccountId.txt"
+    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_project_$AccountId.txt"
     $WinSCPScript | Out-File -FilePath $WinSCPScriptPath -Encoding ASCII
     
-    Show-Success "Upload-Script erstellt"
-    
-    # ========================================
-    # DATEIEN HOCHLADEN
-    # ========================================
-    
-    Show-Step 2 4 "Lade Dateien hoch (SFTP)..."
-    Write-Host ""
+    Write-Host "  Lade Projekt-Dateien hoch..." -ForegroundColor Yellow
     
     if ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde folgende Ordner synchronisieren:" -ForegroundColor Magenta
-        foreach ($folder in $SyncFolders) {
-            $localPath = Join-Path $GlobalConfig.LOCAL_PATH $folder.Local
-            if (Test-Path $localPath) {
-                Write-Host "    -> $($folder.Local)/" -ForegroundColor White
-            }
-        }
-        Write-Host ""
-    } else {
-        $WinSCPLog = Join-Path $env:TEMP "winscp_deploy_$AccountId.log"
-        
-        $processArgs = "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`""
-        $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList $processArgs -NoNewWindow -Wait -PassThru
-        
-        if ($process.ExitCode -ne 0) {
-            Show-Err "Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
-            return $false
+        Write-Host "  [DRY-RUN] Wuerde Projekt hochladen" -ForegroundColor Magenta
+        return $true
+    }
+    
+    $WinSCPLog = Join-Path $env:TEMP "winscp_project_$AccountId.log"
+    $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`"" -NoNewWindow -Wait -PassThru
+    
+    Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
+    
+    if ($process.ExitCode -ne 0) {
+        Show-Err "Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
+        return $false
+    }
+    
+    Show-Success "Projekt-Dateien hochgeladen"
+    return $true
+}
+
+# ==============================================================================
+#  SCHRITT 2: XML-DATEIEN HOCHLADEN
+# ==============================================================================
+
+function Upload-XmlFiles {
+    param(
+        [hashtable]$AccountConfig,
+        [int]$AccountId
+    )
+    
+    Show-Header "SCHRITT 2: XML-Dateien hochladen"
+    
+    # Pruefen welche XML-Dateien vorhanden sind
+    $foundFiles = @()
+    Write-Host "  Gefundene XML-Dateien in $($GlobalConfig.IMPORT_PATH):" -ForegroundColor White
+    Write-Host ""
+    
+    foreach ($file in $ImportFiles) {
+        $filePath = Join-Path $GlobalConfig.IMPORT_PATH $file
+        if (Test-Path $filePath) {
+            $fileInfo = Get-Item $filePath
+            $size = [math]::Round($fileInfo.Length / 1KB, 1)
+            Write-Host "    [x] $file ($size KB)" -ForegroundColor Green
+            $foundFiles += $file
+        } else {
+            Write-Host "    [ ] $file (nicht gefunden)" -ForegroundColor Gray
         }
     }
     
-    Show-Success "Dateien hochgeladen"
-    
-    # ========================================
-    # SSH BEFEHLE AUSFUEHREN
-    # ========================================
-    
-    Show-Step 3 4 "Server-Befehle (SSH)..."
     Write-Host ""
+    
+    if ($foundFiles.Count -eq 0) {
+        Show-Warning "Keine XML-Dateien gefunden - ueberspringe Upload"
+        return $true
+    }
+    
+    # WinSCP Script erstellen
+    $WinSCPScript = "option batch abort`n"
+    $WinSCPScript += "option confirm off`n"
+    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
+    $WinSCPScript += "`n"
+    
+    # Import-Ordner erstellen
+    $remotePath = "$($AccountConfig.REMOTE_PATH)/storage/import"
+    $WinSCPScript += "call mkdir -p `"$remotePath`" 2>/dev/null || true`n"
+    $WinSCPScript += "`n"
+    
+    # XML-Dateien hochladen
+    foreach ($file in $foundFiles) {
+        $localFile = Join-Path $GlobalConfig.IMPORT_PATH $file
+        $WinSCPScript += "echo Lade $file...`n"
+        $WinSCPScript += "put `"$localFile`" `"$remotePath/`"`n"
+    }
+    
+    $WinSCPScript += "`nclose`nexit`n"
+    
+    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_xml_$AccountId.txt"
+    $WinSCPScript | Out-File -FilePath $WinSCPScriptPath -Encoding ASCII
+    
+    Write-Host "  Lade XML-Dateien hoch..." -ForegroundColor Yellow
+    
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Wuerde $($foundFiles.Count) XML-Dateien hochladen" -ForegroundColor Magenta
+        return $true
+    }
+    
+    $WinSCPLog = Join-Path $env:TEMP "winscp_xml_$AccountId.log"
+    $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`"" -NoNewWindow -Wait -PassThru
+    
+    Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
+    
+    if ($process.ExitCode -ne 0) {
+        Show-Err "XML-Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
+        return $false
+    }
+    
+    Show-Success "$($foundFiles.Count) XML-Dateien hochgeladen"
+    return $true
+}
+
+# ==============================================================================
+#  SCHRITT 3: MIGRATION STARTEN
+# ==============================================================================
+
+function Run-Migration {
+    param(
+        [hashtable]$AccountConfig
+    )
+    
+    Show-Header "SCHRITT 3: Datenbank-Migration"
     
     $SSHCommands = @"
 cd $($AccountConfig.REMOTE_PATH)
 echo '=== Composer Install ==='
 composer install --no-dev --optimize-autoloader --no-interaction
+echo ''
 echo '=== Migrationen ==='
 php artisan migrate --force
-echo '=== Cache ==='
+echo ''
+echo '=== Cache leeren ==='
 php artisan cache:clear
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+echo ''
 echo '=== Berechtigungen ==='
 chmod -R 775 storage bootstrap/cache
+echo ''
 echo '=== Wartungsmodus aus ==='
 php artisan up
-echo '=== FERTIG ==='
+echo ''
+echo '=== MIGRATION ABGESCHLOSSEN ==='
 "@
     
-    if ($SkipSSH) {
-        Show-Warning "SSH-Befehle uebersprungen"
-        Write-Host ""
-        Write-Host "  Manuell verbinden:" -ForegroundColor Yellow
-        Write-Host "  ssh $($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST) -p $($AccountConfig.SFTP_PORT)" -ForegroundColor Cyan
-        Write-Host ""
-    } elseif ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde folgende SSH-Befehle ausfuehren:" -ForegroundColor Magenta
-        Write-Host ""
-        Write-Host $SSHCommands -ForegroundColor Gray
-        Write-Host ""
-    } else {
-        Write-Host "  Verbinde per SSH..." -ForegroundColor White
-        Write-Host ""
-        
-        # SSH ausfuehren
-        $SSHCommands | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
-        
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host ""
-            Show-Warning "SSH-Befehle evtl. fehlgeschlagen. Pruefe die Website!"
-        }
+    Write-Host "  Fuehre folgende Befehle aus:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "    - composer install" -ForegroundColor Gray
+    Write-Host "    - php artisan migrate --force" -ForegroundColor Gray
+    Write-Host "    - Cache leeren & neu aufbauen" -ForegroundColor Gray
+    Write-Host "    - Berechtigungen setzen" -ForegroundColor Gray
+    Write-Host "    - Wartungsmodus beenden" -ForegroundColor Gray
+    Write-Host ""
+    
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Wuerde Migrationen ausfuehren" -ForegroundColor Magenta
+        return $true
     }
     
-    Show-Success "Server-Befehle ausgefuehrt"
+    Write-Host "  Verbinde per SSH..." -ForegroundColor Yellow
+    Write-Host ""
     
-    # ========================================
-    # AUFRAEUMEN
-    # ========================================
+    $SSHCommands | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
     
-    Show-Step 4 4 "Aufraeumen..."
-    Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
+    if ($LASTEXITCODE -ne 0) {
+        Show-Warning "SSH-Befehle evtl. fehlgeschlagen"
+        return $false
+    }
+    
+    Show-Success "Migration abgeschlossen"
+    return $true
+}
+
+# ==============================================================================
+#  SCHRITT 4: XML-IMPORT STARTEN
+# ==============================================================================
+
+function Run-XmlImport {
+    param(
+        [hashtable]$AccountConfig
+    )
+    
+    Show-Header "SCHRITT 4: XML-Import"
+    
+    Write-Host "  Import-Reihenfolge:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "    1. Adressen" -ForegroundColor Gray
+    Write-Host "    2. Gebaeude" -ForegroundColor Gray
+    Write-Host "    3. Timeline (Reinigungen 2024+2025)" -ForegroundColor Gray
+    Write-Host "    4. Rechnungen (FatturaPA)" -ForegroundColor Gray
+    Write-Host "    5. Artikel/Positionen" -ForegroundColor Gray
+    Write-Host ""
+    
+    $SSHCommands = @"
+cd $($AccountConfig.REMOTE_PATH)
+echo ''
+echo '=========================================='
+echo '  1. ADRESSEN IMPORTIEREN'
+echo '=========================================='
+php artisan import:access storage/import/Adressen.xml --adressen 2>/dev/null || echo 'Adressen.xml nicht gefunden oder Fehler'
+echo ''
+echo '=========================================='
+echo '  2. GEBAEUDE IMPORTIEREN'
+echo '=========================================='
+php artisan import:access storage/import/GebaeudeAbfrage.xml --gebaeude 2>/dev/null || echo 'GebaeudeAbfrage.xml nicht gefunden oder Fehler'
+echo ''
+echo '=========================================='
+echo '  3. TIMELINE IMPORTIEREN (2024+2025)'
+echo '=========================================='
+php artisan import:timeline storage/import/DatumAusfuehrung.xml 2>/dev/null || echo 'DatumAusfuehrung.xml nicht gefunden oder Fehler'
+echo ''
+echo '=========================================='
+echo '  4. RECHNUNGEN IMPORTIEREN'
+echo '=========================================='
+php artisan import:rechnungen storage/import/FatturaPA.xml 2>/dev/null || echo 'FatturaPA.xml nicht gefunden oder Fehler'
+echo ''
+echo '=========================================='
+echo '  5. ARTIKEL IMPORTIEREN'
+echo '=========================================='
+php artisan import:access storage/import/ArtikelGebaeude.xml --positionen 2>/dev/null || echo 'ArtikelGebaeude.xml nicht gefunden oder Fehler'
+echo ''
+echo '=========================================='
+echo '  IMPORT ABGESCHLOSSEN'
+echo '=========================================='
+"@
+    
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Wuerde XML-Import starten" -ForegroundColor Magenta
+        return $true
+    }
+    
+    Write-Host "  Starte Import per SSH..." -ForegroundColor Yellow
+    Write-Host ""
+    
+    $SSHCommands | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+    
+    if ($LASTEXITCODE -ne 0) {
+        Show-Warning "Import evtl. fehlgeschlagen"
+        return $false
+    }
+    
+    Show-Success "XML-Import abgeschlossen"
+    return $true
+}
+
+# ==============================================================================
+#  SCHRITT 5: SSH-SESSION STARTEN
+# ==============================================================================
+
+function Start-SSHSession {
+    param(
+        [hashtable]$AccountConfig
+    )
+    
+    Show-Header "SCHRITT 5: SSH-Session"
+    
+    Write-Host "  Oeffne interaktive SSH-Verbindung..." -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Nuetzliche Befehle:" -ForegroundColor Yellow
+    Write-Host "    cd $($AccountConfig.REMOTE_PATH)" -ForegroundColor Gray
+    Write-Host "    php artisan tinker" -ForegroundColor Gray
+    Write-Host "    php artisan queue:work" -ForegroundColor Gray
+    Write-Host "    tail -f storage/logs/laravel.log" -ForegroundColor Gray
+    Write-Host "    exit  (zum Beenden)" -ForegroundColor Gray
+    Write-Host ""
+    
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Wuerde SSH-Session starten" -ForegroundColor Magenta
+        return $true
+    }
+    
+    # Interaktive SSH-Session starten
+    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+    
+    Show-Success "SSH-Session beendet"
+    return $true
+}
+
+# ==============================================================================
+#  HAUPT-DEPLOYMENT FUNKTION
+# ==============================================================================
+
+function Deploy-ToAccount {
+    param(
+        [int]$AccountId,
+        [hashtable]$AccountConfig
+    )
+    
+    Show-Header "DEPLOYMENT: $($AccountConfig.Name)"
+    
+    Write-Host "  Website: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # ══════════════════════════════════════════════════════════════
+    # SCHRITT 1: Projekt hochladen (immer)
+    # ══════════════════════════════════════════════════════════════
+    
+    $result = Upload-LaravelProject -AccountConfig $AccountConfig -AccountId $AccountId
+    if (-not $result) { return $false }
+    
+    # ══════════════════════════════════════════════════════════════
+    # SCHRITT 2: XML-Dateien hochladen?
+    # ══════════════════════════════════════════════════════════════
     
     Write-Host ""
+    if (Confirm-Step "  XML-Dateien hochladen?") {
+        $result = Upload-XmlFiles -AccountConfig $AccountConfig -AccountId $AccountId
+        if (-not $result) { 
+            Show-Warning "XML-Upload fehlgeschlagen, fahre trotzdem fort..."
+        }
+    } else {
+        Show-Info "XML-Upload uebersprungen"
+    }
+    
+    # ══════════════════════════════════════════════════════════════
+    # SCHRITT 3: Migration starten?
+    # ══════════════════════════════════════════════════════════════
+    
+    Write-Host ""
+    if (Confirm-Step "  Datenbank-Migration starten?") {
+        $result = Run-Migration -AccountConfig $AccountConfig
+        if (-not $result) {
+            Show-Warning "Migration evtl. fehlgeschlagen, fahre trotzdem fort..."
+        }
+    } else {
+        Show-Info "Migration uebersprungen"
+        # Trotzdem Wartungsmodus beenden
+        Write-Host "  Beende Wartungsmodus..." -ForegroundColor Yellow
+        "cd $($AccountConfig.REMOTE_PATH) && php artisan up" | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" 2>$null
+    }
+    
+    # ══════════════════════════════════════════════════════════════
+    # SCHRITT 4: XML-Import starten?
+    # ══════════════════════════════════════════════════════════════
+    
+    Write-Host ""
+    if (Confirm-Step "  XML-Import starten?") {
+        $result = Run-XmlImport -AccountConfig $AccountConfig
+        if (-not $result) {
+            Show-Warning "Import evtl. fehlgeschlagen"
+        }
+    } else {
+        Show-Info "XML-Import uebersprungen"
+    }
+    
+    # ══════════════════════════════════════════════════════════════
+    # SCHRITT 5: SSH-Session starten?
+    # ══════════════════════════════════════════════════════════════
+    
+    Write-Host ""
+    if (Confirm-Step "  SSH-Session starten?") {
+        Start-SSHSession -AccountConfig $AccountConfig
+    } else {
+        Show-Info "SSH-Session uebersprungen"
+    }
+    
+    # ══════════════════════════════════════════════════════════════
+    # ABSCHLUSS
+    # ══════════════════════════════════════════════════════════════
+    
+    Write-Host ""
+    Write-Host "  ----------------------------------------" -ForegroundColor Gray
     Write-Host "  Website testen: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Green
     Write-Host ""
     
@@ -290,9 +574,10 @@ echo '=== FERTIG ==='
 # ==============================================================================
 
 Clear-Host
-Show-Header "LARAVEL DEPLOYMENT - HOSTINGER (Multi-Account)"
+Show-Header "LARAVEL DEPLOYMENT - HOSTINGER"
 
-Write-Host "  Lokaler Pfad: $($GlobalConfig.LOCAL_PATH)" -ForegroundColor White
+Write-Host "  Lokaler Pfad:  $($GlobalConfig.LOCAL_PATH)" -ForegroundColor White
+Write-Host "  Import-Pfad:   $($GlobalConfig.IMPORT_PATH)" -ForegroundColor White
 Write-Host ""
 
 if ($DryRun) {
@@ -335,7 +620,7 @@ if (-not $Force -and -not $DryRun) {
     }
     Write-Host ""
     $confirm = Read-Host "Deployment auf [$targetText] starten? (j/n)"
-    if ($confirm -ne "j" -and $confirm -ne "J" -and $confirm -ne "y" -and $confirm -ne "Y") {
+    if ($confirm -ne "j" -and $confirm -ne "J") {
         Write-Host "Abgebrochen."
         exit 0
     }
@@ -348,12 +633,12 @@ if (-not $Force -and -not $DryRun) {
 $success = $true
 
 if ($Account -eq 1 -or $Account -eq 3) {
-    $result = Deploy-ToAccount -AccountId 1 -AccountConfig $Accounts[1] -DryRun:$DryRun -SkipSSH:$SkipSSH
+    $result = Deploy-ToAccount -AccountId 1 -AccountConfig $Accounts[1]
     if (-not $result) { $success = $false }
 }
 
 if ($Account -eq 2 -or $Account -eq 3) {
-    $result = Deploy-ToAccount -AccountId 2 -AccountConfig $Accounts[2] -DryRun:$DryRun -SkipSSH:$SkipSSH
+    $result = Deploy-ToAccount -AccountId 2 -AccountConfig $Accounts[2]
     if (-not $result) { $success = $false }
 }
 
@@ -366,7 +651,7 @@ Show-Header "DEPLOYMENT ABGESCHLOSSEN"
 if ($success) {
     Write-Host "  Alle Deployments erfolgreich!" -ForegroundColor Green
 } else {
-    Show-Warning "Einige Deployments hatten Fehler. Bitte pruefen!"
+    Show-Warning "Einige Schritte hatten Fehler. Bitte pruefen!"
 }
 
 Write-Host ""
@@ -376,52 +661,6 @@ if ($Account -eq 1 -or $Account -eq 3) {
 }
 if ($Account -eq 2 -or $Account -eq 3) {
     Write-Host "  [2] $($Accounts[2].WEBSITE_URL)" -ForegroundColor Cyan
-}
-
-# ==============================================================================
-#  ACCESS IMPORT (OPTIONAL)
-# ==============================================================================
-
-if (-not $DryRun -and -not $SkipSSH) {
-    Write-Host ""
-    Write-Host "  ----------------------------------------" -ForegroundColor Gray
-    $importConfirm = Read-Host "  Access-Import starten? (php artisan import:access) (j/n)"
-    
-    if ($importConfirm -eq "j" -or $importConfirm -eq "J" -or $importConfirm -eq "y" -or $importConfirm -eq "Y") {
-        Write-Host ""
-        
-        if ($Account -eq 1 -or $Account -eq 3) {
-            Show-Header "ACCESS IMPORT: $($Accounts[1].Name)"
-            Write-Host "  Starte Import auf $($Accounts[1].Name)..." -ForegroundColor Yellow
-            Write-Host ""
-            
-            $ImportCmd = "cd $($Accounts[1].REMOTE_PATH) && php artisan import:access"
-            $ImportCmd | ssh -p $Accounts[1].SFTP_PORT "$($Accounts[1].SFTP_USER)@$($Accounts[1].SFTP_HOST)"
-            
-            if ($LASTEXITCODE -eq 0) {
-                Show-Success "Import auf $($Accounts[1].Name) abgeschlossen"
-            } else {
-                Show-Warning "Import auf $($Accounts[1].Name) evtl. fehlgeschlagen"
-            }
-        }
-        
-        if ($Account -eq 2 -or $Account -eq 3) {
-            Show-Header "ACCESS IMPORT: $($Accounts[2].Name)"
-            Write-Host "  Starte Import auf $($Accounts[2].Name)..." -ForegroundColor Yellow
-            Write-Host ""
-            
-            $ImportCmd = "cd $($Accounts[2].REMOTE_PATH) && php artisan import:access"
-            $ImportCmd | ssh -p $Accounts[2].SFTP_PORT "$($Accounts[2].SFTP_USER)@$($Accounts[2].SFTP_HOST)"
-            
-            if ($LASTEXITCODE -eq 0) {
-                Show-Success "Import auf $($Accounts[2].Name) abgeschlossen"
-            } else {
-                Show-Warning "Import auf $($Accounts[2].Name) evtl. fehlgeschlagen"
-            }
-        }
-    } else {
-        Write-Host "  Import uebersprungen." -ForegroundColor Gray
-    }
 }
 
 Write-Host ""
