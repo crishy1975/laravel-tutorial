@@ -7,16 +7,23 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Access-Datenbank Import Command
+ * Access-Datenbank Import Command - MASTER
  * 
- * Importiert Daten aus XML-Exports der alten Access-Datenbank.
+ * Importiert ALLE Daten aus XML-Exports der alten Access-Datenbank.
  * 
  * Verwendung:
  *   php artisan import:access                     # Interaktives Menü
  *   php artisan import:access --all               # Alles importieren
  *   php artisan import:access --adressen          # Nur Adressen
- *   php artisan import:access --dry-run           # Test ohne Speichern
- *   php artisan import:access --force             # Bestehende überschreiben
+ *   php artisan import:access --gebaeude          # Nur Gebäude
+ *   php artisan import:access --artikel           # Nur Artikel
+ *   php artisan import:access --rechnungen        # Nur Rechnungen
+ *   php artisan import:access --positionen        # Nur Positionen
+ *   php artisan import:access --timeline          # Nur Timeline
+ *   php artisan import:access --fix-namen         # Nur Gebäude-Namen fixen
+ *   php artisan import:access --timeline --min-jahr=2020
+ *   php artisan import:access --all --dry-run     # Testlauf
+ *   php artisan import:access --all --force       # Bestehende überschreiben
  */
 class ImportAccessData extends Command
 {
@@ -27,22 +34,26 @@ class ImportAccessData extends Command
                             {--artikel : Nur Artikel importieren}
                             {--rechnungen : Nur Rechnungen importieren}
                             {--positionen : Nur Rechnungspositionen importieren}
+                            {--timeline : Nur Timeline importieren}
+                            {--fix-namen : Nur Gebäude-Namen fixen}
                             {--dry-run : Testlauf ohne Speichern}
                             {--force : Bestehende Einträge überschreiben}
+                            {--min-jahr=2024 : Minimum Jahr für Timeline}
                             {--path= : Pfad zum XML-Ordner (Standard: storage/import)}';
 
-    protected $description = 'Importiert Daten aus Access-XML-Exports';
+    protected $description = 'Importiert Daten aus Access-XML-Exports (Adressen, Gebäude, Artikel, Rechnungen, Positionen, Timeline)';
 
     protected AccessImportService $importer;
     protected string $importPath;
 
-    // Standard-Dateinamen für XML-Exports
+    // XML-Dateien Mapping
     protected array $xmlFiles = [
         'adressen'   => 'Adresse.xml',
         'gebaeude'   => 'Gebaeude.xml',
         'artikel'    => 'Artikel.xml',
-        'rechnungen' => 'FatturaPAXmlAbfrage.xml',
+        'rechnungen' => 'FatturaPA.xml',
         'positionen' => 'ArtikelFatturaPAAbfrage.xml',
+        'timeline'   => 'DatumAusfuehrung.xml',
     ];
 
     public function __construct(AccessImportService $importer)
@@ -54,16 +65,17 @@ class ImportAccessData extends Command
     public function handle(): int
     {
         $this->importPath = $this->option('path') ?: storage_path('import');
-        
+
         $dryRun = $this->option('dry-run');
         $skipExisting = !$this->option('force');
+        $minJahr = (int) $this->option('min-jahr');
 
-        $this->importer->configure($dryRun, $skipExisting);
+        $this->importer->configure($dryRun, $skipExisting, $minJahr);
 
         // Header
         $this->newLine();
         $this->info('╔══════════════════════════════════════════════════════════╗');
-        $this->info('║           ACCESS → LARAVEL IMPORT                        ║');
+        $this->info('║           ACCESS → LARAVEL MASTER-IMPORT                 ║');
         $this->info('╚══════════════════════════════════════════════════════════╝');
         $this->newLine();
 
@@ -79,11 +91,9 @@ class ImportAccessData extends Command
         if (!is_dir($this->importPath)) {
             $this->error("❌ Import-Ordner nicht gefunden: {$this->importPath}");
             $this->info("   Erstelle den Ordner und lege die XML-Dateien ab:");
-            $this->info("   - Adresse.xml");
-            $this->info("   - Gebaeude.xml");
-            $this->info("   - Artikel.xml");
-            $this->info("   - FatturaPAXmlAbfrage.xml");
-            $this->info("   - ArtikelFatturaPAAbfrage.xml");
+            foreach ($this->xmlFiles as $name => $file) {
+                $this->info("   - {$file}");
+            }
             return Command::FAILURE;
         }
 
@@ -96,12 +106,16 @@ class ImportAccessData extends Command
         }
 
         // Bestätigung
-        $this->info('📋 Folgende Tabellen werden importiert:');
+        $this->info('📋 Folgende Importe werden ausgeführt:');
         foreach ($tasks as $task) {
-            $file = $this->xmlFiles[$task];
-            $exists = file_exists("{$this->importPath}/{$file}");
-            $status = $exists ? '✅' : '❌';
-            $this->line("   {$status} {$task} ({$file})");
+            if ($task === 'fix-namen') {
+                $this->line("   ✅ fix-namen (aus Datenbank)");
+            } else {
+                $file = $this->xmlFiles[$task] ?? '?';
+                $exists = file_exists("{$this->importPath}/{$file}");
+                $status = $exists ? '✅' : '❌';
+                $this->line("   {$status} {$task} ({$file})");
+            }
         }
         $this->newLine();
 
@@ -150,7 +164,7 @@ class ImportAccessData extends Command
     {
         // Explizite Optionen prüfen
         if ($this->option('all')) {
-            return ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen'];
+            return ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen', 'timeline', 'fix-namen'];
         }
 
         $tasks = [];
@@ -159,6 +173,8 @@ class ImportAccessData extends Command
         if ($this->option('artikel')) $tasks[] = 'artikel';
         if ($this->option('rechnungen')) $tasks[] = 'rechnungen';
         if ($this->option('positionen')) $tasks[] = 'positionen';
+        if ($this->option('timeline')) $tasks[] = 'timeline';
+        if ($this->option('fix-namen')) $tasks[] = 'fix-namen';
 
         if (!empty($tasks)) {
             return $tasks;
@@ -177,12 +193,14 @@ class ImportAccessData extends Command
         $this->newLine();
 
         $choices = [
-            'all'        => '🔄 Alles (empfohlen für Erstimport)',
+            'all'        => '📦 Alles (empfohlen für Erstimport)',
             'adressen'   => '📋 Nur Adressen',
             'gebaeude'   => '🏢 Nur Gebäude',
             'artikel'    => '📦 Nur Artikel',
             'rechnungen' => '🧾 Nur Rechnungen',
             'positionen' => '📝 Nur Rechnungspositionen',
+            'timeline'   => '📅 Nur Timeline (Reinigungen)',
+            'fix-namen'  => '🔧 Nur Gebäude-Namen fixen',
             'custom'     => '⚙️  Benutzerdefiniert...',
         ];
 
@@ -190,13 +208,13 @@ class ImportAccessData extends Command
         $key = array_search($choice, $choices);
 
         if ($key === 'all') {
-            return ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen'];
+            return ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen', 'timeline', 'fix-namen'];
         }
 
         if ($key === 'custom') {
-            $available = ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen'];
+            $available = ['adressen', 'gebaeude', 'artikel', 'rechnungen', 'positionen', 'timeline', 'fix-namen'];
             return $this->choice(
-                'Wähle Tabellen (mehrere mit Komma trennen)',
+                'Wähle Importe (mehrere mit Komma trennen)',
                 $available,
                 null,
                 null,
@@ -212,7 +230,24 @@ class ImportAccessData extends Command
      */
     protected function runImportTask(string $task): void
     {
-        $file = $this->xmlFiles[$task];
+        // fix-namen braucht keine XML-Datei
+        if ($task === 'fix-namen') {
+            $this->info("   ⏳ Gebäude-Namen fixen...");
+            $count = $this->importer->fixGebaeudeNamen();
+            $stats = $this->importer->getStats()['fix_namen'] ?? [];
+            $imported = $stats['imported'] ?? 0;
+            $skipped = $stats['skipped'] ?? 0;
+            $errors = $stats['errors'] ?? 0;
+            $this->line("      ✅ {$imported} korrigiert, ⏭️  {$skipped} übersprungen, ❌ {$errors} Fehler");
+            return;
+        }
+
+        $file = $this->xmlFiles[$task] ?? null;
+        if (!$file) {
+            $this->warn("   ⚠️  Unbekannter Task: {$task}");
+            return;
+        }
+
         $path = "{$this->importPath}/{$file}";
 
         if (!file_exists($path)) {
@@ -227,16 +262,24 @@ class ImportAccessData extends Command
             'gebaeude'   => $this->importer->importGebaeude($path),
             'artikel'    => $this->importer->importArtikel($path),
             'rechnungen' => $this->importer->importRechnungen($path),
-            'positionen' => $this->importer->importRechnungspositionen($path),
+            'positionen' => $this->importer->importPositionen($path),
+            'timeline'   => $this->importer->importTimeline($path),
             default      => 0,
         };
 
         $stats = $this->importer->getStats()[$task] ?? [];
         $imported = $stats['imported'] ?? 0;
         $skipped = $stats['skipped'] ?? 0;
+        $filtered = $stats['filtered'] ?? 0;
         $errors = $stats['errors'] ?? 0;
 
-        $this->line("      ✅ {$imported} importiert, ⏭️  {$skipped} übersprungen, ❌ {$errors} Fehler");
+        $info = "✅ {$imported} importiert, ⏭️  {$skipped} übersprungen";
+        if ($filtered > 0) {
+            $info .= ", 🗓️  {$filtered} gefiltert";
+        }
+        $info .= ", ❌ {$errors} Fehler";
+
+        $this->line("      {$info}");
     }
 
     /**
@@ -253,56 +296,69 @@ class ImportAccessData extends Command
         $stats = $this->importer->getStats();
         $totalImported = 0;
         $totalSkipped = 0;
+        $totalFiltered = 0;
         $totalErrors = 0;
 
-        $this->table(
-            ['Tabelle', 'Importiert', 'Übersprungen', 'Fehler'],
-            collect($stats)->map(function ($stat, $table) use (&$totalImported, &$totalSkipped, &$totalErrors) {
-                $totalImported += $stat['imported'];
-                $totalSkipped += $stat['skipped'];
-                $totalErrors += $stat['errors'];
-                return [
-                    ucfirst($table),
-                    $stat['imported'],
-                    $stat['skipped'],
-                    $stat['errors'],
-                ];
-            })->toArray()
-        );
+        $tableData = [];
+        foreach ($stats as $table => $stat) {
+            if ($stat['imported'] === 0 && $stat['skipped'] === 0 && ($stat['errors'] ?? 0) === 0) {
+                continue; // Leere Zeilen ausblenden
+            }
+
+            $totalImported += $stat['imported'];
+            $totalSkipped += $stat['skipped'];
+            $totalFiltered += $stat['filtered'] ?? 0;
+            $totalErrors += $stat['errors'];
+
+            $filtered = isset($stat['filtered']) && $stat['filtered'] > 0 ? $stat['filtered'] : '-';
+
+            $tableData[] = [
+                ucfirst(str_replace('_', ' ', $table)),
+                $stat['imported'],
+                $stat['skipped'],
+                $filtered,
+                $stat['errors'],
+            ];
+        }
+
+        if (!empty($tableData)) {
+            $this->table(
+                ['Tabelle', 'Importiert', 'Übersprungen', 'Gefiltert', 'Fehler'],
+                $tableData
+            );
+        }
 
         $this->newLine();
         $this->info("📊 Gesamt: {$totalImported} importiert, {$totalSkipped} übersprungen, {$totalErrors} Fehler");
         $this->info("⏱️  Dauer: {$duration} Sekunden");
 
-        // Fehler anzeigen und in Datei schreiben
+        // Fehler anzeigen
         $errors = $this->importer->getErrors();
         if (!empty($errors)) {
-            // ⭐ IMMER in Log-Datei schreiben
             $logFile = storage_path('logs/import_errors_' . date('Y-m-d_His') . '.log');
             $logContent = "Import-Fehler vom " . date('d.m.Y H:i:s') . "\n";
             $logContent .= str_repeat('=', 60) . "\n\n";
-            
+
             foreach ($errors as $error) {
                 $logContent .= "[{$error['table']}] ID {$error['id']}: {$error['message']}\n";
             }
-            
+
             file_put_contents($logFile, $logContent);
-            
+
             $this->newLine();
             $this->warn('⚠️  Fehler-Details:');
-            
-            // Wie viele anzeigen?
+
             $showAll = $this->option('verbose') || $this->output->isVerbose();
             $maxShow = $showAll ? count($errors) : 20;
-            
+
             foreach (array_slice($errors, 0, $maxShow) as $error) {
                 $this->line("   [{$error['table']}] ID {$error['id']}: {$error['message']}");
             }
-            
+
             if (count($errors) > $maxShow) {
                 $this->line("   ... und " . (count($errors) - $maxShow) . " weitere Fehler");
             }
-            
+
             $this->newLine();
             $this->info("📄 Alle " . count($errors) . " Fehler gespeichert in:");
             $this->line("   {$logFile}");
