@@ -512,8 +512,8 @@ class AccessImportService
             $ivaSettings['split_payment'], $ivaSettings['reverse_charge']
         );
 
-        // Fattura-Profil ermitteln
-        $profilMapping = $this->mapFatturaProfilFromIva($ivaSettings, $hatRitenuta);
+        // Fattura-Profil VOM GEBÄUDE übernehmen (nicht aus IVA berechnen!)
+        $fatturaProfileId = $gebaeude?->fattura_profile_id;
 
         $data = [
             'legacy_id'              => $legacyId,
@@ -540,7 +540,7 @@ class AccessImportService
             'reverse_charge'         => $ivaSettings['reverse_charge'],
             'ritenuta'               => $hatRitenuta,
             'ritenuta_prozent'       => $ritenutaProzent,
-            'fattura_profile_id'     => $profilMapping['fattura_profile_id'],
+            'fattura_profile_id'     => $fatturaProfileId,
 
             // FatturaPA-Felder
             'fattura_causale'        => $this->cleanString((string) $item->Causale),
