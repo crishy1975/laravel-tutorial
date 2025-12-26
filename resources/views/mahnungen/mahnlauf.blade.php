@@ -64,7 +64,7 @@
             <i class="bi bi-exclamation-octagon-fill me-3 fs-3"></i>
             <div class="flex-grow-1">
                 <strong>Wichtig!</strong><br>
-                {{ $bankAktualitaet['warnung_text'] }}<br>
+                Bank-Buchungen sind {{ (int) round($bankAktualitaet['tage_alt']) }} Tage alt. Bitte vor dem Mahnlauf aktualisieren!<br>
                 <small>Bitte importieren Sie zuerst aktuelle Bank-Buchungen, um versehentliche Mahnungen bereits bezahlter Rechnungen zu vermeiden.</small>
             </div>
             <a href="{{ route('bank.import') }}" class="btn btn-danger">
