@@ -8,6 +8,7 @@ use App\Models\ArtikelGebaeude;
 use App\Models\Rechnung;
 use App\Models\RechnungPosition;
 use App\Models\Timeline;
+use App\Models\FatturaProfile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
@@ -93,6 +94,31 @@ class AccessImportService
         $this->skipExisting = $skipExisting;
         $this->minJahr = $minJahr;
         return $this;
+    }
+
+    /**
+     * Stellt sicher, dass alle FatturaProfile existieren
+     * Wird automatisch vor Gebäude- und Rechnungs-Import aufgerufen
+     */
+    public function ensureFatturaProfiles(): void
+    {
+        $profiles = [
+            1 => ['bezeichnung' => 'Firma, Reverse Charge',      'mwst_satz' => 0.00,  'split_payment' => false, 'ritenuta' => false, 'bemerkung' => 'Reverse Charge N6.7'],
+            2 => ['bezeichnung' => 'Privatkunde 10%',            'mwst_satz' => 10.00, 'split_payment' => false, 'ritenuta' => false, 'bemerkung' => null],
+            3 => ['bezeichnung' => 'Öffentlich Split Payment',   'mwst_satz' => 22.00, 'split_payment' => true,  'ritenuta' => false, 'bemerkung' => 'Split Payment'],
+            4 => ['bezeichnung' => 'Kondominium 10% + Ritenuta', 'mwst_satz' => 10.00, 'split_payment' => false, 'ritenuta' => true,  'bemerkung' => 'Ritenuta 4%'],
+            5 => ['bezeichnung' => 'Kondominium 22% + Ritenuta', 'mwst_satz' => 22.00, 'split_payment' => false, 'ritenuta' => true,  'bemerkung' => 'Ritenuta 4%'],
+            6 => ['bezeichnung' => 'Firma 22%',                  'mwst_satz' => 22.00, 'split_payment' => false, 'ritenuta' => false, 'bemerkung' => null],
+        ];
+
+        foreach ($profiles as $id => $data) {
+            FatturaProfile::firstOrCreate(
+                ['id' => $id],
+                $data
+            );
+        }
+
+        Log::info('FatturaProfile sichergestellt', ['count' => count($profiles)]);
     }
 
     public function getStats(): array
@@ -192,6 +218,11 @@ class AccessImportService
         $xml = $this->loadXml($xmlPath);
         $count = 0;
 
+        // FatturaProfile sicherstellen
+        if (!$this->dryRun) {
+            $this->ensureFatturaProfiles();
+        }
+
         if (empty($this->adressenMap)) {
             $this->buildAdressenMap();
         }
@@ -232,14 +263,6 @@ class AccessImportService
         // TypKunde für fattura_profile_id
         $typKunde = (int) $item->TypKunde ?: null;
         $fatturaProfileId = $this->mapTypKundeToProfileId($typKunde);
-        
-        // Prüfen ob Profile-ID tatsächlich existiert
-        if ($fatturaProfileId !== null) {
-            $profileExists = \App\Models\FatturaProfile::where('id', $fatturaProfileId)->exists();
-            if (!$profileExists) {
-                $fatturaProfileId = null;
-            }
-        }
 
         // rechnung_schreiben: Nur wenn Rechnungsempfänger UND fatturaProfile
         $rechnungSchreiben = ($rechnungsempfaengerId && $fatturaProfileId) ? true : false;
@@ -396,6 +419,11 @@ class AccessImportService
         $xml = $this->loadXml($xmlPath);
         $count = 0;
 
+        // FatturaProfile sicherstellen
+        if (!$this->dryRun) {
+            $this->ensureFatturaProfiles();
+        }
+
         if (empty($this->adressenMap)) $this->buildAdressenMap();
         if (empty($this->gebaeudeMap)) $this->buildGebaeudeMap();
         if (empty($this->gebaeudeMapById)) $this->buildGebaeudeMapById();
@@ -484,16 +512,8 @@ class AccessImportService
             $ivaSettings['split_payment'], $ivaSettings['reverse_charge']
         );
 
-        // Fattura-Profil ermitteln (nur wenn in DB vorhanden!)
+        // Fattura-Profil ermitteln
         $profilMapping = $this->mapFatturaProfilFromIva($ivaSettings, $hatRitenuta);
-        
-        // Prüfen ob Profile-ID tatsächlich existiert
-        if ($profilMapping['fattura_profile_id'] !== null) {
-            $profileExists = \App\Models\FatturaProfile::where('id', $profilMapping['fattura_profile_id'])->exists();
-            if (!$profileExists) {
-                $profilMapping['fattura_profile_id'] = null;
-            }
-        }
 
         $data = [
             'legacy_id'              => $legacyId,
