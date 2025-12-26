@@ -63,6 +63,8 @@ enum GebaeudeLogTyp: string
     // ═══════════════════════════════════════════════════════════
     case NOTIZ = 'notiz';
     case TELEFONAT = 'telefonat';
+    case TELEFONAT_EINGEHEND = 'telefonat_eingehend';
+    case TELEFONAT_AUSGEHEND = 'telefonat_ausgehend';
     case EMAIL_VERSANDT = 'email_versandt';
     case EMAIL_EMPFANGEN = 'email_empfangen';
     case BESICHTIGUNG = 'besichtigung';
@@ -139,6 +141,8 @@ enum GebaeudeLogTyp: string
             // Kommunikation
             self::NOTIZ => 'Notiz',
             self::TELEFONAT => 'Telefonat',
+            self::TELEFONAT_EINGEHEND => 'Telefonat (eingehend)',
+            self::TELEFONAT_AUSGEHEND => 'Telefonat (ausgehend)',
             self::EMAIL_VERSANDT => 'E-Mail versandt',
             self::EMAIL_EMPFANGEN => 'E-Mail empfangen',
             self::BESICHTIGUNG => 'Besichtigung',
@@ -209,6 +213,8 @@ enum GebaeudeLogTyp: string
             // Kommunikation
             self::NOTIZ => 'bi-sticky-fill',
             self::TELEFONAT => 'bi-telephone-fill',
+            self::TELEFONAT_EINGEHEND => 'bi-telephone-inbound-fill',
+            self::TELEFONAT_AUSGEHEND => 'bi-telephone-outbound-fill',
             self::EMAIL_VERSANDT => 'bi-envelope-arrow-up-fill',
             self::EMAIL_EMPFANGEN => 'bi-envelope-arrow-down-fill',
             self::BESICHTIGUNG => 'bi-eye-fill',
@@ -279,6 +285,8 @@ enum GebaeudeLogTyp: string
             // Kommunikation
             self::NOTIZ => 'secondary',
             self::TELEFONAT => 'info',
+            self::TELEFONAT_EINGEHEND => 'success',
+            self::TELEFONAT_AUSGEHEND => 'primary',
             self::EMAIL_VERSANDT => 'primary',
             self::EMAIL_EMPFANGEN => 'info',
             self::BESICHTIGUNG => 'primary',
@@ -332,7 +340,8 @@ enum GebaeudeLogTyp: string
             self::REINIGUNGSPLAN_GEAENDERT, self::FAELLIGKEIT_GEAENDERT 
                 => 'reinigung',
             
-            self::NOTIZ, self::TELEFONAT, self::EMAIL_VERSANDT, self::EMAIL_EMPFANGEN,
+            self::NOTIZ, self::TELEFONAT, self::TELEFONAT_EINGEHEND, self::TELEFONAT_AUSGEHEND,
+            self::EMAIL_VERSANDT, self::EMAIL_EMPFANGEN,
             self::BESICHTIGUNG, self::KUNDENKONTAKT 
                 => 'kommunikation',
             
