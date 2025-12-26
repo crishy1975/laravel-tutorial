@@ -232,6 +232,14 @@ class AccessImportService
         // TypKunde für fattura_profile_id
         $typKunde = (int) $item->TypKunde ?: null;
         $fatturaProfileId = $this->mapTypKundeToProfileId($typKunde);
+        
+        // Prüfen ob Profile-ID tatsächlich existiert
+        if ($fatturaProfileId !== null) {
+            $profileExists = \App\Models\FatturaProfile::where('id', $fatturaProfileId)->exists();
+            if (!$profileExists) {
+                $fatturaProfileId = null;
+            }
+        }
 
         // rechnung_schreiben: Nur wenn Rechnungsempfänger UND fatturaProfile
         $rechnungSchreiben = ($rechnungsempfaengerId && $fatturaProfileId) ? true : false;
@@ -476,8 +484,16 @@ class AccessImportService
             $ivaSettings['split_payment'], $ivaSettings['reverse_charge']
         );
 
-        // Fattura-Profil ermitteln
+        // Fattura-Profil ermitteln (nur wenn in DB vorhanden!)
         $profilMapping = $this->mapFatturaProfilFromIva($ivaSettings, $hatRitenuta);
+        
+        // Prüfen ob Profile-ID tatsächlich existiert
+        if ($profilMapping['fattura_profile_id'] !== null) {
+            $profileExists = \App\Models\FatturaProfile::where('id', $profilMapping['fattura_profile_id'])->exists();
+            if (!$profileExists) {
+                $profilMapping['fattura_profile_id'] = null;
+            }
+        }
 
         $data = [
             'legacy_id'              => $legacyId,
