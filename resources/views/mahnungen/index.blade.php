@@ -32,7 +32,9 @@
         <div class="alert alert-warning d-flex align-items-center">
             <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
             <div class="flex-grow-1">
-                <strong>Achtung! / Attenzione!</strong> {{ $bankAktualitaet['warnung_text'] }}
+                <strong>Achtung! / Attenzione!</strong> 
+                Bank-Buchungen sind {{ (int) round($bankAktualitaet['tage_alt']) }} Tage alt. Bitte vor dem Mahnlauf aktualisieren! / 
+                I movimenti bancari hanno {{ (int) round($bankAktualitaet['tage_alt']) }} giorni. Aggiornare prima dei solleciti!
             </div>
             <a href="{{ route('bank.import') }}" class="btn btn-warning btn-sm">
                 <i class="bi bi-upload"></i> Buchungen importieren / Importa movimenti
@@ -158,7 +160,7 @@
                         <div class="fw-bold">
                             @if($bankAktualitaet['letzter_import'])
                                 {{ $bankAktualitaet['letzter_import']->format('d.m.Y H:i') }}
-                                <small class="text-muted">(vor {{ $bankAktualitaet['tage_alt'] }} Tagen / {{ $bankAktualitaet['tage_alt'] }} giorni fa)</small>
+                                <small class="text-muted">(vor {{ (int) round($bankAktualitaet['tage_alt']) }} Tagen / {{ (int) round($bankAktualitaet['tage_alt']) }} giorni fa)</small>
                             @else
                                 <span class="text-danger">Noch kein Import / Nessun import</span>
                             @endif

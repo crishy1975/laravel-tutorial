@@ -1,24 +1,24 @@
 mahnungen
     x show ohne rn-nr
     x wenn rechnung bezahlt muss sie verschwinden
-    tage runden
+    x tage runden
 
 allgemein
     logo zu groß?
 
 log
-    log auch im gebäude
-    log auch in angebote
+    x log auch im gebäude
+    x log auch in angebote
     
 angebote
     standard texte dynamisch
 
-dokumente
-    dokumente
-    notizen
-    texte
+x dokumente
+    x dokumente
+    x notizen
+    x texte
 
-dashboard
+x dashboard
     errinerungen
     aufgaben
         buchungen sind schon x tage alt
@@ -36,6 +36,9 @@ backup
     hostinger täglich sichern
 
 reinigung
-    suche auf 20 red.
-    filter speichern
+    x suche auf 20 red.
+    x filter speichern
+
+import
+    timeline- fehler
 
