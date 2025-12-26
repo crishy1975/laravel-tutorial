@@ -15,20 +15,36 @@ $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-echo "-- ═══════════════════════════════════════════════════════════════\n";
+echo "-- ===============================================================\n";
 echo "-- DATENBANK-SCHEMA EXPORT\n";
 echo "-- Datum: " . date('Y-m-d H:i:s') . "\n";
-echo "-- ═══════════════════════════════════════════════════════════════\n\n";
+echo "-- ===============================================================\n\n";
 
-$tables = Schema::getTableListing();
-sort($tables);
+// Aktuelle Datenbank ermitteln
+$currentDb = DB::connection()->getDatabaseName();
+echo "-- Aktuelle Datenbank: {$currentDb}\n\n";
 
-echo "-- Gefundene Tabellen: " . count($tables) . "\n";
-echo "-- " . implode(', ', $tables) . "\n\n";
+// Tabellen NUR aus der aktuellen Datenbank holen
+$tables = DB::select("SHOW TABLES");
+$tableKey = "Tables_in_{$currentDb}";
 
+$tableNames = [];
 foreach ($tables as $table) {
+    $tableNames[] = $table->$tableKey;
+}
+sort($tableNames);
+
+echo "-- Gefundene Tabellen: " . count($tableNames) . "\n";
+echo "-- " . implode(', ', $tableNames) . "\n\n";
+
+foreach ($tableNames as $table) {
     // migrations-Tabelle überspringen
     if ($table === 'migrations') {
+        continue;
+    }
+    
+    // phpmyadmin-Tabellen überspringen
+    if (str_starts_with($table, 'pma__')) {
         continue;
     }
     
@@ -38,9 +54,9 @@ foreach ($tables as $table) {
         if (!empty($result)) {
             $createStatement = $result[0]->{'Create Table'};
             
-            echo "-- ═══════════════════════════════════════════════════════════════\n";
+            echo "-- ===============================================================\n";
             echo "-- Table: {$table}\n";
-            echo "-- ═══════════════════════════════════════════════════════════════\n\n";
+            echo "-- ===============================================================\n\n";
             
             // DROP IF EXISTS hinzufügen
             echo "DROP TABLE IF EXISTS `{$table}`;\n\n";
@@ -51,6 +67,6 @@ foreach ($tables as $table) {
     }
 }
 
-echo "-- ═══════════════════════════════════════════════════════════════\n";
+echo "-- ===============================================================\n";
 echo "-- EXPORT FERTIG\n";
-echo "-- ═══════════════════════════════════════════════════════════════\n";
+echo "-- ===============================================================\n";
