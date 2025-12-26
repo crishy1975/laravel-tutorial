@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataroot xmlns:od="urn:schemas-microsoft-com:officedata" generated="2025-12-26T07:41:42">
+<DatumAusfuehrung>
+<id>49637</id>
+<mId>1</mId>
+<idOld>0</idOld>
+<Herkunft>554</Herkunft>
+<Datum>2019-11-16T00:00:00</Datum>
+<verrechnet>0</verrechnet>
+</DatumAusfuehrung>
+<DatumAusfuehrung>
+<id>49638</id>
+<mId>2</mId>
+<idOld>0</idOld>
+<Herkunft>779</Herkunft>
+<Datum>2025-12-26T00:00:00</Datum>
+<verrechnet>0</verrechnet>
+</DatumAusfuehrung>
+<DatumAusfuehrung>
+<id>49639</id>
+<mId>3</mId>
+<idOld>0</idOld>
+<Herkunft>498</Herkunft>
+<Datum>2025-12-26T00:00:00</Datum>
+<verrechnet>0</verrechnet>
+</DatumAusfuehrung>
+<DatumAusfuehrung>
+<id>49640</id>
+<mId>4</mId>
+<idOld>0</idOld>
+<Herkunft>497</Herkunft>
+<Datum>2025-12-26T00:00:00</Datum>
+<verrechnet>0</verrechnet>
+</DatumAusfuehrung>
+</dataroot>
