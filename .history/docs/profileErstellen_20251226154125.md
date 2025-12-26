@@ -6,7 +6,7 @@ use App\Models\User;
 
 User::create([
     'name' => 'Petra',
-    'email' => 'Petra.resch77@gmail.com',
-    'password' => bcrypt('petraResch'),
+    'email' => 'resch.kg@gmail.com',
+    'password' => bcrypt('martinResch'),
     'email_verified_at' => now(),
 ]);
