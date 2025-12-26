@@ -224,7 +224,7 @@
     <nav class="navbar navbar-expand-lg navbar-custom mb-4">
         <div class="container">
             {{-- Brand --}}
-            <a class="navbar-brand" href="/">
+            <a class="navbar-brand" href="{{ url('/') }}">
                 <i class="bi bi-building"></i>
                 UschiWeb
             </a>
