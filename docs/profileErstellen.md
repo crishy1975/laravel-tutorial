@@ -5,8 +5,8 @@ php artisan tinker
 use App\Models\User;
 
 User::create([
-    'name' => 'Martin',
-    'email' => 'resch.kg@gmail.com',
-    'password' => bcrypt('martinResch'),
+    'name' => 'Petra',
+    'email' => 'Petra.resch77@gmail.com',
+    'password' => bcrypt('petraResch'),
     'email_verified_at' => now(),
 ]);
