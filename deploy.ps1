@@ -72,13 +72,16 @@ $SyncFiles = @(
     "composer.lock"
 )
 
-# XML-Dateien für Import
+# ⭐ KORRIGIERTE DATEINAMEN für Import
 $ImportFiles = @(
-    "Adressen.xml"
-    "GebaeudeAbfrage.xml"
+    "Adresse.xml"
+    "Gebaeude.xml"
     "DatumAusfuehrung.xml"
     "FatturaPA.xml"
-    "ArtikelGebaeude.xml"
+    "Artikel.xml"
+    "ArtikelFatturaPAAbfrage.xml"
+    "fattura_profile.sql"
+    "unternehmensprofil.sql"
 )
 
 # ==============================================================================
@@ -233,20 +236,20 @@ function Upload-LaravelProject {
 }
 
 # ==============================================================================
-#  SCHRITT 2: XML-DATEIEN HOCHLADEN
+#  SCHRITT 2: IMPORT-DATEIEN HOCHLADEN
 # ==============================================================================
 
-function Upload-XmlFiles {
+function Upload-ImportFiles {
     param(
         [hashtable]$AccountConfig,
         [int]$AccountId
     )
     
-    Show-Header "SCHRITT 2: XML-Dateien hochladen"
+    Show-Header "SCHRITT 2: Import-Dateien hochladen"
     
-    # Pruefen welche XML-Dateien vorhanden sind
+    # Pruefen welche Dateien vorhanden sind
     $foundFiles = @()
-    Write-Host "  Gefundene XML-Dateien in $($GlobalConfig.IMPORT_PATH):" -ForegroundColor White
+    Write-Host "  Gefundene Dateien in $($GlobalConfig.IMPORT_PATH):" -ForegroundColor White
     Write-Host ""
     
     foreach ($file in $ImportFiles) {
@@ -264,7 +267,7 @@ function Upload-XmlFiles {
     Write-Host ""
     
     if ($foundFiles.Count -eq 0) {
-        Show-Warning "Keine XML-Dateien gefunden - ueberspringe Upload"
+        Show-Warning "Keine Import-Dateien gefunden - ueberspringe Upload"
         return $true
     }
     
@@ -279,7 +282,7 @@ function Upload-XmlFiles {
     $WinSCPScript += "call mkdir -p `"$remotePath`" 2>/dev/null || true`n"
     $WinSCPScript += "`n"
     
-    # XML-Dateien hochladen
+    # Dateien hochladen
     foreach ($file in $foundFiles) {
         $localFile = Join-Path $GlobalConfig.IMPORT_PATH $file
         $WinSCPScript += "echo Lade $file...`n"
@@ -288,27 +291,27 @@ function Upload-XmlFiles {
     
     $WinSCPScript += "`nclose`nexit`n"
     
-    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_xml_$AccountId.txt"
+    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_import_$AccountId.txt"
     $WinSCPScript | Out-File -FilePath $WinSCPScriptPath -Encoding ASCII
     
-    Write-Host "  Lade XML-Dateien hoch..." -ForegroundColor Yellow
+    Write-Host "  Lade Import-Dateien hoch..." -ForegroundColor Yellow
     
     if ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde $($foundFiles.Count) XML-Dateien hochladen" -ForegroundColor Magenta
+        Write-Host "  [DRY-RUN] Wuerde $($foundFiles.Count) Dateien hochladen" -ForegroundColor Magenta
         return $true
     }
     
-    $WinSCPLog = Join-Path $env:TEMP "winscp_xml_$AccountId.log"
+    $WinSCPLog = Join-Path $env:TEMP "winscp_import_$AccountId.log"
     $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`"" -NoNewWindow -Wait -PassThru
     
     Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
     
     if ($process.ExitCode -ne 0) {
-        Show-Err "XML-Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
+        Show-Err "Import-Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
         return $false
     }
     
-    Show-Success "$($foundFiles.Count) XML-Dateien hochgeladen"
+    Show-Success "$($foundFiles.Count) Import-Dateien hochgeladen"
     return $true
 }
 
@@ -322,29 +325,6 @@ function Run-Migration {
     )
     
     Show-Header "SCHRITT 3: Datenbank-Migration"
-    
-    $SSHCommands = @"
-cd $($AccountConfig.REMOTE_PATH)
-echo '=== Composer Install ==='
-composer install --no-dev --optimize-autoloader --no-interaction
-echo ''
-echo '=== Migrationen ==='
-php artisan migrate --force
-echo ''
-echo '=== Cache leeren ==='
-php artisan cache:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-echo ''
-echo '=== Berechtigungen ==='
-chmod -R 775 storage bootstrap/cache
-echo ''
-echo '=== Wartungsmodus aus ==='
-php artisan up
-echo ''
-echo '=== MIGRATION ABGESCHLOSSEN ==='
-"@
     
     Write-Host "  Fuehre folgende Befehle aus:" -ForegroundColor White
     Write-Host ""
@@ -363,7 +343,34 @@ echo '=== MIGRATION ABGESCHLOSSEN ==='
     Write-Host "  Verbinde per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
-    $SSHCommands | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+    # ⭐ SSH mit -T Flag (kein Pseudo-Terminal) für nicht-interaktive Befehle
+    $sshArgs = @(
+        "-T"
+        "-p", $AccountConfig.SFTP_PORT
+        "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+        "cd $($AccountConfig.REMOTE_PATH) && " +
+        "echo '=== Composer Install ===' && " +
+        "composer install --no-dev --optimize-autoloader --no-interaction && " +
+        "echo '' && " +
+        "echo '=== Migrationen ===' && " +
+        "php artisan migrate --force && " +
+        "echo '' && " +
+        "echo '=== Cache leeren ===' && " +
+        "php artisan cache:clear && " +
+        "php artisan config:cache && " +
+        "php artisan route:cache && " +
+        "php artisan view:cache && " +
+        "echo '' && " +
+        "echo '=== Berechtigungen ===' && " +
+        "chmod -R 775 storage bootstrap/cache && " +
+        "echo '' && " +
+        "echo '=== Wartungsmodus aus ===' && " +
+        "php artisan up && " +
+        "echo '' && " +
+        "echo '=== MIGRATION ABGESCHLOSSEN ==='"
+    )
+
+    & ssh @sshArgs
     
     if ($LASTEXITCODE -ne 0) {
         Show-Warning "SSH-Befehle evtl. fehlgeschlagen"
@@ -387,45 +394,12 @@ function Run-XmlImport {
     
     Write-Host "  Import-Reihenfolge:" -ForegroundColor White
     Write-Host ""
-    Write-Host "    1. Adressen" -ForegroundColor Gray
-    Write-Host "    2. Gebaeude" -ForegroundColor Gray
-    Write-Host "    3. Timeline (Reinigungen 2024+2025)" -ForegroundColor Gray
-    Write-Host "    4. Rechnungen (FatturaPA)" -ForegroundColor Gray
-    Write-Host "    5. Artikel/Positionen" -ForegroundColor Gray
+    Write-Host "    1. Adressen        (Adresse.xml)" -ForegroundColor Gray
+    Write-Host "    2. Gebaeude        (Gebaeude.xml)" -ForegroundColor Gray
+    Write-Host "    3. Timeline        (DatumAusfuehrung.xml) - nur 2024+2025" -ForegroundColor Gray
+    Write-Host "    4. Rechnungen      (FatturaPA.xml)" -ForegroundColor Gray
+    Write-Host "    5. Artikel         (Artikel.xml)" -ForegroundColor Gray
     Write-Host ""
-    
-    $SSHCommands = @"
-cd $($AccountConfig.REMOTE_PATH)
-echo ''
-echo '=========================================='
-echo '  1. ADRESSEN IMPORTIEREN'
-echo '=========================================='
-php artisan import:access storage/import/Adressen.xml --adressen 2>/dev/null || echo 'Adressen.xml nicht gefunden oder Fehler'
-echo ''
-echo '=========================================='
-echo '  2. GEBAEUDE IMPORTIEREN'
-echo '=========================================='
-php artisan import:access storage/import/GebaeudeAbfrage.xml --gebaeude 2>/dev/null || echo 'GebaeudeAbfrage.xml nicht gefunden oder Fehler'
-echo ''
-echo '=========================================='
-echo '  3. TIMELINE IMPORTIEREN (2024+2025)'
-echo '=========================================='
-php artisan import:timeline storage/import/DatumAusfuehrung.xml 2>/dev/null || echo 'DatumAusfuehrung.xml nicht gefunden oder Fehler'
-echo ''
-echo '=========================================='
-echo '  4. RECHNUNGEN IMPORTIEREN'
-echo '=========================================='
-php artisan import:rechnungen storage/import/FatturaPA.xml 2>/dev/null || echo 'FatturaPA.xml nicht gefunden oder Fehler'
-echo ''
-echo '=========================================='
-echo '  5. ARTIKEL IMPORTIEREN'
-echo '=========================================='
-php artisan import:access storage/import/ArtikelGebaeude.xml --positionen 2>/dev/null || echo 'ArtikelGebaeude.xml nicht gefunden oder Fehler'
-echo ''
-echo '=========================================='
-echo '  IMPORT ABGESCHLOSSEN'
-echo '=========================================='
-"@
     
     if ($DryRun) {
         Write-Host "  [DRY-RUN] Wuerde XML-Import starten" -ForegroundColor Magenta
@@ -435,9 +409,70 @@ echo '=========================================='
     Write-Host "  Starte Import per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
-    $SSHCommands | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+    # ⭐ SSH mit -T Flag (kein Pseudo-Terminal)
+    $importCmd = @"
+cd $($AccountConfig.REMOTE_PATH)
+echo ''
+echo '=========================================='
+echo '  1. ADRESSEN IMPORTIEREN'
+echo '=========================================='
+if [ -f storage/import/Adresse.xml ]; then
+    php artisan import:access storage/import/Adresse.xml --adressen
+else
+    echo 'Adresse.xml nicht gefunden'
+fi
+echo ''
+echo '=========================================='
+echo '  2. GEBAEUDE IMPORTIEREN'
+echo '=========================================='
+if [ -f storage/import/Gebaeude.xml ]; then
+    php artisan import:access storage/import/Gebaeude.xml --gebaeude
+else
+    echo 'Gebaeude.xml nicht gefunden'
+fi
+echo ''
+echo '=========================================='
+echo '  3. TIMELINE IMPORTIEREN (2024+2025)'
+echo '=========================================='
+if [ -f storage/import/DatumAusfuehrung.xml ]; then
+    php artisan import:timeline storage/import/DatumAusfuehrung.xml
+else
+    echo 'DatumAusfuehrung.xml nicht gefunden'
+fi
+echo ''
+echo '=========================================='
+echo '  4. RECHNUNGEN IMPORTIEREN'
+echo '=========================================='
+if [ -f storage/import/FatturaPA.xml ]; then
+    php artisan import:rechnungen storage/import/FatturaPA.xml
+else
+    echo 'FatturaPA.xml nicht gefunden'
+fi
+echo ''
+echo '=========================================='
+echo '  5. ARTIKEL IMPORTIEREN'
+echo '=========================================='
+if [ -f storage/import/Artikel.xml ]; then
+    php artisan import:access storage/import/Artikel.xml --positionen
+else
+    echo 'Artikel.xml nicht gefunden'
+fi
+echo ''
+echo '=========================================='
+echo '  IMPORT ABGESCHLOSSEN'
+echo '=========================================='
+"@
+
+    # Schreibe Befehle in temporäre Datei und führe über SSH aus
+    $tempScript = Join-Path $env:TEMP "import_cmd.sh"
+    $importCmd | Out-File -FilePath $tempScript -Encoding ASCII
     
-    if ($LASTEXITCODE -ne 0) {
+    Get-Content $tempScript | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
+    
+    $exitCode = $LASTEXITCODE
+    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+    
+    if ($exitCode -ne 0) {
         Show-Warning "Import evtl. fehlgeschlagen"
         return $false
     }
@@ -472,7 +507,7 @@ function Start-SSHSession {
         return $true
     }
     
-    # Interaktive SSH-Session starten
+    # Interaktive SSH-Session (OHNE -T, damit Terminal funktioniert)
     ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
     
     Show-Success "SSH-Session beendet"
@@ -502,17 +537,17 @@ function Deploy-ToAccount {
     if (-not $result) { return $false }
     
     # ══════════════════════════════════════════════════════════════
-    # SCHRITT 2: XML-Dateien hochladen?
+    # SCHRITT 2: Import-Dateien hochladen?
     # ══════════════════════════════════════════════════════════════
     
     Write-Host ""
-    if (Confirm-Step "  XML-Dateien hochladen?") {
-        $result = Upload-XmlFiles -AccountConfig $AccountConfig -AccountId $AccountId
+    if (Confirm-Step "  Import-Dateien (XML/SQL) hochladen?") {
+        $result = Upload-ImportFiles -AccountConfig $AccountConfig -AccountId $AccountId
         if (-not $result) { 
-            Show-Warning "XML-Upload fehlgeschlagen, fahre trotzdem fort..."
+            Show-Warning "Upload fehlgeschlagen, fahre trotzdem fort..."
         }
     } else {
-        Show-Info "XML-Upload uebersprungen"
+        Show-Info "Import-Upload uebersprungen"
     }
     
     # ══════════════════════════════════════════════════════════════
@@ -529,7 +564,7 @@ function Deploy-ToAccount {
         Show-Info "Migration uebersprungen"
         # Trotzdem Wartungsmodus beenden
         Write-Host "  Beende Wartungsmodus..." -ForegroundColor Yellow
-        "cd $($AccountConfig.REMOTE_PATH) && php artisan up" | ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" 2>$null
+        ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "cd $($AccountConfig.REMOTE_PATH) && php artisan up" 2>$null
     }
     
     # ══════════════════════════════════════════════════════════════
