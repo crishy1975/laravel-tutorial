@@ -141,18 +141,6 @@ function Show-AccountMenu {
     return [int]$choice
 }
 
-# ⭐ Schreibt Datei mit Unix-Zeilenenden (LF statt CRLF)
-function Write-UnixFile {
-    param(
-        [string]$Path,
-        [string]$Content
-    )
-    # Konvertiere Windows CRLF zu Unix LF
-    $unixContent = $Content -replace "`r`n", "`n" -replace "`r", "`n"
-    # Schreibe ohne BOM mit UTF8
-    [System.IO.File]::WriteAllText($Path, $unixContent, [System.Text.UTF8Encoding]::new($false))
-}
-
 # ==============================================================================
 #  SCHRITT 1: LARAVEL-PROJEKT HOCHLADEN
 # ==============================================================================
@@ -347,42 +335,15 @@ function Run-Migration {
         return $true
     }
     
-    Write-Host "  Verbinde per SSH..." -ForegroundColor Yellow
+    Write-Host "  Verbinde per SSH (Passwort eingeben)..." -ForegroundColor Yellow
     Write-Host ""
     
-    # ⭐ Shell-Script mit Unix-Zeilenenden
-    $bashScript = @"
-cd $($AccountConfig.REMOTE_PATH)
-echo '=== Composer Install ==='
-composer install --no-dev --optimize-autoloader --no-interaction
-echo ''
-echo '=== Migrationen ==='
-php artisan migrate --force
-echo ''
-echo '=== Cache leeren ==='
-php artisan cache:clear
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-echo ''
-echo '=== Berechtigungen ==='
-chmod -R 775 storage bootstrap/cache
-echo ''
-echo '=== Wartungsmodus aus ==='
-php artisan up
-echo ''
-echo '=== MIGRATION ABGESCHLOSSEN ==='
-"@
-
-    $tempScript = Join-Path $env:TEMP "migration_cmd.sh"
-    Write-UnixFile -Path $tempScript -Content $bashScript
+    # ⭐ Einzeiliger Befehl - wird direkt ausgefuehrt und Ausgabe ist sichtbar
+    $cmd = "cd $($AccountConfig.REMOTE_PATH) && echo '=== Composer ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrate ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Rechte ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Up ===' && php artisan up && echo '' && echo '=== FERTIG ==='"
     
-    Get-Content $tempScript -Raw | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
+    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
     
-    $exitCode = $LASTEXITCODE
-    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
-    
-    if ($exitCode -ne 0) {
+    if ($LASTEXITCODE -ne 0) {
         Show-Warning "SSH-Befehle evtl. fehlgeschlagen"
         return $false
     }
@@ -416,72 +377,19 @@ function Run-XmlImport {
         return $true
     }
     
-    Write-Host "  Starte Import per SSH..." -ForegroundColor Yellow
+    Write-Host "  Starte Import per SSH (Passwort eingeben)..." -ForegroundColor Yellow
     Write-Host ""
     
-    # ⭐ Shell-Script mit Unix-Zeilenenden
-    $bashScript = @"
-cd $($AccountConfig.REMOTE_PATH)
-echo ''
-echo '=========================================='
-echo '  1. ADRESSEN IMPORTIEREN'
-echo '=========================================='
-if [ -f storage/import/Adresse.xml ]; then
-    php artisan import:access storage/import/Adresse.xml --adressen
-else
-    echo 'Adresse.xml nicht gefunden'
-fi
-echo ''
-echo '=========================================='
-echo '  2. GEBAEUDE IMPORTIEREN'
-echo '=========================================='
-if [ -f storage/import/Gebaeude.xml ]; then
-    php artisan import:access storage/import/Gebaeude.xml --gebaeude
-else
-    echo 'Gebaeude.xml nicht gefunden'
-fi
-echo ''
-echo '=========================================='
-echo '  3. TIMELINE IMPORTIEREN (2024+2025)'
-echo '=========================================='
-if [ -f storage/import/DatumAusfuehrung.xml ]; then
-    php artisan import:timeline storage/import/DatumAusfuehrung.xml
-else
-    echo 'DatumAusfuehrung.xml nicht gefunden'
-fi
-echo ''
-echo '=========================================='
-echo '  4. RECHNUNGEN IMPORTIEREN'
-echo '=========================================='
-if [ -f storage/import/FatturaPA.xml ]; then
-    php artisan import:rechnungen storage/import/FatturaPA.xml
-else
-    echo 'FatturaPA.xml nicht gefunden'
-fi
-echo ''
-echo '=========================================='
-echo '  5. ARTIKEL IMPORTIEREN'
-echo '=========================================='
-if [ -f storage/import/Artikel.xml ]; then
-    php artisan import:access storage/import/Artikel.xml --positionen
-else
-    echo 'Artikel.xml nicht gefunden'
-fi
-echo ''
-echo '=========================================='
-echo '  IMPORT ABGESCHLOSSEN'
-echo '=========================================='
+    $remotePath = $AccountConfig.REMOTE_PATH
+    
+    # ⭐ Einzeiliger Befehl - Ausgabe ist sichtbar!
+    $cmd = @"
+cd $remotePath && echo '=== 1. ADRESSEN ===' && ([ -f storage/import/Adresse.xml ] && php artisan import:access storage/import/Adresse.xml --adressen || echo 'Nicht gefunden') && echo '' && echo '=== 2. GEBAEUDE ===' && ([ -f storage/import/Gebaeude.xml ] && php artisan import:access storage/import/Gebaeude.xml --gebaeude || echo 'Nicht gefunden') && echo '' && echo '=== 3. TIMELINE ===' && ([ -f storage/import/DatumAusfuehrung.xml ] && php artisan import:timeline storage/import/DatumAusfuehrung.xml || echo 'Nicht gefunden') && echo '' && echo '=== 4. RECHNUNGEN ===' && ([ -f storage/import/FatturaPA.xml ] && php artisan import:rechnungen storage/import/FatturaPA.xml || echo 'Nicht gefunden') && echo '' && echo '=== 5. ARTIKEL ===' && ([ -f storage/import/Artikel.xml ] && php artisan import:access storage/import/Artikel.xml --positionen || echo 'Nicht gefunden') && echo '' && echo '=== IMPORT FERTIG ==='
 "@
-
-    $tempScript = Join-Path $env:TEMP "import_cmd.sh"
-    Write-UnixFile -Path $tempScript -Content $bashScript
     
-    Get-Content $tempScript -Raw | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
+    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
     
-    $exitCode = $LASTEXITCODE
-    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
-    
-    if ($exitCode -ne 0) {
+    if ($LASTEXITCODE -ne 0) {
         Show-Warning "Import evtl. fehlgeschlagen"
         return $false
     }
@@ -491,35 +399,35 @@ echo '=========================================='
 }
 
 # ==============================================================================
-#  SCHRITT 5: SSH-SESSION STARTEN
+#  SCHRITT 5: SSH-SESSION INFO
 # ==============================================================================
 
-function Start-SSHSession {
+function Show-SSHInfo {
     param(
         [hashtable]$AccountConfig
     )
     
-    Show-Header "SCHRITT 5: SSH-Session"
+    Show-Header "SCHRITT 5: SSH-Verbindung"
     
-    Write-Host "  Oeffne interaktive SSH-Verbindung..." -ForegroundColor White
+    Write-Host "  Fuer eine interaktive SSH-Session diesen Befehl in einem" -ForegroundColor White
+    Write-Host "  NEUEN Terminal-Fenster ausfuehren:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Nuetzliche Befehle:" -ForegroundColor Yellow
+    Write-Host "  ssh -p $($AccountConfig.SFTP_PORT) $($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Dann:" -ForegroundColor White
     Write-Host "    cd $($AccountConfig.REMOTE_PATH)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Nuetzliche Befehle:" -ForegroundColor White
     Write-Host "    php artisan tinker" -ForegroundColor Gray
     Write-Host "    php artisan queue:work" -ForegroundColor Gray
     Write-Host "    tail -f storage/logs/laravel.log" -ForegroundColor Gray
-    Write-Host "    exit  (zum Beenden)" -ForegroundColor Gray
     Write-Host ""
     
-    if ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde SSH-Session starten" -ForegroundColor Magenta
-        return $true
-    }
+    # In Zwischenablage kopieren
+    $sshCmd = "ssh -p $($AccountConfig.SFTP_PORT) $($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
+    $sshCmd | Set-Clipboard
+    Show-Info "SSH-Befehl in Zwischenablage kopiert!"
     
-    # Interaktive SSH-Session (OHNE -T, damit Terminal funktioniert)
-    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
-    
-    Show-Success "SSH-Session beendet"
     return $true
 }
 
@@ -564,8 +472,7 @@ function Deploy-ToAccount {
         Show-Info "Migration uebersprungen"
         # Trotzdem Wartungsmodus beenden
         Write-Host "  Beende Wartungsmodus..." -ForegroundColor Yellow
-        $cmd = "cd $($AccountConfig.REMOTE_PATH) && php artisan up"
-        $cmd | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" 2>$null
+        ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "cd $($AccountConfig.REMOTE_PATH) && php artisan up" 2>$null
     }
     
     # SCHRITT 4: XML-Import starten?
@@ -579,12 +486,10 @@ function Deploy-ToAccount {
         Show-Info "XML-Import uebersprungen"
     }
     
-    # SCHRITT 5: SSH-Session starten?
+    # SCHRITT 5: SSH-Info anzeigen
     Write-Host ""
-    if (Confirm-Step "  SSH-Session starten?") {
-        Start-SSHSession -AccountConfig $AccountConfig
-    } else {
-        Show-Info "SSH-Session uebersprungen"
+    if (Confirm-Step "  SSH-Verbindungsinfo anzeigen?") {
+        Show-SSHInfo -AccountConfig $AccountConfig
     }
     
     # ABSCHLUSS
@@ -688,15 +593,6 @@ if ($Account -eq 1 -or $Account -eq 3) {
 }
 if ($Account -eq 2 -or $Account -eq 3) {
     Write-Host "  [2] $($Accounts[2].WEBSITE_URL)" -ForegroundColor Cyan
-}
-
-Write-Host ""
-Write-Host "  SSH-Verbindung (falls noetig):" -ForegroundColor Gray
-if ($Account -eq 1 -or $Account -eq 3) {
-    Write-Host "    ssh $($Accounts[1].SFTP_USER)@$($Accounts[1].SFTP_HOST) -p $($Accounts[1].SFTP_PORT)" -ForegroundColor DarkGray
-}
-if ($Account -eq 2 -or $Account -eq 3) {
-    Write-Host "    ssh $($Accounts[2].SFTP_USER)@$($Accounts[2].SFTP_HOST) -p $($Accounts[2].SFTP_PORT)" -ForegroundColor DarkGray
 }
 
 Write-Host ""
