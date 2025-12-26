@@ -72,7 +72,7 @@ $SyncFiles = @(
     "composer.lock"
 )
 
-# ⭐ KORRIGIERTE DATEINAMEN für Import
+# Import-Dateien
 $ImportFiles = @(
     "Adresse.xml"
     "Gebaeude.xml"
@@ -95,11 +95,6 @@ function Show-Header {
     Write-Host "  $Text" -ForegroundColor Cyan
     Write-Host ("=" * 70) -ForegroundColor Cyan
     Write-Host ""
-}
-
-function Show-Step {
-    param([int]$Num, [int]$Total, [string]$Text)
-    Write-Host "[$Num/$Total] $Text" -ForegroundColor Yellow
 }
 
 function Show-Success {
@@ -144,6 +139,18 @@ function Show-AccountMenu {
     } while ($choice -notmatch '^[0123]$')
     
     return [int]$choice
+}
+
+# ⭐ Schreibt Datei mit Unix-Zeilenenden (LF statt CRLF)
+function Write-UnixFile {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+    # Konvertiere Windows CRLF zu Unix LF
+    $unixContent = $Content -replace "`r`n", "`n" -replace "`r", "`n"
+    # Schreibe ohne BOM mit UTF8
+    [System.IO.File]::WriteAllText($Path, $unixContent, [System.Text.UTF8Encoding]::new($false))
 }
 
 # ==============================================================================
@@ -343,36 +350,39 @@ function Run-Migration {
     Write-Host "  Verbinde per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
-    # ⭐ SSH mit -T Flag (kein Pseudo-Terminal) für nicht-interaktive Befehle
-    $sshArgs = @(
-        "-T"
-        "-p", $AccountConfig.SFTP_PORT
-        "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)"
-        "cd $($AccountConfig.REMOTE_PATH) && " +
-        "echo '=== Composer Install ===' && " +
-        "composer install --no-dev --optimize-autoloader --no-interaction && " +
-        "echo '' && " +
-        "echo '=== Migrationen ===' && " +
-        "php artisan migrate --force && " +
-        "echo '' && " +
-        "echo '=== Cache leeren ===' && " +
-        "php artisan cache:clear && " +
-        "php artisan config:cache && " +
-        "php artisan route:cache && " +
-        "php artisan view:cache && " +
-        "echo '' && " +
-        "echo '=== Berechtigungen ===' && " +
-        "chmod -R 775 storage bootstrap/cache && " +
-        "echo '' && " +
-        "echo '=== Wartungsmodus aus ===' && " +
-        "php artisan up && " +
-        "echo '' && " +
-        "echo '=== MIGRATION ABGESCHLOSSEN ==='"
-    )
+    # ⭐ Shell-Script mit Unix-Zeilenenden
+    $bashScript = @"
+cd $($AccountConfig.REMOTE_PATH)
+echo '=== Composer Install ==='
+composer install --no-dev --optimize-autoloader --no-interaction
+echo ''
+echo '=== Migrationen ==='
+php artisan migrate --force
+echo ''
+echo '=== Cache leeren ==='
+php artisan cache:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+echo ''
+echo '=== Berechtigungen ==='
+chmod -R 775 storage bootstrap/cache
+echo ''
+echo '=== Wartungsmodus aus ==='
+php artisan up
+echo ''
+echo '=== MIGRATION ABGESCHLOSSEN ==='
+"@
 
-    & ssh @sshArgs
+    $tempScript = Join-Path $env:TEMP "migration_cmd.sh"
+    Write-UnixFile -Path $tempScript -Content $bashScript
     
-    if ($LASTEXITCODE -ne 0) {
+    Get-Content $tempScript -Raw | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
+    
+    $exitCode = $LASTEXITCODE
+    Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+    
+    if ($exitCode -ne 0) {
         Show-Warning "SSH-Befehle evtl. fehlgeschlagen"
         return $false
     }
@@ -409,8 +419,8 @@ function Run-XmlImport {
     Write-Host "  Starte Import per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
-    # ⭐ SSH mit -T Flag (kein Pseudo-Terminal)
-    $importCmd = @"
+    # ⭐ Shell-Script mit Unix-Zeilenenden
+    $bashScript = @"
 cd $($AccountConfig.REMOTE_PATH)
 echo ''
 echo '=========================================='
@@ -463,11 +473,10 @@ echo '  IMPORT ABGESCHLOSSEN'
 echo '=========================================='
 "@
 
-    # Schreibe Befehle in temporäre Datei und führe über SSH aus
     $tempScript = Join-Path $env:TEMP "import_cmd.sh"
-    $importCmd | Out-File -FilePath $tempScript -Encoding ASCII
+    Write-UnixFile -Path $tempScript -Content $bashScript
     
-    Get-Content $tempScript | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
+    Get-Content $tempScript -Raw | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "bash -s"
     
     $exitCode = $LASTEXITCODE
     Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
@@ -529,17 +538,11 @@ function Deploy-ToAccount {
     Write-Host "  Website: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Cyan
     Write-Host ""
     
-    # ══════════════════════════════════════════════════════════════
     # SCHRITT 1: Projekt hochladen (immer)
-    # ══════════════════════════════════════════════════════════════
-    
     $result = Upload-LaravelProject -AccountConfig $AccountConfig -AccountId $AccountId
     if (-not $result) { return $false }
     
-    # ══════════════════════════════════════════════════════════════
     # SCHRITT 2: Import-Dateien hochladen?
-    # ══════════════════════════════════════════════════════════════
-    
     Write-Host ""
     if (Confirm-Step "  Import-Dateien (XML/SQL) hochladen?") {
         $result = Upload-ImportFiles -AccountConfig $AccountConfig -AccountId $AccountId
@@ -550,10 +553,7 @@ function Deploy-ToAccount {
         Show-Info "Import-Upload uebersprungen"
     }
     
-    # ══════════════════════════════════════════════════════════════
     # SCHRITT 3: Migration starten?
-    # ══════════════════════════════════════════════════════════════
-    
     Write-Host ""
     if (Confirm-Step "  Datenbank-Migration starten?") {
         $result = Run-Migration -AccountConfig $AccountConfig
@@ -564,13 +564,11 @@ function Deploy-ToAccount {
         Show-Info "Migration uebersprungen"
         # Trotzdem Wartungsmodus beenden
         Write-Host "  Beende Wartungsmodus..." -ForegroundColor Yellow
-        ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "cd $($AccountConfig.REMOTE_PATH) && php artisan up" 2>$null
+        $cmd = "cd $($AccountConfig.REMOTE_PATH) && php artisan up"
+        $cmd | ssh -T -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" 2>$null
     }
     
-    # ══════════════════════════════════════════════════════════════
     # SCHRITT 4: XML-Import starten?
-    # ══════════════════════════════════════════════════════════════
-    
     Write-Host ""
     if (Confirm-Step "  XML-Import starten?") {
         $result = Run-XmlImport -AccountConfig $AccountConfig
@@ -581,10 +579,7 @@ function Deploy-ToAccount {
         Show-Info "XML-Import uebersprungen"
     }
     
-    # ══════════════════════════════════════════════════════════════
     # SCHRITT 5: SSH-Session starten?
-    # ══════════════════════════════════════════════════════════════
-    
     Write-Host ""
     if (Confirm-Step "  SSH-Session starten?") {
         Start-SSHSession -AccountConfig $AccountConfig
@@ -592,10 +587,7 @@ function Deploy-ToAccount {
         Show-Info "SSH-Session uebersprungen"
     }
     
-    # ══════════════════════════════════════════════════════════════
     # ABSCHLUSS
-    # ══════════════════════════════════════════════════════════════
-    
     Write-Host ""
     Write-Host "  ----------------------------------------" -ForegroundColor Gray
     Write-Host "  Website testen: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Green
