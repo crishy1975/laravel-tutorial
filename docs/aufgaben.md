@@ -20,10 +20,10 @@ x dokumente
 
 x dashboard
     x errinerungen
-        eigene view
+        x eigene view
     x aufgaben
-        buchungen sind schon x tage alt
-        mahnungen schon seit x tagen nicht verschickt
+        x buchungen sind schon x tage alt
+        x mahnungen schon seit x tagen nicht verschickt
     x begrüßung
         mehr sprüche aber auf db
 
