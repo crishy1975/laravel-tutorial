@@ -11,17 +11,9 @@
             Offene Eingänge
             <span class="badge bg-warning text-dark">{{ $buchungen->total() }}</span>
         </h5>
-        <div class="btn-group">
-            <form method="POST" action="{{ route('bank.auto-match') }}" class="d-inline">
-                @csrf
-                <button type="submit" class="btn btn-success btn-sm">
-                    <i class="bi bi-magic"></i> <span class="d-none d-sm-inline">Auto-Match</span>
-                </button>
-            </form>
-            <a href="{{ route('bank.index') }}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-left"></i>
-            </a>
-        </div>
+        <a href="{{ route('bank.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> <span class="d-none d-sm-inline">Zurück</span>
+        </a>
     </div>
 
     @if($buchungen->isEmpty())
