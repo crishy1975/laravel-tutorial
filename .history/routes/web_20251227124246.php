@@ -565,7 +565,7 @@ Route::prefix('angebote')->name('angebote.')->middleware(['auth'])->group(functi
     // Neu erstellen (nur Gebäude-Auswahl)
     Route::get('/create', [AngebotController::class, 'create'])->name('create');
 
-    // Textvorschläge API (KORRIGIERT!)
+ // Textvorschläge API (KORRIGIERT!)
     Route::get('/textvorschlaege', [AngebotController::class, 'textvorschlaege'])
         ->name('textvorschlaege');
 
