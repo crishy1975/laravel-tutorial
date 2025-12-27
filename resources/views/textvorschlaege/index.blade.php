@@ -13,7 +13,7 @@
                 Textvorschläge
             </h1>
             <p class="text-muted small mb-0">
-                Vorlagen für Bemerkungen und Texte
+                Vorlagen für SMS, WhatsApp, Angebote
             </p>
         </div>
         <a href="{{ route('textvorschlaege.create') }}" class="btn btn-primary">
@@ -32,7 +32,7 @@
 
     {{-- Statistik --}}
     <div class="row g-2 mb-3">
-        <div class="col-3">
+        <div class="col-6">
             <div class="card border-primary h-100">
                 <div class="card-body text-center py-2">
                     <h3 class="fw-bold text-primary mb-0">{{ $stats['gesamt'] }}</h3>
@@ -40,27 +40,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-3">
+        <div class="col-6">
             <div class="card border-success h-100">
                 <div class="card-body text-center py-2">
                     <h3 class="fw-bold text-success mb-0">{{ $stats['aktiv'] }}</h3>
                     <small class="text-muted">Aktiv</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-3">
-            <div class="card h-100">
-                <div class="card-body text-center py-2">
-                    <h3 class="fw-bold mb-0">🇩🇪 {{ $stats['deutsch'] }}</h3>
-                    <small class="text-muted">Deutsch</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-3">
-            <div class="card h-100">
-                <div class="card-body text-center py-2">
-                    <h3 class="fw-bold mb-0">🇮🇹 {{ $stats['italienisch'] }}</h3>
-                    <small class="text-muted">Italiano</small>
                 </div>
             </div>
         </div>
@@ -82,14 +66,6 @@
                     </select>
                 </div>
                 <div class="col-6 col-md-3">
-                    <label class="form-label small mb-1">Sprache</label>
-                    <select name="sprache" class="form-select form-select-sm" onchange="this.form.submit()">
-                        <option value="">Alle</option>
-                        <option value="de" @selected(request('sprache') == 'de')>🇩🇪 Deutsch</option>
-                        <option value="it" @selected(request('sprache') == 'it')>🇮🇹 Italiano</option>
-                    </select>
-                </div>
-                <div class="col-6 col-md-3">
                     <label class="form-label small mb-1">Status</label>
                     <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                         <option value="">Alle</option>
@@ -97,7 +73,12 @@
                         <option value="inaktiv" @selected(request('status') == 'inaktiv')>Inaktiv</option>
                     </select>
                 </div>
-                <div class="col-6 col-md-2">
+                <div class="col-8 col-md-3">
+                    <label class="form-label small mb-1">Suche</label>
+                    <input type="text" name="suche" class="form-control form-control-sm" 
+                           value="{{ request('suche') }}" placeholder="Titel oder Text...">
+                </div>
+                <div class="col-4 col-md-2">
                     <a href="{{ route('textvorschlaege.index') }}" class="btn btn-outline-secondary btn-sm w-100">
                         <i class="bi bi-x-lg"></i> Reset
                     </a>
@@ -112,27 +93,27 @@
             <table class="table table-hover mb-0">
                 <thead class="table-dark">
                     <tr>
-                        <th style="width: 50px;">#</th>
-                        <th style="width: 50px;">🌐</th>
                         <th style="width: 180px;">Kategorie</th>
-                        <th>Text</th>
+                        <th style="width: 150px;">Titel</th>
+                        <th>Text (Vorschau)</th>
                         <th style="width: 80px;" class="text-center">Status</th>
-                        <th style="width: 120px;" class="text-end">Aktion</th>
+                        <th style="width: 100px;" class="text-end">Aktion</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($vorschlaege as $v)
                         <tr class="{{ !$v->aktiv ? 'table-secondary' : '' }}">
-                            <td class="text-muted small">{{ $v->id }}</td>
-                            <td>{{ $v->sprache_flag }}</td>
                             <td>
                                 <span class="badge bg-light text-dark">
                                     {{ $v->kategorie_name }}
                                 </span>
                             </td>
                             <td>
-                                <span title="{{ $v->text }}">
-                                    {{ Str::limit($v->text, 60) }}
+                                <strong>{{ $v->titel ?: '-' }}</strong>
+                            </td>
+                            <td>
+                                <span class="small" title="{{ $v->text }}">
+                                    {{ Str::limit($v->text, 80) }}
                                 </span>
                             </td>
                             <td class="text-center">
@@ -163,7 +144,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
+                            <td colspan="5" class="text-center text-muted py-4">
                                 <i class="bi bi-inbox display-6 d-block mb-2"></i>
                                 Keine Textvorschläge vorhanden.
                                 <br>
@@ -185,10 +166,5 @@
         </div>
     @endif
 
-    {{-- Info --}}
-    <div class="mt-3 small text-muted">
-        <i class="bi bi-info-circle"></i>
-        Diese Vorschläge erscheinen als Dropdown bei Reinigung, Angeboten usw.
-    </div>
 </div>
 @endsection
