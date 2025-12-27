@@ -21,7 +21,6 @@
         </div>
         {{-- Desktop: Buttons --}}
         <div class="d-none d-md-flex gap-2">
-            {{-- ⭐ Massen-Nachricht Button --}}
             <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalVorlage">
                 <i class="bi bi-chat-quote"></i> Nachricht-Vorlage
             </button>
@@ -49,16 +48,11 @@
                         <i class="bi bi-file-earmark-excel"></i> CSV Export
                     </a>
                 </li>
-                <li>
-                    <a class="dropdown-item" href="#" onclick="window.print(); return false;">
-                        <i class="bi bi-printer"></i> Drucken
-                    </a>
-                </li>
             </ul>
         </div>
     </div>
 
-    {{-- ⭐ Aktive Vorlage Anzeige --}}
+    {{-- Aktive Vorlage Anzeige --}}
     <div id="vorlageAktivBox" class="alert alert-success py-2 mb-3 d-none">
         <div class="d-flex justify-content-between align-items-center">
             <div class="flex-grow-1 me-2">
@@ -305,7 +299,6 @@
                         $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                     @endphp
                     <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }} p-2">
-                        {{-- Zeile 1: Codex, Name, Status --}}
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <div class="flex-grow-1 min-width-0">
                                 <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none">
@@ -322,12 +315,10 @@
                             </div>
                         </div>
 
-                        {{-- Zeile 2: Adresse --}}
                         <div class="small text-muted mb-2">
                             {{ $g->strasse }} {{ $g->hausnummer }}@if($g->wohnort), {{ $g->wohnort }}@endif
                         </div>
 
-                        {{-- ⭐ Zeile 3: Schnell-Kontakt Buttons --}}
                         <div class="d-flex gap-1 mb-2">
                             @if($anrufNr)
                                 <a href="tel:{{ $anrufNr }}" class="btn btn-outline-primary btn-sm py-1 px-2">
@@ -351,7 +342,6 @@
                                 </a>
                             @endif
                             
-                            {{-- Erledigt Button --}}
                             @if(!$g->ist_erledigt)
                                 <button type="button" class="btn btn-success btn-sm py-1 px-2 ms-auto"
                                         data-bs-toggle="modal" data-bs-target="#modalErledigt{{ $g->id }}">
@@ -360,7 +350,6 @@
                             @endif
                         </div>
 
-                        {{-- Zeile 4: Datum --}}
                         <div class="small text-muted">
                             Letzte: {{ $g->letzte_reinigung_datum?->format('d.m.') ?? '-' }}
                             · Nächste: {{ $g->naechste_faelligkeit?->format('d.m.') ?? '-' }}
@@ -379,38 +368,34 @@
     @endif
 </div>
 
-{{-- ⭐ Modal: Nachrichten-Vorlage setzen --}}
+{{-- Modal: Nachrichten-Vorlage --}}
 <div class="modal fade" id="modalVorlage" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header bg-success text-white py-2">
                 <h6 class="modal-title">
-                    <i class="bi bi-chat-quote"></i> Nachrichten-Vorlage (DE + IT)
+                    <i class="bi bi-chat-quote"></i> Nachrichten-Vorlage
                 </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body py-3">
                 
-                {{-- Vorlagen-Auswahl --}}
+                {{-- Vorlage aus DB wählen --}}
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Vorlage wählen:</label>
-                    <div class="d-flex flex-wrap gap-1">
-                        @foreach($nachrichtVorschlaege['de'] ?? [] as $idx => $textDe)
-                            @php $textIt = $nachrichtVorschlaege['it'][$idx] ?? ''; @endphp
-                            <button type="button" class="btn btn-outline-secondary btn-sm vorlage-btn"
-                                    data-text="{{ $textDe }}{{ $textIt ? "\n---\n" . $textIt : '' }}">
-                                {{ Str::limit($textDe, 25) }}
-                            </button>
+                    <label class="form-label fw-bold">Gespeicherte Vorlage laden:</label>
+                    <select id="vorlageSelect" class="form-select" onchange="vorlageAusDbLaden()">
+                        <option value="">-- Vorlage wählen --</option>
+                        @foreach($nachrichtVorschlaege as $v)
+                            <option value="{{ $v->id }}" data-text="{{ $v->text }}">
+                                {{ $v->anzeige_name }}
+                            </option>
                         @endforeach
-                    </div>
-                    @if(empty($nachrichtVorschlaege['de']))
-                    <p class="text-muted small mt-1 mb-0">
-                        Noch keine Vorlagen. <a href="{{ route('textvorschlaege.index') }}">Jetzt erstellen</a>
-                    </p>
-                    @endif
+                    </select>
                 </div>
 
-                {{-- Datum/Zeit Platzhalter --}}
+                <hr>
+
+                {{-- Datum/Zeit --}}
                 <div class="row g-2 mb-3">
                     <div class="col-4">
                         <label class="form-label small">📅 Datum</label>
@@ -448,16 +433,9 @@
 
                 {{-- Nachricht Text --}}
                 <div class="mb-3">
-                    <label for="vorlageText" class="form-label fw-bold">
-                        Nachricht:
-                    </label>
+                    <label for="vorlageText" class="form-label fw-bold">Nachricht:</label>
                     <textarea class="form-control" id="vorlageText" rows="5" 
-                              placeholder="Guten Tag, wir kommen am @{{DATUM}} zwischen @{{VON}} und @{{BIS}} Uhr.
----
-Buongiorno, veniamo il @{{DATUM}} tra le @{{VON}} e le @{{BIS}}."></textarea>
-                    <div class="form-text">
-                        Trenne Deutsch und Italienisch mit <code>---</code>
-                    </div>
+                              placeholder="Text eingeben (DE + IT)..."></textarea>
                 </div>
 
                 {{-- Vorschau --}}
@@ -470,11 +448,22 @@ Buongiorno, veniamo il @{{DATUM}} tra le @{{VON}} e le @{{BIS}}."></textarea>
                     </div>
                 </div>
 
+                {{-- Als neue Vorlage speichern --}}
+                <div class="mt-3 p-2 bg-light rounded">
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="text" id="vorlageTitel" class="form-control form-control-sm" 
+                               placeholder="Titel für neue Vorlage..." style="max-width: 250px;">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="vorlageInDbSpeichern()">
+                            <i class="bi bi-plus-lg"></i> Als Vorlage speichern
+                        </button>
+                    </div>
+                </div>
+
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                 <button type="button" class="btn btn-success" onclick="vorlageSpeichern()">
-                    <i class="bi bi-lightning-charge"></i> Vorlage aktivieren
+                    <i class="bi bi-lightning-charge"></i> Aktivieren
                 </button>
             </div>
         </div>
@@ -536,7 +525,6 @@ Buongiorno, veniamo il @{{DATUM}} tra le @{{VON}} e le @{{BIS}}."></textarea>
 
 @push('styles')
 <style>
-    .vorlage-btn.active { background-color: var(--bs-success) !important; color: white !important; border-color: var(--bs-success) !important; }
     @media (max-width: 575.98px) {
         .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; }
         .card-body { padding: 0.5rem; }
@@ -547,33 +535,29 @@ Buongiorno, veniamo il @{{DATUM}} tra le @{{VON}} e le @{{BIS}}."></textarea>
 
 @push('scripts')
 <script>
-// =========================================================================
-// VORLAGE SYSTEM - Speichert im Browser (localStorage)
-// =========================================================================
-
 const STORAGE_KEY = 'reinigung_nachricht_vorlage';
+const CSRF_TOKEN = '{{ csrf_token() }}';
 
 // Beim Laden
 document.addEventListener('DOMContentLoaded', function() {
     vorlageAnzeigen();
     vorlageVorschauAktualisieren();
     
-    // Live-Vorschau
     ['vorlageText', 'vorlageDatum', 'vorlageVon', 'vorlageBis'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', vorlageVorschauAktualisieren);
         document.getElementById(id)?.addEventListener('change', vorlageVorschauAktualisieren);
     });
 });
 
-// Vorlage-Button klicken
-document.querySelectorAll('.vorlage-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.vorlage-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById('vorlageText').value = this.dataset.text;
+// Vorlage aus DB-Dropdown laden
+function vorlageAusDbLaden() {
+    const select = document.getElementById('vorlageSelect');
+    const option = select.options[select.selectedIndex];
+    if (option && option.dataset.text) {
+        document.getElementById('vorlageText').value = option.dataset.text;
         vorlageVorschauAktualisieren();
-    });
-});
+    }
+}
 
 // Platzhalter einfügen
 function einfuegenPlatzhalter(ph) {
@@ -614,7 +598,7 @@ function platzhalterErsetzen(text) {
         .replace(/\{\{ZEIT\}\}/g, zeitStr);
 }
 
-// Vorlage speichern
+// Vorlage im Browser speichern (aktivieren)
 function vorlageSpeichern() {
     const vorlage = {
         text: document.getElementById('vorlageText').value,
@@ -631,11 +615,52 @@ function vorlageSpeichern() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vorlage));
     bootstrap.Modal.getInstance(document.getElementById('modalVorlage')).hide();
     vorlageAnzeigen();
+}
+
+// Vorlage in DB speichern (neue Vorlage)
+function vorlageInDbSpeichern() {
+    const text = document.getElementById('vorlageText').value;
+    const titel = document.getElementById('vorlageTitel').value;
     
-    // Kurzes Feedback
-    const box = document.getElementById('vorlageAktivBox');
-    box.classList.add('border', 'border-3', 'border-success');
-    setTimeout(() => box.classList.remove('border', 'border-3', 'border-success'), 1000);
+    if (!text.trim()) {
+        alert('Bitte zuerst eine Nachricht eingeben!');
+        return;
+    }
+    
+    fetch('{{ route("textvorschlaege.api.store") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN
+        },
+        body: JSON.stringify({
+            kategorie: 'reinigung_nachricht',
+            titel: titel || null,
+            text: text
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Zum Dropdown hinzufügen
+            const select = document.getElementById('vorlageSelect');
+            const option = document.createElement('option');
+            option.value = data.id;
+            option.dataset.text = text;
+            option.textContent = data.titel;
+            select.appendChild(option);
+            select.value = data.id;
+            
+            document.getElementById('vorlageTitel').value = '';
+            alert('✅ ' + data.message);
+        } else {
+            alert('Fehler: ' + (data.message || 'Unbekannt'));
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Fehler beim Speichern!');
+    });
 }
 
 // Vorlage anzeigen
@@ -649,7 +674,6 @@ function vorlageAnzeigen() {
         box.classList.remove('d-none');
         document.getElementById('vorlagePreview').textContent = text.substring(0, 60) + (text.length > 60 ? '...' : '');
         
-        // Ins Modal laden
         if (document.getElementById('vorlageText')) {
             document.getElementById('vorlageText').value = v.text;
             document.getElementById('vorlageDatum').value = v.datum;
@@ -662,7 +686,7 @@ function vorlageAnzeigen() {
     }
 }
 
-// Fertige Nachricht aus Vorlage
+// Fertige Nachricht
 function getNachrichtFertig(v) {
     const d = new Date(v.datum);
     const datumStr = d.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'});
@@ -683,15 +707,11 @@ function vorlageLoeschen() {
     vorlageAnzeigen();
 }
 
-// Aktuelle Nachricht holen (für Schnellversand)
+// Aktuelle Nachricht
 function getAktuelleNachricht() {
     const g = localStorage.getItem(STORAGE_KEY);
     return g ? getNachrichtFertig(JSON.parse(g)) : null;
 }
-
-// =========================================================================
-// SCHNELL-VERSAND (1-Klick)
-// =========================================================================
 
 // SMS
 document.querySelectorAll('.schnell-sms').forEach(btn => {
