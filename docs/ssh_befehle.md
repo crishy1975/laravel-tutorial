@@ -2,6 +2,8 @@ ssh-befehl import
 
 ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html && php artisan import:access --all"
 
+ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html"
+
 ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html && php artisan migrate"                                   
 
 ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html && php artisan up" 
