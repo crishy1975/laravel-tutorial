@@ -1,5 +1,6 @@
 {{-- resources/views/angebote/edit.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Cards, responsive Layout, Sticky Footer --}}
+{{-- MIT TEXTVORSCHLÄGEN --}}
 
 @extends('layouts.app')
 
@@ -198,28 +199,74 @@
                     </div>
                 </div>
 
-                {{-- Texte Card --}}
+                {{-- Texte Card MIT VORSCHLÄGEN --}}
                 <div class="card mb-3">
                     <div class="card-header bg-secondary text-white py-2">
                         <i class="bi bi-text-paragraph"></i>
                         <span class="fw-semibold ms-1">Texte</span>
                     </div>
                     <div class="card-body p-2 p-md-3">
+                        
+                        {{-- Einleitung --}}
                         <div class="mb-3">
-                            <label class="form-label small mb-1">Einleitung (vor Positionen)</label>
-                            <textarea name="einleitung" class="form-control" rows="2">{{ old('einleitung', $angebot->einleitung) }}</textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small mb-0">Einleitung (vor Positionen)</label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
+                                        onclick="toggleVorschlaege('einleitung')" title="Vorschlaege anzeigen">
+                                    <i class="bi bi-lightbulb"></i>
+                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
+                                </button>
+                            </div>
+                            <div id="vorschlaege-einleitung" class="mb-2 d-none vorschlaege-container">
+                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-einleitung-liste">
+                                    <span class="text-muted small">Lade...</span>
+                                </div>
+                            </div>
+                            <textarea name="einleitung" id="einleitung" class="form-control" rows="2" 
+                                      placeholder="Optional: Text vor den Positionen">{{ old('einleitung', $angebot->einleitung) }}</textarea>
                         </div>
+
+                        {{-- Bemerkung für Kunde --}}
                         <div class="mb-3">
-                            <label class="form-label small mb-1">Bemerkung fuer Kunde (auf PDF)</label>
-                            <textarea name="bemerkung_kunde" class="form-control" rows="2">{{ old('bemerkung_kunde', $angebot->bemerkung_kunde) }}</textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small mb-0">Bemerkung fuer Kunde (auf PDF)</label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
+                                        onclick="toggleVorschlaege('bemerkung_kunde')" title="Vorschlaege anzeigen">
+                                    <i class="bi bi-lightbulb"></i>
+                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
+                                </button>
+                            </div>
+                            <div id="vorschlaege-bemerkung_kunde" class="mb-2 d-none vorschlaege-container">
+                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-bemerkung_kunde-liste">
+                                    <span class="text-muted small">Lade...</span>
+                                </div>
+                            </div>
+                            <textarea name="bemerkung_kunde" id="bemerkung_kunde" class="form-control" rows="2" 
+                                      placeholder="Erscheint auf dem PDF">{{ old('bemerkung_kunde', $angebot->bemerkung_kunde) }}</textarea>
                         </div>
+
+                        {{-- Interne Bemerkung --}}
                         <div class="mb-0">
-                            <label class="form-label small mb-1">
-                                Interne Bemerkung 
-                                <span class="badge bg-warning text-dark">nicht auf PDF</span>
-                            </label>
-                            <textarea name="bemerkung_intern" class="form-control" rows="2">{{ old('bemerkung_intern', $angebot->bemerkung_intern) }}</textarea>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small mb-0">
+                                    Interne Bemerkung 
+                                    <span class="badge bg-warning text-dark">nicht auf PDF</span>
+                                </label>
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
+                                        onclick="toggleVorschlaege('bemerkung_intern')" title="Vorschlaege anzeigen">
+                                    <i class="bi bi-lightbulb"></i>
+                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
+                                </button>
+                            </div>
+                            <div id="vorschlaege-bemerkung_intern" class="mb-2 d-none vorschlaege-container">
+                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-bemerkung_intern-liste">
+                                    <span class="text-muted small">Lade...</span>
+                                </div>
+                            </div>
+                            <textarea name="bemerkung_intern" id="bemerkung_intern" class="form-control" rows="2" 
+                                      placeholder="Nur intern sichtbar">{{ old('bemerkung_intern', $angebot->bemerkung_intern) }}</textarea>
                         </div>
+
                     </div>
                 </div>
 
@@ -586,11 +633,35 @@
     .container-fluid { padding-bottom: 80px; }
     .form-control, .form-select, .btn { min-height: 44px; font-size: 16px !important; }
 }
+
+/* Textvorschläge Styling */
+.vorschlaege-container {
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    border: 1px dashed #dee2e6;
+}
+.vorschlag-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.vorschlag-btn:hover {
+    background-color: #198754 !important;
+    color: white !important;
+    border-color: #198754 !important;
+}
 </style>
 @endpush
 
 @push('scripts')
 <script>
+// Position bearbeiten Modal
 function editPosition(id, beschreibung, anzahl, einheit, einzelpreis) {
     document.getElementById('formEditPosition').action = '/angebote/position/' + id;
     document.getElementById('editBeschreibung').value = beschreibung;
@@ -599,6 +670,83 @@ function editPosition(id, beschreibung, anzahl, einheit, einzelpreis) {
     document.getElementById('editEinzelpreis').value = einzelpreis;
     
     new bootstrap.Modal(document.getElementById('modalEditPosition')).show();
+}
+
+// ==========================================
+// TEXTVORSCHLÄGE FUNKTIONEN
+// ==========================================
+
+// Cache für Vorschläge
+let textvorschlaegeCache = null;
+
+// Vorschläge laden
+async function ladeTextvorschlaege() {
+    if (textvorschlaegeCache) return textvorschlaegeCache;
+    
+    try {
+        const response = await fetch('{{ route("angebote.textvorschlaege") }}');
+        textvorschlaegeCache = await response.json();
+        return textvorschlaegeCache;
+    } catch (error) {
+        console.error('Fehler beim Laden der Vorschlaege:', error);
+        return { einleitung: [], bemerkung_kunde: [], bemerkung_intern: [] };
+    }
+}
+
+// Vorschläge anzeigen/verstecken
+async function toggleVorschlaege(feld) {
+    const container = document.getElementById('vorschlaege-' + feld);
+    const liste = document.getElementById('vorschlaege-' + feld + '-liste');
+    
+    if (container.classList.contains('d-none')) {
+        // Vorschläge laden und anzeigen
+        const vorschlaege = await ladeTextvorschlaege();
+        const feldVorschlaege = vorschlaege[feld] || [];
+        
+        if (feldVorschlaege.length === 0) {
+            liste.innerHTML = '<span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Keine Vorschlaege vorhanden</span>';
+        } else {
+            liste.innerHTML = feldVorschlaege.map(text => {
+                // Text kürzen für Button-Anzeige
+                const kurztext = text.length > 40 ? text.substring(0, 40) + '...' : text;
+                // Text escapen für onclick
+                const escapedText = text.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "");
+                return `<button type="button" class="btn btn-outline-secondary vorschlag-btn" 
+                                onclick="setzeVorschlag('${feld}', '${escapedText}')" 
+                                title="${text.replace(/"/g, '&quot;').replace(/\n/g, ' ')}">
+                            ${kurztext}
+                        </button>`;
+            }).join('');
+        }
+        
+        container.classList.remove('d-none');
+    } else {
+        container.classList.add('d-none');
+    }
+}
+
+// Vorschlag in Textfeld einfügen
+function setzeVorschlag(feld, text) {
+    const textarea = document.getElementById(feld);
+    // Umwandlung von escaped newlines zurück
+    text = text.replace(/\\n/g, "\n");
+    
+    if (textarea.value && textarea.value.trim() !== '') {
+        // Bestehenden Text ergänzen oder ersetzen?
+        if (confirm('Bestehenden Text ersetzen?\n\nOK = Ersetzen\nAbbrechen = Anhaengen')) {
+            textarea.value = text;
+        } else {
+            textarea.value = textarea.value + '\n\n' + text;
+        }
+    } else {
+        textarea.value = text;
+    }
+    
+    // Vorschläge schließen
+    document.getElementById('vorschlaege-' + feld).classList.add('d-none');
+    
+    // Focus auf Textfeld
+    textarea.focus();
 }
 </script>
 @endpush
