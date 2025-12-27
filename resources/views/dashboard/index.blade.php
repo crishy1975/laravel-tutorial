@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        {{-- Erinnerungen --}}
+        {{-- Erinnerungen - KLICKBAR --}}
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 @if($stats['ueberfaellige_erinnerungen'] > 0) border-start border-warning border-4 @endif">
                 <div class="card-body p-2 p-md-3">
@@ -96,6 +96,7 @@
                         </div>
                     </div>
                 </div>
+                <a href="{{ route('erinnerungen.index') }}" class="stretched-link"></a>
             </div>
         </div>
 
@@ -176,7 +177,7 @@
     <div class="row">
         <div class="col-12">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white py-2">
+                <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 fs-6">
                         <i class="bi bi-bell-fill text-warning me-2"></i>
                         <span class="d-none d-sm-inline">Offene Erinnerungen</span>
@@ -185,6 +186,11 @@
                             <span class="badge bg-warning text-dark ms-2">{{ $alleErinnerungen->count() }}</span>
                         @endif
                     </h5>
+                    <a href="{{ route('erinnerungen.index') }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-list-ul me-1 d-none d-sm-inline"></i>
+                        <span class="d-none d-sm-inline">Alle anzeigen</span>
+                        <span class="d-sm-none"><i class="bi bi-list-ul"></i></span>
+                    </a>
                 </div>
                 
                 @if($alleErinnerungen->isEmpty())
