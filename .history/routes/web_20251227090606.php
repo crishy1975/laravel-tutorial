@@ -690,12 +690,6 @@ Route::prefix('faelligkeit')->name('faelligkeit.')->group(function () {
         ->name('updateGebaeude');
 });
 
-// Erinnerungen
-Route::middleware(['auth'])->group(function () {
-    Route::get('/erinnerungen', [ErinnerungenController::class, 'index'])->name('erinnerungen.index');
-    Route::post('/erinnerungen/toggle', [ErinnerungenController::class, 'toggle'])->name('erinnerungen.toggle');
-});
-
 
 
 // ==================== Auth Routes (Breeze) ====================
