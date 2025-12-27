@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Gebaeude;
+use App\Models\Textvorschlag;
 use App\Models\Tour;
 use App\Models\User;
 use App\Services\FaelligkeitsService;
@@ -167,6 +168,9 @@ class ReinigungsplanungController extends Controller
             12 => 'Dezember',
         ];
 
+        // ⭐ NEU: Nachricht-Vorschläge für SMS/WhatsApp Modal
+        $nachrichtVorschlaege = Textvorschlag::fuerKategorie('reinigung_nachricht');
+
         return view('reinigungsplanung.index', compact(
             'gebaeude',
             'touren',
@@ -177,7 +181,8 @@ class ReinigungsplanungController extends Controller
             'filterGebaeude',
             'filterMonat',
             'filterTour',
-            'filterStatus'
+            'filterStatus',
+            'nachrichtVorschlaege'
         ));
     }
 
