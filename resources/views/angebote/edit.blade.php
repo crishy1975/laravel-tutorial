@@ -1,6 +1,6 @@
 {{-- resources/views/angebote/edit.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Cards, responsive Layout, Sticky Footer --}}
-{{-- MIT TEXTVORSCHLÄGEN --}}
+{{-- MIT TEXTVORSCHLÄGEN (Select-Dropdown) --}}
 
 @extends('layouts.app')
 
@@ -210,17 +210,18 @@
                         {{-- Einleitung --}}
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small mb-0">Einleitung (vor Positionen)</label>
-                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
-                                        onclick="toggleVorschlaege('einleitung')" title="Vorschlaege anzeigen">
-                                    <i class="bi bi-lightbulb"></i>
-                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
-                                </button>
-                            </div>
-                            <div id="vorschlaege-einleitung" class="mb-2 d-none vorschlaege-container">
-                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-einleitung-liste">
-                                    <span class="text-muted small">Lade...</span>
-                                </div>
+                                <label for="einleitung" class="form-label small mb-0">
+                                    <i class="bi bi-text-paragraph d-none d-sm-inline"></i> Einleitung (vor Positionen)
+                                </label>
+                                @if(!empty($textvorschlaege['einleitung']))
+                                <select class="form-select form-select-sm w-auto" style="max-width: 180px;"
+                                        onchange="setzeVorschlag('einleitung', this.value); this.selectedIndex=0;">
+                                    <option value="">Vorschlag...</option>
+                                    @foreach($textvorschlaege['einleitung'] as $text)
+                                        <option value="{{ $text }}">{{ Str::limit($text, 40) }}</option>
+                                    @endforeach
+                                </select>
+                                @endif
                             </div>
                             <textarea name="einleitung" id="einleitung" class="form-control" rows="2" 
                                       placeholder="Optional: Text vor den Positionen">{{ old('einleitung', $angebot->einleitung) }}</textarea>
@@ -229,17 +230,18 @@
                         {{-- Bemerkung für Kunde --}}
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small mb-0">Bemerkung fuer Kunde (auf PDF)</label>
-                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
-                                        onclick="toggleVorschlaege('bemerkung_kunde')" title="Vorschlaege anzeigen">
-                                    <i class="bi bi-lightbulb"></i>
-                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
-                                </button>
-                            </div>
-                            <div id="vorschlaege-bemerkung_kunde" class="mb-2 d-none vorschlaege-container">
-                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-bemerkung_kunde-liste">
-                                    <span class="text-muted small">Lade...</span>
-                                </div>
+                                <label for="bemerkung_kunde" class="form-label small mb-0">
+                                    <i class="bi bi-chat-left-text d-none d-sm-inline"></i> Bemerkung fuer Kunde (auf PDF)
+                                </label>
+                                @if(!empty($textvorschlaege['bemerkung_kunde']))
+                                <select class="form-select form-select-sm w-auto" style="max-width: 180px;"
+                                        onchange="setzeVorschlag('bemerkung_kunde', this.value); this.selectedIndex=0;">
+                                    <option value="">Vorschlag...</option>
+                                    @foreach($textvorschlaege['bemerkung_kunde'] as $text)
+                                        <option value="{{ $text }}">{{ Str::limit($text, 40) }}</option>
+                                    @endforeach
+                                </select>
+                                @endif
                             </div>
                             <textarea name="bemerkung_kunde" id="bemerkung_kunde" class="form-control" rows="2" 
                                       placeholder="Erscheint auf dem PDF">{{ old('bemerkung_kunde', $angebot->bemerkung_kunde) }}</textarea>
@@ -248,20 +250,19 @@
                         {{-- Interne Bemerkung --}}
                         <div class="mb-0">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small mb-0">
-                                    Interne Bemerkung 
+                                <label for="bemerkung_intern" class="form-label small mb-0">
+                                    <i class="bi bi-lock d-none d-sm-inline"></i> Interne Bemerkung 
                                     <span class="badge bg-warning text-dark">nicht auf PDF</span>
                                 </label>
-                                <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" 
-                                        onclick="toggleVorschlaege('bemerkung_intern')" title="Vorschlaege anzeigen">
-                                    <i class="bi bi-lightbulb"></i>
-                                    <span class="d-none d-sm-inline ms-1">Vorschlaege</span>
-                                </button>
-                            </div>
-                            <div id="vorschlaege-bemerkung_intern" class="mb-2 d-none vorschlaege-container">
-                                <div class="d-flex flex-wrap gap-1" id="vorschlaege-bemerkung_intern-liste">
-                                    <span class="text-muted small">Lade...</span>
-                                </div>
+                                @if(!empty($textvorschlaege['bemerkung_intern']))
+                                <select class="form-select form-select-sm w-auto" style="max-width: 180px;"
+                                        onchange="setzeVorschlag('bemerkung_intern', this.value); this.selectedIndex=0;">
+                                    <option value="">Vorschlag...</option>
+                                    @foreach($textvorschlaege['bemerkung_intern'] as $text)
+                                        <option value="{{ $text }}">{{ Str::limit($text, 40) }}</option>
+                                    @endforeach
+                                </select>
+                                @endif
                             </div>
                             <textarea name="bemerkung_intern" id="bemerkung_intern" class="form-control" rows="2" 
                                       placeholder="Nur intern sichtbar">{{ old('bemerkung_intern', $angebot->bemerkung_intern) }}</textarea>
@@ -633,29 +634,6 @@
     .container-fluid { padding-bottom: 80px; }
     .form-control, .form-select, .btn { min-height: 44px; font-size: 16px !important; }
 }
-
-/* Textvorschläge Styling */
-.vorschlaege-container {
-    background: #f8f9fa;
-    border-radius: 0.375rem;
-    padding: 0.5rem;
-    border: 1px dashed #dee2e6;
-}
-.vorschlag-btn {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.5rem;
-    max-width: 250px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.vorschlag-btn:hover {
-    background-color: #198754 !important;
-    color: white !important;
-    border-color: #198754 !important;
-}
 </style>
 @endpush
 
@@ -672,67 +650,13 @@ function editPosition(id, beschreibung, anzahl, einheit, einzelpreis) {
     new bootstrap.Modal(document.getElementById('modalEditPosition')).show();
 }
 
-// ==========================================
-// TEXTVORSCHLÄGE FUNKTIONEN
-// ==========================================
-
-// Cache für Vorschläge
-let textvorschlaegeCache = null;
-
-// Vorschläge laden
-async function ladeTextvorschlaege() {
-    if (textvorschlaegeCache) return textvorschlaegeCache;
-    
-    try {
-        const response = await fetch('{{ route("angebote.textvorschlaege") }}');
-        textvorschlaegeCache = await response.json();
-        return textvorschlaegeCache;
-    } catch (error) {
-        console.error('Fehler beim Laden der Vorschlaege:', error);
-        return { einleitung: [], bemerkung_kunde: [], bemerkung_intern: [] };
-    }
-}
-
-// Vorschläge anzeigen/verstecken
-async function toggleVorschlaege(feld) {
-    const container = document.getElementById('vorschlaege-' + feld);
-    const liste = document.getElementById('vorschlaege-' + feld + '-liste');
-    
-    if (container.classList.contains('d-none')) {
-        // Vorschläge laden und anzeigen
-        const vorschlaege = await ladeTextvorschlaege();
-        const feldVorschlaege = vorschlaege[feld] || [];
-        
-        if (feldVorschlaege.length === 0) {
-            liste.innerHTML = '<span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Keine Vorschlaege vorhanden</span>';
-        } else {
-            liste.innerHTML = feldVorschlaege.map(text => {
-                // Text kürzen für Button-Anzeige
-                const kurztext = text.length > 40 ? text.substring(0, 40) + '...' : text;
-                // Text escapen für onclick
-                const escapedText = text.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "");
-                return `<button type="button" class="btn btn-outline-secondary vorschlag-btn" 
-                                onclick="setzeVorschlag('${feld}', '${escapedText}')" 
-                                title="${text.replace(/"/g, '&quot;').replace(/\n/g, ' ')}">
-                            ${kurztext}
-                        </button>`;
-            }).join('');
-        }
-        
-        container.classList.remove('d-none');
-    } else {
-        container.classList.add('d-none');
-    }
-}
-
 // Vorschlag in Textfeld einfügen
 function setzeVorschlag(feld, text) {
+    if (!text) return;
+    
     const textarea = document.getElementById(feld);
-    // Umwandlung von escaped newlines zurück
-    text = text.replace(/\\n/g, "\n");
     
     if (textarea.value && textarea.value.trim() !== '') {
-        // Bestehenden Text ergänzen oder ersetzen?
         if (confirm('Bestehenden Text ersetzen?\n\nOK = Ersetzen\nAbbrechen = Anhaengen')) {
             textarea.value = text;
         } else {
@@ -742,10 +666,6 @@ function setzeVorschlag(feld, text) {
         textarea.value = text;
     }
     
-    // Vorschläge schließen
-    document.getElementById('vorschlaege-' + feld).classList.add('d-none');
-    
-    // Focus auf Textfeld
     textarea.focus();
 }
 </script>
