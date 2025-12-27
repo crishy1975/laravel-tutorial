@@ -8,11 +8,13 @@ use App\Models\Rechnung;
 use App\Models\Mahnung;
 use App\Models\BankBuchung;
 use App\Models\Gebaeude;
+use App\Models\Spruch;
 use App\Services\FaelligkeitsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
@@ -20,72 +22,6 @@ class DashboardController extends Controller
     public function __construct(
         protected FaelligkeitsService $faelligkeitsService
     ) {}
-
-    /**
-     * Freche Sprüche für die Begrüßung
-     */
-    private array $sprueche = [
-        'morgen' => [
-            "Guten Morgen %s! Zeit, die Welt zu erobern... oder zumindest die Buchhaltung.",
-            "Moin %s! Der frühe Vogel fängt den Wurm. Du fängst Rechnungen.",
-            "Aufgewacht, %s! Die Rechnungen warten nicht von alleine.",
-            "Guten Morgen %s! Kaffee ist fertig, Chaos auch.",
-            "Hey %s, schon wach? Die Mahnungen vermissen dich!",
-            "Buongiorno %s! Heute wird abgerechnet!",
-            "Morgen %s! Lass uns Geld verdienen... oder zumindest einfordern.",
-            "Guten Morgen %s, du alter Arbeitstier!",
-            "Rise and shine, %s! Die Zahlen rufen!",
-            "Na %s, ausgeschlafen? Dann mal ran an die Buletten!",
-        ],
-        'mittag' => [
-            "Mahlzeit %s! Schon was geschafft heute?",
-            "Hey %s, Mittagspause vorbei? Weiter geht's!",
-            "Hallo %s! Die Hälfte ist geschafft... oder auch nicht.",
-            "Na %s, schon hungrig? Die Rechnungen sind es auch!",
-            "Buon pranzo %s! Nach dem Essen wird weitergearbeitet!",
-            "%s, du Held! Halte durch, bald ist Feierabend!",
-            "Ciao %s! Noch ein paar Stunden, dann ist Ruhe.",
-            "Hey %s, wie läuft's? Chaos oder nur Durcheinander?",
-            "Hallo %s! Zeit für den Endspurt!",
-            "Na %s, noch motiviert? Fake it till you make it!",
-        ],
-        'abend' => [
-            "Guten Abend %s! Immer noch hier? Respekt!",
-            "Hey %s, Überstunden? Die Rechnungen danken es dir!",
-            "Buonasera %s! Feierabend ist überbewertet, oder?",
-            "Na %s, du Workaholic! Ab nach Hause!",
-            "Hallo %s! Die Arbeit läuft nicht weg... leider.",
-            "%s, immer noch da? Die Familie vermisst dich!",
-            "Abend %s! Morgen ist auch noch ein Tag.",
-            "Hey %s, mach Schluss für heute! Du hast es verdient.",
-            "Ciao %s! Genug gearbeitet, jetzt wird gelebt!",
-            "Guten Abend %s! Zeit für ein Bier... oder zwei.",
-        ],
-        'nacht' => [
-            "Hey %s, kannst du nicht schlafen? Ich auch nicht.",
-            "Nachtschicht, %s? Du bist verrückt. Aber sympathisch.",
-            "%s um diese Uhrzeit? Hardcore!",
-            "Buonanotte %s! Oder doch nicht?",
-            "Hey %s, die Geister der unbezahlten Rechnungen grüßen!",
-            "Na %s, Insomnia oder Deadline?",
-            "Hallo %s, du Nachteule! Schlaf ist was für Schwache.",
-            "%s arbeitet nachts? Legend!",
-            "Hey %s, die Server schlafen nie. Du anscheinend auch nicht.",
-            "Gute Nacht %s! Oh wait, du arbeitest ja noch...",
-        ],
-        'wochenende' => [
-            "Wochenende %s? Was machst du hier?!",
-            "Hey %s, selbst am Wochenende? Du brauchst ein Hobby!",
-            "%s am Samstag/Sonntag? Respekt... oder Mitleid?",
-            "Buon fine settimana %s! Aber offensichtlich nicht für dich.",
-            "Hallo %s! Familie? Freunde? Nein? OK, dann arbeite mal.",
-            "Hey %s, Wochenende ist zum Erholen da... theoretisch.",
-            "%s, du Streber! Wenigstens einer arbeitet hier.",
-            "Na %s, die Rechnungen warten nicht aufs Wochenende!",
-            "Hey %s, du weißt schon, dass heute frei ist?",
-            "Ciao %s! Selbst Workaholics brauchen mal Pause!",
-        ],
-    ];
 
     /**
      * Dashboard anzeigen
@@ -150,7 +86,7 @@ class DashboardController extends Controller
     }
 
     /**
-     * Begrüßung mit zufälligem Spruch
+     * Begrüßung mit zufälligem Spruch aus der Datenbank
      */
     private function getBegruessung(string $name): array
     {
@@ -172,29 +108,67 @@ class DashboardController extends Controller
             $kategorie = 'nacht';
         }
         
-        // Zufälligen Spruch aus Kategorie wählen
-        $spruchListe = $this->sprueche[$kategorie];
-        $spruch = $spruchListe[array_rand($spruchListe)];
+        // ⭐ Spruch aus Datenbank laden
+        $spruchText = $this->getSpruchText($kategorie, $name);
         
-        // Name einsetzen
-        $spruch = sprintf($spruch, $name);
-        
-        // Tageszeit-Emoji
-        $emoji = match($kategorie) {
-            'morgen' => '☀️',
-            'mittag' => '🌤️',
-            'abend' => '🌅',
-            'nacht' => '🌙',
-            'wochenende' => '🎉',
-        };
+        // Tageszeit-Emoji aus Model-Konstante
+        $emoji = Spruch::KATEGORIEN[$kategorie]['emoji'] ?? '💬';
         
         return [
-            'spruch' => $spruch,
+            'spruch' => $spruchText,
             'emoji' => $emoji,
             'kategorie' => $kategorie,
             'datum' => $now->locale('de')->isoFormat('dddd, D. MMMM YYYY'),
             'uhrzeit' => $now->format('H:i'),
         ];
+    }
+
+    /**
+     * Spruch-Text aus Datenbank holen (mit Fallback)
+     */
+    private function getSpruchText(string $kategorie, string $name): string
+    {
+        try {
+            // Prüfen ob Tabelle existiert
+            if (!Schema::hasTable('sprueche')) {
+                return $this->getFallbackSpruch($kategorie, $name);
+            }
+            
+            // Zufälligen aktiven Spruch aus der Kategorie holen
+            $spruch = Spruch::zufaellig($kategorie);
+            
+            if ($spruch) {
+                return $spruch->formatiert($name);
+            }
+            
+            // Fallback wenn keine Sprüche in DB
+            return $this->getFallbackSpruch($kategorie, $name);
+            
+        } catch (\Exception $e) {
+            Log::warning('Fehler beim Laden des Spruchs aus DB', [
+                'kategorie' => $kategorie,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return $this->getFallbackSpruch($kategorie, $name);
+        }
+    }
+
+    /**
+     * Fallback-Sprüche falls DB nicht verfügbar
+     */
+    private function getFallbackSpruch(string $kategorie, string $name): string
+    {
+        $fallbacks = [
+            'morgen' => "Guten Morgen %s! Zeit für die Buchhaltung.",
+            'mittag' => "Mahlzeit %s! Weiter geht's!",
+            'abend' => "Guten Abend %s! Immer noch fleißig?",
+            'nacht' => "Hey %s, Nachtschicht?",
+            'wochenende' => "Wochenende %s? Respekt!",
+        ];
+        
+        $text = $fallbacks[$kategorie] ?? "Hallo %s!";
+        return sprintf($text, $name);
     }
 
     /**
@@ -210,63 +184,56 @@ class DashboardController extends Controller
             // Gebaeude-Tabelle existiert evtl. nicht
         }
         
-        // ⭐ NEU: Fällige Reinigungen
+        // Fällige Reinigungen
         $faelligeReinigungen = 0;
         try {
-            $faelligeReinigungen = Gebaeude::where('faellig', true)->count();
+            if (Schema::hasTable('gebaude') || Schema::hasTable('gebaeudes')) {
+                $tableName = Schema::hasTable('gebaude') ? 'gebaude' : 'gebaeudes';
+                $faelligeReinigungen = Gebaeude::where('naechste_reinigung', '<=', today())->count();
+            }
         } catch (\Exception $e) {}
         
-        // Überfällige Rechnungen (für Info)
+        // Überfällige Rechnungen
         $ueberfaelligeRechnungen = 0;
         $offenerBetrag = 0;
-        
         try {
-            $ueberfaelligeRechnungen = Rechnung::ueberfaellig()->count();
-            $offenerBetrag = Rechnung::unbezahlt()->sum('zahlbar_betrag');
-        } catch (\Exception $e) {
-            // Fallback
-            try {
-                $ueberfaelligeRechnungen = Rechnung::where('status', 'sent')
-                    ->where('zahlungsziel', '<', now())
-                    ->count();
-                $offenerBetrag = Rechnung::whereIn('status', ['draft', 'sent'])
-                    ->sum('zahlbar_betrag');
-            } catch (\Exception $e2) {
-                // Tabelle existiert evtl. nicht
-            }
-        }
+            $ueberfaellige = Rechnung::where('status', 'overdue')->get();
+            $ueberfaelligeRechnungen = $ueberfaellige->count();
+            $offenerBetrag = $ueberfaellige->sum('zahlbar_betrag');
+        } catch (\Exception $e) {}
         
-        // Tage seit letztem Mahnlauf
+        // Tage seit letzter Mahnung
         $tageSeitMahnung = null;
         try {
-            $letzteMahnung = Mahnung::orderByDesc('created_at')->first();
-            $tageSeitMahnung = $letzteMahnung 
-                ? (int) $letzteMahnung->created_at->diffInDays(now()) 
-                : null;
-        } catch (\Exception $e) {
-            // Mahnung-Tabelle existiert evtl. nicht
-        }
+            if (Schema::hasTable('mahnungen')) {
+                $letzteMahnung = Mahnung::latest('erstellt_am')->first();
+                if ($letzteMahnung) {
+                    $tageSeitMahnung = Carbon::parse($letzteMahnung->erstellt_am)->diffInDays(today());
+                }
+            }
+        } catch (\Exception $e) {}
         
-        // Tage seit letztem Bank-Match
+        // Tage seit letztem Match
         $tageSeitMatch = null;
         $unmatchedBuchungen = 0;
         try {
             if (Schema::hasTable('bank_buchungen')) {
-                $letzteGematchte = BankBuchung::whereNotNull('rechnung_id')
-                    ->orderByDesc('updated_at')
+                // Letzter erfolgreicher Match
+                $letzterMatch = BankBuchung::whereNotNull('rechnung_id')
+                    ->latest('matched_at')
                     ->first();
-                $tageSeitMatch = $letzteGematchte 
-                    ? (int) $letzteGematchte->updated_at->diffInDays(now()) 
-                    : null;
+                if ($letzterMatch && $letzterMatch->matched_at) {
+                    $tageSeitMatch = Carbon::parse($letzterMatch->matched_at)->diffInDays(today());
+                }
                 
-                // Nicht zugeordnete Buchungen (nur Haben/Eingang)
+                // Ungematchte Buchungen
                 $unmatchedBuchungen = BankBuchung::whereNull('rechnung_id')
-                    ->where('haben', '>', 0)
+                    ->where('ist_einnahme', true)
                     ->count();
             }
         } catch (\Exception $e) {}
         
-        // Offene Erinnerungen
+        // Erinnerungen (Gebäude + Rechnungen)
         $offeneGebaeudeErinnerungen = 0;
         $offeneRechnungErinnerungen = 0;
         $heuteFaellig = 0;
@@ -285,7 +252,7 @@ class DashboardController extends Controller
                 ->count();
                 
             // Heute fällig (Gebäude)
-            $heuteFaellig += GebaeudeLog::whereDate('erinnerung_datum', today())
+            $heuteFaellig = GebaeudeLog::whereDate('erinnerung_datum', today())
                 ->where(function($q) {
                     $q->where('erinnerung_erledigt', false)
                       ->orWhereNull('erinnerung_erledigt');
@@ -293,7 +260,7 @@ class DashboardController extends Controller
                 ->count();
                 
             // Überfällig (Gebäude)
-            $ueberfaelligeErinnerungen += GebaeudeLog::where(function($q) {
+            $ueberfaelligeErinnerungen = GebaeudeLog::where(function($q) {
                     $q->whereDate('erinnerung_datum', '<', today())
                       ->orWhere(function($q2) {
                           $q2->where('typ', 'erinnerung')
@@ -308,8 +275,8 @@ class DashboardController extends Controller
         } catch (\Exception $e) {}
         
         try {
-            // Rechnungs-Erinnerungen
             if (Schema::hasTable('rechnung_logs')) {
+                // Rechnungs-Erinnerungen
                 $offeneRechnungErinnerungen = RechnungLog::where(function($q) {
                         $q->whereNotNull('erinnerung_datum')
                           ->orWhere('typ', 'erinnerung');
