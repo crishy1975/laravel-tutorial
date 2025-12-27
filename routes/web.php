@@ -21,6 +21,7 @@ use App\Http\Controllers\GebaeudeLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GebaeudeDocumentController;
 use App\Http\Controllers\FaelligkeitsSimulatorController;
+use App\Http\Controllers\ErinnerungenController;
 
 
 
@@ -687,6 +688,12 @@ Route::prefix('faelligkeit')->name('faelligkeit.')->group(function () {
     // Einzelnes Gebäude aktualisieren (AJAX)
     Route::post('/gebaeude/{id}/update', [FaelligkeitsSimulatorController::class, 'updateGebaeude'])
         ->name('updateGebaeude');
+});
+
+// Erinnerungen
+Route::middleware(['auth'])->group(function () {
+    Route::get('/erinnerungen', [ErinnerungenController::class, 'index'])->name('erinnerungen.index');
+    Route::post('/erinnerungen/toggle', [ErinnerungenController::class, 'toggle'])->name('erinnerungen.toggle');
 });
 
 
