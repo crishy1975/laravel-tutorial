@@ -431,16 +431,16 @@
                 <div class="mb-2">
                     <label class="form-label small">Platzhalter einfügen:</label>
                     <div class="btn-group btn-group-sm flex-wrap">
-                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('{{DATUM}}')">
+                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('@{{DATUM}}')">
                             📅 Datum
                         </button>
-                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('{{VON}}')">
+                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('@{{VON}}')">
                             Von
                         </button>
-                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('{{BIS}}')">
+                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('@{{BIS}}')">
                             Bis
                         </button>
-                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('{{ZEIT}}')">
+                        <button type="button" class="btn btn-outline-info" onclick="einfuegenPlatzhalter('@{{ZEIT}}')">
                             Von-Bis
                         </button>
                     </div>
@@ -452,9 +452,9 @@
                         Nachricht:
                     </label>
                     <textarea class="form-control" id="vorlageText" rows="5" 
-                              placeholder="Guten Tag, wir kommen am {{DATUM}} zwischen {{VON}} und {{BIS}} Uhr.
+                              placeholder="Guten Tag, wir kommen am @{{DATUM}} zwischen @{{VON}} und @{{BIS}} Uhr.
 ---
-Buongiorno, veniamo il {{DATUM}} tra le {{VON}} e le {{BIS}}."></textarea>
+Buongiorno, veniamo il @{{DATUM}} tra le @{{VON}} e le @{{BIS}}."></textarea>
                     <div class="form-text">
                         Trenne Deutsch und Italienisch mit <code>---</code>
                     </div>
