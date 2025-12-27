@@ -23,11 +23,9 @@ class Kernel extends ConsoleKernel
         
         // Wöchentlich Sonntag um 03:00 Uhr - Datenbank-Backup
         $schedule->command('backup:create')
-            ->everyFiveMinutes()  // ← Für Test: alle 5 Minuten
-            // ->weekly()         // ← Später: wöchentlich
-            // ->sundays()        // ← Später: Sonntag
-            // ->at('03:00')      // ← Später: um 03:00 Uhr
-
+            ->weekly()
+            ->sundays()
+            ->at('03:00')
             ->timezone('Europe/Rome')
             ->onOneServer()
             ->withoutOverlapping()
