@@ -11,15 +11,13 @@ class Textvorschlag extends Model
 
     protected $fillable = [
         'kategorie',
-        'sprache',
+        'titel',
         'text',
         'aktiv',
-        'sortierung',
     ];
 
     protected $casts = [
         'aktiv' => 'boolean',
-        'sortierung' => 'integer',
     ];
 
     // =========================================================================
@@ -27,16 +25,12 @@ class Textvorschlag extends Model
     // =========================================================================
 
     public const KATEGORIEN = [
+        'reinigung_nachricht' => 'Reinigung - SMS/WhatsApp',
         'reinigung_bemerkung' => 'Reinigung - Bemerkung',
         'angebot_einleitung' => 'Angebot - Einleitung',
         'angebot_bemerkung_kunde' => 'Angebot - Bemerkung Kunde',
         'angebot_bemerkung_intern' => 'Angebot - Bemerkung Intern',
         'rechnung_bemerkung' => 'Rechnung - Bemerkung',
-    ];
-
-    public const SPRACHEN = [
-        'de' => 'Deutsch',
-        'it' => 'Italiano',
     ];
 
     // =========================================================================
@@ -53,46 +47,19 @@ class Textvorschlag extends Model
         return $query->where('kategorie', $kategorie);
     }
 
-    public function scopeSprache(Builder $query, string $sprache): Builder
-    {
-        return $query->where('sprache', $sprache);
-    }
-
-    public function scopeSortiert(Builder $query): Builder
-    {
-        return $query->orderBy('sortierung')->orderBy('text');
-    }
-
     // =========================================================================
     // STATISCHE HELPER
     // =========================================================================
 
     /**
-     * Holt alle aktiven Vorschläge für eine Kategorie, gruppiert nach Sprache
+     * Holt alle aktiven Vorschläge für eine Kategorie
      */
-    public static function fuerKategorie(string $kategorie): array
-    {
-        $vorschlaege = self::aktiv()
-            ->kategorie($kategorie)
-            ->sortiert()
-            ->get();
-
-        return [
-            'de' => $vorschlaege->where('sprache', 'de')->pluck('text')->toArray(),
-            'it' => $vorschlaege->where('sprache', 'it')->pluck('text')->toArray(),
-        ];
-    }
-
-    /**
-     * Holt alle aktiven Vorschläge für eine Kategorie als flaches Array
-     */
-    public static function fuerKategorieFlach(string $kategorie): array
+    public static function fuerKategorie(string $kategorie): \Illuminate\Database\Eloquent\Collection
     {
         return self::aktiv()
             ->kategorie($kategorie)
-            ->sortiert()
-            ->pluck('text')
-            ->toArray();
+            ->orderBy('titel')
+            ->get();
     }
 
     // =========================================================================
@@ -104,17 +71,11 @@ class Textvorschlag extends Model
         return self::KATEGORIEN[$this->kategorie] ?? $this->kategorie;
     }
 
-    public function getSpracheNameAttribute(): string
+    /**
+     * Gibt den Titel oder gekürzte Version des Texts zurück
+     */
+    public function getAnzeigeNameAttribute(): string
     {
-        return self::SPRACHEN[$this->sprache] ?? $this->sprache;
-    }
-
-    public function getSpracheFlagAttribute(): string
-    {
-        return match($this->sprache) {
-            'de' => '🇩🇪',
-            'it' => '🇮🇹',
-            default => '🌐',
-        };
+        return $this->titel ?: \Str::limit($this->text, 40);
     }
 }
