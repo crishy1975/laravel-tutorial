@@ -203,15 +203,21 @@
                             <th style="width: 100px;">Codex</th>
                             <th>Gebäude</th>
                             <th>Adresse</th>
-                            <th style="width: 120px;">Tour(en)</th>
-                            <th style="width: 120px;">Letzte Reinigung</th>
-                            <th style="width: 120px;">Nächste Fälligkeit</th>
-                            <th style="width: 100px;" class="text-center">Status</th>
-                            <th style="width: 100px;" class="text-end">Aktion</th>
+                            <th style="width: 100px;">Kontakt</th>
+                            <th style="width: 100px;">Tour(en)</th>
+                            <th style="width: 110px;">Letzte Reinigung</th>
+                            <th style="width: 110px;">Nächste Fälligkeit</th>
+                            <th style="width: 80px;" class="text-center">Status</th>
+                            <th style="width: 80px;" class="text-end">Aktion</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($gebaeude as $g)
+                            @php
+                                $telefon = $g->telefon ?: $g->handy;
+                                $telefonClean = $telefon ? preg_replace('/[^0-9+]/', '', $telefon) : null;
+                                $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
+                            @endphp
                             <tr class="{{ $g->ist_erledigt ? 'table-success' : '' }}">
                                 <td>
                                     <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none fw-bold">
@@ -222,6 +228,24 @@
                                 <td class="small">
                                     {{ $g->strasse }} {{ $g->hausnummer }}
                                     @if($g->wohnort), {{ $g->plz }} {{ $g->wohnort }}@endif
+                                </td>
+                                <td>
+                                    {{-- ⭐ Kontakt-Buttons Desktop --}}
+                                    <div class="btn-group btn-group-sm">
+                                        @if($telefonClean)
+                                            <a href="tel:{{ $telefonClean }}" class="btn btn-outline-primary" title="Anrufen">
+                                                <i class="bi bi-telephone"></i>
+                                            </a>
+                                            <a href="https://wa.me/{{ ltrim($telefonClean, '+') }}" target="_blank" class="btn btn-outline-success" title="WhatsApp">
+                                                <i class="bi bi-whatsapp"></i>
+                                            </a>
+                                        @endif
+                                        @if($adresseEncoded)
+                                            <a href="https://maps.google.com/?q={{ $adresseEncoded }}" target="_blank" class="btn btn-outline-secondary" title="Maps">
+                                                <i class="bi bi-geo-alt"></i>
+                                            </a>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td>
                                     @forelse($g->touren as $tour)
@@ -273,6 +297,11 @@
             {{-- Mobile: Card-Liste --}}
             <div class="d-lg-none">
                 @foreach($gebaeude as $g)
+                    @php
+                        $telefon = $g->telefon ?: $g->handy;
+                        $telefonClean = $telefon ? preg_replace('/[^0-9+]/', '', $telefon) : null;
+                        $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
+                    @endphp
                     <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }} p-2">
                         {{-- Zeile 1: Codex, Name, Status --}}
                         <div class="d-flex justify-content-between align-items-start mb-1">
@@ -304,7 +333,27 @@
                             @endif
                         </div>
 
-                        {{-- Zeile 3: Datum & Aktion --}}
+                        {{-- ⭐ NEU: Zeile 3: Kontakt-Buttons --}}
+                        <div class="d-flex gap-1 mb-2">
+                            @if($telefonClean)
+                                <a href="tel:{{ $telefonClean }}" class="btn btn-outline-primary btn-sm py-1 px-2">
+                                    <i class="bi bi-telephone"></i> Anrufen
+                                </a>
+                                <a href="sms:{{ $telefonClean }}" class="btn btn-outline-secondary btn-sm py-1 px-2">
+                                    <i class="bi bi-chat-dots"></i> SMS
+                                </a>
+                                <a href="https://wa.me/{{ ltrim($telefonClean, '+') }}" target="_blank" class="btn btn-outline-success btn-sm py-1 px-2">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                            @endif
+                            @if($adresseEncoded)
+                                <a href="https://maps.google.com/?q={{ $adresseEncoded }}" target="_blank" class="btn btn-outline-dark btn-sm py-1 px-2">
+                                    <i class="bi bi-geo-alt"></i> Maps
+                                </a>
+                            @endif
+                        </div>
+
+                        {{-- Zeile 4: Datum & Aktion --}}
                         <div class="d-flex justify-content-between align-items-center">
                             <div class="small">
                                 <span class="text-muted">Letzte:</span>
@@ -390,8 +439,33 @@
                                    value="{{ now()->format('Y-m-d') }}" max="{{ now()->format('Y-m-d') }}">
                         </div>
 
+                        {{-- ⭐ Bemerkung mit Vorschlägen aus DB --}}
                         <div class="mb-0">
-                            <label for="bemerkung{{ $g->id }}" class="form-label">Bemerkung <small class="text-muted">(optional)</small></label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="bemerkung{{ $g->id }}" class="form-label mb-0">
+                                    Bemerkung <small class="text-muted">(optional)</small>
+                                </label>
+                                @if(!empty($bemerkungVorschlaege['de']) || !empty($bemerkungVorschlaege['it']))
+                                <select class="form-select form-select-sm w-auto" style="max-width: 160px;"
+                                        onchange="setzeBemerkung('bemerkung{{ $g->id }}', this.value); this.selectedIndex=0;">
+                                    <option value="">Vorschlag...</option>
+                                    @if(!empty($bemerkungVorschlaege['de']))
+                                    <optgroup label="🇩🇪 Deutsch">
+                                        @foreach($bemerkungVorschlaege['de'] as $text)
+                                            <option value="{{ $text }}">{{ Str::limit($text, 30) }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                    @endif
+                                    @if(!empty($bemerkungVorschlaege['it']))
+                                    <optgroup label="🇮🇹 Italiano">
+                                        @foreach($bemerkungVorschlaege['it'] as $text)
+                                            <option value="{{ $text }}">{{ Str::limit($text, 30) }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                    @endif
+                                </select>
+                                @endif
+                            </div>
                             <input type="text" class="form-control" id="bemerkung{{ $g->id }}" name="bemerkung" 
                                    placeholder="z.B. Fenster auch gereinigt" maxlength="500">
                         </div>
@@ -506,5 +580,17 @@
             if (link) window.location.href = link.href;
         });
     });
+
+    // ⭐ Bemerkung aus Vorschlag setzen
+    function setzeBemerkung(feldId, text) {
+        if (!text) return;
+        const input = document.getElementById(feldId);
+        if (input.value && input.value.trim() !== '') {
+            input.value = input.value + ', ' + text;
+        } else {
+            input.value = text;
+        }
+        input.focus();
+    }
 </script>
 @endpush
