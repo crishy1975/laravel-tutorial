@@ -19,37 +19,36 @@ class TextvorschlagController extends Controller
             $query->where('kategorie', $request->kategorie);
         }
 
-        // Filter: Sprache
-        if ($request->filled('sprache')) {
-            $query->where('sprache', $request->sprache);
-        }
-
         // Filter: Status
         if ($request->filled('status')) {
             $query->where('aktiv', $request->status === 'aktiv');
         }
 
+        // Filter: Suche
+        if ($request->filled('suche')) {
+            $suche = $request->suche;
+            $query->where(function($q) use ($suche) {
+                $q->where('titel', 'like', "%{$suche}%")
+                  ->orWhere('text', 'like', "%{$suche}%");
+            });
+        }
+
         $vorschlaege = $query
             ->orderBy('kategorie')
-            ->orderBy('sprache')
-            ->orderBy('sortierung')
-            ->orderBy('text')
+            ->orderBy('titel')
             ->paginate(50)
             ->withQueryString();
 
         $kategorien = Textvorschlag::KATEGORIEN;
-        $sprachen = Textvorschlag::SPRACHEN;
 
         // Statistik
         $stats = [
             'gesamt' => Textvorschlag::count(),
             'aktiv' => Textvorschlag::where('aktiv', true)->count(),
-            'deutsch' => Textvorschlag::where('sprache', 'de')->count(),
-            'italienisch' => Textvorschlag::where('sprache', 'it')->count(),
         ];
 
         return view('textvorschlaege.index', compact(
-            'vorschlaege', 'kategorien', 'sprachen', 'stats'
+            'vorschlaege', 'kategorien', 'stats'
         ));
     }
 
@@ -60,9 +59,8 @@ class TextvorschlagController extends Controller
     {
         $vorschlag = new Textvorschlag();
         $kategorien = Textvorschlag::KATEGORIEN;
-        $sprachen = Textvorschlag::SPRACHEN;
 
-        return view('textvorschlaege.form', compact('vorschlag', 'kategorien', 'sprachen'));
+        return view('textvorschlaege.form', compact('vorschlag', 'kategorien'));
     }
 
     /**
@@ -72,16 +70,19 @@ class TextvorschlagController extends Controller
     {
         $data = $request->validate([
             'kategorie' => 'required|string|max:50',
-            'sprache' => 'required|in:de,it',
-            'text' => 'required|string|max:1000',
+            'titel' => 'nullable|string|max:100',
+            'text' => 'required|string|max:2000',
             'aktiv' => 'boolean',
-            'sortierung' => 'nullable|integer|min:0',
         ]);
 
         $data['aktiv'] = $request->has('aktiv');
-        $data['sortierung'] = $data['sortierung'] ?? 0;
 
         Textvorschlag::create($data);
+
+        // Bei AJAX-Request
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Vorlage gespeichert.']);
+        }
 
         return redirect()
             ->route('textvorschlaege.index')
@@ -95,9 +96,8 @@ class TextvorschlagController extends Controller
     {
         $vorschlag = $textvorschlag;
         $kategorien = Textvorschlag::KATEGORIEN;
-        $sprachen = Textvorschlag::SPRACHEN;
 
-        return view('textvorschlaege.form', compact('vorschlag', 'kategorien', 'sprachen'));
+        return view('textvorschlaege.form', compact('vorschlag', 'kategorien'));
     }
 
     /**
@@ -107,14 +107,12 @@ class TextvorschlagController extends Controller
     {
         $data = $request->validate([
             'kategorie' => 'required|string|max:50',
-            'sprache' => 'required|in:de,it',
-            'text' => 'required|string|max:1000',
+            'titel' => 'nullable|string|max:100',
+            'text' => 'required|string|max:2000',
             'aktiv' => 'boolean',
-            'sortierung' => 'nullable|integer|min:0',
         ]);
 
         $data['aktiv'] = $request->has('aktiv');
-        $data['sortierung'] = $data['sortierung'] ?? 0;
 
         $textvorschlag->update($data);
 
@@ -148,7 +146,7 @@ class TextvorschlagController extends Controller
     }
 
     /**
-     * API: Vorschläge für eine Kategorie (für AJAX)
+     * API: Vorschläge für eine Kategorie (für AJAX/Dropdown)
      */
     public function api(Request $request)
     {
@@ -158,6 +156,36 @@ class TextvorschlagController extends Controller
             return response()->json(['error' => 'Kategorie erforderlich'], 400);
         }
 
-        return response()->json(Textvorschlag::fuerKategorie($kategorie));
+        $vorschlaege = Textvorschlag::fuerKategorie($kategorie)
+            ->map(fn($v) => [
+                'id' => $v->id,
+                'titel' => $v->anzeige_name,
+                'text' => $v->text,
+            ]);
+
+        return response()->json($vorschlaege);
+    }
+
+    /**
+     * API: Neue Vorlage speichern (AJAX aus Modal)
+     */
+    public function apiStore(Request $request)
+    {
+        $data = $request->validate([
+            'kategorie' => 'required|string|max:50',
+            'titel' => 'nullable|string|max:100',
+            'text' => 'required|string|max:2000',
+        ]);
+
+        $data['aktiv'] = true;
+
+        $vorschlag = Textvorschlag::create($data);
+
+        return response()->json([
+            'success' => true,
+            'id' => $vorschlag->id,
+            'titel' => $vorschlag->anzeige_name,
+            'message' => 'Vorlage gespeichert!'
+        ]);
     }
 }
