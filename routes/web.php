@@ -696,6 +696,18 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/erinnerungen/toggle', [ErinnerungenController::class, 'toggle'])->name('erinnerungen.toggle');
 });
 
+use App\Http\Controllers\BackupController;
+
+// Backup-Routen
+Route::middleware(['auth'])->prefix('backup')->name('backup.')->group(function () {
+    Route::get('/', [BackupController::class, 'index'])->name('index');
+    Route::post('/create', [BackupController::class, 'create'])->name('create');
+    Route::get('/{backup}/download', [BackupController::class, 'download'])->name('download');
+    Route::get('/{backup}/log', [BackupController::class, 'log'])->name('log');
+    Route::delete('/{backup}', [BackupController::class, 'destroy'])->name('destroy');
+    Route::post('/cleanup', [BackupController::class, 'cleanup'])->name('cleanup');
+});
+
 
 
 // ==================== Auth Routes (Breeze) ====================
