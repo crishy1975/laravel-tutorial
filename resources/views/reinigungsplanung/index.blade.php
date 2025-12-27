@@ -382,7 +382,12 @@
                 
                 {{-- Vorlage aus DB wählen --}}
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Gespeicherte Vorlage laden:</label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-bold mb-0">Gespeicherte Vorlage laden:</label>
+                        <a href="{{ route('textvorschlaege.index') }}" class="small" target="_blank">
+                            <i class="bi bi-gear"></i> Vorlagen verwalten
+                        </a>
+                    </div>
                     <select id="vorlageSelect" class="form-select" onchange="vorlageAusDbLaden()">
                         <option value="">-- Vorlage wählen --</option>
                         @foreach($nachrichtVorschlaege as $v)
