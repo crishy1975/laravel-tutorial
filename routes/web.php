@@ -713,6 +713,7 @@ Route::middleware(['auth'])->prefix('backup')->name('backup.')->group(function (
 });
 
 
+
 use App\Http\Controllers\TextvorschlagController;
 
 // Textvorschläge verwalten
@@ -727,7 +728,9 @@ Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])
 
     // API für AJAX
     Route::get('/api', [TextvorschlagController::class, 'api'])->name('api');
+    Route::post('/api/store', [TextvorschlagController::class, 'apiStore'])->name('api.store');
 });
+
 
 
 // ==================== Auth Routes (Breeze) ====================
