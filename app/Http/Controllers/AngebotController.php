@@ -627,4 +627,48 @@ class AngebotController extends Controller
             ->route('angebote.edit', $neues)
             ->with('success', 'Angebot kopiert als ' . $neues->angebotsnummer);
     }
+
+    // =======================================================================
+    // TEXTVORSCHLAEGE (NEU)
+    // =======================================================================
+
+    /**
+     * API: Textvorschläge für Autocomplete
+     */
+    public function textvorschlaege(Request $request)
+    {
+        $feld = $request->input('feld', 'alle');
+        
+        if ($feld === 'alle') {
+            return response()->json([
+                'einleitung' => $this->getTextvorschlaegeAusDb('einleitung'),
+                'bemerkung_kunde' => $this->getTextvorschlaegeAusDb('bemerkung_kunde'),
+                'bemerkung_intern' => $this->getTextvorschlaegeAusDb('bemerkung_intern'),
+            ]);
+        }
+        
+        return response()->json($this->getTextvorschlaegeAusDb($feld));
+    }
+
+    /**
+     * Holt einzigartige Texte aus der DB
+     */
+    private function getTextvorschlaegeAusDb(string $feld, int $limit = 20): array
+    {
+        $erlaubt = ['einleitung', 'bemerkung_kunde', 'bemerkung_intern'];
+        
+        if (!in_array($feld, $erlaubt)) {
+            return [];
+        }
+        
+        return Angebot::whereNotNull($feld)
+            ->where($feld, '!=', '')
+            ->selectRaw("DISTINCT {$feld}")
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->pluck($feld)
+            ->unique()
+            ->values()
+            ->toArray();
+    }
 }
