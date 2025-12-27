@@ -96,7 +96,7 @@ class BankBuchungController extends Controller
     public function import(Request $request)
     {
         $request->validate([
-            //'xml_datei' => 'required|file|mimes:xml|max:10240', // max 10MB
+            'xml_datei' => 'required|file|mimes:xml|max:10240', // max 10MB
             'xml_datei' => 'required|file|mimetypes:text/xml,application/xml,text/plain|max:10240'
         ]);
 
