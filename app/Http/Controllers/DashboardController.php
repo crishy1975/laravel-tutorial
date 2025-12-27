@@ -9,6 +9,7 @@ use App\Models\Mahnung;
 use App\Models\BankBuchung;
 use App\Models\Gebaeude;
 use App\Models\Spruch;
+use App\Models\Backup;
 use App\Services\FaelligkeitsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -311,6 +312,25 @@ class DashboardController extends Controller
             }
         } catch (\Exception $e) {}
         
+        // Backup-Status
+        $backupDownloadFaellig = false;
+        $tageSeitBackupDownload = null;
+        $nichtHeruntergeladeneBackups = 0;
+        
+        try {
+            if (Schema::hasTable('backups')) {
+                $tageSeitBackupDownload = Backup::tageSeitDownload();
+                $nichtHeruntergeladeneBackups = Backup::nichtHeruntergeladen();
+                
+                // Fällig wenn: >= 7 Tage seit letztem Download ODER noch nie heruntergeladen aber Backups existieren
+                if ($tageSeitBackupDownload !== null && $tageSeitBackupDownload >= 7) {
+                    $backupDownloadFaellig = true;
+                } elseif ($tageSeitBackupDownload === null && Backup::count() > 0) {
+                    $backupDownloadFaellig = true;
+                }
+            }
+        } catch (\Exception $e) {}
+        
         return [
             'rechnung_zu_schreiben' => $rechnungZuSchreiben,
             'faellige_reinigungen' => $faelligeReinigungen,
@@ -322,6 +342,9 @@ class DashboardController extends Controller
             'offene_erinnerungen' => $offeneGebaeudeErinnerungen + $offeneRechnungErinnerungen,
             'heute_faellig' => $heuteFaellig,
             'ueberfaellige_erinnerungen' => $ueberfaelligeErinnerungen,
+            'backup_download_faellig' => $backupDownloadFaellig,
+            'tage_seit_backup_download' => $tageSeitBackupDownload,
+            'nicht_heruntergeladene_backups' => $nichtHeruntergeladeneBackups,
         ];
     }
 
