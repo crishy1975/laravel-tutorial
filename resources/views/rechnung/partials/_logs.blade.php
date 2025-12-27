@@ -1,5 +1,6 @@
 {{-- resources/views/rechnung/partials/_logs.blade.php --}}
 {{-- Log-System Tab für Rechnungsformular --}}
+{{-- ⭐ MOBILE-OPTIMIERTE VERSION --}}
 {{-- ⭐ WICHTIG: Das Modal wird über @push('modals') AUSSERHALB des Hauptforms eingebunden! --}}
 
 @php
@@ -20,65 +21,66 @@
     $mahnungLogs = $logs->filter(fn($l) => str_starts_with($l->typ->value ?? '', 'mahnung'));
 @endphp
 
-<div class="row g-4">
+<div class="row g-3 g-md-4">
 
     {{-- ═══════════════════════════════════════════════════════════
-        QUICK ACTIONS
+        QUICK ACTIONS - MOBILE-OPTIMIERT
     ═══════════════════════════════════════════════════════════ --}}
     <div class="col-12">
         <div class="card border-primary">
             <div class="card-header bg-primary text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Neuer Eintrag</h6>
             </div>
-            <div class="card-body">
+            <div class="card-body p-2 p-md-3">
+                {{-- Mobile: 3x2 Grid, Desktop: 6 in einer Reihe --}}
                 <div class="row g-2">
                     {{-- Kommunikation --}}
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-secondary w-100" 
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100 h-100 py-2 py-md-3" 
                                 onclick="openLogModal('telefonat')">
-                            <i class="bi bi-telephone"></i><br>
-                            <small>Telefonat</small>
+                            <i class="bi bi-telephone fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Telefonat</small>
                         </button>
                     </div>
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-secondary w-100"
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100 h-100 py-2 py-md-3"
                                 onclick="openLogModal('mitteilung_kunde')">
-                            <i class="bi bi-chat-left-text"></i><br>
-                            <small>Kundenmitteilung</small>
+                            <i class="bi bi-chat-left-text fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Kunde</small>
                         </button>
                     </div>
                     
                     {{-- Notizen --}}
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-secondary w-100"
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-secondary w-100 h-100 py-2 py-md-3"
                                 onclick="openLogModal('notiz')">
-                            <i class="bi bi-sticky"></i><br>
-                            <small>Notiz</small>
+                            <i class="bi bi-sticky fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Notiz</small>
                         </button>
                     </div>
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-warning w-100"
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-warning w-100 h-100 py-2 py-md-3"
                                 onclick="openLogModal('erinnerung')">
-                            <i class="bi bi-bell"></i><br>
-                            <small>Erinnerung</small>
+                            <i class="bi bi-bell fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Erinnerung</small>
                         </button>
                     </div>
                     
                     {{-- Mahnung --}}
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-danger w-100"
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-danger w-100 h-100 py-2 py-md-3"
                                 onclick="openLogModal('mahnung_telefonisch')">
-                            <i class="bi bi-telephone-x"></i><br>
-                            <small>Tel. Mahnung</small>
+                            <i class="bi bi-telephone-x fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Mahnung</small>
                         </button>
                     </div>
                     
                     {{-- Zahlung --}}
-                    <div class="col-md-2">
-                        <button type="button" class="btn btn-outline-success w-100"
+                    <div class="col-4 col-md-2">
+                        <button type="button" class="btn btn-outline-success w-100 h-100 py-2 py-md-3"
                                 onclick="openLogModal('zahlung_eingegangen')">
-                            <i class="bi bi-currency-euro"></i><br>
-                            <small>Zahlung</small>
+                            <i class="bi bi-currency-euro fs-5 d-block mb-1"></i>
+                            <small class="d-block text-truncate">Zahlung</small>
                         </button>
                     </div>
                 </div>
@@ -87,9 +89,10 @@
                 @if($rechnung->status === 'sent')
                     <div class="mt-3 pt-3 border-top">
                         <a href="{{ route('mahnungen.index') }}" class="btn btn-sm btn-outline-danger">
-                            <i class="bi bi-envelope-exclamation"></i> Zum Mahnwesen
+                            <i class="bi bi-envelope-exclamation"></i> 
+                            <span class="d-none d-sm-inline">Zum</span> Mahnwesen
                         </a>
-                        <small class="text-muted ms-2">Für automatische Mahnungen per E-Mail/Post</small>
+                        <small class="text-muted ms-2 d-none d-md-inline">Für automatische Mahnungen per E-Mail/Post</small>
                     </div>
                 @endif
             </div>
@@ -97,38 +100,38 @@
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
-        STATISTIKEN
+        STATISTIKEN - MOBILE-OPTIMIERT (2x2 statt 4x1)
     ═══════════════════════════════════════════════════════════ --}}
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
         <div class="card text-center h-100">
-            <div class="card-body">
-                <h3 class="mb-0">{{ $logs->count() }}</h3>
-                <small class="text-muted">Einträge gesamt</small>
+            <div class="card-body p-2 p-md-3">
+                <h3 class="mb-0 fs-4">{{ $logs->count() }}</h3>
+                <small class="text-muted">Einträge</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
         <div class="card text-center h-100 {{ $offeneErinnerungen > 0 ? 'border-warning' : '' }}">
-            <div class="card-body">
-                <h3 class="mb-0 {{ $offeneErinnerungen > 0 ? 'text-warning' : '' }}">
+            <div class="card-body p-2 p-md-3">
+                <h3 class="mb-0 fs-4 {{ $offeneErinnerungen > 0 ? 'text-warning' : '' }}">
                     {{ $offeneErinnerungen }}
                 </h3>
-                <small class="text-muted">Offene Erinnerungen</small>
+                <small class="text-muted">Offen</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
         <div class="card text-center h-100">
-            <div class="card-body">
-                <h3 class="mb-0">{{ $logs->where('kategorie', 'kommunikation')->count() }}</h3>
-                <small class="text-muted">Kommunikation</small>
+            <div class="card-body p-2 p-md-3">
+                <h3 class="mb-0 fs-4">{{ $logs->where('kategorie', 'kommunikation')->count() }}</h3>
+                <small class="text-muted">Kommunik.</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-6 col-md-3">
         <div class="card text-center h-100 {{ $mahnungLogs->count() > 0 ? 'border-danger' : '' }}">
-            <div class="card-body">
-                <h3 class="mb-0 {{ $mahnungLogs->count() > 0 ? 'text-danger' : '' }}">
+            <div class="card-body p-2 p-md-3">
+                <h3 class="mb-0 fs-4 {{ $mahnungLogs->count() > 0 ? 'text-danger' : '' }}">
                     {{ $mahnungLogs->count() }}
                 </h3>
                 <small class="text-muted">Mahnungen</small>
@@ -137,41 +140,41 @@
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
-        LOG-TIMELINE
+        LOG-TIMELINE - MOBILE-OPTIMIERT
     ═══════════════════════════════════════════════════════════ --}}
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Aktivitäten</h6>
+            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> <span class="d-none d-sm-inline">Aktivitäten</span></h6>
                 @if($logs->count() > 50)
                     <a href="{{ route('rechnung.logs.index', $rechnung->id) }}" class="btn btn-sm btn-outline-primary">
-                        Alle anzeigen
+                        Alle
                     </a>
                 @endif
             </div>
             <div class="card-body p-0">
                 @if($logs->isEmpty())
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                        <p class="mt-2">Noch keine Log-Einträge vorhanden.</p>
+                    <div class="text-center py-4 py-md-5 text-muted">
+                        <i class="bi bi-inbox" style="font-size: 2.5rem;"></i>
+                        <p class="mt-2 mb-0 small">Noch keine Log-Einträge vorhanden.</p>
                     </div>
                 @else
-                    <div class="timeline-container" style="max-height: 600px; overflow-y: auto;">
+                    <div class="timeline-container" style="max-height: 500px; overflow-y: auto;">
                         @foreach($logs as $log)
-                            <div class="timeline-item border-bottom p-3 {{ $log->prioritaet === 'kritisch' ? 'bg-danger bg-opacity-10' : ($log->prioritaet === 'hoch' ? 'bg-warning bg-opacity-10' : '') }}">
+                            <div class="timeline-item border-bottom p-2 p-md-3 {{ $log->prioritaet === 'kritisch' ? 'bg-danger bg-opacity-10' : ($log->prioritaet === 'hoch' ? 'bg-warning bg-opacity-10' : '') }}">
                                 <div class="d-flex">
-                                    {{-- Icon --}}
-                                    <div class="me-3">
-                                        <span class="badge bg-{{ $log->farbe }} rounded-circle p-2">
+                                    {{-- Icon - kleiner auf Mobile --}}
+                                    <div class="me-2 me-md-3">
+                                        <span class="badge bg-{{ $log->farbe }} rounded-circle p-1 p-md-2">
                                             <i class="{{ $log->icon }}"></i>
                                         </span>
                                     </div>
                                     
                                     {{-- Content --}}
-                                    <div class="flex-grow-1">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div>
-                                                <strong>{{ $log->titel }}</strong>
+                                    <div class="flex-grow-1 min-width-0">
+                                        <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-start">
+                                            <div class="mb-1 mb-md-0">
+                                                <strong class="small">{{ $log->titel }}</strong>
                                                 {!! $log->typ_badge !!}
                                                 @if($log->prioritaet !== 'normal')
                                                     {!! $log->prioritaet_badge !!}
@@ -179,13 +182,13 @@
                                             </div>
                                             <small class="text-muted">
                                                 {{ $log->datum_formatiert }}
-                                                <span class="d-none d-md-inline">({{ $log->zeit_relativ }})</span>
+                                                <span class="d-none d-lg-inline">({{ $log->zeit_relativ }})</span>
                                             </small>
                                         </div>
                                         
                                         @if($log->beschreibung)
-                                            <p class="mb-1 mt-1 text-secondary">
-                                                {{ Str::limit($log->beschreibung, 200) }}
+                                            <p class="mb-1 mt-1 text-secondary small">
+                                                {{ Str::limit($log->beschreibung, 150) }}
                                             </p>
                                         @endif
                                         
@@ -196,10 +199,13 @@
                                                     <i class="bi bi-person"></i> {{ $log->kontakt_person }}
                                                 @endif
                                                 @if($log->kontakt_telefon)
-                                                    <i class="bi bi-telephone ms-2"></i> {{ $log->kontakt_telefon }}
+                                                    <br class="d-md-none">
+                                                    <i class="bi bi-telephone ms-md-2"></i> 
+                                                    <a href="tel:{{ $log->kontakt_telefon }}" class="text-decoration-none">{{ $log->kontakt_telefon }}</a>
                                                 @endif
                                                 @if($log->kontakt_email)
-                                                    <i class="bi bi-envelope ms-2"></i> {{ $log->kontakt_email }}
+                                                    <br class="d-md-none">
+                                                    <i class="bi bi-envelope ms-md-2"></i> {{ $log->kontakt_email }}
                                                 @endif
                                             </div>
                                         @endif
@@ -229,16 +235,16 @@
                                                     <span class="badge bg-secondary">{{ $log->metadata['betrag'] }}</span>
                                                 @endif
                                                 @if(isset($log->metadata['versandart']))
-                                                    <span class="badge bg-info">{{ $log->metadata['versandart'] }}</span>
+                                                    <span class="badge bg-info d-none d-sm-inline">{{ $log->metadata['versandart'] }}</span>
                                                 @endif
                                             </div>
                                         @endif
                                     </div>
                                     
                                     {{-- Aktionen --}}
-                                    <div class="ms-2">
+                                    <div class="ms-2 d-flex flex-column gap-1">
                                         @if($log->erinnerung_datum && !$log->erinnerung_erledigt)
-                                            <button type="button" class="btn btn-sm btn-outline-success mb-1"
+                                            <button type="button" class="btn btn-sm btn-outline-success"
                                                     onclick="markErinnerungErledigt({{ $log->id }})" title="Erledigen">
                                                 <i class="bi bi-check"></i>
                                             </button>
@@ -264,7 +270,7 @@
 {{-- ⭐⭐⭐ MODAL ÜBER @push EINBINDEN - AUSSERHALB DES FORMULARS! ⭐⭐⭐ --}}
 @push('modals')
 <div class="modal fade" id="modalNeuerLog" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalLogTitel">
@@ -308,15 +314,15 @@
                 {{-- Telefon --}}
                 <div class="mb-3" id="telefonContainer">
                     <label class="form-label">Telefonnummer</label>
-                    <input type="text" id="log_kontakt_telefon" class="form-control" 
-                           placeholder="+39 ...">
+                    <input type="tel" id="log_kontakt_telefon" class="form-control" 
+                           placeholder="+39 ..." inputmode="tel">
                 </div>
                 
                 {{-- E-Mail --}}
                 <div class="mb-3" id="emailContainer" style="display: none;">
                     <label class="form-label">E-Mail</label>
                     <input type="email" id="log_kontakt_email" class="form-control" 
-                           placeholder="email@example.com">
+                           placeholder="email@example.com" inputmode="email">
                 </div>
                 
                 {{-- Priorität --}}
