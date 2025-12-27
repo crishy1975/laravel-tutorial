@@ -25,8 +25,8 @@ x dashboard
         mahnungen schon seit x tagen nicht verschickt
     begrüßung
 
-paolo
-    paolo integrieren
+x paolo
+    x paolo integrieren
     gebäude ohne post und rechnungsadresse aktzepieren
     daten importieren
     view für arbeiten anpassen
@@ -40,9 +40,9 @@ reinigung
     x filter speichern
 
 import
-    timeline- fehler
+    x timeline- fehler
 
 martin 
-    fehler
+    x fehler
         telefonat im log
         bankbuchungen
