@@ -86,11 +86,7 @@ class Backup extends Model
         $letztes = self::letztesHeruntergeladen();
         
         if (!$letztes) {
-            // Kein Download bisher - prüfe ältestes Backup
-            $erstesBackup = self::oldest('erstellt_am')->first();
-            if ($erstesBackup) {
-                return (int) round($erstesBackup->erstellt_am->diffInDays(now()));
-            }
+            // Noch nie heruntergeladen
             return null;
         }
         
