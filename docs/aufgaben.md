@@ -36,7 +36,9 @@ x paolo
     
 backup
     hostinger wöchentlich sichern
-    
+    backup individuell gestalten
+    mit cronojob
+    mit view
 
 reinigung
     x suche auf 20 red.
