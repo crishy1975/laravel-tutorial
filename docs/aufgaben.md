@@ -21,17 +21,18 @@ x dokumente
 x dashboard
     errinerungen
         eigene view
-    aufgaben
+    x aufgaben
         buchungen sind schon x tage alt
         mahnungen schon seit x tagen nicht verschickt
     begrüßung
+        mehr sprüche aber auf db
 
 x paolo
     x paolo integrieren
-    gebäude ohne post und rechnungsadresse aktzepieren
-    daten importieren
-    view für arbeiten anpassen
-    links, anruf, email, what app, maps
+    x gebäude ohne post und rechnungsadresse aktzepieren
+    x daten importieren
+    x view für arbeiten anpassen
+    x links, anruf, email, what app, maps
     
 backup
     hostinger täglich sichern
