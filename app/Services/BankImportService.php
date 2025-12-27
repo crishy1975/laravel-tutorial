@@ -19,6 +19,9 @@ class BankImportService
     ];
     protected array $errors = [];
 
+    // ⭐ Namespace-Präfix für XPath (wird automatisch erkannt)
+    protected string $stmtNs = 'ns4';
+
     /**
      * Importiert CBI-XML Datei
      */
@@ -55,6 +58,9 @@ class BankImportService
         // XML parsen mit Namespace-Handling
         $xml = $this->parseXml($xmlContent);
 
+        // ⭐ Format erkennen (ns4 oder ns5)
+        $this->detectFormat($xml);
+
         // Statement-Daten extrahieren
         $stmtData = $this->extractStatementData($xml);
 
@@ -87,7 +93,7 @@ class BankImportService
                 'anzahl_buchungen' => $this->stats['buchungen'],
                 'anzahl_neu'       => $this->stats['neu'],
                 'anzahl_duplikate' => $this->stats['duplikate'],
-                'anzahl_matched'   => 0, // Wird nach Auto-Match vom Controller aktualisiert
+                'anzahl_matched'   => 0,
                 'iban'             => $stmtData['account']['iban'],
                 'von_datum'        => $stmtData['balances']['von_datum'],
                 'bis_datum'        => $stmtData['balances']['bis_datum'],
@@ -97,6 +103,7 @@ class BankImportService
                     'konto_name' => $stmtData['account']['name'],
                     'waehrung'   => $stmtData['account']['waehrung'],
                     'msg_id'     => $stmtData['msg_id'] ?? null,
+                    'format'     => $this->stmtNs, // ⭐ Format merken
                 ],
             ]);
 
@@ -106,6 +113,7 @@ class BankImportService
                 'datei'     => $this->dateiname,
                 'stats'     => $this->stats,
                 'import_id' => $importLog->id,
+                'format'    => $this->stmtNs,
             ]);
 
             return [
@@ -134,14 +142,13 @@ class BankImportService
     }
 
     /**
-     * Parst XML und gibt DOMDocument zurueck
+     * Parst XML und gibt DOMDocument zurück
      */
     protected function parseXml(string $xmlContent): \DOMDocument
     {
         $dom = new \DOMDocument();
         $dom->preserveWhiteSpace = false;
         
-        // Fehler unterdruecken und manuell pruefen
         libxml_use_internal_errors(true);
         $result = $dom->loadXML($xmlContent);
         
@@ -155,20 +162,56 @@ class BankImportService
     }
 
     /**
-     * Extrahiert alle Statement-Daten aus dem XML
+     * ⭐ Erkennt das XML-Format (ns4 oder ns5)
      */
-    protected function extractStatementData(\DOMDocument $dom): array
+    protected function detectFormat(\DOMDocument $dom): void
     {
-        // XPath mit Namespaces
         $xpath = new \DOMXPath($dom);
         
         // Alle Namespaces registrieren
         $xpath->registerNamespace('cbi', 'urn:CBI:xsd:CBIBdyBkToCstmrStmtReq.00.01.02');
         $xpath->registerNamespace('ns3', 'urn:CBI:xsd:CBIBkToCstmrStmtReqLogMsg.00.01.02');
         $xpath->registerNamespace('ns4', 'urn:CBI:xsd:CBIPrdcStmtReqLogMsg.00.01.02');
+        $xpath->registerNamespace('ns5', 'urn:CBI:xsd:CBIPrdcStmtReqLogMsg.00.01.02');
+
+        // Prüfen ob ns5:Stmt existiert (Sparkasse-Format)
+        $ns5Nodes = $xpath->query('//ns5:Stmt');
+        if ($ns5Nodes->length > 0) {
+            $this->stmtNs = 'ns5';
+            Log::debug('Bank-Import: Format ns5 erkannt (Sparkasse)');
+            return;
+        }
+
+        // Prüfen ob ns4:Stmt existiert (Raika-Format)
+        $ns4Nodes = $xpath->query('//ns4:Stmt');
+        if ($ns4Nodes->length > 0) {
+            $this->stmtNs = 'ns4';
+            Log::debug('Bank-Import: Format ns4 erkannt (Raika)');
+            return;
+        }
+
+        // Fallback
+        $this->stmtNs = 'ns4';
+        Log::warning('Bank-Import: Kein bekanntes Format erkannt, verwende ns4');
+    }
+
+    /**
+     * Extrahiert alle Statement-Daten aus dem XML
+     */
+    protected function extractStatementData(\DOMDocument $dom): array
+    {
+        $xpath = new \DOMXPath($dom);
+        
+        // Alle Namespaces registrieren
+        $xpath->registerNamespace('cbi', 'urn:CBI:xsd:CBIBdyBkToCstmrStmtReq.00.01.02');
+        $xpath->registerNamespace('ns3', 'urn:CBI:xsd:CBIBkToCstmrStmtReqLogMsg.00.01.02');
+        $xpath->registerNamespace('ns4', 'urn:CBI:xsd:CBIPrdcStmtReqLogMsg.00.01.02');
+        $xpath->registerNamespace('ns5', 'urn:CBI:xsd:CBIPrdcStmtReqLogMsg.00.01.02');
+
+        $ns = $this->stmtNs;
 
         // MsgId aus Header
-        $msgIdNodes = $xpath->query('//ns4:GrpHdr/ns4:MsgId');
+        $msgIdNodes = $xpath->query("//{$ns}:GrpHdr/{$ns}:MsgId");
         $msgId = $msgIdNodes->length > 0 ? $msgIdNodes->item(0)->textContent : null;
 
         // Konto-Info
@@ -193,9 +236,17 @@ class BankImportService
      */
     protected function extractAccountInfo(\DOMXPath $xpath): array
     {
-        $iban = $this->getXPathValue($xpath, '//ns4:Stmt/ns4:Acct/ns4:Id/ns4:IBAN');
-        $name = $this->getXPathValue($xpath, '//ns4:Stmt/ns4:Acct/ns4:Nm');
-        $waehrung = $this->getXPathValue($xpath, '//ns4:Stmt/ns4:Acct/ns4:Ccy') ?: 'EUR';
+        $ns = $this->stmtNs;
+
+        $iban = $this->getXPathValue($xpath, "//{$ns}:Stmt/{$ns}:Acct/{$ns}:Id/{$ns}:IBAN");
+        
+        // ⭐ Name: Verschiedene Pfade je nach Format
+        $name = $this->getXPathValue($xpath, "//{$ns}:Stmt/{$ns}:Acct/{$ns}:Nm");
+        if (!$name) {
+            $name = $this->getXPathValue($xpath, "//{$ns}:Stmt/{$ns}:Acct/{$ns}:Ownr/{$ns}:Nm");
+        }
+        
+        $waehrung = $this->getXPathValue($xpath, "//{$ns}:Stmt/{$ns}:Acct/{$ns}:Ccy") ?: 'EUR';
 
         return [
             'iban'     => $iban,
@@ -209,18 +260,25 @@ class BankImportService
      */
     protected function extractBalances(\DOMXPath $xpath): array
     {
+        $ns = $this->stmtNs;
+
         $saldoAnfang = null;
         $saldoEnde = null;
         $vonDatum = null;
         $bisDatum = null;
 
-        $balNodes = $xpath->query('//ns4:Stmt/ns4:Bal');
+        $balNodes = $xpath->query("//{$ns}:Stmt/{$ns}:Bal");
 
         foreach ($balNodes as $balNode) {
-            $code = $this->getNodeValue($xpath, 'ns4:Tp/ns4:CdOrPrtry/ns4:Cd', $balNode);
-            $amount = (float) $this->getNodeValue($xpath, 'ns4:Amt', $balNode);
-            $indicator = $this->getNodeValue($xpath, 'ns4:CdtDbtInd', $balNode);
-            $dateStr = $this->getNodeValue($xpath, 'ns4:Dt/ns4:DtTm', $balNode);
+            $code = $this->getNodeValue($xpath, "{$ns}:Tp/{$ns}:CdOrPrtry/{$ns}:Cd", $balNode);
+            $amount = (float) $this->getNodeValue($xpath, "{$ns}:Amt", $balNode);
+            $indicator = $this->getNodeValue($xpath, "{$ns}:CdtDbtInd", $balNode);
+            
+            // ⭐ Datum: DtTm oder Dt
+            $dateStr = $this->getNodeValue($xpath, "{$ns}:Dt/{$ns}:DtTm", $balNode);
+            if (!$dateStr) {
+                $dateStr = $this->getNodeValue($xpath, "{$ns}:Dt/{$ns}:Dt", $balNode);
+            }
 
             // Vorzeichen korrigieren
             if ($indicator === 'DBIT') {
@@ -251,8 +309,9 @@ class BankImportService
      */
     protected function extractEntries(\DOMXPath $xpath): array
     {
+        $ns = $this->stmtNs;
         $entries = [];
-        $entryNodes = $xpath->query('//ns4:Stmt/ns4:Ntry');
+        $entryNodes = $xpath->query("//{$ns}:Stmt/{$ns}:Ntry");
 
         foreach ($entryNodes as $entryNode) {
             $entry = $this->extractSingleEntry($xpath, $entryNode);
@@ -269,22 +328,31 @@ class BankImportService
      */
     protected function extractSingleEntry(\DOMXPath $xpath, \DOMNode $entryNode): array
     {
-        // Basis-Daten
-        $ntryRef = $this->getNodeValue($xpath, 'ns4:NtryRef', $entryNode);
-        $betrag = (float) $this->getNodeValue($xpath, 'ns4:Amt', $entryNode);
-        $waehrung = $this->getNodeAttribute($xpath, 'ns4:Amt', 'Ccy', $entryNode) ?: 'EUR';
-        $typ = $this->getNodeValue($xpath, 'ns4:CdtDbtInd', $entryNode) ?: 'CRDT';
+        $ns = $this->stmtNs;
 
-        // Datum parsen
-        $buchungsdatumStr = $this->getNodeValue($xpath, 'ns4:BookgDt/ns4:DtTm', $entryNode);
-        $valutadatumStr = $this->getNodeValue($xpath, 'ns4:ValDt/ns4:DtTm', $entryNode);
+        // Basis-Daten
+        $ntryRef = $this->getNodeValue($xpath, "{$ns}:NtryRef", $entryNode);
+        $betrag = (float) $this->getNodeValue($xpath, "{$ns}:Amt", $entryNode);
+        $waehrung = $this->getNodeAttribute($xpath, "{$ns}:Amt", 'Ccy', $entryNode) ?: 'EUR';
+        $typ = $this->getNodeValue($xpath, "{$ns}:CdtDbtInd", $entryNode) ?: 'CRDT';
+
+        // ⭐ Datum parsen: DtTm oder Dt
+        $buchungsdatumStr = $this->getNodeValue($xpath, "{$ns}:BookgDt/{$ns}:DtTm", $entryNode);
+        if (!$buchungsdatumStr) {
+            $buchungsdatumStr = $this->getNodeValue($xpath, "{$ns}:BookgDt/{$ns}:Dt", $entryNode);
+        }
+        
+        $valutadatumStr = $this->getNodeValue($xpath, "{$ns}:ValDt/{$ns}:DtTm", $entryNode);
+        if (!$valutadatumStr) {
+            $valutadatumStr = $this->getNodeValue($xpath, "{$ns}:ValDt/{$ns}:Dt", $entryNode);
+        }
 
         $buchungsdatum = $buchungsdatumStr ? Carbon::parse($buchungsdatumStr)->toDateString() : now()->toDateString();
         $valutadatum = $valutadatumStr ? Carbon::parse($valutadatumStr)->toDateString() : null;
 
         // Transaktionscode
-        $txCode = $this->getNodeValue($xpath, 'ns4:BkTxCd/ns4:Prtry/ns4:Cd', $entryNode);
-        $txIssuer = $this->getNodeValue($xpath, 'ns4:BkTxCd/ns4:Prtry/ns4:Issr', $entryNode);
+        $txCode = $this->getNodeValue($xpath, "{$ns}:BkTxCd/{$ns}:Prtry/{$ns}:Cd", $entryNode);
+        $txIssuer = $this->getNodeValue($xpath, "{$ns}:BkTxCd/{$ns}:Prtry/{$ns}:Issr", $entryNode);
 
         // Details (TxDtls)
         $gegenkontoName = '';
@@ -292,18 +360,23 @@ class BankImportService
         $verwendungszweck = '';
 
         // InitgPty/Nm - Auftraggeber Name
-        $gegenkontoName = $this->getNodeValue($xpath, 'ns4:NtryDtls/ns4:TxDtls/ns4:RltdPties/ns4:InitgPty/ns4:Nm', $entryNode);
+        $gegenkontoName = $this->getNodeValue($xpath, "{$ns}:NtryDtls/{$ns}:TxDtls/{$ns}:RltdPties/{$ns}:InitgPty/{$ns}:Nm", $entryNode);
+        
+        // ⭐ Falls kein InitgPty, versuche Dbtr/Nm
+        if (!$gegenkontoName) {
+            $gegenkontoName = $this->getNodeValue($xpath, "{$ns}:NtryDtls/{$ns}:TxDtls/{$ns}:RltdPties/{$ns}:Dbtr/{$ns}:Nm", $entryNode);
+        }
         
         // DbtrAcct IBAN
-        $gegenkontoIban = $this->getNodeValue($xpath, 'ns4:NtryDtls/ns4:TxDtls/ns4:RltdPties/ns4:DbtrAcct/ns4:Id/ns4:IBAN', $entryNode);
+        $gegenkontoIban = $this->getNodeValue($xpath, "{$ns}:NtryDtls/{$ns}:TxDtls/{$ns}:RltdPties/{$ns}:DbtrAcct/{$ns}:Id/{$ns}:IBAN", $entryNode);
         
         // Falls kein Debtor, versuche Creditor
         if (!$gegenkontoIban) {
-            $gegenkontoIban = $this->getNodeValue($xpath, 'ns4:NtryDtls/ns4:TxDtls/ns4:RltdPties/ns4:CdtrAcct/ns4:Id/ns4:IBAN', $entryNode);
+            $gegenkontoIban = $this->getNodeValue($xpath, "{$ns}:NtryDtls/{$ns}:TxDtls/{$ns}:RltdPties/{$ns}:CdtrAcct/{$ns}:Id/{$ns}:IBAN", $entryNode);
         }
 
         // Verwendungszweck
-        $verwendungszweck = $this->getNodeValue($xpath, 'ns4:NtryDtls/ns4:TxDtls/ns4:AddtlTxInf', $entryNode);
+        $verwendungszweck = $this->getNodeValue($xpath, "{$ns}:NtryDtls/{$ns}:TxDtls/{$ns}:AddtlTxInf", $entryNode);
 
         return [
             'ntry_ref'          => $ntryRef,
@@ -325,7 +398,7 @@ class BankImportService
      */
     protected function processEntry(array $entry, array $kontoInfo): void
     {
-        // Hash fuer Duplikat-Erkennung
+        // Hash für Duplikat-Erkennung
         $hash = BankBuchung::generateHash(
             $kontoInfo['iban'] ?? '',
             $entry['buchungsdatum'],
@@ -362,9 +435,6 @@ class BankImportService
         ]);
 
         $this->stats['neu']++;
-        
-        // Auto-Matching wird vom Controller nach dem Import durchgeführt
-        // (dort wird der BankMatchingService verwendet)
     }
 
     /**
@@ -384,7 +454,6 @@ class BankImportService
      */
     protected function getNodeValue(\DOMXPath $xpath, string $query, \DOMNode $contextNode): ?string
     {
-        // Relative XPath-Abfrage mit ./ prefix
         $relativeQuery = './' . $query;
         $nodes = $xpath->query($relativeQuery, $contextNode);
         if ($nodes->length > 0) {
@@ -398,7 +467,6 @@ class BankImportService
      */
     protected function getNodeAttribute(\DOMXPath $xpath, string $query, string $attribute, \DOMNode $contextNode): ?string
     {
-        // Relative XPath-Abfrage mit ./ prefix
         $relativeQuery = './' . $query;
         $nodes = $xpath->query($relativeQuery, $contextNode);
         if ($nodes->length > 0) {
@@ -411,7 +479,7 @@ class BankImportService
     }
 
     /**
-     * Gibt Import-Statistiken zurueck
+     * Gibt Import-Statistiken zurück
      */
     public function getStats(): array
     {
@@ -419,7 +487,7 @@ class BankImportService
     }
 
     /**
-     * Gibt Fehler zurueck
+     * Gibt Fehler zurück
      */
     public function getErrors(): array
     {
