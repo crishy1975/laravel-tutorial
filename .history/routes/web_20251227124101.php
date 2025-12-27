@@ -565,8 +565,7 @@ Route::prefix('angebote')->name('angebote.')->middleware(['auth'])->group(functi
     // Neu erstellen (nur Gebäude-Auswahl)
     Route::get('/create', [AngebotController::class, 'create'])->name('create');
 
-    Route::get('/angebote/textvorschlaege', [App\Http\Controllers\AngebotController::class, 'textvorschlaege'])
-        ->name('angebote.textvorschlaege');
+    
 
     // Aus Gebäude erstellen
     Route::post('/from-gebaeude/{gebaeude}', [AngebotController::class, 'createFromGebaeude'])
