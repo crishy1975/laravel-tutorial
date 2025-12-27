@@ -19,7 +19,7 @@ x dokumente
     x texte
 
 x dashboard
-    errinerungen
+    x errinerungen
         eigene view
     x aufgaben
         buchungen sind schon x tage alt
