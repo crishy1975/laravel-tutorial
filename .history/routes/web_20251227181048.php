@@ -725,7 +725,7 @@ Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])
     Route::put('/{textvorschlag}', [TextvorschlagController::class, 'update'])->name('update');
     Route::delete('/{textvorschlag}', [TextvorschlagController::class, 'destroy'])->name('destroy');
     Route::patch('/{textvorschlag}/toggle', [TextvorschlagController::class, 'toggleAktiv'])->name('toggle');
-
+    
     // API für AJAX
     Route::get('/api', [TextvorschlagController::class, 'api'])->name('api');
     Route::post('/api/store', [TextvorschlagController::class, 'apiStore'])->name('api.store');

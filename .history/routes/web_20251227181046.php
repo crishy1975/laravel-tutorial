@@ -714,22 +714,7 @@ Route::middleware(['auth'])->prefix('backup')->name('backup.')->group(function (
 
 
 
-use App\Http\Controllers\TextvorschlagController;
 
-// Textvorschläge verwalten
-Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])->group(function () {
-    Route::get('/', [TextvorschlagController::class, 'index'])->name('index');
-    Route::get('/create', [TextvorschlagController::class, 'create'])->name('create');
-    Route::post('/', [TextvorschlagController::class, 'store'])->name('store');
-    Route::get('/{textvorschlag}/edit', [TextvorschlagController::class, 'edit'])->name('edit');
-    Route::put('/{textvorschlag}', [TextvorschlagController::class, 'update'])->name('update');
-    Route::delete('/{textvorschlag}', [TextvorschlagController::class, 'destroy'])->name('destroy');
-    Route::patch('/{textvorschlag}/toggle', [TextvorschlagController::class, 'toggleAktiv'])->name('toggle');
-
-    // API für AJAX
-    Route::get('/api', [TextvorschlagController::class, 'api'])->name('api');
-    Route::post('/api/store', [TextvorschlagController::class, 'apiStore'])->name('api.store');
-});
 
 
 
