@@ -24,7 +24,7 @@ x dashboard
     x aufgaben
         buchungen sind schon x tage alt
         mahnungen schon seit x tagen nicht verschickt
-    begrüßung
+    x begrüßung
         mehr sprüche aber auf db
 
 x paolo
@@ -35,7 +35,8 @@ x paolo
     x links, anruf, email, what app, maps
     
 backup
-    hostinger täglich sichern
+    hostinger wöchentlich sichern
+    
 
 reinigung
     x suche auf 20 red.
