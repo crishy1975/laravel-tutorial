@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class BackupCreate extends Command
 {
@@ -53,37 +54,19 @@ class BackupCreate extends Command
         ]);
 
         try {
-            // Datenbank-Konfiguration holen
-            $connection = config('database.default');
-            $config = config("database.connections.{$connection}");
+            $dbName = config('database.connections.mysql.database');
+            $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Datenbank: {$dbName}"];
+            $this->info("📦 Datenbank: {$dbName}");
 
-            $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Datenbank: {$config['database']}"];
-            $this->info("📦 Datenbank: {$config['database']}");
-
-            // mysqldump Befehl zusammenbauen
-            $command = sprintf(
-                'mysqldump --user=%s --password=%s --host=%s --port=%s %s > %s 2>&1',
-                escapeshellarg($config['username']),
-                escapeshellarg($config['password']),
-                escapeshellarg($config['host']),
-                escapeshellarg($config['port'] ?? 3306),
-                escapeshellarg($config['database']),
-                escapeshellarg($vollpfad)
-            );
-
-            $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'mysqldump wird ausgeführt...'];
             $this->info('⏳ Exportiere Datenbank...');
+            $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'PHP-Export wird ausgeführt...'];
 
-            // Backup ausführen
-            $output = [];
-            $returnCode = 0;
-            exec($command, $output, $returnCode);
-
-            if ($returnCode !== 0) {
-                throw new \Exception('mysqldump fehlgeschlagen: ' . implode("\n", $output));
-            }
-
-            // Prüfen ob Datei existiert und Größe hat
+            // SQL-Export mit PHP erstellen
+            $sql = $this->exportDatabase();
+            
+            // SQL in Datei schreiben
+            file_put_contents($vollpfad, $sql);
+            
             if (!file_exists($vollpfad) || filesize($vollpfad) === 0) {
                 throw new \Exception('Backup-Datei wurde nicht erstellt oder ist leer');
             }
@@ -146,6 +129,69 @@ class BackupCreate extends Command
 
             return Command::FAILURE;
         }
+    }
+
+    /**
+     * Datenbank mit PHP exportieren (ohne exec/mysqldump)
+     */
+    private function exportDatabase(): string
+    {
+        $sql = "-- Backup erstellt am " . now()->format('Y-m-d H:i:s') . "\n";
+        $sql .= "-- PHP-basierter Export\n\n";
+        $sql .= "SET FOREIGN_KEY_CHECKS=0;\n";
+        $sql .= "SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\n\n";
+
+        // Alle Tabellen holen
+        $tables = DB::select('SHOW TABLES');
+        $dbName = config('database.connections.mysql.database');
+        $tableKey = "Tables_in_{$dbName}";
+
+        foreach ($tables as $table) {
+            $tableName = $table->$tableKey;
+            $this->line("  → Exportiere: {$tableName}");
+
+            // CREATE TABLE Statement
+            $createTable = DB::select("SHOW CREATE TABLE `{$tableName}`");
+            $sql .= "-- Tabelle: {$tableName}\n";
+            $sql .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
+            $sql .= $createTable[0]->{'Create Table'} . ";\n\n";
+
+            // Daten exportieren
+            $rows = DB::table($tableName)->get();
+            
+            if ($rows->count() > 0) {
+                $columns = array_keys((array) $rows->first());
+                $columnList = '`' . implode('`, `', $columns) . '`';
+                
+                $sql .= "-- Daten für {$tableName}\n";
+                
+                // Batch-Insert für bessere Performance
+                $batchSize = 100;
+                $batches = $rows->chunk($batchSize);
+                
+                foreach ($batches as $batch) {
+                    $values = [];
+                    foreach ($batch as $row) {
+                        $rowValues = [];
+                        foreach ((array) $row as $value) {
+                            if ($value === null) {
+                                $rowValues[] = 'NULL';
+                            } else {
+                                $rowValues[] = "'" . addslashes($value) . "'";
+                            }
+                        }
+                        $values[] = '(' . implode(', ', $rowValues) . ')';
+                    }
+                    $sql .= "INSERT INTO `{$tableName}` ({$columnList}) VALUES\n";
+                    $sql .= implode(",\n", $values) . ";\n";
+                }
+                $sql .= "\n";
+            }
+        }
+
+        $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
+
+        return $sql;
     }
 
     /**
