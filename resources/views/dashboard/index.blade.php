@@ -30,6 +30,29 @@
         </div>
     </div>
 
+    {{-- Backup-Warnung --}}
+    @if(isset($stats['backup_download_faellig']) && $stats['backup_download_faellig'])
+        <div class="alert alert-warning alert-dismissible d-flex align-items-center mb-4" role="alert">
+            <i class="bi bi-database-exclamation fs-4 me-3"></i>
+            <div class="flex-grow-1">
+                @if($stats['tage_seit_backup_download'] === null)
+                    <strong>Backup nie heruntergeladen!</strong>
+                    <span class="d-none d-sm-inline">Du hast noch nie ein Backup auf deine Festplatte gesichert.</span>
+                @else
+                    <strong>Backup-Download überfällig!</strong>
+                    <span class="d-none d-sm-inline">Letzter Download vor {{ $stats['tage_seit_backup_download'] }} Tagen.</span>
+                @endif
+                @if($stats['nicht_heruntergeladene_backups'] > 0)
+                    <span class="badge bg-warning text-dark ms-2">{{ $stats['nicht_heruntergeladene_backups'] }} ausstehend</span>
+                @endif
+            </div>
+            <a href="{{ route('backup.index') }}" class="btn btn-warning btn-sm ms-2">
+                <i class="bi bi-download me-1"></i>
+                <span class="d-none d-sm-inline">Backups</span>
+            </a>
+        </div>
+    @endif
+
     {{-- Statistik-Karten --}}
     <div class="row g-2 g-md-3 mb-4">
         {{-- Rechnung zu schreiben --}}
