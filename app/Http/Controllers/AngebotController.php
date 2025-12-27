@@ -109,7 +109,14 @@ class AngebotController extends Controller
 
         $fatturaProfiles = FatturaProfile::orderBy('bezeichnung')->get();
 
-        return view('angebote.edit', compact('angebot', 'fatturaProfiles'));
+        // Textvorschläge für Dropdown laden
+        $textvorschlaege = [
+            'einleitung' => $this->getTextvorschlaegeAusDb('einleitung'),
+            'bemerkung_kunde' => $this->getTextvorschlaegeAusDb('bemerkung_kunde'),
+            'bemerkung_intern' => $this->getTextvorschlaegeAusDb('bemerkung_intern'),
+        ];
+
+        return view('angebote.edit', compact('angebot', 'fatturaProfiles', 'textvorschlaege'));
     }
 
     public function update(Request $request, Angebot $angebot)
