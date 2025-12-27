@@ -64,7 +64,7 @@ class Backup extends Model
      */
     public function getAlterInTagenAttribute(): int
     {
-        return $this->erstellt_am->diffInDays(now());
+        return (int) round($this->erstellt_am->diffInDays(now()));
     }
 
     /**
@@ -89,12 +89,12 @@ class Backup extends Model
             // Kein Download bisher - prüfe ältestes Backup
             $erstesBackup = self::oldest('erstellt_am')->first();
             if ($erstesBackup) {
-                return $erstesBackup->erstellt_am->diffInDays(now());
+                return (int) round($erstesBackup->erstellt_am->diffInDays(now()));
             }
             return null;
         }
         
-        return $letztes->heruntergeladen_am->diffInDays(now());
+        return (int) round($letztes->heruntergeladen_am->diffInDays(now()));
     }
 
     /**
