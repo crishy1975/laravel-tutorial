@@ -35,10 +35,10 @@ x paolo
     x links, anruf, email, what app, maps
     
 backup
-    hostinger wöchentlich sichern
-    backup individuell gestalten
-    mit cronojob
-    mit view
+    x hostinger wöchentlich sichern
+    x backup individuell gestalten
+    x mit cronojob
+    x mit view
 
 reinigung
     x suche auf 20 red.
