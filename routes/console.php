@@ -14,5 +14,6 @@ Schedule::command('faelligkeit:recalc-all')
 
 // Backup alle 5 Minuten (Test) - später auf weekly ändern!
 Schedule::command('backup:create --force')
-    ->everyFiveMinutes()
+    ->dailyAt('03:30')
+    //->everyFiveMinutes()
     ->timezone('Europe/Rome');
