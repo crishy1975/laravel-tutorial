@@ -15,3 +15,7 @@ ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/christianresch.esy.es/public_
 ssh -p 65002 u854179217@212.1.209.26
 
 cd /home/u192633638/domains/reschc.space/public_html && /usr/bin/php artisan schedule:run
+
+	/usr/bin/php /home/u854179217/domains/christianresch.esy.es/martin/public_html/artisan schedule:run
+
+    /usr/bin/php /home/u192633638/domains/reschc.space/public_html/artisan schedule:run
