@@ -24,10 +24,21 @@ class RecalcFaelligkeitAll extends Command
     {
         $this->info('Starte Fälligkeits-Neuberechnung…');
 
-        // Der Service soll eine Gesamtzahl zurückgeben (berechnete Gebäude)
-        $processed = $svc->recalcForAll();
+        // Service aufrufen - korrekte Methode: aktualisiereAlle()
+        $stats = $svc->aktualisiereAlle();
 
-        $this->info("Fertig. Neuberechnet: {$processed} Gebäude.");
+        $this->info("Fertig!");
+        $this->table(
+            ['Gesamt', 'Fällig', 'Nicht fällig', 'Geändert', 'Fehler', 'Dauer'],
+            [[
+                $stats['gesamt'],
+                $stats['faellig'],
+                $stats['nicht_faellig'],
+                $stats['geaendert'],
+                $stats['fehler'],
+                $stats['dauer_sekunden'] . 's'
+            ]]
+        );
 
         return self::SUCCESS;
     }
