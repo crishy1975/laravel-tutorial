@@ -10,7 +10,7 @@ ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html && p
 
 ssh -p 65002 u192633638@212.1.209.26 "cd ~/domains/reschc.space/public_html && import:paoloweb"
 
-ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/christianresch.esy.es/public_html/martin && php c"
+ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/christianresch.esy.es/public_html/martin && php artisan optimize:clear"
 
 ssh -p 65002 u854179217@212.1.209.26
 
