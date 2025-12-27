@@ -108,7 +108,7 @@
                         <div>
                             <div class="text-muted small mb-1">Bank-Matching</div>
                             @if($stats['tage_seit_match'] !== null)
-                                <div class="fs-3 fw-bold text-dark">{{ $stats['tage_seit_match'] }}</div>
+                                <div class="fs-3 fw-bold text-dark">{{ round($stats['tage_seit_match']) }}</div>
                                 <span class="small text-muted">Tage</span>
                             @else
                                 <div class="fs-5 text-muted">Noch nie</div>
