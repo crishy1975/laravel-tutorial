@@ -91,16 +91,26 @@ class BackupCreate extends Command
             $groesse = filesize($vollpfad);
             $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Backup erstellt: " . $this->formatBytes($groesse)];
 
-            // Komprimieren mit gzip
+            // Komprimieren mit PHP (plattformunabhängig)
             $this->info('🗜️  Komprimiere Backup...');
-            $gzipCommand = sprintf('gzip -f %s', escapeshellarg($vollpfad));
-            exec($gzipCommand, $output, $returnCode);
-
-            if ($returnCode === 0 && file_exists($vollpfad . '.gz')) {
-                $dateiname .= '.gz';
-                $pfad .= '.gz';
-                $groesse = filesize($vollpfad . '.gz');
-                $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Komprimiert: " . $this->formatBytes($groesse)];
+            $gzPfad = $vollpfad . '.gz';
+            
+            try {
+                $content = file_get_contents($vollpfad);
+                $gzContent = gzencode($content, 9);
+                file_put_contents($gzPfad, $gzContent);
+                
+                if (file_exists($gzPfad) && filesize($gzPfad) > 0) {
+                    // Original löschen
+                    unlink($vollpfad);
+                    $dateiname .= '.gz';
+                    $pfad .= '.gz';
+                    $groesse = filesize($gzPfad);
+                    $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Komprimiert: " . $this->formatBytes($groesse)];
+                }
+            } catch (\Exception $e) {
+                // Komprimierung fehlgeschlagen, behalte unkomprimierte Datei
+                $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => "Komprimierung übersprungen"];
             }
 
             // Backup-Eintrag aktualisieren
