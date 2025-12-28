@@ -7,9 +7,9 @@
         <h4 class="mb-0">
             <i class="bi bi-file-text"></i> Arbeitsberichte
         </h4>
-        <a href="{{ route('gebaeude.index') }}" class="btn btn-primary">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#gebaeudeModal">
             <i class="bi bi-plus"></i> Neuer Bericht
-        </a>
+        </button>
     </div>
 
     <!-- Statistiken -->
@@ -171,10 +171,41 @@
     </div>
 </div>
 
+<!-- Gebäude-Auswahl Modal -->
+<div class="modal fade" id="gebaeudeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-building"></i> Gebäude auswählen
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Suche -->
+                <div class="mb-3">
+                    <input type="text" 
+                           class="form-control form-control-lg" 
+                           id="gebaeudeSearch" 
+                           placeholder="🔍 Suche nach Name, Codex oder Adresse..."
+                           autofocus>
+                </div>
+                
+                <!-- Ergebnisse -->
+                <div id="gebaeudeResults" style="max-height: 400px; overflow-y: auto;">
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-search fs-1 d-block mb-2"></i>
+                        Geben Sie mindestens 2 Zeichen ein...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        // Kurzes Feedback
         const toast = document.createElement('div');
         toast.className = 'position-fixed bottom-0 end-0 p-3';
         toast.style.zIndex = '9999';
@@ -189,5 +220,77 @@ function copyToClipboard(text) {
         setTimeout(() => toast.remove(), 2000);
     });
 }
+
+// Gebäude-Suche
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('gebaeudeSearch');
+    const resultsDiv = document.getElementById('gebaeudeResults');
+    let searchTimeout;
+
+    searchInput?.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+            resultsDiv.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-search fs-1 d-block mb-2"></i>
+                    Geben Sie mindestens 2 Zeichen ein...
+                </div>
+            `;
+            return;
+        }
+
+        resultsDiv.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        `;
+
+        searchTimeout = setTimeout(() => {
+            fetch(`{{ route('arbeitsbericht.gebaeude.search') }}?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = `
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-emoji-frown fs-1 d-block mb-2"></i>
+                                Keine Gebäude gefunden
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    resultsDiv.innerHTML = data.map(g => `
+                        <a href="{{ route('arbeitsbericht.create') }}?gebaeude_id=${g.id}" 
+                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${g.gebaeude_name || g.codex}</strong>
+                                ${g.codex ? '<span class="badge bg-secondary ms-2">' + g.codex + '</span>' : ''}
+                                <div class="text-muted small">
+                                    ${g.strasse || ''} ${g.hausnummer || ''}, ${g.plz || ''} ${g.wohnort || ''}
+                                </div>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    `).join('');
+                })
+                .catch(error => {
+                    resultsDiv.innerHTML = `
+                        <div class="text-center text-danger py-4">
+                            <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+                            Fehler beim Laden
+                        </div>
+                    `;
+                });
+        }, 300);
+    });
+
+    // Focus auf Suche wenn Modal öffnet
+    document.getElementById('gebaeudeModal')?.addEventListener('shown.bs.modal', function() {
+        searchInput?.focus();
+    });
+});
 </script>
 @endsection
