@@ -736,6 +736,25 @@ Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])
 });
 
 
+use App\Http\Controllers\ArbeitsberichtController;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ÖFFENTLICHE ROUTEN (für Kunden - ohne Login, nur Download)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
+    // Öffentliche Download-Seite
+    Route::get('/{token}', [ArbeitsberichtController::class, 'publicView'])
+        ->name('');
+
+    // PDF Download
+    Route::get('/{token}/pdf', [ArbeitsberichtController::class, 'publicPdf'])
+        ->name('.pdf');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN ROUTEN (mit Login)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 
 use App\Http\Controllers\ArbeitsberichtController;
