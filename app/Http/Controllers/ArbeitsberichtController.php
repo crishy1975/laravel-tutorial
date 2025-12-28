@@ -43,6 +43,33 @@ class ArbeitsberichtController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // GEBÄUDE-SUCHE (AJAX für Modal)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    public function gebaeudeSearch(Request $request)
+    {
+        $query = $request->input('q', '');
+
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $like = '%' . $query . '%';
+
+        $gebaeude = Gebaeude::where(function ($q) use ($like) {
+                $q->where('gebaeude_name', 'like', $like)
+                  ->orWhere('codex', 'like', $like)
+                  ->orWhere('strasse', 'like', $like)
+                  ->orWhere('wohnort', 'like', $like);
+            })
+            ->orderBy('gebaeude_name')
+            ->limit(20)
+            ->get(['id', 'gebaeude_name', 'codex', 'strasse', 'hausnummer', 'plz', 'wohnort']);
+
+        return response()->json($gebaeude);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // CREATE - Neuen Arbeitsbericht erstellen (mit Unterschrift-Feld!)
     // ═══════════════════════════════════════════════════════════════════════════════
 
