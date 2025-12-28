@@ -151,6 +151,9 @@ class ArbeitsberichtController extends Controller
 
     public function pdf(Arbeitsbericht $arbeitsbericht)
     {
+        // Gebäude laden für Codex
+        $arbeitsbericht->load('gebaeude');
+        
         // Unternehmensprofil laden (wie bei Rechnung)
         $profil = Unternehmensprofil::first();
 
@@ -245,7 +248,7 @@ class ArbeitsberichtController extends Controller
      */
     public function publicPdf(string $token)
     {
-        $bericht = Arbeitsbericht::where('token', $token)->firstOrFail();
+        $bericht = Arbeitsbericht::with('gebaeude')->where('token', $token)->firstOrFail();
 
         if (!$bericht->istGueltig()) {
             abort(403, 'Dieser Link ist abgelaufen.');
