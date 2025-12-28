@@ -308,14 +308,4 @@ class ArbeitsberichtController extends Controller
 
         return $pdf->download($filename);
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // DESTROY
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    public function destroy(Arbeitsbericht $arbeitsbericht)
-    {
-        $arbeitsbericht->delete();
-        return redirect()->route('arbeitsbericht.index')->with('success', 'Arbeitsbericht gelöscht.');
-    }
 }
