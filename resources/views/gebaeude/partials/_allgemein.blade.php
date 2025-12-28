@@ -126,6 +126,28 @@
   </div>
 
   {{-- ═══════════════════════════════════════════════════════════ --}}
+  {{-- ⭐ NEU: Adresse aus Gebäude erstellen --}}
+  {{-- ═══════════════════════════════════════════════════════════ --}}
+
+  @if(isset($gebaeude) && $gebaeude->exists && !$gebaeude->postadresse_id && !$gebaeude->rechnungsempfaenger_id)
+    <div class="col-12">
+      <div class="alert alert-info py-2 d-flex justify-content-between align-items-center">
+        <span class="small">
+          <i class="bi bi-info-circle me-1"></i>
+          Keine Adresse zugewiesen. Adresse aus Gebäudedaten erstellen?
+        </span>
+        <form method="POST" action="{{ route('gebaeude.erstelleAdresse', $gebaeude) }}" class="d-inline mb-0">
+          @csrf
+          <button type="submit" class="btn btn-primary btn-sm" 
+                  onclick="return confirm('Adresse aus Gebäudedaten erstellen und als Postadresse + Rechnungsempfänger setzen?')">
+            <i class="bi bi-person-plus"></i> Adresse erstellen
+          </button>
+        </form>
+      </div>
+    </div>
+  @endif
+
+  {{-- ═══════════════════════════════════════════════════════════ --}}
 
   {{-- Bemerkung --}}
   <div class="col-12">
