@@ -31,11 +31,15 @@ class Arbeitsbericht extends Model
         'bemerkung',
         'positionen',
         
-        // Unterschrift
+        // Unterschrift Kunde
         'unterschrift_kunde',
         'unterschrieben_am',
         'unterschrift_name',
         'unterschrift_ip',
+        
+        // Unterschrift Mitarbeiter
+        'unterschrift_mitarbeiter',
+        'mitarbeiter_name',
         
         // Link-System
         'token',
@@ -76,12 +80,17 @@ class Arbeitsbericht extends Model
         // Rechnungsempfänger laden
         $adresse = $gebaeude->rechnungsempfaenger;
         
-        // Aktive Artikel sammeln
+        // Aktive Artikel sammeln MIT Einzelpreis
         $positionen = $gebaeude->aktiveArtikel->map(function ($artikel) {
+            $einzelpreis = (float) ($artikel->einzelpreis ?? 0);
+            $anzahl = (float) ($artikel->anzahl ?? 1);
+            
             return [
-                'bezeichnung' => $artikel->bezeichnung ?? $artikel->artikel?->bezeichnung ?? 'Unbekannt',
-                'anzahl'      => $artikel->anzahl ?? 1,
-                'einheit'     => $artikel->einheit ?? 'Stk',
+                'bezeichnung'  => $artikel->bezeichnung ?? 'Unbekannt',
+                'anzahl'       => $anzahl,
+                'einheit'      => $artikel->einheit ?? 'Stk',
+                'einzelpreis'  => $einzelpreis,
+                'gesamtpreis'  => round($einzelpreis * $anzahl, 2),
             ];
         })->toArray();
 
@@ -139,6 +148,28 @@ class Arbeitsbericht extends Model
     public function getPublicLinkAttribute(): string
     {
         return route('arbeitsbericht.public', $this->token);
+    }
+
+    /**
+     * Summe aller Positionen
+     */
+    public function getPositionenSummeAttribute(): float
+    {
+        if (empty($this->positionen)) {
+            return 0;
+        }
+
+        return collect($this->positionen)->sum(function ($pos) {
+            return (float) ($pos['gesamtpreis'] ?? 0);
+        });
+    }
+
+    /**
+     * Formatierte Summe
+     */
+    public function getPositionenSummeFormatAttribute(): string
+    {
+        return number_format($this->positionen_summe, 2, ',', '.') . ' €';
     }
 
     /**

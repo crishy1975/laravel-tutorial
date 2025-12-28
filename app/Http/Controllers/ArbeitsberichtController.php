@@ -81,7 +81,7 @@ class ArbeitsberichtController extends Controller
                 ->with('error', 'Bitte wählen Sie zuerst ein Gebäude aus.');
         }
 
-        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel.artikel', 'timelines'])
+        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel', 'timelines'])
             ->findOrFail($request->integer('gebaeude_id'));
 
         return view('arbeitsbericht.create', compact('gebaeude'));
@@ -104,7 +104,7 @@ class ArbeitsberichtController extends Controller
             'mitarbeiter_name'         => 'required|string|max:100',
         ]);
 
-        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel.artikel'])
+        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel'])
             ->findOrFail($validated['gebaeude_id']);
 
         // Bericht erstellen MIT beiden Unterschriften
