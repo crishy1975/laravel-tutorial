@@ -945,23 +945,29 @@ class GebaeudeController extends Controller
     /**
      * Erstellt Adresse aus Gebäudedaten
      */
-    public function erstelleAdresse(Gebaeude $gebaeude)
+    public function erstelleAdresse(int $id)
     {
+        $gebaeude = Gebaeude::findOrFail($id);
+        
         // Bereits vorhanden?
         if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
             return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
         }
-
+        
         // Minimale Daten vorhanden?
         if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
             return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
         }
-
+        
         try {
             $adresse = $gebaeude->erstelleAdresseAusGebaeude();
-
+            
             return back()->with('success', "Adresse \"{$adresse->name}\" erstellt und zugewiesen.");
         } catch (\Exception $e) {
+            Log::error('Fehler beim Erstellen der Adresse aus Gebäude', [
+                'gebaeude_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
             return back()->with('error', 'Fehler: ' . $e->getMessage());
         }
     }
