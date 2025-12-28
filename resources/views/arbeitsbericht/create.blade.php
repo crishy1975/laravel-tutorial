@@ -97,8 +97,8 @@
                                             $summe += $gesamt;
                                         @endphp
                                         <tr>
-                                            <td>{{ $artikel->bezeichnung ?? '-' }}</td>
-                                            <td class="text-center">{{ $anzahl }} {{ $artikel->einheit ?? '' }}</td>
+                                            <td>{{ $artikel->beschreibung ?? '-' }}</td>
+                                            <td class="text-center">{{ $anzahl }}</td>
                                             <td class="text-end">{{ number_format($gesamt, 2, ',', '.') }} €</td>
                                         </tr>
                                         @endforeach
