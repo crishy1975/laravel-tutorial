@@ -738,6 +738,7 @@ Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])
 
 use App\Http\Controllers\ArbeitsberichtController;
 
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ÖFFENTLICHE ROUTEN (für Kunden - ohne Login, nur Download)
 // ═══════════════════════════════════════════════════════════════════════════════

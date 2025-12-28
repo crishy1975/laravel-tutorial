@@ -737,6 +737,7 @@ Route::prefix('textvorschlaege')->name('textvorschlaege.')->middleware(['auth'])
 
 
 use App\Http\Controllers\ArbeitsberichtController;
+use Illuminate\Support\Facades\Route;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ÖFFENTLICHE ROUTEN (für Kunden - ohne Login, nur Download)
@@ -746,7 +747,7 @@ Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
     // Öffentliche Download-Seite
     Route::get('/{token}', [ArbeitsberichtController::class, 'publicView'])
         ->name('');
-
+    
     // PDF Download
     Route::get('/{token}/pdf', [ArbeitsberichtController::class, 'publicPdf'])
         ->name('.pdf');
@@ -760,29 +761,29 @@ Route::middleware(['auth'])->prefix('arbeitsberichte')->name('arbeitsbericht.')-
     // Liste
     Route::get('/', [ArbeitsberichtController::class, 'index'])
         ->name('index');
-
+    
     // Gebäude-Suche (AJAX)
     Route::get('/gebaeude-suche', [ArbeitsberichtController::class, 'gebaeudeSearch'])
         ->name('gebaeude.search');
-
+    
     // Erstellen (mit Unterschrift!)
     Route::get('/erstellen', [ArbeitsberichtController::class, 'create'])
         ->name('create');
     Route::post('/', [ArbeitsberichtController::class, 'store'])
         ->name('store');
-
+    
     // Anzeigen
     Route::get('/{arbeitsbericht}', [ArbeitsberichtController::class, 'show'])
         ->name('show');
-
+    
     // PDF (Admin)
     Route::get('/{arbeitsbericht}/pdf', [ArbeitsberichtController::class, 'pdf'])
         ->name('pdf');
-
+    
     // Link an Kunden senden
     Route::post('/{arbeitsbericht}/senden', [ArbeitsberichtController::class, 'senden'])
         ->name('senden');
-
+    
     // Löschen
     Route::delete('/{arbeitsbericht}', [ArbeitsberichtController::class, 'destroy'])
         ->name('destroy');
