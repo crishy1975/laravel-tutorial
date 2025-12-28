@@ -152,7 +152,7 @@ Route::middleware(['auth', 'verified'])
             ->whereNumber('gebaeude')->name('logs.erinnerung');
 
         Route::post('/{gebaeude}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])
-            ->name('erstelleAdresse');
+            ->name('leAdresse');
     });
 
 // ⭐ NEU: Gebäude-Log Einzelaktionen (außerhalb der Gruppe)
