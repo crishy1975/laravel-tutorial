@@ -146,6 +146,48 @@ class ArbeitsberichtController extends Controller
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // EDIT - Arbeitsbericht bearbeiten
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    public function edit(Arbeitsbericht $arbeitsbericht)
+    {
+        $arbeitsbericht->load('gebaeude');
+        return view('arbeitsbericht.edit', compact('arbeitsbericht'));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // UPDATE - Arbeitsbericht aktualisieren
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    public function update(Request $request, Arbeitsbericht $arbeitsbericht)
+    {
+        $validated = $request->validate([
+            'arbeitsdatum'         => 'required|date',
+            'naechste_faelligkeit' => 'nullable|date',
+            'bemerkung'            => 'nullable|string|max:2000',
+        ]);
+
+        $arbeitsbericht->update($validated);
+
+        return redirect()
+            ->route('arbeitsbericht.show', $arbeitsbericht)
+            ->with('success', 'Arbeitsbericht aktualisiert.');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // DESTROY - Arbeitsbericht löschen
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    public function destroy(Arbeitsbericht $arbeitsbericht)
+    {
+        $arbeitsbericht->delete();
+
+        return redirect()
+            ->route('arbeitsbericht.index')
+            ->with('success', 'Arbeitsbericht gelöscht.');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // PDF - PDF generieren (Admin)
     // ═══════════════════════════════════════════════════════════════════════════════
 
