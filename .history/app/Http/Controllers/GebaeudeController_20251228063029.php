@@ -25,7 +25,7 @@ class GebaeudeController extends Controller
     /**
      * Gebäude bearbeiten: lädt Beziehungen + Auswahllisten.
      */
-
+ 
     public function edit(Request $request, $id)
     {
         $gebaeude = Gebaeude::with([
@@ -41,8 +41,8 @@ class GebaeudeController extends Controller
             'logs' => fn($q) => $q->orderByDesc('created_at')->limit(50),
             // ⭐ NEU: Dokumente laden (für Dokumente-Tab)
             'dokumente' => fn($q) => $q->where('ist_archiviert', false)
-                ->orderByDesc('ist_wichtig')
-                ->orderByDesc('created_at'),
+                                       ->orderByDesc('ist_wichtig')
+                                       ->orderByDesc('created_at'),
         ])->findOrFail($id);
 
         // Adress-Auswahl
@@ -184,20 +184,9 @@ class GebaeudeController extends Controller
 
             foreach (
                 [
-                    'm01',
-                    'm02',
-                    'm03',
-                    'm04',
-                    'm05',
-                    'm06',
-                    'm07',
-                    'm08',
-                    'm09',
-                    'm10',
-                    'm11',
-                    'm12',
-                    'rechnung_schreiben',
-                    'faellig'
+                    'm01', 'm02', 'm03', 'm04', 'm05', 'm06',
+                    'm07', 'm08', 'm09', 'm10', 'm11', 'm12',
+                    'rechnung_schreiben', 'faellig'
                 ] as $flag
             ) {
                 $validated[$flag] = (int)($validated[$flag] ?? 0) === 1 ? 1 : 0;
@@ -291,16 +280,16 @@ class GebaeudeController extends Controller
     {
         // ⭐ NEU: Filter aus Session laden falls keine Query-Parameter
         $sessionKey = 'gebaeude_filter';
-
+        
         // Wenn clear_filter gesetzt → Session löschen und redirect
         if ($request->has('clear_filter')) {
             $request->session()->forget($sessionKey);
             return redirect()->route('gebaeude.index');
         }
-
+        
         // Prüfen ob Query-Parameter vorhanden sind
         $hasQueryParams = $request->hasAny(['codex', 'gebaeude_name', 'strasse', 'hausnummer', 'wohnort', 'tour', 'rechnung']);
-
+        
         // Filter aus Request oder Session
         if ($hasQueryParams) {
             // Query-Parameter → in Session speichern
@@ -326,7 +315,7 @@ class GebaeudeController extends Controller
                 'rechnung'      => '',
             ]);
         }
-
+        
         // Filter-Werte extrahieren
         $codex          = $filters['codex'] ?? '';
         $gebaeude_name  = $filters['gebaeude_name'] ?? '';
@@ -373,14 +362,14 @@ class GebaeudeController extends Controller
         } elseif ($filterRechnung === '0') {
             $query->where(function ($q) {
                 $q->where('rechnung_schreiben', false)
-                    ->orWhereNull('rechnung_schreiben');
+                  ->orWhereNull('rechnung_schreiben');
             });
         }
 
         // Sortierung: Straße, dann Hausnummer (numerisch)
         $query->orderBy('strasse')
-            ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-            ->orderBy('hausnummer');
+              ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
+              ->orderBy('hausnummer');
 
         // Pagination - Filter an URL anhängen
         $gebaeude = $query->paginate(25)->appends($filters);
@@ -395,8 +384,8 @@ class GebaeudeController extends Controller
 
         // Touren für Dropdown laden
         $touren = Tour::orderBy('aktiv', 'desc')
-            ->orderBy('name')
-            ->get(['id', 'name', 'aktiv']);
+                      ->orderBy('name')
+                      ->get(['id', 'name', 'aktiv']);
 
         return view('gebaeude.index', compact(
             'gebaeude',
@@ -462,9 +451,9 @@ class GebaeudeController extends Controller
         $tourenMap  = $tourenAlle->keyBy('id');
 
         return view('gebaeude.form', compact(
-            'gebaeude',
-            'adressen',
-            'codexPrefixTips',
+            'gebaeude', 
+            'adressen', 
+            'codexPrefixTips', 
             'fatturaProfiles',
             'tourenAlle',
             'tourenMap'
@@ -710,7 +699,7 @@ class GebaeudeController extends Controller
 
         // ⭐ NEU: rechnung_schreiben nur auf 1 setzen, wenn FatturaPA-Profil vorhanden
         $message = 'Timeline-Eintrag gespeichert.';
-
+        
         if ($gebaeude->fattura_profile_id) {
             $gebaeude->update(['rechnung_schreiben' => 1]);
             $message .= ' Rechnung schreiben aktiviert.';
@@ -918,10 +907,10 @@ class GebaeudeController extends Controller
         try {
             $gebaeude = Gebaeude::findOrFail($id);
             $jahr = $request->integer('jahr', now()->year);
-
+            
             $aufschlag = $gebaeude->getAufschlagProzent($jahr);
             $hatIndividuell = $gebaeude->hatIndividuellenAufschlag();
-
+            
             return response()->json([
                 'ok'              => true,
                 'aufschlag'       => $aufschlag,
@@ -933,7 +922,7 @@ class GebaeudeController extends Controller
                 'gebaeude_id' => $id,
                 'error' => $e->getMessage()
             ]);
-
+            
             return response()->json([
                 'ok'      => false,
                 'message' => 'Fehler beim Abrufen des Aufschlags',
@@ -942,27 +931,58 @@ class GebaeudeController extends Controller
         }
     }
 
-    /**
-     * Erstellt Adresse aus Gebäudedaten
-     */
-    public function erstelleAdresse(Gebaeude $gebaeude)
-    {
-        // Bereits vorhanden?
-        if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
-            return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
-        }
+    <?php
 
-        // Minimale Daten vorhanden?
-        if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
-            return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
-        }
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. In GebaeudeController.php einfügen
+// ═══════════════════════════════════════════════════════════════════════════
 
-        try {
-            $adresse = $gebaeude->erstelleAdresseAusGebaeude();
-
-            return back()->with('success', "Adresse \"{$adresse->name}\" erstellt und zugewiesen.");
-        } catch (\Exception $e) {
-            return back()->with('error', 'Fehler: ' . $e->getMessage());
-        }
+/**
+ * Erstellt Adresse aus Gebäudedaten
+ */
+public function erstelleAdresse(Gebaeude $gebaeude)
+{
+    // Bereits vorhanden?
+    if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
+        return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
     }
+    
+    // Minimale Daten vorhanden?
+    if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
+        return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
+    }
+    
+    try {
+        $adresse = $gebaeude->erstelleAdresseAusGebaeude();
+        
+        return back()->with('success', "Adresse \"{$adresse->name}\" erstellt und zugewiesen.");
+    } catch (\Exception $e) {
+        return back()->with('error', 'Fehler: ' . $e->getMessage());
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. In routes/web.php einfügen
+// ═══════════════════════════════════════════════════════════════════════════
+
+Route::post('/gebaeude/{gebaeude}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])
+    ->name('gebaeude.erstelleAdresse');
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. Button für View (z.B. in gebaeude/edit.blade.php oder show.blade.php)
+// ═══════════════════════════════════════════════════════════════════════════
+?>
+
+{{-- Button nur anzeigen wenn KEINE Adresse vorhanden --}}
+@if(!$gebaeude->postadresse_id && !$gebaeude->rechnungsempfaenger_id)
+    <form method="POST" action="{{ route('gebaeude.erstelleAdresse', $gebaeude) }}" class="d-inline">
+        @csrf
+        <button type="submit" class="btn btn-outline-primary btn-sm" 
+                onclick="return confirm('Adresse aus Gebäudedaten erstellen?')">
+            <i class="bi bi-person-plus"></i> Adresse erstellen
+        </button>
+    </form>
+@endif
 }
