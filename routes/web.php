@@ -151,7 +151,8 @@ Route::middleware(['auth', 'verified'])
         Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])
             ->whereNumber('gebaeude')->name('logs.erinnerung');
 
-        Route::post('/{gebaeude}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])
+        Route::post('/{id}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])
+            ->whereNumber('id')
             ->name('erstelleAdresse');
     });
 
