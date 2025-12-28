@@ -130,7 +130,7 @@ class Gebaeude extends Model
     public function getKontaktdatenFormatiertAttribute(): string
     {
         $parts = [];
-
+        
         if ($this->handy) {
             $parts[] = "📱 {$this->handy}";
         }
@@ -140,7 +140,7 @@ class Gebaeude extends Model
         if ($this->email) {
             $parts[] = "✉️ {$this->email}";
         }
-
+        
         return implode(' | ', $parts);
     }
 
@@ -255,9 +255,9 @@ class Gebaeude extends Model
     {
         return $this->hasMany(GebaeudeLog::class)
             ->whereNotNull('erinnerung_datum')
-            ->where(function ($q) {
+            ->where(function($q) {
                 $q->where('erinnerung_erledigt', false)
-                    ->orWhereNull('erinnerung_erledigt');
+                  ->orWhereNull('erinnerung_erledigt');
             })
             ->orderBy('erinnerung_datum');
     }
@@ -694,35 +694,36 @@ class Gebaeude extends Model
 
 
     public function erstelleAdresseAusGebaeude(array $zusatzDaten = []): Adresse
-    {
-        // Adressdaten aus Gebäude extrahieren
-        $adressDaten = array_filter([
-            'name'        => $this->gebaeude_name ?: $this->codex,
-            'strasse'     => $this->strasse,
-            'hausnummer'  => $this->hausnummer,
-            'plz'         => $this->plz,
-            'wohnort'     => $this->wohnort,
-            'land'        => $this->land ?? 'IT',
-            'telefon'     => $this->telefon,
-            'handy'       => $this->handy,
-            'email'       => $this->email,
-        ]);
+{
+    // Adressdaten aus Gebäude extrahieren
+    $adressDaten = array_filter([
+        'name'        => $this->gebaeude_name ?: $this->codex,
+        'strasse'     => $this->strasse,
+        'hausnummer'  => $this->hausnummer,
+        'plz'         => $this->plz,
+        'wohnort'     => $this->wohnort,
+        'land'        => $this->land ?? 'IT',
+        'telefon'     => $this->telefon,
+        'handy'       => $this->handy,
+        'email'       => $this->email,
+    ]);
+    
+    // Zusätzliche Daten überschreiben/ergänzen
+    $adressDaten = array_merge($adressDaten, $zusatzDaten);
+    
+    // Adresse erstellen
+    $adresse = Adresse::create($adressDaten);
+    
+    // Gebäude aktualisieren
+    $this->update([
+        'postadresse_id'         => $adresse->id,
+        'rechnungsempfaenger_id' => $adresse->id,
+    ]);
+    
+    // Beziehungen neu laden
+    $this->load(['postadresse', 'rechnungsempfaenger']);
+    
+    return $adresse;
+}
 
-        // Zusätzliche Daten überschreiben/ergänzen
-        $adressDaten = array_merge($adressDaten, $zusatzDaten);
-
-        // Adresse erstellen
-        $adresse = Adresse::create($adressDaten);
-
-        // Gebäude aktualisieren
-        $this->update([
-            'postadresse_id'         => $adresse->id,
-            'rechnungsempfaenger_id' => $adresse->id,
-        ]);
-
-        // Beziehungen neu laden
-        $this->load(['postadresse', 'rechnungsempfaenger']);
-
-        return $adresse;
-    }
 }
