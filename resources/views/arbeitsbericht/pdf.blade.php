@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <title>Arbeitsbericht / Rapporto di lavoro - {{ $bericht->adresse_name }}</title>
     <style>
-        @page {
-            margin: 20mm 15mm 25mm 15mm;
-        }
+        /* ═══════════════════════════════════════════════════════════════
+           ARBEITSBERICHT PDF - Stil wie Rechnung
+           Primärfarbe: #1a4a7c (Dunkelblau)
+        ═══════════════════════════════════════════════════════════════ */
         
+        /* BASIS */
         * {
             margin: 0;
             padding: 0;
@@ -16,542 +18,674 @@
         
         body {
             font-family: DejaVu Sans, sans-serif;
-            font-size: 9pt;
+            font-size: 8pt;
+            line-height: 1.3;
             color: #333;
-            line-height: 1.4;
+            background-color: #fff;
+            padding: 10mm;
         }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* BRIEFKOPF / INTESTAZIONE */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .header {
+        
+        /* ═══════════════════════════════════════════════════════════════
+           BRIEFKOPF - wie bei Rechnung
+        ═══════════════════════════════════════════════════════════════ */
+        .letterhead {
+            margin-bottom: 4mm;
+            padding: 3mm;
+            padding-bottom: 4mm;
+            border-bottom: 3px solid #1a4a7c;
+            background-color: #f8fafc;
+        }
+        
+        .letterhead-row {
+            display: table;
             width: 100%;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 15px;
         }
-
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .logo-cell {
-            width: 25%;
+        
+        .letterhead-left {
+            display: table-cell;
+            width: 55%;
             vertical-align: top;
         }
-
-        .logo {
-            max-height: 60px;
-            max-width: 150px;
-        }
-
-        .firma-cell {
+        
+        .letterhead-right {
+            display: table-cell;
             width: 45%;
             vertical-align: top;
-            padding-left: 15px;
-        }
-
-        .firma-name {
-            font-size: 14pt;
-            font-weight: bold;
-            color: #1a1a1a;
-            margin-bottom: 3px;
-        }
-
-        .firma-details {
-            font-size: 8pt;
-            color: #555;
-            line-height: 1.5;
-        }
-
-        .dokument-cell {
-            width: 30%;
             text-align: right;
-            vertical-align: top;
         }
-
-        .dokument-titel {
-            font-size: 16pt;
+        
+        .company-name {
+            font-size: 12pt;
             font-weight: bold;
-            color: #1a1a1a;
-            line-height: 1.2;
+            margin-bottom: 2mm;
+            color: #1a4a7c;
         }
-
-        .dokument-subtitel {
-            font-size: 10pt;
-            color: #666;
-            font-style: italic;
+        
+        .company-info {
+            font-size: 7.5pt;
+            line-height: 1.4;
+            color: #555;
         }
-
-        .dokument-datum {
-            margin-top: 10px;
+        
+        .logo {
+            max-width: 220px;
+            max-height: 70px;
+            margin-bottom: 2mm;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           ZWEISPRACHIG - gleiche Größe, zwei Farben
+        ═══════════════════════════════════════════════════════════════ */
+        .bilingual {
+            display: block;
+        }
+        
+        .bilingual .de {
+            color: #000;
+            font-weight: bold;
+        }
+        
+        .bilingual .it {
+            color: #555;
+            font-weight: bold;
+        }
+        
+        /* Inline Version */
+        .bi-inline .de {
+            color: #000;
+        }
+        
+        .bi-inline .it {
+            color: #555;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TITEL
+        ═══════════════════════════════════════════════════════════════ */
+        .document-title {
             font-size: 11pt;
-            color: #333;
+            font-weight: bold;
+            margin: 4mm 0;
+            text-align: center;
+            padding: 3mm 0;
+            background-color: #1a4a7c;
+            color: #fff;
+            letter-spacing: 1px;
         }
-
+        
+        .document-title .it {
+            color: #b8d4f0;
+            font-weight: bold;
+        }
+        
+        /* Status Badge */
         .status-badge {
             display: inline-block;
-            padding: 3px 10px;
-            border-radius: 10px;
-            font-size: 8pt;
-            font-weight: bold;
-            background: #d4edda;
-            color: #155724;
-            margin-top: 5px;
-        }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* ZWEI-SPALTEN LAYOUT */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .info-row {
-            width: 100%;
-            margin-bottom: 15px;
-        }
-
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .info-box {
-            width: 48%;
-            vertical-align: top;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background: #fafafa;
-        }
-
-        .info-box-spacer {
-            width: 4%;
-        }
-
-        .info-label {
+            padding: 1mm 3mm;
             font-size: 7pt;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #888;
-            margin-bottom: 3px;
-        }
-
-        .info-value {
-            font-size: 10pt;
-            color: #333;
-        }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* SECTIONS */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .section {
-            margin-bottom: 15px;
-        }
-
-        .section-title {
-            font-size: 9pt;
-            font-weight: bold;
+            background-color: #16a34a;
             color: #fff;
-            background: #333;
-            padding: 6px 10px;
-            margin-bottom: 0;
+            border-radius: 2mm;
+            margin-left: 3mm;
         }
-
-        .section-subtitle {
-            font-size: 8pt;
-            font-weight: normal;
-            color: #ccc;
-            font-style: italic;
+        
+        /* ═══════════════════════════════════════════════════════════════
+           KUNDENADRESSE
+        ═══════════════════════════════════════════════════════════════ */
+        .address-section {
+            margin-bottom: 5mm;
         }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* POSITIONEN TABELLE */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .positionen-table {
+        
+        .address-row {
+            display: table;
             width: 100%;
-            border-collapse: collapse;
-            border: 1px solid #ddd;
         }
-
-        .positionen-table th {
-            background: #f5f5f5;
-            font-size: 8pt;
+        
+        .address-col {
+            display: table-cell;
+            vertical-align: top;
+            padding: 0 2mm;
+        }
+        
+        .address-col:first-child {
+            padding-left: 0;
+            width: 60%;
+        }
+        
+        .address-col:last-child {
+            padding-right: 0;
+            width: 40%;
+        }
+        
+        .address-box {
+            padding: 2mm;
+            min-height: 20mm;
+        }
+        
+        .address-label {
+            font-size: 7.5pt;
             font-weight: bold;
-            padding: 8px;
-            text-align: left;
-            border-bottom: 2px solid #ddd;
+            margin-bottom: 1.5mm;
+            padding: 1.5mm 2mm;
+            background-color: #1a4a7c;
+            color: #fff;
+        }
+        
+        .address-label .it {
+            color: #b8d4f0;
+            font-weight: normal;
+        }
+        
+        .address-content {
+            font-size: 8pt;
+            line-height: 1.4;
+            padding: 2mm;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .address-name {
+            font-weight: bold;
+            font-size: 9pt;
+            margin-bottom: 1mm;
+            color: #1a4a7c;
+        }
+        
+        /* Rechnungsdaten */
+        .invoice-data-table {
+            width: 100%;
+            font-size: 7.5pt;
+        }
+        
+        .invoice-data-table td {
+            padding: 1mm 0;
+        }
+        
+        .invoice-data-table .label {
+            font-weight: bold;
+            width: 50%;
             color: #555;
         }
-
-        .positionen-table th.right {
-            text-align: right;
-        }
-
-        .positionen-table th.center {
-            text-align: center;
-        }
-
-        .positionen-table td {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-            font-size: 9pt;
-        }
-
-        .positionen-table td.right {
-            text-align: right;
-        }
-
-        .positionen-table td.center {
-            text-align: center;
-        }
-
-        .positionen-table tr:nth-child(even) {
-            background: #fafafa;
-        }
-
-        .positionen-table tfoot td {
-            background: #f0f0f0;
+        
+        .invoice-data-table .value {
             font-weight: bold;
-            border-top: 2px solid #333;
-            font-size: 10pt;
+            color: #1a4a7c;
         }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* BEMERKUNG */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .bemerkung-box {
-            background: #fff9e6;
-            border: 1px solid #ffe0a6;
-            border-left: 4px solid #ffc107;
-            padding: 10px;
-            font-style: italic;
-            font-size: 9pt;
-        }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* NÄCHSTER TERMIN */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .termin-box {
-            background: #e8f4fd;
-            border: 1px solid #b8daff;
-            border-left: 4px solid #007bff;
-            padding: 10px;
-        }
-
-        .termin-label {
+        
+        /* ═══════════════════════════════════════════════════════════════
+           POSITIONEN TABELLE
+        ═══════════════════════════════════════════════════════════════ */
+        .section-title {
             font-size: 8pt;
-            color: #666;
+            font-weight: bold;
+            margin-bottom: 0;
+            padding: 2mm;
+            background-color: #1a4a7c;
+            color: #fff;
         }
-
+        
+        .section-title .it {
+            color: #b8d4f0;
+            font-weight: normal;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 4mm;
+            font-size: 8pt;
+        }
+        
+        .items-table th {
+            background-color: #e2e8f0;
+            color: #333;
+            font-weight: bold;
+            padding: 2mm;
+            text-align: left;
+            font-size: 7.5pt;
+            border-bottom: 1px solid #1a4a7c;
+        }
+        
+        .items-table th .it {
+            color: #555;
+            font-weight: normal;
+        }
+        
+        .items-table th.right,
+        .items-table td.right {
+            text-align: right;
+        }
+        
+        .items-table th.center,
+        .items-table td.center {
+            text-align: center;
+        }
+        
+        .items-table td {
+            padding: 2mm;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .items-table tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+        
+        /* Summenzeile */
+        .items-table tfoot td {
+            background-color: #1a4a7c !important;
+            color: #fff;
+            font-weight: bold;
+            font-size: 9pt;
+            padding: 2.5mm;
+            border: none;
+        }
+        
+        .items-table tfoot .it {
+            color: #b8d4f0;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           INFO BOXEN
+        ═══════════════════════════════════════════════════════════════ */
+        .info-box {
+            border: 1px solid #e2e8f0;
+            padding: 3mm;
+            margin: 3mm 0;
+            font-size: 8pt;
+            background-color: #f8fafc;
+        }
+        
+        .info-box.highlight {
+            background-color: #f0f7ff;
+            border-color: #1a4a7c;
+            border-left: 3px solid #1a4a7c;
+        }
+        
+        .info-box h3 {
+            font-size: 8pt;
+            color: #1a4a7c;
+            margin-bottom: 2mm;
+            padding-bottom: 1mm;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .info-box h3 .it {
+            color: #555;
+            font-weight: normal;
+        }
+        
+        .info-box-content {
+            line-height: 1.4;
+        }
+        
+        /* Termin Box */
+        .termin-box {
+            text-align: center;
+            padding: 3mm;
+        }
+        
         .termin-datum {
             font-size: 14pt;
             font-weight: bold;
-            color: #007bff;
+            color: #1a4a7c;
         }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* UNTERSCHRIFTEN */
-        /* ══════════════════════════════════════════════════════════════════ */
-        .unterschriften-section {
-            margin-top: 25px;
+        
+        /* ═══════════════════════════════════════════════════════════════
+           UNTERSCHRIFTEN
+        ═══════════════════════════════════════════════════════════════ */
+        .signatures-section {
+            margin-top: 6mm;
             page-break-inside: avoid;
         }
-
-        .unterschriften-table {
+        
+        .signatures-row {
+            display: table;
             width: 100%;
-            border-collapse: collapse;
         }
-
-        .unterschrift-cell {
+        
+        .signature-col {
+            display: table-cell;
             width: 45%;
             vertical-align: top;
-            padding: 10px;
             text-align: center;
+            padding: 2mm;
         }
-
-        .unterschrift-spacer {
+        
+        .signature-spacer {
+            display: table-cell;
             width: 10%;
         }
-
-        .unterschrift-bild {
-            max-height: 60px;
-            max-width: 200px;
-            margin-bottom: 5px;
+        
+        .signature-box {
+            border: 1px solid #e2e8f0;
+            padding: 3mm;
+            background-color: #f8fafc;
+            min-height: 25mm;
         }
-
-        .unterschrift-linie {
+        
+        .signature-label {
+            font-size: 7pt;
+            color: #555;
+            margin-bottom: 2mm;
+        }
+        
+        .signature-label .it {
+            color: #777;
+        }
+        
+        .signature-image {
+            max-height: 50px;
+            max-width: 180px;
+            margin: 2mm 0;
+        }
+        
+        .signature-line {
             border-top: 1px solid #333;
-            padding-top: 5px;
-            margin-top: 10px;
+            margin-top: 2mm;
+            padding-top: 2mm;
         }
-
-        .unterschrift-name {
-            font-size: 10pt;
+        
+        .signature-name {
+            font-size: 9pt;
             font-weight: bold;
             color: #333;
         }
-
-        .unterschrift-rolle {
-            font-size: 8pt;
-            color: #666;
-        }
-
-        .unterschrift-datum {
+        
+        .signature-role {
             font-size: 7pt;
-            color: #999;
-            margin-top: 3px;
+            color: #555;
         }
-
-        /* ══════════════════════════════════════════════════════════════════ */
-        /* FOOTER */
-        /* ══════════════════════════════════════════════════════════════════ */
+        
+        .signature-role .it {
+            color: #777;
+        }
+        
+        .signature-date {
+            font-size: 6.5pt;
+            color: #888;
+            margin-top: 1mm;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           FOOTER
+        ═══════════════════════════════════════════════════════════════ */
         .footer {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 5mm;
+            left: 10mm;
+            right: 10mm;
             text-align: center;
-            font-size: 7pt;
-            color: #999;
-            padding: 10px 15mm;
-            border-top: 1px solid #eee;
+            font-size: 6.5pt;
+            color: #888;
+            padding-top: 2mm;
+            border-top: 1px solid #e2e8f0;
         }
     </style>
 </head>
 <body>
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- BRIEFKOPF / INTESTAZIONE -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <div class="header">
-        <table class="header-table">
-            <tr>
-                <!-- Logo -->
-                <td class="logo-cell">
-                    @if(isset($profil) && $profil->logo_pfad)
-                        @php
-                            $logoPath = public_path($profil->logo_pfad);
-                            if (!file_exists($logoPath)) {
-                                $logoPath = storage_path('app/public/' . $profil->logo_pfad);
-                            }
-                        @endphp
-                        @if(file_exists($logoPath))
-                            <img src="{{ $logoPath }}" class="logo" alt="Logo">
+    <!-- ═══════════════════════════════════════════════════════════════
+         BRIEFKOPF - wie bei Rechnung
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="letterhead">
+        <div class="letterhead-row">
+            <!-- Logo links -->
+            <div class="letterhead-left">
+                @if(isset($profil) && $profil->logo_pfad)
+                    @php
+                        $logoPath = public_path($profil->logo_pfad);
+                        if (!file_exists($logoPath)) {
+                            $logoPath = storage_path('app/public/' . $profil->logo_pfad);
+                        }
+                    @endphp
+                    @if(file_exists($logoPath))
+                        <img src="{{ $logoPath }}" class="logo" alt="Logo">
+                    @endif
+                @endif
+            </div>
+            
+            <!-- Firmendaten rechts -->
+            <div class="letterhead-right">
+                @if(isset($profil))
+                    <div class="company-name">{{ $profil->firmenname ?? $profil->firma ?? $profil->name ?? '' }}</div>
+                    <div class="company-info">
+                        @if($profil->strasse ?? false)
+                            {{ $profil->strasse }} {{ $profil->hausnummer ?? '' }}<br>
                         @endif
-                    @endif
-                </td>
-                
-                <!-- Firmendaten / Dati azienda -->
-                <td class="firma-cell">
-                    @if(isset($profil))
-                        <div class="firma-name">{{ $profil->firma ?? $profil->name ?? 'Firma' }}</div>
-                        <div class="firma-details">
-                            @if($profil->strasse ?? false)
-                                {{ $profil->strasse }} {{ $profil->hausnummer ?? '' }}<br>
-                            @endif
-                            @if(($profil->plz ?? false) || ($profil->wohnort ?? false))
-                                {{ $profil->plz ?? '' }} {{ $profil->wohnort ?? '' }}<br>
-                            @endif
-                            @if($profil->steuernummer ?? false)
-                                St.-Nr./C.F.: {{ $profil->steuernummer }}<br>
-                            @endif
-                            @if($profil->mwst_nummer ?? false)
-                                MwSt.-Nr./P.IVA: {{ $profil->mwst_nummer }}<br>
-                            @endif
-                            @if($profil->telefon ?? false)
-                                Tel.: {{ $profil->telefon }}
-                            @endif
-                            @if($profil->email ?? false)
-                                | {{ $profil->email }}
-                            @endif
-                        </div>
-                    @endif
-                </td>
-                
-                <!-- Dokumenttitel -->
-                <td class="dokument-cell">
-                    <div class="dokument-titel">ARBEITSBERICHT</div>
-                    <div class="dokument-subtitel">Rapporto di lavoro</div>
-                    <div class="dokument-datum">
-                        {{ $bericht->arbeitsdatum->format('d.m.Y') }}
+                        @if(($profil->postleitzahl ?? $profil->plz ?? false) || ($profil->ort ?? $profil->wohnort ?? false))
+                            {{ $profil->postleitzahl ?? $profil->plz ?? '' }} {{ $profil->ort ?? $profil->wohnort ?? '' }}<br>
+                        @endif
+                        @if($profil->codice_fiscale ?? $profil->steuernummer ?? false)
+                            CF: {{ $profil->codice_fiscale ?? $profil->steuernummer }}<br>
+                        @endif
+                        @if($profil->partita_iva ?? $profil->mwst_nummer ?? false)
+                            P.IVA: {{ $profil->partita_iva ?? $profil->mwst_nummer }}<br>
+                        @endif
+                        @if($profil->telefon ?? false)
+                            Tel: {{ $profil->telefon }}<br>
+                        @endif
+                        @if($profil->email ?? false)
+                            {{ $profil->email }}
+                        @endif
                     </div>
-                    <div class="status-badge">✓ UNTERSCHRIEBEN / FIRMATO</div>
-                </td>
-            </tr>
-        </table>
+                @endif
+            </div>
+        </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- KUNDE & OBJEKT -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <div class="info-row">
-        <table class="info-table">
-            <tr>
-                <td class="info-box">
-                    <div class="info-label">Kunde / Cliente</div>
-                    <div class="info-value">
-                        <strong>{{ $bericht->adresse_name }}</strong><br>
+    <!-- ═══════════════════════════════════════════════════════════════
+         TITEL
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="document-title">
+        <span class="de">ARBEITSBERICHT</span> / <span class="it">RAPPORTO DI LAVORO</span>
+        <span class="status-badge">✓ UNTERSCHRIEBEN / FIRMATO</span>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         KUNDE & DATUM
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="address-section">
+        <div class="address-row">
+            <!-- Kunde -->
+            <div class="address-col">
+                <div class="address-box">
+                    <div class="address-label">
+                        <span class="de">KUNDE</span> / <span class="it">CLIENTE</span>
+                    </div>
+                    <div class="address-content">
+                        <div class="address-name">{{ $bericht->adresse_name }}</div>
                         {{ $bericht->adresse_strasse }} {{ $bericht->adresse_hausnummer }}<br>
                         {{ $bericht->adresse_plz }} {{ $bericht->adresse_wohnort }}
                     </div>
-                </td>
-                <td class="info-box-spacer"></td>
-                <td class="info-box">
-                    <div class="info-label">Objekt / Edificio</div>
-                    <div class="info-value">
-                        @if($bericht->gebaeude)
-                            <strong>{{ $bericht->gebaeude->gebaeude_name }}</strong>
-                            @if($bericht->gebaeude->codex)
-                                <span style="color: #666;">({{ $bericht->gebaeude->codex }})</span>
-                            @endif
-                            <br>
-                            {{ $bericht->gebaeude->strasse }} {{ $bericht->gebaeude->hausnummer }}<br>
-                            {{ $bericht->gebaeude->plz }} {{ $bericht->gebaeude->wohnort }}
-                        @else
-                            {{ $bericht->adresse_name }}
-                        @endif
+                </div>
+            </div>
+            
+            <!-- Daten -->
+            <div class="address-col">
+                <div class="address-box">
+                    <div class="address-label">
+                        <span class="de">DATEN</span> / <span class="it">DATI</span>
                     </div>
-                </td>
+                    <div class="address-content">
+                        <table class="invoice-data-table">
+                            <tr>
+                                <td class="label">Datum / Data:</td>
+                                <td class="value">{{ $bericht->arbeitsdatum->format('d.m.Y') }}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Bericht-Nr. / N° rapporto:</td>
+                                <td class="value">#{{ $bericht->id }}</td>
+                            </tr>
+                            @if($bericht->gebaeude && $bericht->gebaeude->codex)
+                            <tr>
+                                <td class="label">Codex:</td>
+                                <td class="value">{{ $bericht->gebaeude->codex }}</td>
+                            </tr>
+                            @endif
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         POSITIONEN
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="section-title">
+        <span class="de">DURCHGEFÜHRTE ARBEITEN</span> / <span class="it">LAVORI ESEGUITI</span>
+    </div>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 50%;">
+                    <span class="de">Beschreibung</span> / <span class="it">Descrizione</span>
+                </th>
+                <th class="center" style="width: 12%;">
+                    <span class="de">Menge</span> / <span class="it">Qtà</span>
+                </th>
+                <th class="right" style="width: 19%;">
+                    <span class="de">Einzelpreis</span> / <span class="it">Prezzo</span>
+                </th>
+                <th class="right" style="width: 19%;">
+                    <span class="de">Gesamt</span> / <span class="it">Totale</span>
+                </th>
             </tr>
-        </table>
-    </div>
-
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- POSITIONEN / LAVORI ESEGUITI -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <div class="section">
-        <div class="section-title">
-            DURCHGEFÜHRTE ARBEITEN <span class="section-subtitle">/ Lavori eseguiti</span>
-        </div>
-        <table class="positionen-table">
-            <thead>
+        </thead>
+        <tbody>
+            @php $summe = 0; @endphp
+            @if(!empty($bericht->positionen))
+                @foreach($bericht->positionen as $position)
+                @php 
+                    $einzelpreis = (float) ($position['einzelpreis'] ?? 0);
+                    $anzahl = (float) ($position['anzahl'] ?? 1);
+                    $gesamt = (float) ($position['gesamtpreis'] ?? ($einzelpreis * $anzahl));
+                    $summe += $gesamt;
+                @endphp
                 <tr>
-                    <th style="width: 50%;">Bezeichnung / Descrizione</th>
-                    <th class="center" style="width: 15%;">Menge / Qtà</th>
-                    <th class="right" style="width: 17%;">Einzelpreis / Prezzo</th>
-                    <th class="right" style="width: 18%;">Gesamt / Totale</th>
+                    <td>{{ $position['bezeichnung'] ?? '-' }}</td>
+                    <td class="center">{{ number_format($anzahl, 0) }}</td>
+                    <td class="right">{{ number_format($einzelpreis, 2, ',', '.') }} €</td>
+                    <td class="right">{{ number_format($gesamt, 2, ',', '.') }} €</td>
                 </tr>
-            </thead>
-            <tbody>
-                @php $summe = 0; @endphp
-                @if(!empty($bericht->positionen))
-                    @foreach($bericht->positionen as $position)
-                    @php 
-                        $einzelpreis = (float) ($position['einzelpreis'] ?? 0);
-                        $anzahl = (float) ($position['anzahl'] ?? 1);
-                        $gesamt = (float) ($position['gesamtpreis'] ?? ($einzelpreis * $anzahl));
-                        $summe += $gesamt;
-                    @endphp
-                    <tr>
-                        <td>{{ $position['bezeichnung'] ?? '-' }}</td>
-                        <td class="center">{{ $anzahl }} {{ $position['einheit'] ?? '' }}</td>
-                        <td class="right">{{ number_format($einzelpreis, 2, ',', '.') }} €</td>
-                        <td class="right">{{ number_format($gesamt, 2, ',', '.') }} €</td>
-                    </tr>
-                    @endforeach
-                @else
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: #999; padding: 20px;">
-                            Keine Positionen / Nessuna posizione
-                        </td>
-                    </tr>
-                @endif
-            </tbody>
-            <tfoot>
+                @endforeach
+            @else
                 <tr>
-                    <td colspan="3" style="text-align: right; padding-right: 10px;">
-                        <strong>SUMME / TOTALE:</strong>
-                    </td>
-                    <td class="right">
-                        <strong>{{ number_format($summe, 2, ',', '.') }} €</strong>
+                    <td colspan="4" style="text-align: center; color: #888; padding: 5mm;">
+                        Keine Positionen / Nessuna posizione
                     </td>
                 </tr>
-            </tfoot>
-        </table>
-    </div>
+            @endif
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3" style="text-align: right; padding-right: 3mm;">
+                    <span class="de">SUMME</span> / <span class="it">TOTALE</span>
+                </td>
+                <td class="right">{{ number_format($summe, 2, ',', '.') }} €</td>
+            </tr>
+        </tfoot>
+    </table>
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- BEMERKUNG / NOTE -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         BEMERKUNG
+    ═══════════════════════════════════════════════════════════════ -->
     @if($bericht->bemerkung)
-    <div class="section">
-        <div class="section-title">
-            BEMERKUNG <span class="section-subtitle">/ Note</span>
-        </div>
-        <div class="bemerkung-box">
+    <div class="info-box">
+        <h3>
+            <span class="de">Bemerkungen</span> / <span class="it">Note</span>
+        </h3>
+        <div class="info-box-content">
             {{ $bericht->bemerkung }}
         </div>
     </div>
     @endif
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- NÄCHSTER TERMIN / PROSSIMO APPUNTAMENTO -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         NÄCHSTER TERMIN
+    ═══════════════════════════════════════════════════════════════ -->
     @if($bericht->naechste_faelligkeit)
-    <div class="section">
-        <div class="section-title">
-            NÄCHSTER TERMIN <span class="section-subtitle">/ Prossimo appuntamento</span>
-        </div>
+    <div class="info-box highlight">
+        <h3>
+            <span class="de">Nächster Termin</span> / <span class="it">Prossimo appuntamento</span>
+        </h3>
         <div class="termin-box">
-            <div class="termin-label">Fällig am / Scadenza:</div>
             <div class="termin-datum">{{ $bericht->naechste_faelligkeit->format('d.m.Y') }}</div>
         </div>
     </div>
     @endif
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- UNTERSCHRIFTEN / FIRME -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <div class="unterschriften-section">
+    <!-- ═══════════════════════════════════════════════════════════════
+         UNTERSCHRIFTEN
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="signatures-section">
         <div class="section-title">
-            UNTERSCHRIFTEN <span class="section-subtitle">/ Firme</span>
+            <span class="de">UNTERSCHRIFTEN</span> / <span class="it">FIRME</span>
         </div>
-        <table class="unterschriften-table" style="margin-top: 15px;">
-            <tr>
-                <!-- Kunde / Cliente -->
-                <td class="unterschrift-cell">
+        
+        <div class="signatures-row" style="margin-top: 3mm;">
+            <!-- Kunde -->
+            <div class="signature-col">
+                <div class="signature-box">
+                    <div class="signature-label">
+                        <span class="de">Kunde</span> / <span class="it">Cliente</span>
+                    </div>
                     @if($bericht->unterschrift_kunde)
-                        <img src="{{ $bericht->unterschrift_kunde }}" class="unterschrift-bild" alt="Unterschrift Kunde">
+                        <img src="{{ $bericht->unterschrift_kunde }}" class="signature-image" alt="Unterschrift Kunde">
                     @else
-                        <div style="height: 60px;"></div>
+                        <div style="height: 40px;"></div>
                     @endif
-                    <div class="unterschrift-linie">
-                        <div class="unterschrift-name">{{ $bericht->unterschrift_name ?? '________________' }}</div>
-                        <div class="unterschrift-rolle">Kunde / Cliente</div>
+                    <div class="signature-line">
+                        <div class="signature-name">{{ $bericht->unterschrift_name ?? '' }}</div>
+                        <div class="signature-role">
+                            <span class="de">Kunde</span> / <span class="it">Cliente</span>
+                        </div>
                         @if($bericht->unterschrieben_am)
-                            <div class="unterschrift-datum">{{ $bericht->unterschrieben_am->format('d.m.Y, H:i') }} Uhr</div>
+                        <div class="signature-date">{{ $bericht->unterschrieben_am->format('d.m.Y, H:i') }} Uhr</div>
                         @endif
                     </div>
-                </td>
-                
-                <td class="unterschrift-spacer"></td>
-                
-                <!-- Mitarbeiter / Operatore -->
-                <td class="unterschrift-cell">
+                </div>
+            </div>
+            
+            <div class="signature-spacer"></div>
+            
+            <!-- Mitarbeiter -->
+            <div class="signature-col">
+                <div class="signature-box">
+                    <div class="signature-label">
+                        <span class="de">Mitarbeiter</span> / <span class="it">Operatore</span>
+                    </div>
                     @if($bericht->unterschrift_mitarbeiter)
-                        <img src="{{ $bericht->unterschrift_mitarbeiter }}" class="unterschrift-bild" alt="Unterschrift Mitarbeiter">
+                        <img src="{{ $bericht->unterschrift_mitarbeiter }}" class="signature-image" alt="Unterschrift Mitarbeiter">
                     @else
-                        <div style="height: 60px;"></div>
+                        <div style="height: 40px;"></div>
                     @endif
-                    <div class="unterschrift-linie">
-                        <div class="unterschrift-name">{{ $bericht->mitarbeiter_name ?? '________________' }}</div>
-                        <div class="unterschrift-rolle">Mitarbeiter / Operatore</div>
+                    <div class="signature-line">
+                        <div class="signature-name">{{ $bericht->mitarbeiter_name ?? '' }}</div>
+                        <div class="signature-role">
+                            <span class="de">Mitarbeiter</span> / <span class="it">Operatore</span>
+                        </div>
                         @if($bericht->unterschrieben_am)
-                            <div class="unterschrift-datum">{{ $bericht->unterschrieben_am->format('d.m.Y, H:i') }} Uhr</div>
+                        <div class="signature-date">{{ $bericht->unterschrieben_am->format('d.m.Y, H:i') }} Uhr</div>
                         @endif
                     </div>
-                </td>
-            </tr>
-        </table>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- FOOTER -->
-    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         FOOTER
+    ═══════════════════════════════════════════════════════════════ -->
     <div class="footer">
-        Arbeitsbericht / Rapporto di lavoro #{{ $bericht->id }} 
-        @if(isset($profil) && ($profil->firma ?? false))
-            | {{ $profil->firma }}
+        @if(isset($profil))
+            <strong>{{ $profil->firmenname ?? $profil->firma ?? $profil->name ?? '' }}</strong> | 
+            {{ $profil->strasse ?? '' }} {{ $profil->hausnummer ?? '' }}, 
+            {{ $profil->postleitzahl ?? $profil->plz ?? '' }} {{ $profil->ort ?? $profil->wohnort ?? '' }}
+            @if($profil->codice_fiscale ?? $profil->steuernummer ?? false) | CF: {{ $profil->codice_fiscale ?? $profil->steuernummer }}@endif
+            @if($profil->partita_iva ?? $profil->mwst_nummer ?? false) | P.IVA: {{ $profil->partita_iva ?? $profil->mwst_nummer }}@endif
         @endif
-        | Erstellt am / Creato il {{ $bericht->created_at->format('d.m.Y H:i') }}
+        <br>
+        Arbeitsbericht / Rapporto di lavoro #{{ $bericht->id }} | Erstellt am / Creato il {{ $bericht->created_at->format('d.m.Y H:i') }}
     </div>
 </body>
 </html>
