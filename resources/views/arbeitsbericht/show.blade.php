@@ -48,24 +48,39 @@
             @if(!empty($arbeitsbericht->positionen))
             <div class="card mb-4">
                 <div class="card-header">
-                    <i class="bi bi-list-check"></i> Positionen
+                    <i class="bi bi-list-check"></i> Positionen / Lavori
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-striped mb-0">
                         <thead>
                             <tr>
                                 <th>Bezeichnung</th>
-                                <th class="text-end">Anzahl</th>
+                                <th class="text-center">Menge</th>
+                                <th class="text-end">Preis</th>
+                                <th class="text-end">Gesamt</th>
                             </tr>
                         </thead>
                         <tbody>
+                            @php $summe = 0; @endphp
                             @foreach($arbeitsbericht->positionen as $position)
+                            @php 
+                                $gesamt = (float) ($position['gesamtpreis'] ?? 0);
+                                $summe += $gesamt;
+                            @endphp
                             <tr>
                                 <td>{{ $position['bezeichnung'] }}</td>
-                                <td class="text-end">{{ $position['anzahl'] }} {{ $position['einheit'] ?? '' }}</td>
+                                <td class="text-center">{{ $position['anzahl'] }} {{ $position['einheit'] ?? '' }}</td>
+                                <td class="text-end">{{ number_format((float)($position['einzelpreis'] ?? 0), 2, ',', '.') }} €</td>
+                                <td class="text-end">{{ number_format($gesamt, 2, ',', '.') }} €</td>
                             </tr>
                             @endforeach
                         </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="3" class="text-end">Summe / Totale:</th>
+                                <th class="text-end">{{ number_format($summe, 2, ',', '.') }} €</th>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -83,22 +98,47 @@
             </div>
             @endif
 
-            <!-- Unterschrift -->
-            <div class="card mb-4 border-success">
-                <div class="card-header bg-success text-white">
-                    <i class="bi bi-pen"></i> Unterschrift Kunde
+            <!-- Unterschriften -->
+            <div class="row">
+                <!-- Unterschrift Kunde -->
+                <div class="col-md-6">
+                    <div class="card mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-pen"></i> Unterschrift Kunde
+                        </div>
+                        <div class="card-body text-center">
+                            @if($arbeitsbericht->unterschrift_kunde)
+                            <img src="{{ $arbeitsbericht->unterschrift_kunde }}" 
+                                 alt="Unterschrift Kunde" 
+                                 style="max-height: 80px; border: 1px solid #eee; border-radius: 8px; padding: 8px; background: #fafafa;">
+                            @endif
+                            <div class="mt-2">
+                                <strong>{{ $arbeitsbericht->unterschrift_name }}</strong><br>
+                                <small class="text-muted">
+                                    {{ $arbeitsbericht->unterschrieben_am?->format('d.m.Y H:i') }} Uhr
+                                </small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body text-center">
-                    @if($arbeitsbericht->unterschrift_kunde)
-                    <img src="{{ $arbeitsbericht->unterschrift_kunde }}" 
-                         alt="Unterschrift" 
-                         style="max-height: 100px; border: 1px solid #eee; border-radius: 8px; padding: 10px; background: #fafafa;">
-                    @endif
-                    <div class="mt-3">
-                        <strong>{{ $arbeitsbericht->unterschrift_name }}</strong><br>
-                        <small class="text-muted">
-                            {{ $arbeitsbericht->unterschrieben_am->format('d.m.Y H:i') }} Uhr
-                        </small>
+
+                <!-- Unterschrift Mitarbeiter -->
+                <div class="col-md-6">
+                    <div class="card mb-4 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-pen"></i> Unterschrift Mitarbeiter
+                        </div>
+                        <div class="card-body text-center">
+                            @if($arbeitsbericht->unterschrift_mitarbeiter)
+                            <img src="{{ $arbeitsbericht->unterschrift_mitarbeiter }}" 
+                                 alt="Unterschrift Mitarbeiter" 
+                                 style="max-height: 80px; border: 1px solid #eee; border-radius: 8px; padding: 8px; background: #fafafa;">
+                            @endif
+                            <div class="mt-2">
+                                <strong>{{ $arbeitsbericht->mitarbeiter_name }}</strong><br>
+                                <small class="text-muted">Mitarbeiter</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
