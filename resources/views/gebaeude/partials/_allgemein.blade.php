@@ -136,7 +136,7 @@
           <i class="bi bi-info-circle me-1"></i>
           Keine Adresse zugewiesen. Adresse aus Gebäudedaten erstellen?
         </span>
-        <form method="POST" action="{{ route('gebaeude.erstelleAdresse', $gebaeude) }}" class="d-inline mb-0">
+        <form method="POST" action="{{ route('gebaeude.erstelleAdresse', $gebaeude->id) }}" class="d-inline mb-0">
           @csrf
           <button type="submit" class="btn btn-primary btn-sm" 
                   onclick="return confirm('Adresse aus Gebäudedaten erstellen und als Postadresse + Rechnungsempfänger setzen?')">
