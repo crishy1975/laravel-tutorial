@@ -86,9 +86,9 @@ class Arbeitsbericht extends Model
             $anzahl = (float) ($artikel->anzahl ?? 1);
             
             return [
-                'bezeichnung'  => $artikel->bezeichnung ?? 'Unbekannt',
+                'bezeichnung'  => $artikel->beschreibung ?? 'Unbekannt',
                 'anzahl'       => $anzahl,
-                'einheit'      => $artikel->einheit ?? 'Stk',
+                'einheit'      => 'Stk',
                 'einzelpreis'  => $einzelpreis,
                 'gesamtpreis'  => round($einzelpreis * $anzahl, 2),
             ];
