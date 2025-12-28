@@ -136,15 +136,37 @@
           <i class="bi bi-info-circle me-1"></i>
           Keine Adresse zugewiesen. Adresse aus Gebäudedaten erstellen?
         </span>
-        <form method="POST" action="{{ route('gebaeude.erstelleAdresse', $gebaeude->id) }}" class="d-inline mb-0">
-          @csrf
-          <button type="submit" class="btn btn-primary btn-sm" 
-                  onclick="return confirm('Adresse aus Gebäudedaten erstellen und als Postadresse + Rechnungsempfänger setzen?')">
-            <i class="bi bi-person-plus"></i> Adresse erstellen
-          </button>
-        </form>
+        <button type="button" class="btn btn-primary btn-sm" id="btnAdresseErstellen">
+          <i class="bi bi-person-plus"></i> Adresse erstellen
+        </button>
       </div>
     </div>
+    
+    {{-- Verstecktes Formular außerhalb --}}
+    <script>
+    document.getElementById('btnAdresseErstellen').addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!confirm('Adresse aus Gebäudedaten erstellen und als Postadresse + Rechnungsempfänger setzen?')) {
+            return;
+        }
+        
+        // Separates Formular erstellen und absenden
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ route("gebaeude.erstelleAdresse", $gebaeude->id) }}';
+        
+        var csrf = document.createElement('input');
+        csrf.type = 'hidden';
+        csrf.name = '_token';
+        csrf.value = '{{ csrf_token() }}';
+        form.appendChild(csrf);
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
+    </script>
   @endif
 
   {{-- ═══════════════════════════════════════════════════════════ --}}
