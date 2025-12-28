@@ -1,2 +1,10 @@
 gebäude
     filter mit cards
+
+eingangsrechnung
+
+stunden lohnbuchhaltung
+
+tagesinkassi
+
+allgemeine dokumente ohne bezug
