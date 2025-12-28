@@ -31,14 +31,14 @@ return new class extends Migration
             
             // Digitale Unterschrift
             $table->text('unterschrift_kunde')->nullable();   // Base64 Signatur
-            $table->timestamp('unterschrieben_am')->nullable();
+            $table->dateTime('unterschrieben_am')->nullable();
             $table->string('unterschrift_name')->nullable();  // Name des Unterzeichners
             $table->string('unterschrift_ip')->nullable();    // IP für Nachweis
             
             // Link-System
             $table->string('token', 64)->unique();           // Eindeutiger Link-Token
-            $table->timestamp('gueltig_bis');                // 10 Tage Gültigkeit
-            $table->timestamp('abgerufen_am')->nullable();   // Wann wurde Link geöffnet
+            $table->dateTime('gueltig_bis');                 // 10 Tage Gültigkeit
+            $table->dateTime('abgerufen_am')->nullable();    // Wann wurde Link geöffnet
             
             // Status
             $table->enum('status', ['erstellt', 'gesendet', 'unterschrieben', 'abgelaufen'])
