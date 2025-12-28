@@ -137,6 +137,11 @@
                                    title="Anzeigen">
                                     <i class="bi bi-eye"></i>
                                 </a>
+                                <a href="{{ route('arbeitsbericht.edit', $bericht) }}" 
+                                   class="btn btn-outline-secondary" 
+                                   title="Bearbeiten">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
                                 <a href="{{ route('arbeitsbericht.pdf', $bericht) }}" 
                                    class="btn btn-outline-secondary" 
                                    title="PDF">
@@ -148,7 +153,22 @@
                                         title="Link kopieren">
                                     <i class="bi bi-link"></i>
                                 </button>
+                                <button type="button" 
+                                        class="btn btn-outline-danger" 
+                                        onclick="confirmDelete({{ $bericht->id }})"
+                                        title="Löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
+                            
+                            <!-- Hidden Delete Form -->
+                            <form id="delete-form-{{ $bericht->id }}" 
+                                  action="{{ route('arbeitsbericht.destroy', $bericht) }}" 
+                                  method="POST" 
+                                  style="display: none;">
+                                @csrf
+                                @method('DELETE')
+                            </form>
                         </td>
                     </tr>
                     @empty
@@ -219,6 +239,12 @@ function copyToClipboard(text) {
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 2000);
     });
+}
+
+function confirmDelete(id) {
+    if (confirm('Arbeitsbericht wirklich löschen?\n\nElimina veramente il rapporto di lavoro?')) {
+        document.getElementById('delete-form-' + id).submit();
+    }
 }
 
 // Gebäude-Suche

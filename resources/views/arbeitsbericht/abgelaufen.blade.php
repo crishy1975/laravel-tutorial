@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Link abgelaufen</title>
+    <title>Link abgelaufen / Link scaduto</title>
     <style>
         * {
             box-sizing: border-box;
@@ -13,7 +13,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -27,7 +27,7 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             padding: 40px;
             text-align: center;
-            max-width: 400px;
+            max-width: 450px;
         }
         
         .icon {
@@ -36,15 +36,34 @@
         }
         
         h1 {
-            font-size: 24px;
+            font-size: 22px;
             color: #333;
             margin-bottom: 12px;
+        }
+        
+        h1 .it {
+            color: #666;
+            font-weight: normal;
         }
         
         p {
             color: #666;
             line-height: 1.6;
             margin-bottom: 24px;
+        }
+        
+        p .it {
+            color: #888;
+        }
+        
+        .date-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            color: #856404;
+            margin-bottom: 20px;
         }
         
         .info-box {
@@ -60,20 +79,32 @@
             color: #333;
             margin-bottom: 4px;
         }
+        
+        .info-box .it {
+            color: #888;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="icon">⏰</div>
-        <h1>Link abgelaufen</h1>
+        <h1>
+            Link abgelaufen <span class="it">/ Link scaduto</span>
+        </h1>
         <p>
-            Dieser Arbeitsbericht-Link ist leider nicht mehr gültig. 
-            Der Link war bis zum <strong>{{ $bericht->gueltig_bis->format('d.m.Y H:i') }} Uhr</strong> verfügbar.
+            Dieser Arbeitsbericht-Link ist leider nicht mehr gültig.<br>
+            <span class="it">Questo link per il rapporto di lavoro non è più valido.</span>
         </p>
         
+        <div class="date-box">
+            Gültig bis / Valido fino al<br>
+            <strong>{{ $bericht->gueltig_bis->format('d.m.Y H:i') }} Uhr</strong>
+        </div>
+        
         <div class="info-box">
-            <strong>Was können Sie tun?</strong>
-            Bitte kontaktieren Sie uns, um einen neuen Link anzufordern.
+            <strong>Was können Sie tun? <span class="it">/ Cosa può fare?</span></strong>
+            Bitte kontaktieren Sie uns, um einen neuen Link anzufordern.<br>
+            <span class="it">La preghiamo di contattarci per richiedere un nuovo link.</span>
         </div>
     </div>
 </body>

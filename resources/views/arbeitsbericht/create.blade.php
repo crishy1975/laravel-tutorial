@@ -146,7 +146,7 @@
                                            id="unterschrift_name" 
                                            name="unterschrift_name" 
                                            placeholder="Name / Nome *"
-                                           value="{{ old('unterschrift_name') }}"
+                                           value="{{ old('unterschrift_name', $gebaeude->rechnungsempfaenger?->name ?? $gebaeude->gebaeude_name) }}"
                                            required>
                                 </div>
                                 <div class="signature-container border rounded" style="background: #fafafa;">

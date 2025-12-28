@@ -455,13 +455,13 @@
                             {{ $profil->postleitzahl ?? $profil->plz ?? '' }} {{ $profil->ort ?? $profil->wohnort ?? '' }}<br>
                         @endif
                         @if($profil->codice_fiscale ?? $profil->steuernummer ?? false)
-                            CF: {{ $profil->codice_fiscale ?? $profil->steuernummer }}<br>
+                            CF {{ $profil->codice_fiscale ?? $profil->steuernummer }}<br>
                         @endif
                         @if($profil->partita_iva ?? $profil->mwst_nummer ?? false)
-                            P.IVA: {{ $profil->partita_iva ?? $profil->mwst_nummer }}<br>
+                            P.IVA {{ $profil->partita_iva ?? $profil->mwst_nummer }}<br>
                         @endif
                         @if($profil->telefon ?? false)
-                            Tel: {{ $profil->telefon }}<br>
+                            Tel {{ $profil->telefon }}<br>
                         @endif
                         @if($profil->email ?? false)
                             {{ $profil->email }}
@@ -604,13 +604,17 @@
          NÄCHSTER TERMIN
     ═══════════════════════════════════════════════════════════════ -->
     @if($bericht->naechste_faelligkeit)
-    <div class="info-box highlight">
-        <h3>
-            <span class="de">Nächster Termin</span> / <span class="it">Prossimo appuntamento</span>
-        </h3>
-        <div class="termin-box">
-            <div class="termin-datum">{{ $bericht->naechste_faelligkeit->format('d.m.Y') }}</div>
-        </div>
+    <div class="info-box highlight" style="padding: 2mm 3mm;">
+        <table style="width: 100%;">
+            <tr>
+                <td style="font-size: 8pt; color: #1a4a7c; font-weight: bold;">
+                    <span class="de">Nächster Termin</span> / <span class="it" style="color: #555; font-weight: normal;">Prossimo appuntamento</span>
+                </td>
+                <td style="text-align: right; font-size: 11pt; font-weight: bold; color: #1a4a7c;">
+                    {{ $bericht->naechste_faelligkeit->format('d.m.Y') }}
+                </td>
+            </tr>
+        </table>
     </div>
     @endif
 
@@ -681,8 +685,8 @@
             <strong>{{ $profil->firmenname ?? $profil->firma ?? $profil->name ?? '' }}</strong> | 
             {{ $profil->strasse ?? '' }} {{ $profil->hausnummer ?? '' }}, 
             {{ $profil->postleitzahl ?? $profil->plz ?? '' }} {{ $profil->ort ?? $profil->wohnort ?? '' }}
-            @if($profil->codice_fiscale ?? $profil->steuernummer ?? false) | CF: {{ $profil->codice_fiscale ?? $profil->steuernummer }}@endif
-            @if($profil->partita_iva ?? $profil->mwst_nummer ?? false) | P.IVA: {{ $profil->partita_iva ?? $profil->mwst_nummer }}@endif
+            @if($profil->codice_fiscale ?? $profil->steuernummer ?? false) | CF {{ $profil->codice_fiscale ?? $profil->steuernummer }}@endif
+            @if($profil->partita_iva ?? $profil->mwst_nummer ?? false) | P.IVA {{ $profil->partita_iva ?? $profil->mwst_nummer }}@endif
         @endif
         <br>
         Arbeitsbericht / Rapporto di lavoro #{{ $bericht->id }} | Erstellt am / Creato il {{ $bericht->created_at->format('d.m.Y H:i') }}
