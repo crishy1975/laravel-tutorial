@@ -947,26 +947,58 @@ class GebaeudeController extends Controller
      */
     public function erstelleAdresse(int $id)
     {
-        $gebaeude = Gebaeude::findOrFail($id);
-        
-        // Bereits vorhanden?
-        if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
-            return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
-        }
-        
-        // Minimale Daten vorhanden?
-        if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
-            return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
-        }
+        Log::info('erstelleAdresse aufgerufen', ['id' => $id]);
         
         try {
-            $adresse = $gebaeude->erstelleAdresseAusGebaeude();
+            $gebaeude = Gebaeude::findOrFail($id);
+            Log::info('Gebäude gefunden', ['codex' => $gebaeude->codex]);
+            
+            // Bereits vorhanden?
+            if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
+                return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
+            }
+            
+            // Minimale Daten vorhanden?
+            if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
+                return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
+            }
+            
+            // Adresse DIREKT erstellen (ohne Model-Methode)
+            $adressDaten = [
+                'name'        => $gebaeude->gebaeude_name ?: $gebaeude->codex,
+                'strasse'     => $gebaeude->strasse,
+                'hausnummer'  => $gebaeude->hausnummer,
+                'plz'         => $gebaeude->plz,
+                'wohnort'     => $gebaeude->wohnort,
+                'land'        => $gebaeude->land ?? 'IT',
+                'telefon'     => $gebaeude->telefon,
+                'handy'       => $gebaeude->handy,
+                'email'       => $gebaeude->email,
+            ];
+            
+            Log::info('Erstelle Adresse', $adressDaten);
+            
+            $adresse = Adresse::create(array_filter($adressDaten));
+            
+            Log::info('Adresse erstellt', ['adresse_id' => $adresse->id]);
+            
+            // Gebäude aktualisieren
+            $gebaeude->postadresse_id = $adresse->id;
+            $gebaeude->rechnungsempfaenger_id = $adresse->id;
+            $gebaeude->save();
+            
+            Log::info('Gebäude aktualisiert', [
+                'postadresse_id' => $gebaeude->postadresse_id,
+                'rechnungsempfaenger_id' => $gebaeude->rechnungsempfaenger_id,
+            ]);
             
             return back()->with('success', "Adresse \"{$adresse->name}\" erstellt und zugewiesen.");
+            
         } catch (\Exception $e) {
-            Log::error('Fehler beim Erstellen der Adresse aus Gebäude', [
+            Log::error('Fehler beim Erstellen der Adresse', [
                 'gebaeude_id' => $id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return back()->with('error', 'Fehler: ' . $e->getMessage());
         }
