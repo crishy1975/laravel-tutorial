@@ -81,7 +81,7 @@ class ArbeitsberichtController extends Controller
                 ->with('error', 'Bitte wählen Sie zuerst ein Gebäude aus.');
         }
 
-        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel', 'timelines'])
+        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel.artikel', 'timelines'])
             ->findOrFail($request->integer('gebaeude_id'));
 
         return view('arbeitsbericht.create', compact('gebaeude'));
@@ -94,33 +94,40 @@ class ArbeitsberichtController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'gebaeude_id'          => 'required|exists:gebaeude,id',
-            'arbeitsdatum'         => 'required|date',
-            'naechste_faelligkeit' => 'nullable|date',
-            'bemerkung'            => 'nullable|string|max:2000',
-            'unterschrift'         => 'required|string', // Base64 Signatur
-            'unterschrift_name'    => 'required|string|max:100',
+            'gebaeude_id'              => 'required|exists:gebaeude,id',
+            'arbeitsdatum'             => 'required|date',
+            'naechste_faelligkeit'     => 'nullable|date',
+            'bemerkung'                => 'nullable|string|max:2000',
+            'unterschrift'             => 'required|string', // Base64 Signatur Kunde
+            'unterschrift_name'        => 'required|string|max:100',
+            'unterschrift_mitarbeiter' => 'required|string', // Base64 Signatur Mitarbeiter
+            'mitarbeiter_name'         => 'required|string|max:100',
         ]);
 
-        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel'])
+        $gebaeude = Gebaeude::with(['rechnungsempfaenger', 'aktiveArtikel.artikel'])
             ->findOrFail($validated['gebaeude_id']);
 
-        // Bericht erstellen MIT Unterschrift
+        // Bericht erstellen MIT beiden Unterschriften
         $bericht = Arbeitsbericht::createFromGebaeude($gebaeude, [
-            'arbeitsdatum'         => $validated['arbeitsdatum'],
-            'naechste_faelligkeit' => $validated['naechste_faelligkeit'],
-            'bemerkung'            => $validated['bemerkung'],
-            'unterschrift_kunde'   => $validated['unterschrift'],
-            'unterschrift_name'    => $validated['unterschrift_name'],
-            'unterschrift_ip'      => $request->ip(),
-            'unterschrieben_am'    => now(),
-            'status'               => 'unterschrieben', // Direkt unterschrieben!
+            'arbeitsdatum'             => $validated['arbeitsdatum'],
+            'naechste_faelligkeit'     => $validated['naechste_faelligkeit'],
+            'bemerkung'                => $validated['bemerkung'],
+            // Kunde
+            'unterschrift_kunde'       => $validated['unterschrift'],
+            'unterschrift_name'        => $validated['unterschrift_name'],
+            'unterschrift_ip'          => $request->ip(),
+            'unterschrieben_am'        => now(),
+            // Mitarbeiter
+            'unterschrift_mitarbeiter' => $validated['unterschrift_mitarbeiter'],
+            'mitarbeiter_name'         => $validated['mitarbeiter_name'],
+            'status'                   => 'unterschrieben',
         ]);
 
         Log::info('Arbeitsbericht erstellt und unterschrieben', [
             'bericht_id'  => $bericht->id,
             'gebaeude_id' => $gebaeude->id,
             'kunde'       => $validated['unterschrift_name'],
+            'mitarbeiter' => $validated['mitarbeiter_name'],
         ]);
 
         return redirect()
