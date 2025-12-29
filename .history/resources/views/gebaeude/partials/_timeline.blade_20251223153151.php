@@ -30,12 +30,12 @@ $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect
           <div class="col-12 col-sm-4">
             <label class="form-label small mb-1 d-sm-none">Datum</label>
             <input type="date" class="form-control form-control-sm" id="tl_datum" name="datum"
-              value="{{ old('datum', now()->toDateString()) }}" {{ $hasId ? '' : 'disabled' }}>
+                   value="{{ old('datum', now()->toDateString()) }}" {{ $hasId ? '' : 'disabled' }}>
           </div>
           <div class="col-12 col-sm-5">
             <label class="form-label small mb-1 d-sm-none">Bemerkung</label>
-            <input type="text" class="form-control form-control-sm" id="tl_bem"
-              placeholder="Bemerkung (optional)" {{ $hasId ? '' : 'disabled' }}>
+            <input type="text" class="form-control form-control-sm" id="tl_bem" name="bemerkung"
+                   placeholder="Bemerkung (optional)" {{ $hasId ? '' : 'disabled' }}>
           </div>
           <div class="col-12 col-sm-3">
             <button type="button" id="tl_add_btn" class="btn btn-success btn-sm w-100" {{ $hasId ? '' : 'disabled' }}>
@@ -71,8 +71,8 @@ $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect
           </div>
           <div class="d-flex flex-column align-items-end gap-1">
             <div class="form-check form-switch m-0">
-              <input class="form-check-input tl-toggle-verrechnen" type="checkbox"
-                data-id="{{ $e->id }}" @checked($e->verrechnen ?? false)>
+              <input class="form-check-input tl-toggle-verrechnen" type="checkbox" 
+                     data-id="{{ $e->id }}" @checked($e->verrechnen ?? false)>
               <label class="form-check-label small">Verr.</label>
             </div>
             <button type="button" class="btn btn-sm btn-outline-danger tl-del-btn" data-id="{{ $e->id }}">
@@ -117,8 +117,8 @@ $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect
             <td>{{ $e->person_name ?: '-' }}</td>
             <td>
               <div class="form-check form-switch m-0">
-                <input class="form-check-input tl-toggle-verrechnen" type="checkbox"
-                  data-id="{{ $e->id }}" @checked($e->verrechnen ?? false)>
+                <input class="form-check-input tl-toggle-verrechnen" type="checkbox" 
+                       data-id="{{ $e->id }}" @checked($e->verrechnen ?? false)>
               </div>
             </td>
             <td>{{ $e->verrechnet_mit_rn_nummer ?: '-' }}</td>
@@ -149,119 +149,100 @@ $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect
 </div>
 
 <script>
-  (function() {
-    var root = document.getElementById('timeline-root');
-    var CSRF = (root && root.dataset.csrf) || '';
-    var ROUTE_STORE = (root && root.dataset.routeStore) || '';
-    var ROUTE_DEST0 = (root && root.dataset.routeDestroy0) || '';
-    var ROUTE_TOGGLE_BASE = (root && root.dataset.routeToggleBase) || '';
-    var RETURN_TO = (root && root.dataset.returnTo) || '';
+(function() {
+  var root = document.getElementById('timeline-root');
+  var CSRF = (root && root.dataset.csrf) || '';
+  var ROUTE_STORE = (root && root.dataset.routeStore) || '';
+  var ROUTE_DEST0 = (root && root.dataset.routeDestroy0) || '';
+  var ROUTE_TOGGLE_BASE = (root && root.dataset.routeToggleBase) || '';
+  var RETURN_TO = (root && root.dataset.returnTo) || '';
 
-    var btnAdd = document.getElementById('tl_add_btn');
-    var inputDate = document.getElementById('tl_datum');
-    var inputRemark = document.getElementById('tl_bem');
+  var btnAdd = document.getElementById('tl_add_btn');
+  var inputDate = document.getElementById('tl_datum');
+  var inputRemark = document.getElementById('tl_bem');
 
-    if (!ROUTE_STORE) return;
+  if (!ROUTE_STORE) return;
 
-    // Enter -> Hinzufuegen
-    [inputDate, inputRemark].forEach(function(el) {
-      if (!el) return;
-      el.addEventListener('keydown', function(ev) {
-        if (ev.key === 'Enter') {
-          ev.preventDefault();
-          if (btnAdd) btnAdd.click();
-        }
-      });
+  // Enter -> Hinzufuegen
+  [inputDate, inputRemark].forEach(function(el) {
+    if (!el) return;
+    el.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        if (btnAdd) btnAdd.click();
+      }
     });
+  });
 
-    // Hinzufuegen
-    if (btnAdd) {
-      btnAdd.addEventListener('click', async function() {
-        var payload = {
-          datum: inputDate ? inputDate.value : null,
-          bemerkung: inputRemark ? inputRemark.value : null,
-          returnTo: RETURN_TO
-        };
-
-        try {
-          var res = await fetch(ROUTE_STORE, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-TOKEN': CSRF,
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-          var json = await res.json();
-          if (!res.ok || json.ok === false) throw new Error(json.message || 'Fehler');
-          window.location.reload();
-        } catch (err) {
-          alert('Fehler: ' + err.message);
-        }
-      });
-    }
-
-    // Loeschen (Desktop + Mobile)
-    document.addEventListener('click', async function(ev) {
-      var btn = ev.target.closest('.tl-del-btn');
-      if (!btn) return;
-
-      var id = btn.getAttribute('data-id');
-      if (!id || !confirm('Eintrag loeschen?')) return;
-
-      var routeDelete = ROUTE_DEST0.replace(/\/0$/, '/' + id);
+  // Hinzufuegen
+  if (btnAdd) {
+    btnAdd.addEventListener('click', async function() {
+      var payload = {
+        datum: inputDate ? inputDate.value : null,
+        bemerkung: inputRemark ? inputRemark.value : null,
+        returnTo: RETURN_TO
+      };
 
       try {
-        var res = await fetch(routeDelete, {
+        var res = await fetch(ROUTE_STORE, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            _method: 'DELETE',
-            returnTo: RETURN_TO
-          })
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+          body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (!res.ok || json.ok === false) throw new Error(json.message || 'Fehler');
         window.location.reload();
       } catch (err) {
         alert('Fehler: ' + err.message);
       }
     });
+  }
 
-    // Verrechnen Toggle (Desktop + Mobile)
-    document.addEventListener('change', async function(ev) {
-      var input = ev.target.closest('.tl-toggle-verrechnen');
-      if (!input) return;
+  // Loeschen (Desktop + Mobile)
+  document.addEventListener('click', async function(ev) {
+    var btn = ev.target.closest('.tl-del-btn');
+    if (!btn) return;
 
-      var id = input.getAttribute('data-id');
-      if (!id || !ROUTE_TOGGLE_BASE) return;
+    var id = btn.getAttribute('data-id');
+    if (!id || !confirm('Eintrag loeschen?')) return;
 
-      var isOn = input.checked;
-      var routeToggle = ROUTE_TOGGLE_BASE.replace(/\/$/, '') + '/' + id + '/verrechnen';
+    var routeDelete = ROUTE_DEST0.replace(/\/0$/, '/' + id);
 
-      try {
-        var res = await fetch(routeToggle, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': CSRF,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            _method: 'PATCH',
-            verrechnen: isOn ? 1 : 0,
-            returnTo: RETURN_TO
-          })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-      } catch (err) {
-        alert('Fehler: ' + err.message);
-        input.checked = !isOn;
-      }
-    });
-  })();
+    try {
+      var res = await fetch(routeDelete, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({ _method: 'DELETE', returnTo: RETURN_TO })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      window.location.reload();
+    } catch (err) {
+      alert('Fehler: ' + err.message);
+    }
+  });
+
+  // Verrechnen Toggle (Desktop + Mobile)
+  document.addEventListener('change', async function(ev) {
+    var input = ev.target.closest('.tl-toggle-verrechnen');
+    if (!input) return;
+
+    var id = input.getAttribute('data-id');
+    if (!id || !ROUTE_TOGGLE_BASE) return;
+
+    var isOn = input.checked;
+    var routeToggle = ROUTE_TOGGLE_BASE.replace(/\/$/, '') + '/' + id + '/verrechnen';
+
+    try {
+      var res = await fetch(routeToggle, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({ _method: 'PATCH', verrechnen: isOn ? 1 : 0, returnTo: RETURN_TO })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (err) {
+      alert('Fehler: ' + err.message);
+      input.checked = !isOn;
+    }
+  });
+})();
 </script>
