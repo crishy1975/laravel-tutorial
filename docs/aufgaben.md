@@ -14,3 +14,5 @@ rn und datum ändern
 bemerkung gebäude wird nicht gespeichert
 
 focus nach artikel
+
+summe der rechnungen statistik
