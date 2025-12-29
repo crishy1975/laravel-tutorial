@@ -302,10 +302,10 @@
 @if($hasId)
 <div id="art-root"
      data-csrf="{{ csrf_token() }}"
-     data-route-store="{{ route('artikel-gebaeude.store', $gebaeude->id) }}"
-     data-route-update0="{{ route('artikel-gebaeude.update', 0) }}"
-     data-route-delete0="{{ route('artikel-gebaeude.destroy', 0) }}"
-     data-route-reorder="{{ route('artikel-gebaeude.reorder', $gebaeude->id) }}"
+     data-route-store="{{ route('gebaeude.artikel.store', $gebaeude->id) }}"
+     data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
+     data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
+     data-route-reorder="{{ route('gebaeude.artikel.reorder', $gebaeude->id) }}"
      data-aktuelles-jahr="{{ $aktuellesJahr }}">
 </div>
 
