@@ -16,3 +16,5 @@ bemerkung gebäude wird nicht gespeichert
 focus nach artikel
 
 summe der rechnungen statistik
+
+summe positionen stimmt niccht
