@@ -18,3 +18,5 @@ focus nach artikel
 summe der rechnungen statistik
 
 summe positionen stimmt niccht
+
+bei pdf rechnung c.f. in großbuchstaben
