@@ -33,7 +33,7 @@ $entries = $timelineEntries ?? ($hasId ? $gebaeude->timelines()->get() : collect
               value="{{ old('datum', now()->toDateString()) }}" {{ $hasId ? '' : 'disabled' }}>
           </div>
           <div class="col-12 col-sm-5">
-            <label class="form-label small mb-1 d-sm-none">Bemerkung</label>
+            <label class="form-label small mb-1 d-sm-none">Bemerkung2</label>
             <input type="text" class="form-control form-control-sm" id="tl_bem"
               placeholder="Bemerkung (optional)" {{ $hasId ? '' : 'disabled' }}>
           </div>
