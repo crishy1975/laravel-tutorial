@@ -11,10 +11,9 @@
       $aufschlagNaechstesJahr = $gebaeude->getAufschlagProzent($naechstesJahr);
       $hatIndividuell = $gebaeude->hatIndividuellenAufschlag();
       
+      // ⭐ FIX: Nur aktive Artikel für Summe verwenden
       $serverSumAktiv = 0.0;
-      foreach (($gebaeude->artikel ?? []) as $artikel) {
-          if (!$artikel->aktiv) continue;
-          
+      foreach (($gebaeude->aktiveArtikel ?? []) as $artikel) {
           $basisJahr = $artikel->basis_jahr ?? $aktuellesJahr;
           $basisPreis = $artikel->basis_preis ?? $artikel->einzelpreis;
           
@@ -32,6 +31,7 @@
       $hatIndividuell = false;
   }
 
+  // Alle Artikel für die Anzeige (aktiv + inaktiv)
   $artikelListe = $hasId ? ($gebaeude->artikel ?? []) : [];
 @endphp
 
@@ -222,17 +222,15 @@
                      step="0.01" min="0" value="0.00" {{ $hasId ? '' : 'disabled' }}>
             </td>
             <td>
-              <input type="text" class="form-control form-control-sm text-end" id="new-gesamtpreis" 
+              <input type="text" class="form-control form-control-sm text-end bg-light" id="new-gesamtpreis" 
                      value="0,00" disabled>
             </td>
-            <td>
-              <div class="form-check form-switch m-0">
-                <input class="form-check-input" type="checkbox" id="new-aktiv" {{ $hasId ? 'checked' : 'disabled' }}>
-              </div>
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" id="new-aktiv" {{ $hasId ? 'checked' : 'disabled' }}>
             </td>
             <td class="text-end">
               <button type="button" id="btn-add-art" class="btn btn-sm btn-success" {{ $hasId ? '' : 'disabled' }}>
-                <i class="bi bi-check2-circle"></i>
+                <i class="bi bi-plus-lg"></i>
               </button>
             </td>
           </tr>
@@ -245,14 +243,13 @@
               $anzeigePreis = $gebaeude->berechnePreisMitKumulativerErhoehung($basisPreis, $basisJahr, $aktuellesJahr);
               $rowTotal = (float)$p->anzahl * $anzeigePreis;
             @endphp
-            <tr data-id="{{ $p->id }}" draggable="true" 
+            <tr data-id="{{ $p->id }}" 
                 data-aktiv="{{ $p->aktiv ? '1' : '0' }}"
                 data-basis-preis="{{ $basisPreis }}"
                 data-basis-jahr="{{ $basisJahr }}"
-                data-aktuelles-jahr="{{ $aktuellesJahr }}">
-              <td class="text-center" style="cursor: move;">
-                <i class="bi bi-grip-vertical text-muted"></i>
-              </td>
+                draggable="true"
+                class="{{ $p->aktiv ? '' : 'opacity-50' }}">
+              <td class="text-center text-muted" style="cursor: grab;"><i class="bi bi-grip-vertical"></i></td>
               <td>
                 <input type="text" class="form-control form-control-sm" data-field="beschreibung" 
                        value="{{ $p->beschreibung }}">
@@ -263,17 +260,14 @@
               </td>
               <td>
                 <input type="number" class="form-control form-control-sm text-end" data-field="einzelpreis" 
-                       step="0.01" value="{{ number_format($anzeigePreis, 2, '.', '') }}"
-                       title="Basis: {{ number_format($basisPreis, 2, ',', '.') }} EUR ({{ $basisJahr }})">
+                       step="0.01" value="{{ number_format($anzeigePreis, 2, '.', '') }}">
               </td>
               <td>
-                <input type="text" class="form-control form-control-sm text-end" data-field="gesamtpreis" 
+                <input type="text" class="form-control form-control-sm text-end bg-light" data-field="gesamtpreis" 
                        value="{{ number_format($rowTotal, 2, ',', '.') }}" disabled>
               </td>
-              <td>
-                <div class="form-check form-switch m-0">
-                  <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }}>
-                </div>
+              <td class="text-center">
+                <input class="form-check-input" type="checkbox" data-field="aktiv" {{ $p->aktiv ? 'checked' : '' }}>
               </td>
               <td class="text-end">
                 <div class="btn-group btn-group-sm">
@@ -301,15 +295,18 @@
 
 </div>
 
-{{-- Daten fuer JS --}}
+{{-- ═══════════════════════════════════════════════════════════════════════════════ --}}
+{{-- JAVASCRIPT --}}
+{{-- ═══════════════════════════════════════════════════════════════════════════════ --}}
+
 @if($hasId)
 <div id="art-root"
-  data-csrf="{{ csrf_token() }}"
-  data-route-store="{{ route('gebaeude.artikel.store', $gebaeude->id) }}"
-  data-route-update0="{{ route('artikel.gebaeude.update', 0) }}"
-  data-route-delete0="{{ route('artikel.gebaeude.destroy', 0) }}"
-  data-route-reorder="{{ route('gebaeude.artikel.reorder', $gebaeude->id) }}"
-  data-aktuelles-jahr="{{ $aktuellesJahr }}">
+     data-csrf="{{ csrf_token() }}"
+     data-route-store="{{ route('artikel-gebaeude.store', $gebaeude->id) }}"
+     data-route-update0="{{ route('artikel-gebaeude.update', 0) }}"
+     data-route-delete0="{{ route('artikel-gebaeude.destroy', 0) }}"
+     data-route-reorder="{{ route('artikel-gebaeude.reorder', $gebaeude->id) }}"
+     data-aktuelles-jahr="{{ $aktuellesJahr }}">
 </div>
 
 <script>
@@ -317,20 +314,19 @@
   var root = document.getElementById('art-root');
   if (!root) return;
 
-  var CSRF = root.dataset.csrf || '';
-  var ROUTE_STORE = root.dataset.routeStore || '';
-  var ROUTE_UPDATE0 = root.dataset.routeUpdate0 || '';
-  var ROUTE_DELETE0 = root.dataset.routeDelete0 || '';
-  var ROUTE_REORDER = root.dataset.routeReorder || '';
-  var AKTUELLES_JAHR = parseInt(root.dataset.aktuellesJahr) || new Date().getFullYear();
+  var CSRF = root.dataset.csrf;
+  var ROUTE_STORE = root.dataset.routeStore;
+  var ROUTE_UPDATE0 = root.dataset.routeUpdate0;
+  var ROUTE_DELETE0 = root.dataset.routeDelete0;
+  var ROUTE_REORDER = root.dataset.routeReorder;
+  var AKTUELLES_JAHR = parseInt(root.dataset.aktuellesJahr, 10);
 
+  // Desktop Elements
   var tbody = document.getElementById('art-tbody');
-  var cardsContainer = document.getElementById('art-cards-mobile');
   var sumHead = document.getElementById('art-summe-head');
   var sumFoot = document.getElementById('art-summe-foot');
   var filterSwitch = document.getElementById('art-only-active');
 
-  // Desktop inputs
   var newBeschreibung = document.getElementById('new-beschreibung');
   var newAnzahl = document.getElementById('new-anzahl');
   var newEinzelpreis = document.getElementById('new-einzelpreis');
@@ -338,7 +334,8 @@
   var newAktiv = document.getElementById('new-aktiv');
   var btnAdd = document.getElementById('btn-add-art');
 
-  // Mobile inputs
+  // Mobile Elements
+  var cardsContainer = document.getElementById('art-cards-mobile');
   var newBeschreibungM = document.getElementById('new-beschreibung-mobile');
   var newAnzahlM = document.getElementById('new-anzahl-mobile');
   var newEinzelpreisM = document.getElementById('new-einzelpreis-mobile');
@@ -346,7 +343,6 @@
   var btnAddM = document.getElementById('btn-add-art-mobile');
 
   function parseNum(v) {
-    if (typeof v === 'number') return v;
     return parseFloat(String(v).replace(',', '.')) || 0;
   }
 
@@ -433,10 +429,19 @@
     });
   }
 
-  async function addArtikel(beschr, anzahl, preis, aktiv) {
-    if (!beschr) {
+  // Mobile: Gesamtpreis bei Eingabe neu berechnen
+  if (newAnzahlM && newEinzelpreisM) {
+    [newAnzahlM, newEinzelpreisM].forEach(function(el) {
+      el.addEventListener('input', function() {
+        // Mobile hat kein Gesamtpreis-Feld in der Eingabe
+      });
+    });
+  }
+
+  async function addArtikel(beschreibung, anzahl, einzelpreis, aktiv) {
+    if (!beschreibung) {
       alert('Bitte Beschreibung eingeben.');
-      return false;
+      return;
     }
 
     try {
@@ -448,25 +453,26 @@
           'Accept': 'application/json'
         },
         body: JSON.stringify({
-          beschreibung: beschr,
+          beschreibung: beschreibung,
           anzahl: anzahl,
-          einzelpreis: preis,
-          basis_preis: preis,
+          einzelpreis: einzelpreis,
+          basis_preis: einzelpreis,
           basis_jahr: AKTUELLES_JAHR,
           aktiv: aktiv
         })
       });
 
-      var json = await res.json();
-      if (!res.ok || json.ok === false) {
-        throw new Error(json.message || 'Fehler');
+      var isJson = (res.headers.get('content-type') || '').includes('application/json');
+      if (isJson) {
+        var json = await res.json();
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.message || 'Fehler');
+        }
       }
 
       window.location.reload();
-      return true;
     } catch (err) {
       alert('Fehler: ' + err.message);
-      return false;
     }
   }
 
