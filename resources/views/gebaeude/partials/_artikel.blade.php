@@ -352,21 +352,22 @@
 
   function recalcSum() {
     var sum = 0;
-    // Desktop
-    if (tbody) {
+    
+    // ⭐ FIX: Nur den SICHTBAREN Container verwenden (nicht beide!)
+    var isMobile = window.innerWidth < 768;
+    
+    if (!isMobile && tbody) {
+      // Desktop
       tbody.querySelectorAll('tr[data-id]').forEach(function(tr) {
-        if (tr.style.display === 'none') return;
         var cb = tr.querySelector('[data-field="aktiv"]');
         if (!cb || !cb.checked) return;
         var anz = parseNum(tr.querySelector('[data-field="anzahl"]').value);
         var ep = parseNum(tr.querySelector('[data-field="einzelpreis"]').value);
         sum += anz * ep;
       });
-    }
-    // Mobile
-    if (cardsContainer) {
+    } else if (isMobile && cardsContainer) {
+      // Mobile
       cardsContainer.querySelectorAll('.art-card-mobile[data-id]').forEach(function(card) {
-        if (card.style.display === 'none') return;
         var cb = card.querySelector('[data-field="aktiv"]');
         if (!cb || !cb.checked) return;
         var anz = parseNum(card.querySelector('[data-field="anzahl"]').value);
@@ -598,11 +599,14 @@
       var tr = e.target.closest('tr[data-id]');
       if (!tr) return;
       if (e.target.matches('[data-field="aktiv"]')) {
+        // ⭐ Summe SOFORT aktualisieren
+        recalcSum();
         try {
           await saveRow(tr);
           applyActiveFilter();
         } catch (err) {
           e.target.checked = !e.target.checked;
+          recalcSum();  // Bei Fehler zurücksetzen
           applyActiveFilter();
         }
       }
@@ -677,11 +681,14 @@
       var card = e.target.closest('.art-card-mobile[data-id]');
       if (!card) return;
       if (e.target.matches('[data-field="aktiv"]')) {
+        // ⭐ Summe SOFORT aktualisieren
+        recalcSum();
         try {
           await saveRow(card);
           applyActiveFilter();
         } catch (err) {
           e.target.checked = !e.target.checked;
+          recalcSum();  // Bei Fehler zurücksetzen
           applyActiveFilter();
         }
       }
