@@ -105,8 +105,6 @@ class GebaeudeController extends Controller
             'fatturaProfiles'
         ));
     }
-
-
     /**
      * Gebäude aktualisieren inkl. Pivot (Touren) und FatturaPA-Feldern.
      */
