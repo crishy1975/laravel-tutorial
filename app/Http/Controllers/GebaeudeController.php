@@ -116,6 +116,8 @@ class GebaeudeController extends Controller
 
         try {
             $gebaeude = Gebaeude::findOrFail($id);
+            // In GebaeudeController.php, update() Methode, nach Zeile 118:
+            dd($request->input('bemerkung'), $request->all());
 
             $validated = $request->validate([
                 'codex'                  => 'nullable|string|max:10',
