@@ -122,12 +122,13 @@
                 <thead class="table-light">
                     <tr>
                         <th>Jahr</th>
-                        <th class="text-center">Rechnungen</th>
-                        <th class="text-end">Netto</th>
+                        <th class="text-center">Anzahl</th>
                         <th class="text-end">Brutto</th>
-                        <th class="text-end">Bezahlt</th>
-                        <th class="text-end">Offen</th>
-                        <th class="text-center">Veränderung</th>
+                        <th class="text-end text-danger">Gutschriften</th>
+                        <th class="text-end">Umsatz</th>
+                        <th class="text-end text-success">Bezahlt</th>
+                        <th class="text-end text-warning">Offen</th>
+                        <th class="text-center">+/−</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -135,17 +136,25 @@
                     @php
                         $jahresStats = $stats['jahresvergleich'][$statJahr] ?? [];
                         $vorjahresStats = $stats['jahresvergleich'][$statJahr - 1] ?? [];
-                        $veraenderung = ($vorjahresStats['brutto'] ?? 0) > 0 
-                            ? ((($jahresStats['brutto'] ?? 0) - ($vorjahresStats['brutto'] ?? 0)) / ($vorjahresStats['brutto'] ?? 1)) * 100
+                        // Veränderung basierend auf UMSATZ (nicht Brutto)
+                        $veraenderung = ($vorjahresStats['umsatz'] ?? 0) > 0 
+                            ? ((($jahresStats['umsatz'] ?? 0) - ($vorjahresStats['umsatz'] ?? 0)) / ($vorjahresStats['umsatz'] ?? 1)) * 100
                             : 0;
                     @endphp
                     <tr class="{{ $i === 0 ? 'table-primary' : '' }}">
                         <td class="fw-bold">{{ $statJahr }}</td>
                         <td class="text-center">{{ $jahresStats['anzahl'] ?? 0 }}</td>
-                        <td class="text-end">{{ number_format($jahresStats['netto'] ?? 0, 2, ',', '.') }} €</td>
-                        <td class="text-end fw-semibold">{{ number_format($jahresStats['brutto'] ?? 0, 2, ',', '.') }} €</td>
+                        <td class="text-end">{{ number_format($jahresStats['brutto'] ?? 0, 2, ',', '.') }} €</td>
+                        <td class="text-end text-danger">
+                            @if(($jahresStats['gutschriften'] ?? 0) > 0)
+                                −{{ number_format($jahresStats['gutschriften'] ?? 0, 2, ',', '.') }} €
+                            @else
+                                –
+                            @endif
+                        </td>
+                        <td class="text-end fw-semibold">{{ number_format($jahresStats['umsatz'] ?? 0, 2, ',', '.') }} €</td>
                         <td class="text-end text-success">{{ number_format($jahresStats['bezahlt'] ?? 0, 2, ',', '.') }} €</td>
-                        <td class="text-end {{ ($jahresStats['offen'] ?? 0) > 0 ? 'text-warning' : '' }}">
+                        <td class="text-end {{ ($jahresStats['offen'] ?? 0) > 0 ? 'text-warning fw-semibold' : '' }}">
                             {{ number_format($jahresStats['offen'] ?? 0, 2, ',', '.') }} €
                         </td>
                         <td class="text-center">
