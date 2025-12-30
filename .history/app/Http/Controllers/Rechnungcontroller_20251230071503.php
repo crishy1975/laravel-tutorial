@@ -26,7 +26,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class RechnungController extends Controller
 {
-    /**
+       /**
      * Liste aller Rechnungen mit Filter und Statistiken.
      */
     public function index(Request $request)
@@ -141,27 +141,27 @@ class RechnungController extends Controller
 
         // Jahresvergleich-Daten
         $jahresvergleich = [];
-
+        
         foreach ([$aktuellesJahr, $vorjahr, $vorvorjahr] as $statJahr) {
             // Rechnungen (ohne Gutschriften, ohne Stornierte)
             $jahresRechnungen = Rechnung::whereYear('rechnungsdatum', $statJahr)
                 ->where('typ_rechnung', '!=', 'gutschrift')
                 ->where('status', '!=', 'cancelled');
-
+            
             $brutto = (clone $jahresRechnungen)->sum('brutto_summe');
             $netto = (clone $jahresRechnungen)->sum('netto_summe');
             $anzahl = (clone $jahresRechnungen)->count();
-
+            
             // Gutschriften für dieses Jahr
             $gutschriften = Rechnung::whereYear('rechnungsdatum', $statJahr)
                 ->where('typ_rechnung', 'gutschrift')
                 ->where('status', '!=', 'cancelled')
                 ->sum('brutto_summe');
-
+            
             // Bezahlt/Offen
             $jahresBezahlt = (clone $jahresRechnungen)->bezahlt();
             $jahresOffen = (clone $jahresRechnungen)->unbezahlt();
-
+            
             $jahresvergleich[$statJahr] = [
                 'anzahl'       => $anzahl,
                 'netto'        => $netto,
@@ -178,27 +178,27 @@ class RechnungController extends Controller
             'aktuelles_jahr' => $aktuellesJahr,
             'vorjahr'        => $vorjahr,
             'vorvorjahr'     => $vorvorjahr,
-
+            
             // ⭐ Umsatz aktuelles Jahr (konsistent mit Jahresvergleich)
             'umsatz_aktuell' => $jahresvergleich[$aktuellesJahr]['umsatz'] ?? 0,
             'anzahl_aktuell' => $jahresvergleich[$aktuellesJahr]['anzahl'] ?? 0,
-
+            
             // ⭐ Umsatz Vorjahr (konsistent mit Jahresvergleich)
             'umsatz_vorjahr' => $jahresvergleich[$vorjahr]['umsatz'] ?? 0,
             'anzahl_vorjahr' => $jahresvergleich[$vorjahr]['anzahl'] ?? 0,
-
+            
             // Offene/Unbezahlte Rechnungen (alle Jahre)
             'unbezahlt_anzahl' => Rechnung::unbezahlt()->where('status', '!=', 'cancelled')->count(),
             'unbezahlt_summe'  => Rechnung::unbezahlt()->where('status', '!=', 'cancelled')->sum('brutto_summe'),
-
+            
             // Überfällige Rechnungen
             'ueberfaellig_anzahl' => Rechnung::ueberfaellig()->count(),
             'ueberfaellig_summe'  => Rechnung::ueberfaellig()->sum('brutto_summe'),
-
+            
             // Bald fällig (7 Tage)
             'bald_faellig_anzahl' => Rechnung::baldFaellig(7)->count(),
             'bald_faellig_summe'  => Rechnung::baldFaellig(7)->sum('brutto_summe'),
-
+            
             // Jahresvergleich-Tabelle
             'jahresvergleich' => $jahresvergleich,
         ];
