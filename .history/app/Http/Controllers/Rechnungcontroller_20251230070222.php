@@ -145,15 +145,15 @@ class RechnungController extends Controller
 
         // Jahresvergleich-Daten
         $jahresvergleich = [];
-
+        
         foreach ([$aktuellesJahr, $vorjahr, $vorvorjahr] as $statJahr) {
             $jahresRechnungen = Rechnung::whereYear('rechnungsdatum', $statJahr)
                 ->where('typ_rechnung', '!=', 'gutschrift')
                 ->where('status', '!=', 'cancelled');
-
+            
             $jahresBezahlt = (clone $jahresRechnungen)->bezahlt();
             $jahresOffen = (clone $jahresRechnungen)->unbezahlt();
-
+            
             $jahresvergleich[$statJahr] = [
                 'anzahl'  => (clone $jahresRechnungen)->count(),
                 'netto'   => (clone $jahresRechnungen)->sum('netto_summe'),
@@ -174,27 +174,27 @@ class RechnungController extends Controller
             'aktuelles_jahr' => $aktuellesJahr,
             'vorjahr'        => $vorjahr,
             'vorvorjahr'     => $vorvorjahr,
-
+            
             // Umsatz aktuelles Jahr (Brutto - Gutschriften)
             'umsatz_aktuell' => ($jahresvergleich[$aktuellesJahr]['brutto'] ?? 0) - $gutschriftenAktuell,
             'anzahl_aktuell' => $jahresvergleich[$aktuellesJahr]['anzahl'] ?? 0,
-
+            
             // Umsatz Vorjahr
             'umsatz_vorjahr' => $jahresvergleich[$vorjahr]['brutto'] ?? 0,
             'anzahl_vorjahr' => $jahresvergleich[$vorjahr]['anzahl'] ?? 0,
-
+            
             // Offene/Unbezahlte Rechnungen (alle Jahre)
             'unbezahlt_anzahl' => Rechnung::unbezahlt()->where('status', '!=', 'cancelled')->count(),
             'unbezahlt_summe'  => Rechnung::unbezahlt()->where('status', '!=', 'cancelled')->sum('brutto_summe'),
-
+            
             // Überfällige Rechnungen
             'ueberfaellig_anzahl' => Rechnung::ueberfaellig()->count(),
             'ueberfaellig_summe'  => Rechnung::ueberfaellig()->sum('brutto_summe'),
-
+            
             // Bald fällig (7 Tage)
             'bald_faellig_anzahl' => Rechnung::baldFaellig(7)->count(),
             'bald_faellig_summe'  => Rechnung::baldFaellig(7)->sum('brutto_summe'),
-
+            
             // Jahresvergleich-Tabelle
             'jahresvergleich' => $jahresvergleich,
         ];
@@ -1576,7 +1576,7 @@ class RechnungController extends Controller
 
         return "Fattura_{$nummer}_{$kunde}.pdf";
     }
-
+    
     protected function resetGebaeudeRechnungFlag(Rechnung $rechnung): void
     {
         // Pruefen ob Rechnung einem Gebaeude zugeordnet ist
