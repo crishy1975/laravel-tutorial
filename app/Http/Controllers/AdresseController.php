@@ -126,6 +126,9 @@ class AdresseController extends Controller
         if (isset($validated['plz'])) {
             $validated['plz'] = trim($validated['plz']);
         }
+        if (isset($validated['steuernummer'])) {
+            $validated['steuernummer'] = strtoupper(trim($validated['steuernummer']));
+        }
 
         $adresse->update($validated);
 
@@ -177,6 +180,9 @@ class AdresseController extends Controller
         // optionale Normalisierung
         if (isset($validated['provinz'])) {
             $validated['provinz'] = strtoupper(trim($validated['provinz']));
+        }
+        if (isset($validated['steuernummer'])) {
+            $validated['steuernummer'] = strtoupper(trim($validated['steuernummer']));
         }
 
         $adresse = Adresse::create($validated);
