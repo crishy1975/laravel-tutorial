@@ -395,6 +395,10 @@ class RechnungController extends Controller
             'typ_rechnung'       => ['required', Rule::in(['rechnung', 'gutschrift'])],
             'bezahlt_am'         => ['nullable', 'date'],
 
+            // ⭐ NEU: Jahr und Laufnummer (für manuelle Korrektur)
+            'jahr'               => ['nullable', 'integer', 'min:2000', 'max:2099'],
+            'laufnummer'         => ['nullable', 'integer', 'min:1'],
+
             // Leistungsdaten (Text, kein Datum mehr)
             'leistungsdaten'     => ['nullable', 'string', 'max:255'],
 
@@ -418,6 +422,17 @@ class RechnungController extends Controller
         ]);
 
         Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
+
+        // ⭐ Warnung loggen wenn Jahr oder Laufnummer geändert werden
+        if (isset($validated['jahr']) || isset($validated['laufnummer'])) {
+            Log::warning('⚠️ Rechnungsnummer manuell geändert!', [
+                'rechnung_id'     => $rechnung->id,
+                'alt_jahr'        => $rechnung->jahr,
+                'alt_laufnummer'  => $rechnung->laufnummer,
+                'neu_jahr'        => $validated['jahr'] ?? $rechnung->jahr,
+                'neu_laufnummer'  => $validated['laufnummer'] ?? $rechnung->laufnummer,
+            ]);
+        }
 
         // Felder in das Modell schreiben
         $rechnung->fill($validated);
