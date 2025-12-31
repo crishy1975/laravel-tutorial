@@ -19,4 +19,4 @@ x summe der rechnungen statistik
 
 x summe positionen stimmt niccht
 
-bei pdf rechnung c.f. in großbuchstaben
+x bei pdf rechnung c.f. in großbuchstaben
