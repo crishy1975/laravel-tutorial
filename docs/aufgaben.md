@@ -9,7 +9,7 @@ tagesinkassi
 
 allgemeine dokumente ohne bezug
 
-rn und datum ändern
+x rn und datum ändern
 
 x bemerkung gebäude wird nicht gespeichert
 
