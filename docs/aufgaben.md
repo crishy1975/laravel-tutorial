@@ -11,12 +11,12 @@ allgemeine dokumente ohne bezug
 
 rn und datum ändern
 
-bemerkung gebäude wird nicht gespeichert
+x bemerkung gebäude wird nicht gespeichert
 
 focus nach artikel
 
-summe der rechnungen statistik
+x summe der rechnungen statistik
 
-summe positionen stimmt niccht
+x summe positionen stimmt niccht
 
 bei pdf rechnung c.f. in großbuchstaben
