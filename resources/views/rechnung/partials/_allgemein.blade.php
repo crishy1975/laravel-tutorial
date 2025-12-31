@@ -72,8 +72,13 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
 
     <div class="col-12 col-xl-7">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-light py-2">
+            <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="bi bi-file-text"></i> Rechnungsdaten</h6>
+                @if($rechnung->exists)
+                <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#editRechnungsnummerModal" title="Rechnungsnummer/Datum ändern">
+                    <i class="bi bi-pencil-square"></i> <span class="d-none d-md-inline">Nr/Datum ändern</span>
+                </button>
+                @endif
             </div>
             <div class="card-body p-2 p-md-3">
                 <div class="row g-2 g-md-3">
@@ -616,7 +621,145 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
 </script>
 @endif
 
-{{-- ⭐ JavaScript: Button "Rechnung ist bezahlt" (für Desktop UND Mobile) --}}
+{{-- ⭐ Modal: Rechnungsnummer / Datum ändern (MIT VORSICHT!) --}}
+@if($rechnung->exists)
+<div class="modal fade" id="editRechnungsnummerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Rechnungsnummer / Datum ändern</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong><i class="bi bi-exclamation-octagon"></i> ACHTUNG – MIT VORSICHT!</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Änderungen können zu <strong>Inkonsistenzen</strong> in der Buchhaltung führen</li>
+                        <li>Bereits versendete XML-Dateien (FatturaPA) stimmen nicht mehr überein</li>
+                        <li>Nur ändern, wenn Sie sich <strong>absolut sicher</strong> sind!</li>
+                    </ul>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Jahr</label>
+                        <input type="number" class="form-control" id="modal_jahr" 
+                               value="{{ $rechnung->jahr }}" min="2000" max="2099">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-bold">Laufnummer</label>
+                        <input type="number" class="form-control" id="modal_laufnummer" 
+                               value="{{ $rechnung->laufnummer }}" min="1">
+                    </div>
+                </div>
+                <small class="text-muted d-block mb-3">
+                    Aktuell: <strong>{{ $rechnung->rechnungsnummer }}</strong> 
+                    → Vorschau: <span id="preview_rechnungsnummer" class="fw-bold text-primary">{{ $rechnung->rechnungsnummer }}</span>
+                </small>
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Neues Rechnungsdatum</label>
+                    <input type="date" class="form-control" id="modal_rechnungsdatum" 
+                           value="{{ $rechnung->rechnungsdatum?->format('Y-m-d') }}">
+                    <small class="text-muted">Aktuell: {{ $rechnung->rechnungsdatum?->format('d.m.Y') }}</small>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirmChangeCheckbox">
+                    <label class="form-check-label text-danger fw-bold" for="confirmChangeCheckbox">
+                        Ich verstehe das Risiko und möchte trotzdem ändern
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-warning" id="btnApplyRechnungsnummer" disabled>
+                    <i class="bi bi-check-lg"></i> Änderungen übernehmen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- JavaScript: Rechnungsnummer/Datum ändern --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('confirmChangeCheckbox');
+    const btnApply = document.getElementById('btnApplyRechnungsnummer');
+    const jahrInput = document.getElementById('modal_jahr');
+    const laufnummerInput = document.getElementById('modal_laufnummer');
+    const previewSpan = document.getElementById('preview_rechnungsnummer');
+    
+    // Vorschau aktualisieren
+    function updatePreview() {
+        const jahr = jahrInput.value || '0000';
+        const laufnummer = String(laufnummerInput.value || '0').padStart(4, '0');
+        previewSpan.textContent = jahr + '/' + laufnummer;
+    }
+    
+    if (jahrInput) jahrInput.addEventListener('input', updatePreview);
+    if (laufnummerInput) laufnummerInput.addEventListener('input', updatePreview);
+    
+    if (checkbox && btnApply) {
+        // Button nur aktivieren wenn Checkbox angehakt
+        checkbox.addEventListener('change', function() {
+            btnApply.disabled = !this.checked;
+        });
+        
+        // Werte übernehmen
+        btnApply.addEventListener('click', function() {
+            const neuesJahr = jahrInput.value.trim();
+            const neueLaufnummer = laufnummerInput.value.trim();
+            const neuesDatum = document.getElementById('modal_rechnungsdatum').value;
+            
+            if (!neuesJahr || !neueLaufnummer) {
+                alert('Bitte Jahr und Laufnummer eingeben!');
+                return;
+            }
+            
+            // Hidden Inputs für jahr/laufnummer erstellen oder aktualisieren
+            let jahrHidden = document.querySelector('input[name="jahr"]');
+            let laufnummerHidden = document.querySelector('input[name="laufnummer"]');
+            
+            if (!jahrHidden) {
+                jahrHidden = document.createElement('input');
+                jahrHidden.type = 'hidden';
+                jahrHidden.name = 'jahr';
+                document.getElementById('rechnungForm').appendChild(jahrHidden);
+            }
+            jahrHidden.value = neuesJahr;
+            
+            if (!laufnummerHidden) {
+                laufnummerHidden = document.createElement('input');
+                laufnummerHidden.type = 'hidden';
+                laufnummerHidden.name = 'laufnummer';
+                document.getElementById('rechnungForm').appendChild(laufnummerHidden);
+            }
+            laufnummerHidden.value = neueLaufnummer;
+            
+            // Rechnungsnummer-Anzeige aktualisieren
+            const nummerInput = document.querySelector('input[name="rechnungsnummer"]');
+            if (nummerInput) {
+                nummerInput.value = neuesJahr + '/' + String(neueLaufnummer).padStart(4, '0');
+                nummerInput.classList.add('border-warning', 'bg-warning-subtle');
+            }
+            
+            // Datum übertragen
+            const datumInput = document.querySelector('input[name="rechnungsdatum"]');
+            if (datumInput) {
+                datumInput.value = neuesDatum;
+                datumInput.removeAttribute('readonly');
+                datumInput.classList.add('border-warning', 'bg-warning-subtle');
+            }
+            
+            // Modal schließen
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editRechnungsnummerModal'));
+            modal.hide();
+        });
+    }
+});
+</script>
+@endif
 @if($rechnung->exists && $rechnung->zahlungsbedingungen?->value !== 'bezahlt')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
