@@ -98,27 +98,24 @@ class BankMatchingService
      * (Nur für unbezahlte Rechnungen!)
      * 
      * @param BankBuchung $buchung
-     * @param int|null $jahr Rechnungen aus welchem Jahr (null = aktuelles Jahr + 2 Jahre zurück)
+     * @param int|null $jahr Startjahr für Suche (null = aktuelles Jahr), sucht immer 2 Jahre zurück
      * @return array{matched: bool, rechnung: ?Rechnung, score: int, details: array}
      */
     public function tryAutoMatch(BankBuchung $buchung, ?int $jahr = null): array
     {
-        // Wenn ein spezifisches Jahr angegeben wurde, nur dieses durchsuchen
-        if ($jahr !== null) {
-            $matches = $this->findMatches($buchung, 10, false, $jahr);
-        } else {
-            // Sonst: Aktuelles Jahr + 2 Jahre zurück durchsuchen
-            $currentYear = now()->year;
-            $matches = collect();
-            
-            for ($y = $currentYear; $y >= $currentYear - 2; $y--) {
-                $yearMatches = $this->findMatches($buchung, 10, false, $y);
-                $matches = $matches->concat($yearMatches);
-            }
-            
-            // Nach Score sortieren und auf 10 begrenzen
-            $matches = $matches->sortByDesc('score')->take(10)->values();
+        // Startjahr bestimmen (angegeben oder aktuell)
+        $startYear = $jahr ?? now()->year;
+        
+        // Immer vom Startjahr 2 Jahre zurück durchsuchen
+        $matches = collect();
+        
+        for ($y = $startYear; $y >= $startYear - 2; $y--) {
+            $yearMatches = $this->findMatches($buchung, 10, false, $y);
+            $matches = $matches->concat($yearMatches);
         }
+        
+        // Nach Score sortieren und auf 10 begrenzen
+        $matches = $matches->sortByDesc('score')->take(10)->values();
         
         // Nur unbezahlte für Auto-Match
         $matches = $matches->filter(fn($m) => !$m['is_paid']);
