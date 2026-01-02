@@ -33,7 +33,7 @@ class ReinigungsplanungController extends Controller
         }
         
         // Prüfen ob Query-Parameter vorhanden sind
-        $hasQueryParams = $request->hasAny(['codex', 'gebaeude', 'monat', 'tour', 'status']);
+        $hasQueryParams = $request->hasAny(['codex', 'gebaeude', 'monat', 'tour', 'status', 'datum', 'person']);
         
         // Filter aus Request oder Session
         if ($hasQueryParams) {
@@ -44,6 +44,8 @@ class ReinigungsplanungController extends Controller
                 'monat'    => $request->input('monat', ''),
                 'tour'     => $request->input('tour', ''),
                 'status'   => $request->input('status', ''),
+                'datum'    => $request->input('datum', ''),
+                'person'   => $request->input('person', ''),
             ];
             $request->session()->put($sessionKey, $filters);
         } else {
@@ -54,6 +56,8 @@ class ReinigungsplanungController extends Controller
                 'monat'    => '',
                 'tour'     => '',
                 'status'   => '',
+                'datum'    => '',
+                'person'   => '',
             ]);
         }
         
@@ -63,9 +67,23 @@ class ReinigungsplanungController extends Controller
         $filterMonat    = $filters['monat'] ?? '';
         $filterTour     = $filters['tour'] ?? '';
         $filterStatus   = $filters['status'] ?? '';
+        $filterDatum    = $filters['datum'] ?? '';
+        $filterPerson   = $filters['person'] ?? '';
 
         // Query aufbauen
         $query = Gebaeude::query()->with(['touren']);
+        
+        // ⭐ NEU: Filter nach Datum und/oder Person (über Timeline)
+        if (!empty($filterDatum) || !empty($filterPerson)) {
+            $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
+                if (!empty($filterDatum)) {
+                    $q->whereDate('datum', $filterDatum);
+                }
+                if (!empty($filterPerson)) {
+                    $q->where('person_id', $filterPerson);
+                }
+            });
+        }
 
         // Filter: Monat (nur wenn ausgewählt) - zeigt nur Gebäude die in diesem Monat aktiv sind
         if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {
@@ -182,6 +200,8 @@ class ReinigungsplanungController extends Controller
             'filterMonat',
             'filterTour',
             'filterStatus',
+            'filterDatum',
+            'filterPerson',
             'nachrichtVorschlaege'
         ));
     }
@@ -249,8 +269,22 @@ class ReinigungsplanungController extends Controller
         $filterMonat    = $request->input('monat', $filters['monat'] ?? '');
         $filterTour     = $request->input('tour', $filters['tour'] ?? '');
         $filterStatus   = $request->input('status', $filters['status'] ?? '');
+        $filterDatum    = $request->input('datum', $filters['datum'] ?? '');
+        $filterPerson   = $request->input('person', $filters['person'] ?? '');
 
         $query = Gebaeude::query()->with(['touren']);
+        
+        // ⭐ NEU: Filter nach Datum und/oder Person (über Timeline)
+        if (!empty($filterDatum) || !empty($filterPerson)) {
+            $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
+                if (!empty($filterDatum)) {
+                    $q->whereDate('datum', $filterDatum);
+                }
+                if (!empty($filterPerson)) {
+                    $q->where('person_id', $filterPerson);
+                }
+            });
+        }
 
         // Filter: Monat (nur wenn ausgewählt)
         if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {

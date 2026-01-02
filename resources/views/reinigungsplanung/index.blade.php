@@ -12,7 +12,12 @@
                 Reinigungsplanung
             </h1>
             <p class="text-muted mb-0 small">
-                @if(!empty($filterMonat))
+                @if(!empty($filterDatum))
+                    Reinigungen vom {{ \Carbon\Carbon::parse($filterDatum)->format('d.m.Y') }}
+                    @if(!empty($filterPerson))
+                        ({{ $users->firstWhere('id', $filterPerson)?->name ?? 'Unbekannt' }})
+                    @endif
+                @elseif(!empty($filterMonat))
                     {{ $monate[$filterMonat] }} {{ now()->year }}
                 @else
                     Alle Monate
@@ -113,7 +118,7 @@
                 <h6 class="mb-0">
                     <i class="bi bi-funnel"></i> Filter
                     @php
-                        $activeFilters = collect([$filterCodex, $filterGebaeude, $filterMonat, $filterTour, $filterStatus])->filter()->count();
+                        $activeFilters = collect([$filterCodex, $filterGebaeude, $filterMonat, $filterTour, $filterStatus, $filterDatum, $filterPerson])->filter()->count();
                     @endphp
                     @if($activeFilters > 0)
                         <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
@@ -126,6 +131,21 @@
             <div class="card-body py-2 py-md-3">
                 <form method="GET" action="{{ route('reinigungsplanung.index') }}" id="filterForm">
                     <div class="row g-2">
+                        {{-- Zeile 1: Datum, Person, Monat, Tour --}}
+                        <div class="col-6 col-md-2">
+                            <label for="datum" class="form-label small mb-1">Datum</label>
+                            <input type="date" name="datum" id="datum" class="form-control form-control-sm" 
+                                   value="{{ $filterDatum }}" onchange="this.form.submit()">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label for="person" class="form-label small mb-1">Wer</label>
+                            <select name="person" id="person" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">Alle</option>
+                                @foreach($users as $u)
+                                    <option value="{{ $u->id }}" @selected($filterPerson == $u->id)>{{ $u->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="col-6 col-md-2">
                             <label for="monat" class="form-label small mb-1">Monat</label>
                             <select name="monat" id="monat" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -144,17 +164,18 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-6 col-md-2">
+                        {{-- Zeile 2: Codex, Gebäude, Status, Buttons --}}
+                        <div class="col-6 col-md-1">
                             <label for="codex" class="form-label small mb-1">Codex</label>
                             <input type="text" name="codex" id="codex" class="form-control form-control-sm" 
                                    value="{{ $filterCodex }}" placeholder="z.B. gam">
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <label for="gebaeude" class="form-label small mb-1">Gebäude</label>
                             <input type="text" name="gebaeude" id="gebaeude" class="form-control form-control-sm" 
                                    value="{{ $filterGebaeude }}" placeholder="Name, Ort...">
                         </div>
-                        <div class="col-6 col-md-2">
+                        <div class="col-6 col-md-auto">
                             <label for="status" class="form-label small mb-1">Status</label>
                             <select name="status" id="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                 <option value="" @selected($filterStatus == '')>Alle</option>
@@ -162,7 +183,7 @@
                                 <option value="erledigt" @selected($filterStatus == 'erledigt')>Erledigt</option>
                             </select>
                         </div>
-                        <div class="col-6 col-md-1 d-flex align-items-end gap-1">
+                        <div class="col-6 col-md-auto d-flex align-items-end gap-1">
                             <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
                                 <i class="bi bi-search"></i>
                             </button>
