@@ -106,7 +106,7 @@ class GebaeudeErstellen extends Component
         return view('livewire.mitarbeiter.gebaeude-erstellen', [
             'touren' => $touren,
             'monate' => $this->getMonateArray(),
-        ])->layout('layouts.app');
+        ])->layout('layouts.mitarbeiter');
     }
 
     // ═══════════════════════════════════════════════════════════

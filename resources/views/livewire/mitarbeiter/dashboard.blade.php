@@ -1,3 +1,10 @@
+{{--
+════════════════════════════════════════════════════════════════════════════
+DATEI: dashboard.blade.php
+PFAD:  resources/views/livewire/mitarbeiter/dashboard.blade.php
+       ODER resources/views/mitarbeiter/dashboard.blade.php (je nach Struktur)
+════════════════════════════════════════════════════════════════════════════
+--}}
 <div>
     <h2 class="h4 mb-4">
         <i class="bi bi-house-door text-success"></i>
@@ -52,13 +59,72 @@
         </div>
     </div>
 
-    {{-- Quick Action Button (groß auf Mobile) --}}
-    <div class="d-grid mb-4">
-        <a href="{{ route('mitarbeiter.lohnstunden') }}" class="btn btn-success btn-lg py-3">
-            <i class="bi bi-plus-circle fs-4"></i>
-            <br class="d-sm-none">
-            <span>Stunden erfassen / Registra ore</span>
-        </a>
+    {{-- Änderungsvorschläge Status (NEU) --}}
+    @php
+        $meineVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::where('erstellt_von', auth()->id())->get();
+        $pending = $meineVorschlaege->where('status', 'pending')->count();
+        $approved = $meineVorschlaege->where('status', 'approved')->count();
+        $rejected = $meineVorschlaege->where('status', 'rejected')->count();
+    @endphp
+
+    @if($meineVorschlaege->count() > 0)
+        <div class="card mb-4">
+            <div class="card-header py-2 bg-light">
+                <i class="bi bi-clipboard-check"></i> Meine Änderungsvorschläge / I miei suggerimenti
+            </div>
+            <div class="card-body py-3">
+                <div class="row g-2 text-center">
+                    <div class="col-4">
+                        <div class="p-2">
+                            <div class="fs-3 fw-bold text-warning">{{ $pending }}</div>
+                            <small class="text-muted">Ausstehend<br>In attesa</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2">
+                            <div class="fs-3 fw-bold text-success">{{ $approved }}</div>
+                            <small class="text-muted">Genehmigt<br>Approvato</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-2">
+                            <div class="fs-3 fw-bold text-danger">{{ $rejected }}</div>
+                            <small class="text-muted">Abgelehnt<br>Rifiutato</small>
+                        </div>
+                    </div>
+                </div>
+
+                @if($rejected > 0)
+                    @php
+                        $letzterAblehnter = $meineVorschlaege->where('status', 'rejected')->sortByDesc('bearbeitet_am')->first();
+                    @endphp
+                    @if($letzterAblehnter && $letzterAblehnter->ablehnungsgrund)
+                        <div class="alert alert-warning mt-3 mb-0 py-2" role="alert">
+                            <small>
+                                <strong><i class="bi bi-info-circle"></i> Letzter Ablehnungsgrund:</strong><br>
+                                {{ $letzterAblehnter->ablehnungsgrund }}
+                            </small>
+                        </div>
+                    @endif
+                @endif
+            </div>
+        </div>
+    @endif
+
+    {{-- Quick Actions --}}
+    <div class="row g-2 mb-4">
+        <div class="col-6">
+            <a href="{{ route('mitarbeiter.lohnstunden') }}" class="btn btn-success w-100 py-3">
+                <i class="bi bi-plus-circle fs-5"></i><br>
+                <small>Stunden<br>Ore</small>
+            </a>
+        </div>
+        <div class="col-6">
+            <a href="{{ route('mitarbeiter.gebaeude.neu') }}" class="btn btn-primary w-100 py-3">
+                <i class="bi bi-building fs-5"></i><br>
+                <small>Gebäude<br>Edificio</small>
+            </a>
+        </div>
     </div>
 
     {{-- Letzte Einträge / Ultime voci --}}
