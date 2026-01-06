@@ -58,7 +58,7 @@ Route::middleware(['auth', 'mitarbeiter'])->prefix('mitarbeiter')->name('mitarbe
     Route::get('/reinigung', \App\Livewire\Mitarbeiter\Reinigungsplanung::class)->name('reinigung');
 
     // ⭐ NEU: Gebäude erstellen
-    Route::get('/gebaeude/neu', \App\Livewire\Mitarbeiter\GebaeudeErstellen::class)->name('gebaeude.erstellen');
+    Route::get('/gebaeude/neu', \App\Livewire\Mitarbeiter\GebaeudeErstellen::class)->name('gebaeude.neu');
 
     // ⭐ NEU: Gebäude bearbeiten
     Route::get('/gebaeude/bearbeiten', \App\Livewire\Mitarbeiter\GebaeudeBearbeiten::class)->name('gebaeude.bearbeiten');
