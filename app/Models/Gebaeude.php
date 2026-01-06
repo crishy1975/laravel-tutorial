@@ -269,6 +269,35 @@ class Gebaeude extends Model
             ->orderByDesc('gueltig_ab');
     }
 
+
+
+    /**
+     * Änderungsvorschläge für dieses Gebäude
+     */
+    public function aenderungsvorschlaege(): HasMany
+    {
+        return $this->hasMany(GebaeudeAenderungsvorschlag::class, 'gebaeude_id')
+            ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Ausstehende Änderungsvorschläge für dieses Gebäude
+     */
+    public function ausstehendeAenderungsvorschlaege(): HasMany
+    {
+        return $this->hasMany(GebaeudeAenderungsvorschlag::class, 'gebaeude_id')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Hat dieses Gebäude ausstehende Änderungsvorschläge?
+     */
+    public function hatAusstehendeAenderungen(): bool
+    {
+        return $this->ausstehendeAenderungsvorschlaege()->exists();
+    }
+
     // ═══════════════════════════════════════════════════════════
     // ⭐ LOG RELATIONSHIPS
     // ═══════════════════════════════════════════════════════════
