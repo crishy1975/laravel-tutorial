@@ -68,7 +68,7 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
     <div class="card mb-3">
         <div class="card-header py-2">
             <i class="bi bi-funnel"></i> Filter
-            <div wire:loading class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>
+            <div wire:loading.delay class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>
         </div>
         <div class="card-body py-2">
             <div class="row g-2">
@@ -131,10 +131,10 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                             <div class="d-flex justify-content-between align-items-start">
                                 {{-- Gebäude-Info --}}
                                 <div class="flex-grow-1 me-2">
-                                    {{-- Codex & Status --}}
+                                    {{-- Codex & Status (ist_faellig kommt aus DB via Cron) --}}
                                     <div class="d-flex align-items-center mb-1">
                                         <strong class="me-2">{{ $geb->codex }}</strong>
-                                        @if($geb->ist_erledigt)
+                                        @if(!$geb->ist_faellig)
                                             <span class="badge bg-success"><i class="bi bi-check-circle"></i></span>
                                         @else
                                             <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i></span>
@@ -189,10 +189,10 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                         </div>
                                     @endif
 
-                                    {{-- Termine --}}
+                                    {{-- Termine (direkt aus DB) --}}
                                     <div class="small text-muted">
-                                        @if($geb->letzte_reinigung_datum)
-                                            <i class="bi bi-calendar-event"></i> Letzte: {{ $geb->letzte_reinigung_datum->format('d.m.Y') }}
+                                        @if($geb->letzter_termin)
+                                            <i class="bi bi-calendar-event"></i> Letzte: {{ $geb->letzter_termin->format('d.m.Y') }}
                                         @endif
                                         @if($geb->naechste_faelligkeit)
                                             <span class="ms-2"><i class="bi bi-calendar-check"></i> Nächste: {{ $geb->naechste_faelligkeit->format('d.m.Y') }}</span>
@@ -232,7 +232,7 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
          MODAL: ERLEDIGT MARKIEREN
          ═══════════════════════════════════════════════════════════════════════════ --}}
     @if($showErledigtModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" wire:keydown.escape="erledigtModalSchliessen">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header bg-success text-white py-2">
@@ -270,13 +270,13 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
          MODAL: GEBÄUDE BEARBEITEN
          ═══════════════════════════════════════════════════════════════════════════ --}}
     @if($showBearbeitenModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" wire:keydown.escape="bearbeitenModalSchliessen">
             <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header bg-primary text-white py-2">
                         <h5 class="modal-title">
                             <i class="bi bi-pencil"></i> 
-                            {{ $bearbeitenGebaeude->gebaeude_name ?: $bearbeitenGebaeude->codex }} bearbeiten
+                            {{ $bearbeitenGebaeudeName ?: $bearbeitenGebaeudeCodex }} bearbeiten
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="bearbeitenModalSchliessen"></button>
                     </div>
