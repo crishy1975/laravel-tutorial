@@ -20,28 +20,19 @@ class Reinigungsplanung extends Component
 
     protected $paginationTheme = 'bootstrap';
 
-    // ═══════════════════════════════════════════════════════════
-    // 🔍 FILTER
-    // ═══════════════════════════════════════════════════════════
-    
+    // Filter
     public $filterTour = '';
     public $filterMonat = '';
     public $filterStatus = '';
     public $suchbegriff = '';
 
-    // ═══════════════════════════════════════════════════════════
-    // ✅ ERLEDIGT MARKIEREN
-    // ═══════════════════════════════════════════════════════════
-    
+    // Erledigt Modal
     public $showErledigtModal = false;
     public $erledigtGebaeudeId = null;
     public $erledigtDatum;
     public $erledigtBemerkung = '';
 
-    // ═══════════════════════════════════════════════════════════
-    // ✏️ BEARBEITEN MODAL
-    // ═══════════════════════════════════════════════════════════
-    
+    // Bearbeiten Modal
     public $showBearbeitenModal = false;
     public $bearbeitenGebaeudeId = null;
     public $bearbeitenGebaeudeCodex = '';
@@ -78,10 +69,6 @@ class Reinigungsplanung extends Component
     
     public $selectedTouren = [];
 
-    // ═══════════════════════════════════════════════════════════
-    // 🎬 LIFECYCLE
-    // ═══════════════════════════════════════════════════════════
-    
     public function mount()
     {
         $this->filterMonat = now()->month;
@@ -96,7 +83,20 @@ class Reinigungsplanung extends Component
 
     public function render()
     {
-        // Query aufbauen - OHNE FaelligkeitsService!
+        // Modal offen? Keine schwere Berechnung!
+        if ($this->showBearbeitenModal || $this->showErledigtModal) {
+            return view('livewire.mitarbeiter.reinigungsplanung', [
+                'gebaeude' => new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20),
+                'touren' => $this->alleTouren,
+                'stats' => ['gesamt' => '-', 'offen' => '-', 'erledigt' => '-'],
+                'monate' => $this->getMonateArray(),
+                'skipList' => true,
+            ]);
+        }
+
+        $faelligkeitsService = app(FaelligkeitsService::class);
+
+        // Query aufbauen - OHNE ist_faellig (das ist keine DB-Spalte!)
         $query = Gebaeude::query()->with(['touren']);
 
         // Filter: Monat
@@ -120,43 +120,52 @@ class Reinigungsplanung extends Component
             });
         }
 
-        // Filter: Status (direkt in DB - Feld ist_faellig wird vom Cron gesetzt)
-        if ($this->filterStatus === 'offen') {
-            $query->where('ist_faellig', true);
-        } elseif ($this->filterStatus === 'erledigt') {
-            $query->where('ist_faellig', false);
-        }
-
-        // Stats zählen
-        $statsQuery = clone $query;
-        $gesamt = $statsQuery->count();
-        
-        $offenCount = (clone $query)->where('ist_faellig', true)->count();
-        $erledigtCount = (clone $query)->where('ist_faellig', false)->count();
+        // Zählung für Stats (ohne Status-Filter)
+        $totalCount = $query->count();
 
         // Sortierung & Pagination
-        $gebaeude = $query
+        $gebaeudePaginated = $query
             ->orderBy('strasse')
             ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
             ->orderBy('hausnummer')
             ->paginate(20);
 
+        // Fälligkeit NUR für aktuelle Seite berechnen
+        $statsOffen = 0;
+        $statsErledigt = 0;
+
+        foreach ($gebaeudePaginated->items() as $g) {
+            $g->letzte_reinigung_datum = $faelligkeitsService->getLetzteReinigung($g);
+            $g->naechste_faelligkeit = $faelligkeitsService->getNaechsteFaelligkeit($g);
+            $g->ist_erledigt = !$faelligkeitsService->istFaellig($g);
+            
+            $g->ist_erledigt ? $statsErledigt++ : $statsOffen++;
+        }
+
+        // Status-Filter NUR auf Collection anwenden (NICHT auf DB!)
+        $items = collect($gebaeudePaginated->items());
+        if ($this->filterStatus === 'offen') {
+            $items = $items->filter(fn($g) => !$g->ist_erledigt);
+        } elseif ($this->filterStatus === 'erledigt') {
+            $items = $items->filter(fn($g) => $g->ist_erledigt);
+        }
+
         return view('livewire.mitarbeiter.reinigungsplanung', [
-            'gebaeude' => $gebaeude,
+            'gebaeude' => $this->filterStatus 
+                ? new \Illuminate\Pagination\LengthAwarePaginator($items->values(), $items->count(), 20, 1, ['path' => request()->url()])
+                : $gebaeudePaginated,
             'touren' => $this->alleTouren,
             'stats' => [
-                'gesamt'   => $gesamt,
-                'offen'    => $offenCount,
-                'erledigt' => $erledigtCount,
+                'gesamt'   => $totalCount,
+                'offen'    => $statsOffen,
+                'erledigt' => $statsErledigt,
             ],
             'monate' => $this->getMonateArray(),
+            'skipList' => false,
         ]);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🔍 FILTER-EVENTS
-    // ═══════════════════════════════════════════════════════════
-    
+    // Filter-Events
     public function updatingFilterTour() { $this->resetPage(); }
     public function updatingFilterMonat() { $this->resetPage(); }
     public function updatingFilterStatus() { $this->resetPage(); }
@@ -169,10 +178,7 @@ class Reinigungsplanung extends Component
         $this->resetPage();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // ✅ ERLEDIGT MARKIEREN
-    // ═══════════════════════════════════════════════════════════
-    
+    // Erledigt Modal
     public function erledigtModalOeffnen(int $gebaeudeId)
     {
         $this->erledigtGebaeudeId = $gebaeudeId;
@@ -197,7 +203,6 @@ class Reinigungsplanung extends Component
         $gebaeude = Gebaeude::findOrFail($this->erledigtGebaeudeId);
         $datum = Carbon::parse($this->erledigtDatum);
 
-        // Timeline-Eintrag erstellen
         $gebaeude->timelines()->create([
             'datum'       => $datum,
             'bemerkung'   => $this->erledigtBemerkung ?: 'Reinigung durchgeführt',
@@ -205,24 +210,19 @@ class Reinigungsplanung extends Component
             'person_name' => auth()->user()->name,
         ]);
 
-        // Gebäude aktualisieren
         $updateData = ['letzter_termin' => $datum];
         if ($gebaeude->fattura_profile_id) {
             $updateData['rechnung_schreiben'] = true;
         }
         $gebaeude->update($updateData);
 
-        // ⚡ FaelligkeitsService NUR für dieses Gebäude starten!
         app(FaelligkeitsService::class)->aktualisiereGebaeude($gebaeude);
 
         session()->flash('success', 'Reinigung für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' eingetragen.');
         $this->erledigtModalSchliessen();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // ✏️ BEARBEITEN MODAL
-    // ═══════════════════════════════════════════════════════════
-    
+    // Bearbeiten Modal
     public function bearbeitenModalOeffnen(int $gebaeudeId)
     {
         $g = Gebaeude::with('touren')->findOrFail($gebaeudeId);
@@ -343,10 +343,6 @@ class Reinigungsplanung extends Component
         $this->bearbeitenModalSchliessen();
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // 🛠️ HELPER
-    // ═══════════════════════════════════════════════════════════
-    
     private function getMonateArray(): array
     {
         return [
