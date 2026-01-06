@@ -40,27 +40,25 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
     <div class="row g-2 mb-3">
         <div class="col-4">
             <div class="card border-primary h-100">
-                <div class="card-body text-center py-2 py-md-3">
-                    <h2 class="h3 h2-md fw-bold text-primary mb-0">{{ $stats['gesamt'] }}</h2>
-                    <small class="text-muted d-none d-sm-inline">Gesamt</small>
-                    <small class="text-muted d-sm-none" style="font-size: 0.7rem;">Ges.</small>
+                <div class="card-body text-center py-2">
+                    <h2 class="h3 fw-bold text-primary mb-0">{{ $stats['gesamt'] }}</h2>
+                    <small class="text-muted">Gesamt</small>
                 </div>
             </div>
         </div>
         <div class="col-4">
             <div class="card border-warning h-100">
-                <div class="card-body text-center py-2 py-md-3">
-                    <h2 class="h3 h2-md fw-bold text-warning mb-0">{{ $stats['offen'] }}</h2>
+                <div class="card-body text-center py-2">
+                    <h2 class="h3 fw-bold text-warning mb-0">{{ $stats['offen'] }}</h2>
                     <small class="text-muted">Offen</small>
                 </div>
             </div>
         </div>
         <div class="col-4">
             <div class="card border-success h-100">
-                <div class="card-body text-center py-2 py-md-3">
-                    <h2 class="h3 h2-md fw-bold text-success mb-0">{{ $stats['erledigt'] }}</h2>
-                    <small class="text-muted d-none d-sm-inline">Erledigt</small>
-                    <small class="text-muted d-sm-none" style="font-size: 0.7rem;">Erl.</small>
+                <div class="card-body text-center py-2">
+                    <h2 class="h3 fw-bold text-success mb-0">{{ $stats['erledigt'] }}</h2>
+                    <small class="text-muted">Erledigt</small>
                 </div>
             </div>
         </div>
@@ -70,21 +68,15 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
     <div class="card mb-3">
         <div class="card-header py-2">
             <i class="bi bi-funnel"></i> Filter
+            <div wire:loading class="spinner-border spinner-border-sm text-primary ms-2" role="status"></div>
         </div>
         <div class="card-body py-2">
             <div class="row g-2">
-                {{-- Suchbegriff --}}
                 <div class="col-12 col-md-5">
                     <div class="input-group input-group-sm">
-                        <span class="input-group-text">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <input 
-                            type="text" 
-                            class="form-control" 
-                            placeholder="Suche..." 
-                            wire:model.live.debounce.500ms="suchbegriff"
-                        >
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Suche..." 
+                               wire:model.live.debounce.500ms="suchbegriff">
                         @if($suchbegriff)
                             <button class="btn btn-outline-secondary" type="button" wire:click="$set('suchbegriff', '')">
                                 <i class="bi bi-x"></i>
@@ -92,8 +84,6 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                         @endif
                     </div>
                 </div>
-
-                {{-- Monat --}}
                 <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterMonat">
                         <option value="">Alle</option>
@@ -102,8 +92,6 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                         @endforeach
                     </select>
                 </div>
-
-                {{-- Tour --}}
                 <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterTour">
                         <option value="">Tour</option>
@@ -112,8 +100,6 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                         @endforeach
                     </select>
                 </div>
-
-                {{-- Status --}}
                 <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterStatus">
                         <option value="">Status</option>
@@ -121,15 +107,9 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                         <option value="erledigt">Erledigt</option>
                     </select>
                 </div>
-
-                {{-- Reset --}}
                 <div class="col-12 col-md-1">
-                    <button 
-                        type="button" 
-                        class="btn btn-sm btn-outline-secondary w-100" 
-                        wire:click="filterZuruecksetzen"
-                        title="Filter zurücksetzen"
-                    >
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" 
+                            wire:click="filterZuruecksetzen" title="Reset">
                         <i class="bi bi-x-circle"></i>
                     </button>
                 </div>
@@ -139,14 +119,9 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
 
     {{-- Gebäude-Liste --}}
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center py-2">
-            <span>
-                <i class="bi bi-list-ul"></i> Gebäude
-                <span class="badge bg-primary ms-1">{{ $gebaeude->total() }}</span>
-            </span>
-            <div wire:loading class="spinner-border spinner-border-sm text-primary" role="status">
-                <span class="visually-hidden">Laden...</span>
-            </div>
+        <div class="card-header py-2">
+            <i class="bi bi-list-ul"></i> Gebäude
+            <span class="badge bg-primary ms-1">{{ $gebaeude->total() }}</span>
         </div>
         <div class="card-body p-0">
             @if($gebaeude->count() > 0)
@@ -159,32 +134,25 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                     {{-- Codex & Status --}}
                                     <div class="d-flex align-items-center mb-1">
                                         <strong class="me-2">{{ $geb->codex }}</strong>
-                                        
                                         @if($geb->ist_erledigt)
-                                            <span class="badge bg-success" title="Erledigt">
-                                                <i class="bi bi-check-circle"></i>
-                                            </span>
+                                            <span class="badge bg-success"><i class="bi bi-check-circle"></i></span>
                                         @else
-                                            <span class="badge bg-warning text-dark" title="Offen">
-                                                <i class="bi bi-clock-history"></i>
-                                            </span>
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i></span>
                                         @endif
                                     </div>
                                     
-                                    {{-- Gebäude-Name --}}
                                     @if($geb->gebaeude_name)
                                         <div class="text-muted small mb-1">{{ $geb->gebaeude_name }}</div>
                                     @endif
                                     
                                     {{-- Adresse mit Maps-Link --}}
+                                    @php
+                                        $adresse = $geb->strasse . ' ' . $geb->hausnummer . ', ' . $geb->plz . ' ' . $geb->wohnort;
+                                        $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($adresse);
+                                    @endphp
                                     <div class="small mb-2">
-                                        @php
-                                            $adresse = $geb->strasse . ' ' . $geb->hausnummer . ', ' . $geb->plz . ' ' . $geb->wohnort;
-                                            $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($adresse);
-                                        @endphp
                                         <a href="{{ $mapsUrl }}" target="_blank" class="text-decoration-none text-dark">
-                                            <i class="bi bi-geo-alt text-danger"></i>
-                                            {{ $adresse }}
+                                            <i class="bi bi-geo-alt text-danger"></i> {{ $adresse }}
                                             <i class="bi bi-box-arrow-up-right small text-muted"></i>
                                         </a>
                                     </div>
@@ -192,105 +160,64 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                     {{-- Kontakt-Buttons --}}
                                     @if($geb->telefon || $geb->handy)
                                         <div class="d-flex flex-wrap gap-1 mb-2">
-                                            {{-- Telefon --}}
                                             @if($geb->telefon)
                                                 <a href="tel:{{ preg_replace('/[^0-9+]/', '', $geb->telefon) }}" 
-                                                   class="btn btn-sm btn-outline-primary" title="Anrufen: {{ $geb->telefon }}">
+                                                   class="btn btn-sm btn-outline-primary" title="Anrufen">
                                                     <i class="bi bi-telephone"></i>
-                                                    <span class="d-none d-md-inline ms-1">{{ $geb->telefon }}</span>
                                                 </a>
                                             @endif
                                             
-                                            {{-- Handy mit allen Optionen --}}
                                             @if($geb->handy)
                                                 @php
                                                     $handyClean = preg_replace('/[^0-9+]/', '', $geb->handy);
-                                                    // Für WhatsApp: + am Anfang, keine Leerzeichen
                                                     $handyWhatsApp = ltrim($handyClean, '+');
                                                     if (!str_starts_with($handyClean, '+')) {
-                                                        // Italienische Nummer ohne Vorwahl -> 39 hinzufügen
                                                         $handyWhatsApp = '39' . $handyWhatsApp;
                                                     }
                                                 @endphp
-                                                
-                                                {{-- Anruf --}}
-                                                <a href="tel:{{ $handyClean }}" 
-                                                   class="btn btn-sm btn-outline-success" title="Handy anrufen">
+                                                <a href="tel:{{ $handyClean }}" class="btn btn-sm btn-outline-success" title="Handy">
                                                     <i class="bi bi-phone"></i>
                                                 </a>
-                                                
-                                                {{-- WhatsApp --}}
-                                                <a href="https://wa.me/{{ $handyWhatsApp }}" 
-                                                   target="_blank"
+                                                <a href="https://wa.me/{{ $handyWhatsApp }}" target="_blank" 
                                                    class="btn btn-sm btn-success" title="WhatsApp">
                                                     <i class="bi bi-whatsapp"></i>
                                                 </a>
-                                                
-                                                {{-- SMS --}}
-                                                <a href="sms:{{ $handyClean }}" 
-                                                   class="btn btn-sm btn-outline-info" title="SMS senden">
+                                                <a href="sms:{{ $handyClean }}" class="btn btn-sm btn-outline-info" title="SMS">
                                                     <i class="bi bi-chat-dots"></i>
                                                 </a>
                                             @endif
                                         </div>
                                     @endif
 
-                                    {{-- Letzte Reinigung --}}
-                                    @if($geb->letzte_reinigung_datum)
-                                        <div class="small text-muted">
-                                            <i class="bi bi-calendar-event"></i>
-                                            Letzte: {{ $geb->letzte_reinigung_datum->format('d.m.Y') }}
-                                        </div>
-                                    @endif
-
-                                    {{-- Nächste Fälligkeit --}}
-                                    @if($geb->naechste_faelligkeit)
-                                        <div class="small text-muted">
-                                            <i class="bi bi-calendar-check"></i>
-                                            Nächste: {{ $geb->naechste_faelligkeit->format('d.m.Y') }}
-                                        </div>
-                                    @endif
-
-                                    {{-- Touren (nur Desktop) --}}
-                                    @if($geb->touren->count() > 0)
-                                        <div class="small text-muted mt-1 d-none d-md-block">
-                                            <i class="bi bi-map"></i>
-                                            {{ $geb->touren->pluck('name')->implode(', ') }}
-                                        </div>
-                                    @endif
+                                    {{-- Termine --}}
+                                    <div class="small text-muted">
+                                        @if($geb->letzte_reinigung_datum)
+                                            <i class="bi bi-calendar-event"></i> Letzte: {{ $geb->letzte_reinigung_datum->format('d.m.Y') }}
+                                        @endif
+                                        @if($geb->naechste_faelligkeit)
+                                            <span class="ms-2"><i class="bi bi-calendar-check"></i> Nächste: {{ $geb->naechste_faelligkeit->format('d.m.Y') }}</span>
+                                        @endif
+                                    </div>
                                 </div>
 
                                 {{-- Aktionen --}}
                                 <div class="flex-shrink-0 d-flex flex-column gap-1">
-                                    {{-- Erledigt Button --}}
-                                    <button 
-                                        type="button" 
-                                        class="btn btn-sm btn-outline-success"
-                                        wire:click="erledigtModalOeffnen({{ $geb->id }})"
-                                        title="Als erledigt markieren"
-                                    >
+                                    <button type="button" class="btn btn-sm btn-outline-success"
+                                            wire:click="erledigtModalOeffnen({{ $geb->id }})" title="Erledigt">
                                         <i class="bi bi-check-circle"></i>
-                                        <span class="d-none d-md-inline ms-1">Erledigt</span>
                                     </button>
-                                    
-                                    {{-- Bearbeiten Link --}}
-                                    <a href="{{ route('mitarbeiter.gebaeude.bearbeiten') }}" 
-                                       class="btn btn-sm btn-outline-primary"
-                                       title="Gebäude bearbeiten">
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            wire:click="bearbeitenModalOeffnen({{ $geb->id }})" title="Ändern">
                                         <i class="bi bi-pencil"></i>
-                                        <span class="d-none d-md-inline ms-1">Ändern</span>
-                                    </a>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     @endforeach
                 </div>
 
-                {{-- Pagination --}}
                 @if($gebaeude->hasPages())
-                    <div class="p-3">
-                        {{ $gebaeude->links() }}
-                    </div>
+                    <div class="p-3">{{ $gebaeude->links() }}</div>
                 @endif
             @else
                 <div class="p-4 text-center text-muted">
@@ -301,69 +228,187 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
         </div>
     </div>
 
-    {{-- Modal: Als erledigt markieren --}}
+    {{-- ═══════════════════════════════════════════════════════════════════════════
+         MODAL: ERLEDIGT MARKIEREN
+         ═══════════════════════════════════════════════════════════════════════════ --}}
     @if($showErledigtModal)
         <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
-                    {{-- Modal Header --}}
                     <div class="modal-header bg-success text-white py-2">
-                        <h5 class="modal-title">
-                            <i class="bi bi-check-circle"></i>
-                            Reinigung eintragen
-                        </h5>
+                        <h5 class="modal-title"><i class="bi bi-check-circle"></i> Reinigung eintragen</h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="erledigtModalSchliessen"></button>
                     </div>
-
-                    {{-- Modal Body --}}
                     <div class="modal-body">
-                        <form wire:submit.prevent="erledigtSpeichern">
-                            {{-- Datum --}}
-                            <div class="mb-3">
-                                <label for="erledigtDatum" class="form-label">
-                                    Datum <span class="text-danger">*</span>
-                                </label>
-                                <input 
-                                    type="date" 
-                                    class="form-control @error('erledigtDatum') is-invalid @enderror" 
-                                    id="erledigtDatum"
-                                    wire:model="erledigtDatum"
-                                    max="{{ today()->format('Y-m-d') }}"
-                                >
-                                @error('erledigtDatum')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
-                            {{-- Bemerkung --}}
-                            <div class="mb-3">
-                                <label for="erledigtBemerkung" class="form-label">Bemerkung</label>
-                                <textarea 
-                                    class="form-control @error('erledigtBemerkung') is-invalid @enderror" 
-                                    id="erledigtBemerkung"
-                                    wire:model="erledigtBemerkung"
-                                    rows="3"
-                                    placeholder="Optional: Bemerkung zur Reinigung..."
-                                ></textarea>
-                                @error('erledigtBemerkung')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </form>
+                        <div class="mb-3">
+                            <label class="form-label">Datum <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control @error('erledigtDatum') is-invalid @enderror" 
+                                   wire:model="erledigtDatum" max="{{ today()->format('Y-m-d') }}">
+                            @error('erledigtDatum')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bemerkung</label>
+                            <textarea class="form-control" wire:model="erledigtBemerkung" rows="2" 
+                                      placeholder="Optional..."></textarea>
+                        </div>
                     </div>
-
-                    {{-- Modal Footer --}}
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" wire:click="erledigtModalSchliessen">
                             <i class="bi bi-x-circle"></i> Abbrechen
                         </button>
                         <button type="button" class="btn btn-success" wire:click="erledigtSpeichern" wire:loading.attr="disabled">
-                            <span wire:loading.remove wire:target="erledigtSpeichern">
-                                <i class="bi bi-save"></i> Speichern
-                            </span>
-                            <span wire:loading wire:target="erledigtSpeichern">
-                                <span class="spinner-border spinner-border-sm"></span> Speichern...
-                            </span>
+                            <span wire:loading.remove wire:target="erledigtSpeichern"><i class="bi bi-save"></i> Speichern</span>
+                            <span wire:loading wire:target="erledigtSpeichern"><span class="spinner-border spinner-border-sm"></span></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════════════════════════════
+         MODAL: GEBÄUDE BEARBEITEN
+         ═══════════════════════════════════════════════════════════════════════════ --}}
+    @if($showBearbeitenModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white py-2">
+                        <h5 class="modal-title">
+                            <i class="bi bi-pencil"></i> 
+                            {{ $bearbeitenGebaeude->gebaeude_name ?: $bearbeitenGebaeude->codex }} bearbeiten
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="bearbeitenModalSchliessen"></button>
+                    </div>
+                    <div class="modal-body">
+                        {{-- Info-Box --}}
+                        <div class="alert alert-info py-2 mb-3">
+                            <small><i class="bi bi-info-circle"></i> Änderungen müssen von einem Admin genehmigt werden.</small>
+                        </div>
+
+                        <form wire:submit.prevent="aenderungVorschlagen">
+                            {{-- Grunddaten --}}
+                            <h6 class="text-primary mb-2"><i class="bi bi-building"></i> Grunddaten</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-4">
+                                    <label class="form-label small">Codex *</label>
+                                    <input type="text" class="form-control form-control-sm @error('codex') is-invalid @enderror" wire:model="codex">
+                                    @error('codex')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-8">
+                                    <label class="form-label small">Gebäudename</label>
+                                    <input type="text" class="form-control form-control-sm" wire:model="gebaeude_name">
+                                </div>
+                            </div>
+
+                            {{-- Adresse --}}
+                            <h6 class="text-primary mb-2"><i class="bi bi-geo-alt"></i> Adresse</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-8">
+                                    <label class="form-label small">Straße *</label>
+                                    <input type="text" class="form-control form-control-sm @error('strasse') is-invalid @enderror" wire:model="strasse">
+                                    @error('strasse')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small">Nr. *</label>
+                                    <input type="text" class="form-control form-control-sm @error('hausnummer') is-invalid @enderror" wire:model="hausnummer">
+                                    @error('hausnummer')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small">PLZ *</label>
+                                    <input type="text" class="form-control form-control-sm @error('plz') is-invalid @enderror" wire:model="plz">
+                                    @error('plz')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label small">Ort *</label>
+                                    <input type="text" class="form-control form-control-sm @error('wohnort') is-invalid @enderror" wire:model="wohnort">
+                                    @error('wohnort')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label small">Land</label>
+                                    <select class="form-select form-select-sm" wire:model="land">
+                                        <option value="IT">IT</option>
+                                        <option value="AT">AT</option>
+                                        <option value="DE">DE</option>
+                                        <option value="CH">CH</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {{-- Kontakt --}}
+                            <h6 class="text-primary mb-2"><i class="bi bi-telephone"></i> Kontakt</h6>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label small">Telefon</label>
+                                    <input type="text" class="form-control form-control-sm" wire:model="telefon">
+                                </div>
+                                <div class="col-6 col-md-4">
+                                    <label class="form-label small">Handy</label>
+                                    <input type="text" class="form-control form-control-sm" wire:model="handy">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label small">E-Mail</label>
+                                    <input type="email" class="form-control form-control-sm @error('email') is-invalid @enderror" wire:model="email">
+                                    @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                                </div>
+                            </div>
+
+                            {{-- Reinigung --}}
+                            <h6 class="text-success mb-2"><i class="bi bi-calendar-check"></i> Reinigungsplan</h6>
+                            <div class="mb-2">
+                                <label class="form-label small">Geplante Reinigungen/Jahr</label>
+                                <input type="number" class="form-control form-control-sm" wire:model="geplante_reinigungen" min="0" max="365" style="width: 100px;">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small d-block">Aktive Monate</label>
+                                <div class="row g-1">
+                                    @foreach(['01'=>'Jan','02'=>'Feb','03'=>'Mär','04'=>'Apr','05'=>'Mai','06'=>'Jun','07'=>'Jul','08'=>'Aug','09'=>'Sep','10'=>'Okt','11'=>'Nov','12'=>'Dez'] as $num => $name)
+                                        <div class="col-4 col-md-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="m{{ $num }}" wire:model="m{{ $num }}">
+                                                <label class="form-check-label small" for="m{{ $num }}">{{ $name }}</label>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- Touren --}}
+                            @if($touren->count() > 0)
+                                <h6 class="text-warning mb-2"><i class="bi bi-map"></i> Touren</h6>
+                                <div class="row g-1 mb-3">
+                                    @foreach($touren as $tour)
+                                        <div class="col-6 col-md-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="tour_{{ $tour->id }}" 
+                                                       value="{{ $tour->id }}" wire:model="selectedTouren">
+                                                <label class="form-check-label small" for="tour_{{ $tour->id }}">{{ $tour->name }}</label>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            {{-- Bemerkungen --}}
+                            <h6 class="text-info mb-2"><i class="bi bi-chat-left-text"></i> Bemerkungen</h6>
+                            <div class="mb-2">
+                                <label class="form-label small">Bemerkung zum Gebäude</label>
+                                <textarea class="form-control form-control-sm" wire:model="bemerkung" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Nachricht an Admin</label>
+                                <textarea class="form-control form-control-sm" wire:model="bemerkung_mitarbeiter" rows="2" 
+                                          placeholder="Begründung der Änderung..."></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="bearbeitenModalSchliessen">
+                            <i class="bi bi-x-circle"></i> Abbrechen
+                        </button>
+                        <button type="button" class="btn btn-primary" wire:click="aenderungVorschlagen" wire:loading.attr="disabled">
+                            <span wire:loading.remove wire:target="aenderungVorschlagen"><i class="bi bi-send"></i> Änderung vorschlagen</span>
+                            <span wire:loading wire:target="aenderungVorschlagen"><span class="spinner-border spinner-border-sm"></span></span>
                         </button>
                     </div>
                 </div>
