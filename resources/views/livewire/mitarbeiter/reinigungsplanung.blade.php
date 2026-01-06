@@ -1,4 +1,9 @@
-{{-- resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php --}}
+{{--
+════════════════════════════════════════════════════════════════════════════
+DATEI: reinigungsplanung.blade.php
+PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
+════════════════════════════════════════════════════════════════════════════
+--}}
 
 <div class="container-fluid py-2 py-md-4">
     {{-- Header --}}
@@ -10,7 +15,7 @@
             </h1>
             <p class="text-muted mb-0 small">
                 @if(!empty($filterMonat))
-                    {{ $monate[$filterMonat] }} {{ now()->year }}
+                    {{ $monate[$filterMonat] ?? '' }} {{ now()->year }}
                 @else
                     Alle Monate
                 @endif
@@ -63,13 +68,13 @@
 
     {{-- Filter Card --}}
     <div class="card mb-3">
-        <div class="card-header">
+        <div class="card-header py-2">
             <i class="bi bi-funnel"></i> Filter
         </div>
-        <div class="card-body">
+        <div class="card-body py-2">
             <div class="row g-2">
                 {{-- Suchbegriff --}}
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-5">
                     <div class="input-group input-group-sm">
                         <span class="input-group-text">
                             <i class="bi bi-search"></i>
@@ -78,25 +83,30 @@
                             type="text" 
                             class="form-control" 
                             placeholder="Suche..." 
-                            wire:model.live.debounce.300ms="suchbegriff"
+                            wire:model.live.debounce.500ms="suchbegriff"
                         >
+                        @if($suchbegriff)
+                            <button class="btn btn-outline-secondary" type="button" wire:click="$set('suchbegriff', '')">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        @endif
                     </div>
                 </div>
 
                 {{-- Monat --}}
-                <div class="col-6 col-md-2">
+                <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterMonat">
-                        <option value="">Alle Monate</option>
+                        <option value="">Alle</option>
                         @foreach($monate as $num => $name)
-                            <option value="{{ $num }}">{{ $name }}</option>
+                            <option value="{{ $num }}">{{ substr($name, 0, 3) }}</option>
                         @endforeach
                     </select>
                 </div>
 
                 {{-- Tour --}}
-                <div class="col-6 col-md-2">
+                <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterTour">
-                        <option value="">Alle Touren</option>
+                        <option value="">Tour</option>
                         @foreach($touren as $tour)
                             <option value="{{ $tour->id }}">{{ $tour->name }}</option>
                         @endforeach
@@ -104,16 +114,16 @@
                 </div>
 
                 {{-- Status --}}
-                <div class="col-9 col-md-1">
+                <div class="col-4 col-md-2">
                     <select class="form-select form-select-sm" wire:model.live="filterStatus">
-                        <option value="">Alle</option>
+                        <option value="">Status</option>
                         <option value="offen">Offen</option>
                         <option value="erledigt">Erledigt</option>
                     </select>
                 </div>
 
                 {{-- Reset --}}
-                <div class="col-3 col-md-1">
+                <div class="col-12 col-md-1">
                     <button 
                         type="button" 
                         class="btn btn-sm btn-outline-secondary w-100" 
@@ -129,11 +139,14 @@
 
     {{-- Gebäude-Liste --}}
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
             <span>
                 <i class="bi bi-list-ul"></i> Gebäude
                 <span class="badge bg-primary ms-1">{{ $gebaeude->total() }}</span>
             </span>
+            <div wire:loading class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Laden...</span>
+            </div>
         </div>
         <div class="card-body p-0">
             @if($gebaeude->count() > 0)
@@ -150,12 +163,10 @@
                                         @if($geb->ist_erledigt)
                                             <span class="badge bg-success" title="Erledigt">
                                                 <i class="bi bi-check-circle"></i>
-                                                <span class="d-none d-md-inline">Erledigt</span>
                                             </span>
                                         @else
                                             <span class="badge bg-warning text-dark" title="Offen">
                                                 <i class="bi bi-clock-history"></i>
-                                                <span class="d-none d-md-inline">Offen</span>
                                             </span>
                                         @endif
                                     </div>
@@ -165,16 +176,68 @@
                                         <div class="text-muted small mb-1">{{ $geb->gebaeude_name }}</div>
                                     @endif
                                     
-                                    {{-- Adresse --}}
-                                    <div class="small">
-                                        <i class="bi bi-geo-alt"></i>
-                                        {{ $geb->strasse }} {{ $geb->hausnummer }}, 
-                                        {{ $geb->plz }} {{ $geb->wohnort }}
+                                    {{-- Adresse mit Maps-Link --}}
+                                    <div class="small mb-2">
+                                        @php
+                                            $adresse = $geb->strasse . ' ' . $geb->hausnummer . ', ' . $geb->plz . ' ' . $geb->wohnort;
+                                            $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($adresse);
+                                        @endphp
+                                        <a href="{{ $mapsUrl }}" target="_blank" class="text-decoration-none text-dark">
+                                            <i class="bi bi-geo-alt text-danger"></i>
+                                            {{ $adresse }}
+                                            <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                                        </a>
                                     </div>
+
+                                    {{-- Kontakt-Buttons --}}
+                                    @if($geb->telefon || $geb->handy)
+                                        <div class="d-flex flex-wrap gap-1 mb-2">
+                                            {{-- Telefon --}}
+                                            @if($geb->telefon)
+                                                <a href="tel:{{ preg_replace('/[^0-9+]/', '', $geb->telefon) }}" 
+                                                   class="btn btn-sm btn-outline-primary" title="Anrufen: {{ $geb->telefon }}">
+                                                    <i class="bi bi-telephone"></i>
+                                                    <span class="d-none d-md-inline ms-1">{{ $geb->telefon }}</span>
+                                                </a>
+                                            @endif
+                                            
+                                            {{-- Handy mit allen Optionen --}}
+                                            @if($geb->handy)
+                                                @php
+                                                    $handyClean = preg_replace('/[^0-9+]/', '', $geb->handy);
+                                                    // Für WhatsApp: + am Anfang, keine Leerzeichen
+                                                    $handyWhatsApp = ltrim($handyClean, '+');
+                                                    if (!str_starts_with($handyClean, '+')) {
+                                                        // Italienische Nummer ohne Vorwahl -> 39 hinzufügen
+                                                        $handyWhatsApp = '39' . $handyWhatsApp;
+                                                    }
+                                                @endphp
+                                                
+                                                {{-- Anruf --}}
+                                                <a href="tel:{{ $handyClean }}" 
+                                                   class="btn btn-sm btn-outline-success" title="Handy anrufen">
+                                                    <i class="bi bi-phone"></i>
+                                                </a>
+                                                
+                                                {{-- WhatsApp --}}
+                                                <a href="https://wa.me/{{ $handyWhatsApp }}" 
+                                                   target="_blank"
+                                                   class="btn btn-sm btn-success" title="WhatsApp">
+                                                    <i class="bi bi-whatsapp"></i>
+                                                </a>
+                                                
+                                                {{-- SMS --}}
+                                                <a href="sms:{{ $handyClean }}" 
+                                                   class="btn btn-sm btn-outline-info" title="SMS senden">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                </a>
+                                            @endif
+                                        </div>
+                                    @endif
 
                                     {{-- Letzte Reinigung --}}
                                     @if($geb->letzte_reinigung_datum)
-                                        <div class="small text-muted mt-1">
+                                        <div class="small text-muted">
                                             <i class="bi bi-calendar-event"></i>
                                             Letzte: {{ $geb->letzte_reinigung_datum->format('d.m.Y') }}
                                         </div>
@@ -195,17 +258,11 @@
                                             {{ $geb->touren->pluck('name')->implode(', ') }}
                                         </div>
                                     @endif
-
-                                    {{-- Kontaktdaten --}}
-                                    @if($geb->hatKontaktdaten())
-                                        <div class="small text-muted mt-1">
-                                            {{ $geb->kontaktdaten_formatiert }}
-                                        </div>
-                                    @endif
                                 </div>
 
                                 {{-- Aktionen --}}
-                                <div class="flex-shrink-0">
+                                <div class="flex-shrink-0 d-flex flex-column gap-1">
+                                    {{-- Erledigt Button --}}
                                     <button 
                                         type="button" 
                                         class="btn btn-sm btn-outline-success"
@@ -215,6 +272,14 @@
                                         <i class="bi bi-check-circle"></i>
                                         <span class="d-none d-md-inline ms-1">Erledigt</span>
                                     </button>
+                                    
+                                    {{-- Bearbeiten Link --}}
+                                    <a href="{{ route('mitarbeiter.gebaeude.bearbeiten') }}" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="Gebäude bearbeiten">
+                                        <i class="bi bi-pencil"></i>
+                                        <span class="d-none d-md-inline ms-1">Ändern</span>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -222,9 +287,11 @@
                 </div>
 
                 {{-- Pagination --}}
-                <div class="p-3">
-                    {{ $gebaeude->links() }}
-                </div>
+                @if($gebaeude->hasPages())
+                    <div class="p-3">
+                        {{ $gebaeude->links() }}
+                    </div>
+                @endif
             @else
                 <div class="p-4 text-center text-muted">
                     <i class="bi bi-inbox" style="font-size: 3rem;"></i>
@@ -240,7 +307,7 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     {{-- Modal Header --}}
-                    <div class="modal-header bg-success text-white">
+                    <div class="modal-header bg-success text-white py-2">
                         <h5 class="modal-title">
                             <i class="bi bi-check-circle"></i>
                             Reinigung eintragen
