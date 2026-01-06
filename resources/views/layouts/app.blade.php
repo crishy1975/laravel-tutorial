@@ -1,3 +1,9 @@
+{{--
+════════════════════════════════════════════════════════════════════════════
+DATEI: app.blade.php
+PFAD:  resources/views/layouts/app.blade.php
+════════════════════════════════════════════════════════════════════════════
+--}}
 <!DOCTYPE html>
 <html lang="de">
 
@@ -17,6 +23,9 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
 
+    {{-- Livewire Styles --}}
+    @livewireStyles
+
     <style>
         body {
             background-color: #f5f5f5;
@@ -24,11 +33,13 @@
         }
 
         /* ═══════════════════════════════════════════════════════════
-           NAVIGATION - Schlicht Dunkel
+           NAVIGATION - Kompakt & Responsiv
            ═══════════════════════════════════════════════════════════ */
         .navbar-custom {
             background-color: #2d2d2d;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding-top: 0.4rem;
+            padding-bottom: 0.4rem;
         }
 
         .navbar-custom .navbar-brand {
@@ -36,21 +47,25 @@
             color: #fff !important;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
+            font-size: 1.1rem;
+            padding: 0;
         }
 
         .navbar-custom .navbar-brand i {
-            font-size: 1.3rem;
+            font-size: 1.2rem;
         }
 
-        /* Nav Links */
+        /* Nav Links - Kompakter */
         .navbar-custom .nav-link {
             color: rgba(255, 255, 255, 0.8) !important;
             font-weight: 500;
-            padding: 0.5rem 0.9rem !important;
+            font-size: 0.85rem;
+            padding: 0.4rem 0.6rem !important;
             border-radius: 4px;
-            margin: 0 2px;
+            margin: 0 1px;
             transition: all 0.15s ease;
+            white-space: nowrap;
         }
 
         .navbar-custom .nav-link:hover {
@@ -63,23 +78,29 @@
             background-color: #444;
         }
 
+        /* Nav Icons */
+        .navbar-custom .nav-link i {
+            font-size: 0.9rem;
+        }
+
         /* Dropdown */
         .navbar-custom .dropdown-menu {
             background-color: #363636;
             border: 1px solid #444;
             border-radius: 6px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-            padding: 0.4rem;
-            min-width: 200px;
+            padding: 0.3rem;
+            min-width: 180px;
+            font-size: 0.85rem;
         }
 
         .navbar-custom .dropdown-item {
             color: rgba(255, 255, 255, 0.85);
             border-radius: 4px;
-            padding: 0.5rem 0.75rem;
+            padding: 0.4rem 0.65rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.4rem;
         }
 
         .navbar-custom .dropdown-item:hover {
@@ -93,57 +114,59 @@
         }
 
         .navbar-custom .dropdown-item i {
-            width: 18px;
+            width: 16px;
             text-align: center;
             opacity: 0.7;
+            font-size: 0.85rem;
         }
 
         .navbar-custom .dropdown-divider {
             border-color: #444;
-            margin: 0.3rem 0;
+            margin: 0.25rem 0;
         }
 
-        /* Badge */
+        /* Badge - Kompakter */
         .nav-badge {
             background-color: #dc3545;
             color: #fff;
-            font-size: 0.7rem;
-            padding: 0.15rem 0.4rem;
-            border-radius: 10px;
-            margin-left: 0.3rem;
+            font-size: 0.65rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 8px;
+            margin-left: 0.2rem;
             font-weight: 600;
+            line-height: 1;
         }
 
         .dropdown-badge {
             background-color: #ffc107;
             color: #000;
-            font-size: 0.7rem;
-            padding: 0.15rem 0.4rem;
-            border-radius: 10px;
+            font-size: 0.65rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 8px;
             margin-left: auto;
             font-weight: 600;
         }
 
-        /* User Area */
+        /* User Area - Kompakter */
         .user-info {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
             color: rgba(255, 255, 255, 0.8);
-            font-size: 0.9rem;
+            font-size: 0.8rem;
         }
 
         .user-info i {
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
 
         .btn-logout {
             background: transparent;
             border: 1px solid rgba(255, 255, 255, 0.3);
             color: rgba(255, 255, 255, 0.8);
-            padding: 0.25rem 0.75rem;
+            padding: 0.2rem 0.5rem;
             border-radius: 4px;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             transition: all 0.15s;
         }
 
@@ -153,80 +176,111 @@
             color: #fff;
         }
 
-        /* Mobile */
-        .navbar-custom .navbar-toggler {
-            border-color: rgba(255, 255, 255, 0.2);
+        /* ═══════════════════════════════════════════════════════════
+           RESPONSIVE: Mittlere Bildschirme (Tablet/kleiner Desktop)
+           ═══════════════════════════════════════════════════════════ */
+        @media (min-width: 992px) and (max-width: 1199.98px) {
+            .navbar-custom .nav-link {
+                font-size: 0.8rem;
+                padding: 0.35rem 0.45rem !important;
+            }
+            
+            /* Text ausblenden, nur Icons zeigen */
+            .navbar-custom .nav-text-hide-lg {
+                display: none;
+            }
+            
+            .navbar-custom .navbar-brand span {
+                display: none;
+            }
         }
 
-        .navbar-custom .navbar-toggler-icon {
+        /* ═══════════════════════════════════════════════════════════
+           MOBILE TOGGLER - Hamburger Icon
+           ═══════════════════════════════════════════════════════════ */
+        .navbar-toggler {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.25rem 0.5rem;
+        }
+
+        .navbar-toggler:focus {
+            box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-toggler-icon {
+            width: 1.2rem;
+            height: 1.2rem;
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
         }
 
-        @media (max-width: 991.98px) {
-            .navbar-custom .navbar-collapse {
-                padding-top: 0.75rem;
-                border-top: 1px solid #444;
-                margin-top: 0.75rem;
-            }
-
-            .navbar-custom .nav-link {
-                padding: 0.6rem 0.75rem !important;
-            }
-
-            .navbar-custom .dropdown-menu {
-                background-color: #3a3a3a;
-                border: none;
-                box-shadow: none;
-                padding-left: 1rem;
-            }
-
-            .user-info {
-                margin-top: 0.75rem;
-                padding-top: 0.75rem;
-                border-top: 1px solid #444;
-            }
-        }
-
         /* ═══════════════════════════════════════════════════════════
-           CONTENT & FOOTER
+           MAIN CONTENT BEREICH
            ═══════════════════════════════════════════════════════════ */
         .main-content {
+            padding-top: 1rem;
             padding-bottom: 2rem;
-        }
-
-        footer {
-            text-align: center;
-            padding: 1rem;
-            margin-top: 2rem;
-            color: #6c757d;
-            font-size: 0.85rem;
+            min-height: calc(100vh - 120px);
         }
 
         /* ═══════════════════════════════════════════════════════════
-           PRINT STYLES
+           FOOTER
            ═══════════════════════════════════════════════════════════ */
-        @media print {
-            .navbar-custom,
-            footer,
-            .no-print {
-                display: none !important;
-            }
+        footer {
+            background-color: #2d2d2d;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            padding: 1rem;
+            margin-top: auto;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           HOVER-EFFEKTE FÜR CARDS
+           ═══════════════════════════════════════════════════════════ */
+        .hover-shadow {
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .hover-shadow:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           SELECT2 ANPASSUNGEN
+           ═══════════════════════════════════════════════════════════ */
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: 38px;
+        }
+
+        .select2-container--bootstrap-5 .select2-dropdown {
+            z-index: 9999;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           UTILITY KLASSEN
+           ═══════════════════════════════════════════════════════════ */
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .text-truncate-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
     </style>
-
-    @stack('styles')
-
 </head>
 
-<body>
+<body class="d-flex flex-column">
 
     {{-- NAVIGATION --}}
-    <nav class="navbar navbar-expand-lg navbar-custom mb-4">
-        <div class="container">
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid px-3">
             {{-- Brand --}}
             <a class="navbar-brand" href="{{ url('/') }}">
                 <i class="bi bi-building"></i>
-                UschiWeb
+                <span>UschiWeb</span>
             </a>
 
             {{-- Mobile Toggler --}}
@@ -239,16 +293,42 @@
                     
                     {{-- Stammdaten --}}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {{ request()->is('gebaeude*') || request()->is('adresse*') || request()->is('tour*') ? 'active' : '' }}" 
+                        @php
+                            // ⭐ NEU: Anzahl ausstehender Änderungsvorschläge
+                            $ausstehendeVorschlaege = 0;
+                            try {
+                                $ausstehendeVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::pending()->count();
+                            } catch (\Exception $e) {}
+                        @endphp
+                        
+                        <a class="nav-link dropdown-toggle {{ request()->is('gebaeude*') || request()->is('adresse*') || request()->is('tour*') || request()->is('aenderungsvorschlaege*') ? 'active' : '' }}" 
                            href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-folder"></i> Stammdaten
+                            <i class="bi bi-folder"></i> <span class="nav-text-hide-lg">Stamm</span><span class="d-none d-xl-inline">daten</span>
+                            
+                            {{-- Badge: Zeige Anzahl ausstehender Vorschläge --}}
+                            @if($ausstehendeVorschlaege > 0)
+                                <span class="nav-badge">{{ $ausstehendeVorschlaege }}</span>
+                            @endif
                         </a>
                         <ul class="dropdown-menu">
                             <li>
-                                <a class="dropdown-item {{ request()->is('gebaeude*') ? 'active' : '' }}" href="{{ url('/gebaeude') }}">
+                                <a class="dropdown-item {{ request()->is('gebaeude*') && !request()->is('*aenderungsvorschlaege*') ? 'active' : '' }}" href="{{ url('/gebaeude') }}">
                                     <i class="bi bi-building"></i> Gebäude
                                 </a>
                             </li>
+                            
+                            {{-- ⭐ NEU: Änderungsvorschläge --}}
+                            <li>
+                                <a class="dropdown-item {{ request()->is('aenderungsvorschlaege*') ? 'active' : '' }}" href="{{ route('admin.aenderungsvorschlaege') }}">
+                                    <i class="bi bi-clipboard-check"></i> Änderungsvorschläge
+                                    @if($ausstehendeVorschlaege > 0)
+                                        <span class="dropdown-badge">{{ $ausstehendeVorschlaege }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            
                             <li>
                                 <a class="dropdown-item {{ request()->is('adresse*') ? 'active' : '' }}" href="{{ url('/adresse') }}">
                                     <i class="bi bi-person-lines-fill"></i> Adressen
@@ -262,11 +342,11 @@
                         </ul>
                     </li>
 
-                    {{-- Reinigungsplanung --}}
+                    {{-- Reinigung --}}
                     <li class="nav-item">
                         <a class="nav-link {{ request()->is('reinigungsplanung*') ? 'active' : '' }}" 
                            href="{{ route('reinigungsplanung.index') }}">
-                            <i class="bi bi-calendar-check"></i> Reinigung
+                            <i class="bi bi-calendar-check"></i> <span class="nav-text-hide-lg">Reinigung</span>
                             @php
                                 $offeneReinigungen = \App\Models\Gebaeude::where('faellig', true)->count();
                             @endphp
@@ -276,7 +356,7 @@
                         </a>
                     </li>
 
-                    {{-- ⭐ ANGEBOTE --}}
+                    {{-- Angebote --}}
                     <li class="nav-item dropdown">
                         @php
                             $offeneAngebote = 0;
@@ -286,7 +366,7 @@
                         @endphp
                         <a class="nav-link dropdown-toggle {{ request()->routeIs('angebote.*') ? 'active' : '' }}" 
                            href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-file-earmark-text"></i> Angebote
+                            <i class="bi bi-file-earmark-text"></i> <span class="nav-text-hide-lg">Angebote</span>
                             @if($offeneAngebote > 0)
                                 <span class="nav-badge" style="background-color: #17a2b8;">{{ $offeneAngebote }}</span>
                             @endif
@@ -327,7 +407,6 @@
                             $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
                             $offeneBuchungen = \App\Models\BankBuchung::where('match_status', 'unmatched')->where('typ', 'CRDT')->count();
                             
-                            // Überfällige Rechnungen für Mahnwesen (30 Tage Zahlungsfrist)
                             $ueberfaelligeRechnungen = 0;
                             try {
                                 $ueberfaelligeRechnungen = \App\Models\Rechnung::where('status', 'sent')
@@ -339,10 +418,16 @@
                             }
                             
                             $finanzBadgeTotal = $offeneRechnungen + $offeneBuchungen + $ueberfaelligeRechnungen;
+
+                            $offeneEingangsrechnungen = 0;
+                            try {
+                                $offeneEingangsrechnungen = \App\Models\Eingangsrechnung::where('status', 'offen')->count();
+                                $finanzBadgeTotal += $offeneEingangsrechnungen;
+                            } catch (\Exception $e) {}
                         @endphp
-                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') || request()->is('bank*') || request()->is('mahnungen*') ? 'active' : '' }}" 
+                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') || request()->is('bank*') || request()->is('mahnungen*') || request()->is('eingangsrechnungen*') ? 'active' : '' }}" 
                            href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-wallet2"></i> Finanzen
+                            <i class="bi bi-wallet2"></i> <span class="nav-text-hide-lg">Finanzen</span>
                             @if($finanzBadgeTotal > 0)
                                 <span class="nav-badge">{{ $finanzBadgeTotal }}</span>
                             @endif
@@ -357,8 +442,16 @@
                                 </a>
                             </li>
                             <li>
+                                <a class="dropdown-item {{ request()->is('eingangsrechnungen*') ? 'active' : '' }}" href="{{ route('eingangsrechnungen.index') }}">
+                                    <i class="bi bi-receipt"></i> Eingangsrechnungen
+                                    @if($offeneEingangsrechnungen > 0)
+                                        <span class="dropdown-badge bg-warning text-dark">{{ $offeneEingangsrechnungen }}</span>
+                                    @endif
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item {{ request()->is('bank*') ? 'active' : '' }}" href="{{ route('bank.index') }}">
-                                    <i class="bi bi-bank"></i> Bank-Buchungen
+                                    <i class="bi bi-bank"></i> Bank
                                     @if($offeneBuchungen > 0)
                                         <span class="dropdown-badge bg-warning text-dark">{{ $offeneBuchungen }}</span>
                                     @endif
@@ -375,7 +468,35 @@
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {{ request()->is('preis-aufschlaege*') ? 'active' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
-                                    <i class="bi bi-percent"></i> Preis-Aufschläge
+                                    <i class="bi bi-percent"></i> Aufschläge
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    {{-- Personal --}}
+                    <li class="nav-item dropdown">
+                        @php
+                            $neueLohnstunden = 0;
+                            try {
+                                $neueLohnstunden = \App\Models\Lohnstunde::whereDate('created_at', '>=', now()->subDays(7))->count();
+                            } catch (\Exception $e) {}
+                        @endphp
+                        <a class="nav-link dropdown-toggle {{ request()->is('lohnstunden*') ? 'active' : '' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-people"></i> <span class="nav-text-hide-lg">Personal</span>
+                            @if($neueLohnstunden > 0)
+                                <span class="nav-badge" style="background-color: #17a2b8;">{{ $neueLohnstunden }}</span>
+                            @endif
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ request()->is('lohnstunden*') ? 'active' : '' }}" 
+                                   href="{{ route('admin.lohnstunden') }}">
+                                    <i class="bi bi-clock-history"></i> Lohnstunden
+                                    @if($neueLohnstunden > 0)
+                                        <span class="dropdown-badge bg-info text-white">{{ $neueLohnstunden }}</span>
+                                    @endif
                                 </a>
                             </li>
                         </ul>
@@ -387,8 +508,8 @@
                 <div class="user-info">
                     @auth
                         <i class="bi bi-person-circle"></i>
-                        <span class="d-none d-md-inline">{{ Auth::user()->name }}</span>
-                        <form method="POST" action="{{ route('logout') }}" class="d-inline ms-2">
+                        <span class="d-none d-xl-inline">{{ Auth::user()->name }}</span>
+                        <form method="POST" action="{{ route('logout') }}" class="d-inline ms-1">
                             @csrf
                             <button type="submit" class="btn-logout">
                                 <i class="bi bi-box-arrow-right"></i>
@@ -408,13 +529,17 @@
     </nav>
 
     {{-- Hauptinhalt --}}
-    <main class="container main-content">
-        @yield('content')
+    <main class="container-fluid px-3 px-md-4 main-content mt-3">
+        @hasSection('content')
+            @yield('content')
+        @else
+            {{ $slot ?? '' }}
+        @endif
     </main>
 
     {{-- Footer --}}
     <footer>
-        <small>&copy; {{ date('Y') }} Resch GmbH Meisterbetrieb — UschiWeb</small>
+        <small>&copy; {{ date('Y') }} Resch GmbH — UschiWeb</small>
     </footer>
 
     {{-- Bootstrap JS --}}
@@ -423,6 +548,9 @@
     {{-- jQuery & Select2 --}}
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.full.min.js"></script>
+
+    {{-- Livewire Scripts --}}
+    @livewireScripts
 
     {{-- Select2 Init --}}
     <script>
