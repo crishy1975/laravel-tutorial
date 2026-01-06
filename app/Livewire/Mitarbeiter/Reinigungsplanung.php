@@ -9,6 +9,7 @@ use App\Models\GebaeudeAenderungsvorschlag;
 use App\Services\FaelligkeitsService;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -43,7 +44,8 @@ class Reinigungsplanung extends Component
     
     public $showBearbeitenModal = false;
     public $bearbeitenGebaeudeId = null;
-    public $bearbeitenGebaeude = null;
+    public $bearbeitenGebaeudeCodex = '';
+    public $bearbeitenGebaeudeName = '';
     
     // Formular-Felder
     public $codex = '';
@@ -74,7 +76,6 @@ class Reinigungsplanung extends Component
     public $m11 = false;
     public $m12 = false;
     
-    // Touren
     public $selectedTouren = [];
 
     // ═══════════════════════════════════════════════════════════
@@ -87,11 +88,16 @@ class Reinigungsplanung extends Component
         $this->erledigtDatum = today()->format('Y-m-d');
     }
 
-    public function render(FaelligkeitsService $faelligkeitsService)
+    #[Computed]
+    public function alleTouren()
     {
-        $query = Gebaeude::query()->with(['touren', 'timelines' => function($q) {
-            $q->orderBy('datum', 'desc')->limit(1);
-        }]);
+        return Tour::where('aktiv', true)->orderBy('name')->get();
+    }
+
+    public function render()
+    {
+        // Query aufbauen - OHNE FaelligkeitsService!
+        $query = Gebaeude::query()->with(['touren']);
 
         // Filter: Monat
         if (!empty($this->filterMonat) && $this->filterMonat >= 1 && $this->filterMonat <= 12) {
@@ -101,9 +107,7 @@ class Reinigungsplanung extends Component
 
         // Filter: Tour
         if (!empty($this->filterTour)) {
-            $query->whereHas('touren', function($q) {
-                $q->where('tour.id', $this->filterTour);
-            });
+            $query->whereHas('touren', fn($q) => $q->where('tour.id', $this->filterTour));
         }
 
         // Filter: Suchbegriff
@@ -116,54 +120,35 @@ class Reinigungsplanung extends Component
             });
         }
 
-        // Sortierung
-        $query->orderBy('strasse')
-              ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-              ->orderBy('hausnummer');
-
-        $gebaeude = $query->get();
-
-        // Fälligkeit berechnen
-        $gebaeude = $gebaeude->map(function ($g) use ($faelligkeitsService) {
-            $g->letzte_reinigung_datum = $faelligkeitsService->getLetzteReinigung($g);
-            $g->naechste_faelligkeit = $faelligkeitsService->getNaechsteFaelligkeit($g);
-            $g->ist_erledigt = !$faelligkeitsService->istFaellig($g);
-            return $g;
-        });
-
-        // Filter: Status
+        // Filter: Status (direkt in DB - Feld ist_faellig wird vom Cron gesetzt)
         if ($this->filterStatus === 'offen') {
-            $gebaeude = $gebaeude->filter(fn($g) => !$g->ist_erledigt);
+            $query->where('ist_faellig', true);
         } elseif ($this->filterStatus === 'erledigt') {
-            $gebaeude = $gebaeude->filter(fn($g) => $g->ist_erledigt);
+            $query->where('ist_faellig', false);
         }
 
-        // Statistiken
-        $stats = [
-            'gesamt'   => $gebaeude->count(),
-            'offen'    => $gebaeude->filter(fn($g) => !$g->ist_erledigt)->count(),
-            'erledigt' => $gebaeude->filter(fn($g) => $g->ist_erledigt)->count(),
-        ];
-
-        // Pagination
-        $perPage = 20;
-        $currentPage = $this->getPage();
-        $pagedData = $gebaeude->forPage($currentPage, $perPage);
+        // Stats zählen
+        $statsQuery = clone $query;
+        $gesamt = $statsQuery->count();
         
-        $gebaeudePaginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $pagedData->values(),
-            $stats['gesamt'],
-            $perPage,
-            $currentPage,
-            ['path' => request()->url()]
-        );
+        $offenCount = (clone $query)->where('ist_faellig', true)->count();
+        $erledigtCount = (clone $query)->where('ist_faellig', false)->count();
 
-        $touren = Tour::where('aktiv', true)->orderBy('name')->get();
+        // Sortierung & Pagination
+        $gebaeude = $query
+            ->orderBy('strasse')
+            ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
+            ->orderBy('hausnummer')
+            ->paginate(20);
 
         return view('livewire.mitarbeiter.reinigungsplanung', [
-            'gebaeude' => $gebaeudePaginated,
-            'touren' => $touren,
-            'stats' => $stats,
+            'gebaeude' => $gebaeude,
+            'touren' => $this->alleTouren,
+            'stats' => [
+                'gesamt'   => $gesamt,
+                'offen'    => $offenCount,
+                'erledigt' => $erledigtCount,
+            ],
             'monate' => $this->getMonateArray(),
         ]);
     }
@@ -212,6 +197,7 @@ class Reinigungsplanung extends Component
         $gebaeude = Gebaeude::findOrFail($this->erledigtGebaeudeId);
         $datum = Carbon::parse($this->erledigtDatum);
 
+        // Timeline-Eintrag erstellen
         $gebaeude->timelines()->create([
             'datum'       => $datum,
             'bemerkung'   => $this->erledigtBemerkung ?: 'Reinigung durchgeführt',
@@ -219,16 +205,17 @@ class Reinigungsplanung extends Component
             'person_name' => auth()->user()->name,
         ]);
 
+        // Gebäude aktualisieren
         $updateData = ['letzter_termin' => $datum];
         if ($gebaeude->fattura_profile_id) {
             $updateData['rechnung_schreiben'] = true;
         }
         $gebaeude->update($updateData);
 
-        $faelligkeitsService = app(FaelligkeitsService::class);
-        $faelligkeitsService->aktualisiereGebaeude($gebaeude);
+        // ⚡ FaelligkeitsService NUR für dieses Gebäude starten!
+        app(FaelligkeitsService::class)->aktualisiereGebaeude($gebaeude);
 
-        session()->flash('success', 'Reinigung für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde eingetragen.');
+        session()->flash('success', 'Reinigung für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' eingetragen.');
         $this->erledigtModalSchliessen();
     }
 
@@ -238,10 +225,11 @@ class Reinigungsplanung extends Component
     
     public function bearbeitenModalOeffnen(int $gebaeudeId)
     {
-        $this->bearbeitenGebaeudeId = $gebaeudeId;
-        $this->bearbeitenGebaeude = Gebaeude::with('touren')->findOrFail($gebaeudeId);
+        $g = Gebaeude::with('touren')->findOrFail($gebaeudeId);
         
-        $g = $this->bearbeitenGebaeude;
+        $this->bearbeitenGebaeudeId = $gebaeudeId;
+        $this->bearbeitenGebaeudeCodex = $g->codex ?? '';
+        $this->bearbeitenGebaeudeName = $g->gebaeude_name ?? '';
         
         $this->codex = $g->codex ?? '';
         $this->gebaeude_name = $g->gebaeude_name ?? '';
@@ -279,7 +267,7 @@ class Reinigungsplanung extends Component
     {
         $this->showBearbeitenModal = false;
         $this->reset([
-            'bearbeitenGebaeudeId', 'bearbeitenGebaeude',
+            'bearbeitenGebaeudeId', 'bearbeitenGebaeudeCodex', 'bearbeitenGebaeudeName',
             'codex', 'gebaeude_name', 'strasse', 'hausnummer', 'plz', 'wohnort', 'land',
             'telefon', 'handy', 'email', 'bemerkung', 'bemerkung_mitarbeiter', 'geplante_reinigungen',
             'm01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12',
@@ -299,7 +287,7 @@ class Reinigungsplanung extends Component
             'email' => 'nullable|email|max:255',
         ]);
 
-        $gebaeude = Gebaeude::findOrFail($this->bearbeitenGebaeudeId);
+        $gebaeude = Gebaeude::with('touren')->findOrFail($this->bearbeitenGebaeudeId);
 
         $alteDaten = [
             'codex' => $gebaeude->codex,
@@ -351,7 +339,7 @@ class Reinigungsplanung extends Component
             'bemerkung' => $this->bemerkung_mitarbeiter,
         ]);
 
-        session()->flash('success', 'Änderungsvorschlag für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde eingereicht.');
+        session()->flash('success', 'Änderungsvorschlag für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' eingereicht.');
         $this->bearbeitenModalSchliessen();
     }
 
