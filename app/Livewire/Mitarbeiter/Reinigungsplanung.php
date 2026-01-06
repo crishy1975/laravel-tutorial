@@ -137,7 +137,7 @@ class Reinigungsplanung extends Component
             'touren' => $touren,
             'stats' => $stats,
             'monate' => $this->getMonateArray(),
-        ])->layout('layouts.app');
+        ])->layout('layouts.mitarbeiter');
     }
 
     // ═══════════════════════════════════════════════════════════

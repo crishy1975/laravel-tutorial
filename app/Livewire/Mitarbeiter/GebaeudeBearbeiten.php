@@ -129,7 +129,7 @@ class GebaeudeBearbeiten extends Component
             'gebaeudeListe' => $gebaeude,
             'touren' => $touren,
             'monate' => $this->getMonateArray(),
-        ])->layout('layouts.app');
+        ])->layout('layouts.mitarbeiter');
     }
 
     // ═══════════════════════════════════════════════════════════
