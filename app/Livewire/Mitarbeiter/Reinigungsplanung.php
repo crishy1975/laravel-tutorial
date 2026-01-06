@@ -7,9 +7,11 @@ use App\Models\Gebaeude;
 use App\Models\Tour;
 use App\Services\FaelligkeitsService;
 use Illuminate\Support\Carbon;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Layout('layouts.mitarbeiter')]
 class Reinigungsplanung extends Component
 {
     use WithPagination;
@@ -38,12 +40,6 @@ class Reinigungsplanung extends Component
     // 🎬 LIFECYCLE
     // ═══════════════════════════════════════════════════════════
     
-    public function __construct(
-        protected FaelligkeitsService $faelligkeitsService
-    ) {
-        parent::__construct('livewire.mitarbeiter.reinigungsplanung');
-    }
-
     public function mount()
     {
         // Standard: Aktueller Monat
@@ -51,7 +47,7 @@ class Reinigungsplanung extends Component
         $this->erledigtDatum = today()->format('Y-m-d');
     }
 
-    public function render()
+    public function render(FaelligkeitsService $faelligkeitsService)
     {
         // Query aufbauen
         $query = Gebaeude::query()->with(['touren', 'timelines' => function($q) {
@@ -89,11 +85,11 @@ class Reinigungsplanung extends Component
         // Gebäude laden
         $gebaeude = $query->get();
 
-        // Fälligkeit berechnen mit Service
-        $gebaeude = $gebaeude->map(function ($g) {
-            $letzteReinigung = $this->faelligkeitsService->getLetzteReinigung($g);
-            $naechsteFaelligkeit = $this->faelligkeitsService->getNaechsteFaelligkeit($g);
-            $istFaellig = $this->faelligkeitsService->istFaellig($g);
+        // Fälligkeit berechnen mit Service (per Method Injection)
+        $gebaeude = $gebaeude->map(function ($g) use ($faelligkeitsService) {
+            $letzteReinigung = $faelligkeitsService->getLetzteReinigung($g);
+            $naechsteFaelligkeit = $faelligkeitsService->getNaechsteFaelligkeit($g);
+            $istFaellig = $faelligkeitsService->istFaellig($g);
 
             $g->letzte_reinigung_datum = $letzteReinigung;
             $g->ist_erledigt = !$istFaellig;
@@ -137,7 +133,7 @@ class Reinigungsplanung extends Component
             'touren' => $touren,
             'stats' => $stats,
             'monate' => $this->getMonateArray(),
-        ])->layout('layouts.mitarbeiter');
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -217,7 +213,8 @@ class Reinigungsplanung extends Component
         $gebaeude->update($updateData);
 
         // Fälligkeit über Service neu berechnen
-        $this->faelligkeitsService->aktualisiereGebaeude($gebaeude);
+        $faelligkeitsService = app(FaelligkeitsService::class);
+        $faelligkeitsService->aktualisiereGebaeude($gebaeude);
 
         // Success
         session()->flash('success', 'Reinigung für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde eingetragen.');
