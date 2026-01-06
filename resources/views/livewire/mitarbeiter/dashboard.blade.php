@@ -2,7 +2,6 @@
 ════════════════════════════════════════════════════════════════════════════
 DATEI: dashboard.blade.php
 PFAD:  resources/views/livewire/mitarbeiter/dashboard.blade.php
-       ODER resources/views/mitarbeiter/dashboard.blade.php (je nach Struktur)
 ════════════════════════════════════════════════════════════════════════════
 --}}
 <div>
@@ -59,9 +58,10 @@ PFAD:  resources/views/livewire/mitarbeiter/dashboard.blade.php
         </div>
     </div>
 
-    {{-- Änderungsvorschläge Status (NEU) --}}
+    {{-- Änderungsvorschläge Status --}}
     @php
-        $meineVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::where('erstellt_von', auth()->id())->get();
+        // KORRIGIERT: user_id statt erstellt_von
+        $meineVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::where('user_id', auth()->id())->get();
         $pending = $meineVorschlaege->where('status', 'pending')->count();
         $approved = $meineVorschlaege->where('status', 'approved')->count();
         $rejected = $meineVorschlaege->where('status', 'rejected')->count();
