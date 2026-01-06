@@ -1,3 +1,9 @@
+{{--
+════════════════════════════════════════════════════════════════════════════
+DATEI: mitarbeiter.blade.php
+PFAD:  resources/views/layouts/mitarbeiter.blade.php
+════════════════════════════════════════════════════════════════════════════
+--}}
 <!DOCTYPE html>
 <html lang="de">
 
@@ -7,7 +13,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#1e5631">
 
-    <title>{{ $title ?? 'Mitarbeiter' }} – {{ config('app.name', 'UschiWeb') }}</title>
+    <title>{{ $title ?? 'Mitarbeiter' }} — {{ config('app.name', 'UschiWeb') }}</title>
 
     {{-- Bootstrap & Icons --}}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -46,12 +52,52 @@
             padding: 0.5rem 0.75rem !important;
             border-radius: 4px;
             font-size: 0.95rem;
+            position: relative;
         }
 
         .navbar-mitarbeiter .nav-link:hover,
         .navbar-mitarbeiter .nav-link.active {
             color: #fff !important;
             background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Badge für Benachrichtigungen */
+        .nav-badge {
+            background-color: #ffc107;
+            color: #000;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 10px;
+            margin-left: 0.3rem;
+            font-weight: 600;
+        }
+
+        /* Dropdown */
+        .navbar-mitarbeiter .dropdown-menu {
+            background-color: #266941;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .navbar-mitarbeiter .dropdown-item {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+        }
+
+        .navbar-mitarbeiter .dropdown-item:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .navbar-mitarbeiter .dropdown-item.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .navbar-mitarbeiter .dropdown-divider {
+            border-color: rgba(255, 255, 255, 0.1);
         }
 
         .navbar-mitarbeiter .navbar-toggler {
@@ -218,16 +264,62 @@
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
+                    {{-- Dashboard --}}
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('mitarbeiter.dashboard') ? 'active' : '' }}" 
                            href="{{ route('mitarbeiter.dashboard') }}">
                             <i class="bi bi-house-door"></i> Dashboard
                         </a>
                     </li>
+
+                    {{-- Gebäude Dropdown --}}
+                    <li class="nav-item dropdown">
+                        @php
+                            $meineVorschlaege = 0;
+                            try {
+                                $meineVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::where('erstellt_von', Auth::id())
+                                    ->whereIn('status', ['pending', 'rejected'])
+                                    ->count();
+                            } catch (\Exception $e) {}
+                        @endphp
+                        
+                        <a class="nav-link dropdown-toggle {{ request()->is('mitarbeiter/gebaeude*') || request()->is('mitarbeiter/reinigung*') ? 'active' : '' }}" 
+                           href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-building"></i> Gebäude
+                            @if($meineVorschlaege > 0)
+                                <span class="nav-badge">{{ $meineVorschlaege }}</span>
+                            @endif
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('mitarbeiter.gebaeude.neu') ? 'active' : '' }}" 
+                                   href="{{ route('mitarbeiter.gebaeude.neu') }}">
+                                    <i class="bi bi-plus-circle"></i> Neues Gebäude
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('mitarbeiter.gebaeude.bearbeiten') ? 'active' : '' }}" 
+                                   href="{{ route('mitarbeiter.gebaeude.bearbeiten') }}">
+                                    <i class="bi bi-pencil-square"></i> Änderung vorschlagen
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item {{ request()->routeIs('mitarbeiter.reinigung') ? 'active' : '' }}" 
+                                   href="{{ route('mitarbeiter.reinigung') }}">
+                                    <i class="bi bi-calendar-check"></i> Reinigungsplanung
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    {{-- Lohnstunden --}}
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('mitarbeiter.lohnstunden') ? 'active' : '' }}" 
                            href="{{ route('mitarbeiter.lohnstunden') }}">
-                            <i class="bi bi-clock-history"></i> Stunden / Ore
+                            <i class="bi bi-clock-history"></i> 
+                            <span class="d-none d-lg-inline">Stunden</span>
+                            <span class="d-lg-none">Ore</span>
                         </a>
                     </li>
                 </ul>
