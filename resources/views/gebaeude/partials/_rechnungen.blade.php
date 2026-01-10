@@ -21,30 +21,18 @@
     <div class="row g-3">
         {{-- Header --}}
         <div class="col-12">
-            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                <div>
-                    <h6 class="mb-0">
-                        <i class="bi bi-receipt"></i> Rechnungen
-                    </h6>
-                    <small class="text-muted">{{ $rechnungen->count() }} Rechnungen</small>
-                </div>
-                <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
-                   class="btn btn-success btn-sm">
-                    <i class="bi bi-plus-circle"></i> Neue Rechnung
-                </a>
+            <div>
+                <h6 class="mb-0">
+                    <i class="bi bi-receipt"></i> Rechnungen
+                </h6>
+                <small class="text-muted">{{ $rechnungen->count() }} Rechnungen</small>
             </div>
         </div>
 
         @if($rechnungen->isEmpty())
             <div class="col-12">
-                <div class="alert alert-info d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                    <div>
-                        <i class="bi bi-info-circle"></i> Noch keine Rechnungen erstellt.
-                    </div>
-                    <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}" 
-                       class="btn btn-primary btn-sm">
-                        <i class="bi bi-plus-circle"></i> Erste Rechnung
-                    </a>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Noch keine Rechnungen erstellt.
                 </div>
             </div>
         @else
