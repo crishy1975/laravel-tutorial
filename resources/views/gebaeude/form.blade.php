@@ -11,14 +11,21 @@
 
     {{-- Header - kompakter auf Mobile --}}
     <div class="card-header bg-white py-2 py-md-3">
-      <h4 class="mb-0 fs-5 fs-md-4">
-        <i class="bi bi-building"></i>
-        <span class="d-none d-sm-inline">{{ isset($gebaeude) ? 'Gebaeude bearbeiten' : 'Neues Gebaeude anlegen' }}</span>
-        <span class="d-sm-none">{{ isset($gebaeude) ? 'Bearbeiten' : 'Neu' }}</span>
-        @if(isset($gebaeude))
-        <small class="text-muted">#{{ $gebaeude->id }}</small>
-        @endif
-      </h4>
+      <div class="d-flex justify-content-between align-items-center">
+        <h4 class="mb-0 fs-5 fs-md-4">
+          <i class="bi bi-building"></i>
+          <span class="d-none d-sm-inline">{{ isset($gebaeude) ? 'Gebaeude bearbeiten' : 'Neues Gebaeude anlegen' }}</span>
+          <span class="d-sm-none">{{ isset($gebaeude) ? 'Bearbeiten' : 'Neu' }}</span>
+          @if(isset($gebaeude))
+          <small class="text-muted">#{{ $gebaeude->id }}</small>
+          @endif
+        </h4>
+        {{-- ⭐ NEU: Liste-Button im Header --}}
+        <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-list-ul"></i>
+          <span class="d-none d-sm-inline">Liste</span>
+        </a>
+      </div>
     </div>
 
     {{-- Meldungen - kompakter auf Mobile --}}
@@ -238,9 +245,10 @@
             </button>
           @endif
 
+          {{-- ⭐ GEÄNDERT: "Zurueck" -> "Liste" --}}
           <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary order-3 order-sm-1">
-            <i class="bi bi-arrow-left"></i>
-            <span class="d-none d-sm-inline">Zurueck</span>
+            <i class="bi bi-list-ul"></i>
+            <span class="d-none d-sm-inline">Liste</span>
           </a>
         </div>
       </div>
