@@ -95,12 +95,18 @@ PFAD:  resources/views/livewire/admin/lohnstunden-uebersicht.blade.php
             <span class="d-sm-none">Lohnstunden</span>
         </h2>
         <div class="d-flex gap-2 flex-wrap">
+            {{-- ⭐ NEU: Neuer Eintrag Button --}}
+            <button wire:click="openCreateModal" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle"></i> 
+                <span class="d-none d-sm-inline">Neuer Eintrag</span>
+                <span class="d-sm-none">Neu</span>
+            </button>
             <button wire:click="exportExcel" class="btn btn-success btn-sm">
                 <i class="bi bi-file-earmark-excel"></i> 
                 <span class="d-none d-sm-inline">Excel Export</span>
                 <span class="d-sm-none">Export</span>
             </button>
-            <button wire:click="openEmailModal" class="btn btn-primary btn-sm">
+            <button wire:click="openEmailModal" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-envelope"></i> 
                 <span class="d-none d-sm-inline">Per E-Mail</span>
             </button>
@@ -318,8 +324,12 @@ PFAD:  resources/views/livewire/admin/lohnstunden-uebersicht.blade.php
          Detail-Tabelle (alle Einträge) - Responsive Cards auf Mobile
          ═══════════════════════════════════════════════════════════════ --}}
     <div class="card">
-        <div class="card-header py-2">
-            <i class="bi bi-list-ul"></i> Alle Einträge
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-ul"></i> Alle Einträge</span>
+            {{-- ⭐ Auch hier ein Neu-Button --}}
+            <button wire:click="openCreateModal" class="btn btn-primary btn-sm py-0">
+                <i class="bi bi-plus"></i> Neu
+            </button>
         </div>
         
         {{-- Desktop: Tabelle --}}
@@ -409,6 +419,74 @@ PFAD:  resources/views/livewire/admin/lohnstunden-uebersicht.blade.php
     {{-- ═══════════════════════════════════════════════════════════════
          MODALS (funktionieren auf allen Geräten)
          ═══════════════════════════════════════════════════════════════ --}}
+
+    {{-- ⭐ NEU: Create Modal --}}
+    @if($showCreateModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2 bg-primary text-white">
+                        <h6 class="modal-title">
+                            <i class="bi bi-plus-circle"></i> Neuer Lohnstunden-Eintrag
+                        </h6>
+                        <button type="button" class="btn-close btn-close-white" wire:click="$set('showCreateModal', false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            {{-- Mitarbeiter --}}
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Mitarbeiter *</label>
+                                <select wire:model="createMitarbeiter" class="form-select form-select-sm">
+                                    <option value="">-- Bitte wählen --</option>
+                                    @foreach($this->mitarbeiter as $ma)
+                                        <option value="{{ $ma->id }}">{{ $ma->name }}</option>
+                                    @endforeach
+                                </select>
+                                @error('createMitarbeiter') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            
+                            {{-- Datum & Stunden --}}
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Datum *</label>
+                                <input type="date" wire:model="createDatum" class="form-control form-control-sm">
+                                @error('createDatum') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold">Stunden *</label>
+                                <input type="number" wire:model="createStunden" class="form-control form-control-sm" step="0.25" min="0" max="24">
+                                @error('createStunden') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            
+                            {{-- Typ --}}
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Typ *</label>
+                                <select wire:model="createTyp" class="form-select form-select-sm">
+                                    @foreach($typen as $code => $label)
+                                        <option value="{{ $code }}">{{ $code }} - {{ $label }}</option>
+                                    @endforeach
+                                </select>
+                                @error('createTyp') <small class="text-danger">{{ $message }}</small> @enderror
+                            </div>
+                            
+                            {{-- Notizen --}}
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold">Notizen</label>
+                                <textarea wire:model="createNotizen" class="form-control form-control-sm" rows="2" placeholder="Optional..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" wire:click="$set('showCreateModal', false)">
+                            Abbrechen
+                        </button>
+                        <button type="button" class="btn btn-primary btn-sm" wire:click="saveNewEintrag">
+                            <i class="bi bi-check"></i> Eintrag erstellen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- Edit Modal --}}
     @if($showEditModal)

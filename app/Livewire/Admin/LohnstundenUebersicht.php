@@ -46,6 +46,14 @@ class LohnstundenUebersicht extends Component
     public $editStunden;
     public $editNotizen;
 
+    // ⭐ NEU: Erstellen Modal
+    public $showCreateModal = false;
+    public $createMitarbeiter = '';
+    public $createDatum;
+    public $createTyp = 'No';
+    public $createStunden = 8;
+    public $createNotizen = '';
+
     // E-Mail Modal
     public $showEmailModal = false;
     public $emailAdresse = '';
@@ -60,6 +68,7 @@ class LohnstundenUebersicht extends Component
     {
         $this->selectedMonat = now()->month;
         $this->selectedJahr = now()->year;
+        $this->createDatum = now()->format('Y-m-d');
         
         // Letzte E-Mail-Adresse aus Cache laden (pro User)
         $this->emailAdresse = Cache::get('lohnstunden_email_' . auth()->id(), '');
@@ -142,6 +151,66 @@ class LohnstundenUebersicht extends Component
         }
 
         return $data;
+    }
+
+    /**
+     * ⭐ NEU: Erstellen Modal öffnen
+     */
+    public function openCreateModal()
+    {
+        $this->resetCreateForm();
+        
+        // Vorauswahl: wenn Mitarbeiter gefiltert, diesen vorauswählen
+        if ($this->selectedMitarbeiter) {
+            $this->createMitarbeiter = $this->selectedMitarbeiter;
+        }
+        
+        // Datum auf heute setzen
+        $this->createDatum = now()->format('Y-m-d');
+        
+        $this->showCreateModal = true;
+    }
+
+    /**
+     * ⭐ NEU: Neuen Eintrag speichern
+     */
+    public function saveNewEintrag()
+    {
+        $this->validate([
+            'createMitarbeiter' => 'required|exists:users,id',
+            'createDatum' => 'required|date',
+            'createTyp' => 'required|string',
+            'createStunden' => 'required|numeric|min:0|max:24',
+        ], [
+            'createMitarbeiter.required' => 'Bitte einen Mitarbeiter auswählen.',
+            'createDatum.required' => 'Bitte ein Datum eingeben.',
+            'createStunden.required' => 'Bitte die Stunden eingeben.',
+            'createStunden.max' => 'Maximal 24 Stunden pro Eintrag.',
+        ]);
+
+        Lohnstunde::create([
+            'user_id' => $this->createMitarbeiter,
+            'datum' => $this->createDatum,
+            'typ' => $this->createTyp,
+            'stunden' => $this->createStunden,
+            'notizen' => $this->createNotizen,
+        ]);
+
+        $this->showCreateModal = false;
+        $this->resetCreateForm();
+        $this->successMessage = 'Neuer Eintrag erfolgreich erstellt!';
+    }
+
+    /**
+     * ⭐ NEU: Create-Form zurücksetzen
+     */
+    private function resetCreateForm()
+    {
+        $this->createMitarbeiter = '';
+        $this->createDatum = now()->format('Y-m-d');
+        $this->createTyp = 'No';
+        $this->createStunden = 8;
+        $this->createNotizen = '';
     }
 
     /**
@@ -237,163 +306,124 @@ class LohnstundenUebersicht extends Component
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Lohnstunden');
 
-        $anzahlTage = Carbon::create($this->selectedJahr, $this->selectedMonat)->daysInMonth;
+        // Unternehmensprofil laden
+        $profil = Unternehmensprofil::aktiv();
+
+        // ════════════════════════════════════════════════════════════════
+        // HEADER
+        // ════════════════════════════════════════════════════════════════
+        
         $monatName = Carbon::create($this->selectedJahr, $this->selectedMonat)->translatedFormat('F Y');
-
-        // ════════════════════════════════════════════════════════════════
-        // HEADER BEREICH
-        // ════════════════════════════════════════════════════════════════
         
-        // Zeile 5: Firma
-        $sheet->setCellValue('A5', 'Firma:    Resch GmbH');
-        $sheet->mergeCells('A5:L5');
-        $sheet->getStyle('A5')->getFont()->setBold(true);
-
-        // Zeile 7: Titel
-        $sheet->setCellValue('C7', 'ARBEITSTAGE UND GELEISTETE ARBEITSSTUNDEN IM MONAT');
-        $sheet->getStyle('C7')->getFont()->setBold(true);
-
-        // Zeile 8: Monat
-        $sheet->setCellValue('C8', 'Monat:');
-        $sheet->setCellValue('D8', $monatName);
-        $sheet->mergeCells('D8:G8');
-
-        // Zeile 9: Jahr
-        $sheet->setCellValue('C9', 'Jahr:');
-        $sheet->setCellValue('D9', $this->selectedJahr);
-        $sheet->mergeCells('D9:G9');
-
-        // ════════════════════════════════════════════════════════════════
-        // DATUMSZEILE (Zeile 11)
-        // ════════════════════════════════════════════════════════════════
+        // Firmenname
+        $sheet->setCellValue('A1', $profil?->firmenname ?? 'Resch GmbH');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         
-        $ersterTag = Carbon::create($this->selectedJahr, $this->selectedMonat, 1);
-        $sheet->setCellValue('D11', $ersterTag);
-        $sheet->getStyle('D11')->getNumberFormat()->setFormatCode('DD.MM.YYYY');
-        
-        // Formeln für folgende Tage
-        for ($tag = 2; $tag <= 31; $tag++) {
-            $col = $this->getColumnLetter($tag + 2); // D=Tag1, E=Tag2, etc.
-            $prevCol = $this->getColumnLetter($tag + 1);
-            $sheet->setCellValue($col . '11', "={$prevCol}11+1");
-            $sheet->getStyle($col . '11')->getNumberFormat()->setFormatCode('DD.MM.YYYY');
+        // Adresse
+        if ($profil) {
+            $adresse = trim(($profil->strasse ?? '') . ' ' . ($profil->hausnummer ?? ''));
+            $ort = trim(($profil->plz ?? '') . ' ' . ($profil->ort ?? ''));
+            $sheet->setCellValue('A2', $adresse);
+            $sheet->setCellValue('A3', $ort);
+            $sheet->setCellValue('A4', $profil->steuernummer ?? '');
         }
+        
+        // Titel
+        $sheet->setCellValue('A6', 'ANWESENHEITSPROTOKOLL');
+        $sheet->getStyle('A6')->getFont()->setBold(true)->setSize(12);
+        
+        // Monat/Jahr
+        $sheet->setCellValue('A8', 'Monat: ' . $monatName);
+        $sheet->getStyle('A8')->getFont()->setBold(true);
 
         // ════════════════════════════════════════════════════════════════
-        // HEADER ZEILE (Zeile 12)
+        // TABELLEN-HEADER (Zeile 11)
         // ════════════════════════════════════════════════════════════════
         
-        $sheet->setCellValue('A12', 'Nr.');
-        $sheet->setCellValue('B12', "\nZU- UND VORNAME");
+        $headerRow = 11;
+        $sheet->setCellValue('A' . $headerRow, 'Nr.');
+        $sheet->setCellValue('B' . $headerRow, 'Vor- und Zuname');
+        $sheet->setCellValue('C' . $headerRow, 'Typ');
         
         // Tage 1-31
-        for ($tag = 1; $tag <= 31; $tag++) {
-            $col = $this->getColumnLetter($tag + 2); // D=1, E=2, etc.
-            $sheet->setCellValue($col . '12', $tag);
+        $anzahlTage = Carbon::create($this->selectedJahr, $this->selectedMonat)->daysInMonth;
+        for ($tag = 1; $tag <= $anzahlTage; $tag++) {
+            $col = $this->getColumnLetter($tag + 3);
+            $sheet->setCellValue($col . $headerRow, $tag);
+            
+            // Wochenende hervorheben
+            $datum = Carbon::create($this->selectedJahr, $this->selectedMonat, $tag);
+            if ($datum->isWeekend()) {
+                $sheet->getStyle($col . $headerRow)->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('E0E0E0');
+            }
         }
         
-        // Spalte AI (35) = Insgesamt Stunden
-        $sheet->setCellValue('AI12', 'Insgesamt Stunden');
-        $sheet->setCellValue('AJ12', "\nAnmerkungen");
-
+        // Summen-Spalten
+        $summenStartCol = $this->getColumnLetter($anzahlTage + 4);
+        $sheet->setCellValue($summenStartCol . $headerRow, 'Summe');
+        
         // Header-Styling
-        $headerRange = 'A12:AJ12';
+        $headerRange = 'A' . $headerRow . ':' . $this->getColumnLetter($anzahlTage + 5) . $headerRow;
         $sheet->getStyle($headerRange)->getFont()->setBold(true);
-        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle($headerRange)->getFill()
             ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()->setRGB('D9D9D9');
+            ->getStartColor()->setRGB('D9E1F2');
+        $sheet->getStyle($headerRange)->getBorders()->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN);
 
         // ════════════════════════════════════════════════════════════════
-        // MITARBEITER DATEN
+        // DATEN
         // ════════════════════════════════════════════════════════════════
         
-        $currentRow = 13;
+        $currentRow = $headerRow + 1;
         $mitarbeiterNr = 1;
 
-        foreach ($this->monatsUebersicht as $data) {
-            $user = $data['user'];
+        foreach ($this->monatsUebersicht as $maData) {
+            $user = $maData['user'];
             
-            // Zeile 1: Normalstunden (No)
-            $noRow = $currentRow;
-            // Zeile 2: Überstunden (Üb)
-            $uebRow = $currentRow + 1;
-
-            // Nr. und Name (merged über 2 Zeilen)
-            $sheet->setCellValue('A' . $noRow, $mitarbeiterNr);
-            $sheet->mergeCells('A' . $noRow . ':A' . $uebRow);
+            $sheet->setCellValue('A' . $currentRow, $mitarbeiterNr);
+            $sheet->setCellValue('B' . $currentRow, $user->name);
+            $sheet->setCellValue('C' . $currentRow, ''); // Typ-Spalte für Übersicht leer
             
-            $sheet->setCellValue('B' . $noRow, $user->name);
-            $sheet->mergeCells('B' . $noRow . ':B' . $uebRow);
-
-            // Typ-Spalte
-            $sheet->setCellValue('C' . $noRow, 'No');
-            $sheet->setCellValue('C' . $uebRow, 'Üb');
-
-            // Einträge pro Tag
+            // Tage
+            $total = 0;
             for ($tag = 1; $tag <= $anzahlTage; $tag++) {
-                $col = $this->getColumnLetter($tag + 2);
+                $col = $this->getColumnLetter($tag + 3);
+                $tagesEintraege = $maData['tage'][$tag] ?? collect();
+                
+                if ($tagesEintraege->count() > 0) {
+                    $stunden = $tagesEintraege->sum('stunden');
+                    $typen = $tagesEintraege->pluck('typ')->unique()->join('/');
+                    $sheet->setCellValue($col . $currentRow, $stunden);
+                    
+                    // Tooltip-ähnlich: Kommentar mit Typen
+                    if ($typen) {
+                        $sheet->getComment($col . $currentRow)->getText()->createTextRun($typen);
+                    }
+                    
+                    $total += $stunden;
+                }
+                
+                // Wochenende
                 $datum = Carbon::create($this->selectedJahr, $this->selectedMonat, $tag);
-                $tagesEintraege = $data['tage'][$tag] ?? collect();
-
-                // Wochenende?
                 if ($datum->isWeekend()) {
-                    $sheet->setCellValue($col . $noRow, 'W');
-                    $sheet->getStyle($col . $noRow)->getFill()
+                    $sheet->getStyle($col . $currentRow)->getFill()
                         ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('E0E0E0');
-                    $sheet->getStyle($col . $uebRow)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('E0E0E0');
-                } else {
-                    // Normale Einträge
-                    $noStunden = 0;
-                    $uebStunden = 0;
-                    $sonderTyp = null;
-
-                    foreach ($tagesEintraege as $eintrag) {
-                        if ($eintrag->typ === 'No') {
-                            $noStunden += $eintrag->stunden;
-                        } elseif ($eintrag->typ === 'Üb') {
-                            $uebStunden += $eintrag->stunden;
-                        } else {
-                            // Sondertypen (K, F, U, etc.)
-                            $sonderTyp = $eintrag->typ;
-                        }
-                    }
-
-                    // Normalstunden oder Sondertyp
-                    if ($sonderTyp) {
-                        $sheet->setCellValue($col . $noRow, $sonderTyp);
-                    } elseif ($noStunden > 0) {
-                        $sheet->setCellValue($col . $noRow, $noStunden);
-                    }
-
-                    // Überstunden
-                    if ($uebStunden > 0) {
-                        $sheet->setCellValue($col . $uebRow, $uebStunden);
-                    }
+                        ->getStartColor()->setRGB('F0F0F0');
                 }
             }
-
-            // Leere Tage für Monate mit weniger als 31 Tagen grau markieren
-            for ($tag = $anzahlTage + 1; $tag <= 31; $tag++) {
-                $col = $this->getColumnLetter($tag + 2);
-                $sheet->getStyle($col . $noRow . ':' . $col . $uebRow)->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('BFBFBF');
-            }
-
-            // Summen-Formel (Spalte AI)
-            $sheet->setCellValue('AI' . $noRow, '=SUM(D' . $noRow . ':AH' . $noRow . ')');
-            $sheet->setCellValue('AI' . $uebRow, '=SUM(D' . $uebRow . ':AH' . $uebRow . ')');
-
-            // Rahmen für Mitarbeiter-Block
-            $blockRange = 'A' . $noRow . ':AJ' . $uebRow;
-            $sheet->getStyle($blockRange)->getBorders()->getAllBorders()
-                ->setBorderStyle(Border::BORDER_THIN)
-                ->getColor()->setRGB('000000');
-
+            
+            // Summe
+            $sheet->setCellValue($summenStartCol . $currentRow, $total);
+            $sheet->getStyle($summenStartCol . $currentRow)->getFont()->setBold(true);
+            
+            // Zeilen-Border
+            $rowRange = 'A' . $currentRow . ':' . $this->getColumnLetter($anzahlTage + 5) . $currentRow;
+            $sheet->getStyle($rowRange)->getBorders()->getAllBorders()
+                ->setBorderStyle(Border::BORDER_THIN);
+            
             $currentRow += 2;
             $mitarbeiterNr++;
         }
