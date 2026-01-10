@@ -138,6 +138,8 @@ set SSH_SCRIPT=%TEMP%\deploy_ssh.txt
     echo chmod -R 775 storage bootstrap/cache
     echo echo "=== Wartungsmodus aus ==="
     echo php artisan up
+    echo echo "=== Optimize Clear ==="
+    echo php artisan optimize:clear
     echo echo "=== FERTIG ==="
 ) > "%SSH_SCRIPT%"
 

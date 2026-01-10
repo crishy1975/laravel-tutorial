@@ -328,6 +328,7 @@ function Run-Migration {
     Write-Host "    - Cache leeren & neu aufbauen" -ForegroundColor Gray
     Write-Host "    - Berechtigungen setzen" -ForegroundColor Gray
     Write-Host "    - Wartungsmodus beenden" -ForegroundColor Gray
+    Write-Host "    - php artisan optimize:clear" -ForegroundColor Gray
     Write-Host ""
     
     if ($DryRun) {
@@ -339,7 +340,7 @@ function Run-Migration {
     Write-Host ""
     
     # ⭐ Einzeiliger Befehl - wird direkt ausgefuehrt und Ausgabe ist sichtbar
-    $cmd = "cd $($AccountConfig.REMOTE_PATH) && echo '=== Composer ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrate ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Rechte ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Up ===' && php artisan up && echo '' && echo '=== FERTIG ==='"
+    $cmd = "cd $($AccountConfig.REMOTE_PATH) && echo '=== Composer ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrate ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Rechte ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Up ===' && php artisan up && echo '' && echo '=== Optimize Clear ===' && php artisan optimize:clear && echo '' && echo '=== FERTIG ==='"
     
     ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
     
