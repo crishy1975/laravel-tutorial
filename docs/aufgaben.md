@@ -1,22 +1,15 @@
 gebäude
     filter mit cards
 
-eingangsrechnung
-
-stunden lohnbuchhaltung
-
 tagesinkassi
 
 allgemeine dokumente ohne bezug
 
-x rn und datum ändern
+gebäude
+    button oben neue rechnung weg
+    neuer button oben mit zurück zu index
+    kontrolle über übersprungene rechnungs nummer
+    bei neuer rechnung wird flag nicht entfernt
 
-x bemerkung gebäude wird nicht gespeichert
 
-focus nach artikel
 
-x summe der rechnungen statistik
-
-x summe positionen stimmt niccht
-
-x bei pdf rechnung c.f. in großbuchstaben

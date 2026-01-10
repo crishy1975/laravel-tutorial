@@ -826,7 +826,7 @@ class GebaeudeController extends Controller
     /**
      * Erstellt eine neue Rechnung aus einem Gebäude.
      */
-    public function createRechnung(int $id)
+    public function createRechnung(Request $request, int $id)
     {
         try {
             $gebaeude = Gebaeude::with([
@@ -836,31 +836,51 @@ class GebaeudeController extends Controller
                 'aktiveArtikel'
             ])->findOrFail($id);
 
+            // Validierung: Rechnungsempfänger und Postadresse
             if (!$gebaeude->rechnungsempfaenger_id || !$gebaeude->postadresse_id) {
                 return redirect()
                     ->route('gebaeude.edit', $gebaeude->id)
                     ->with('error', 'Bitte hinterlegen Sie zuerst einen Rechnungsempfänger und eine Postadresse für dieses Gebäude.');
             }
 
+            // Validierung: Aktive Artikel
             if ($gebaeude->aktiveArtikel->isEmpty()) {
                 return redirect()
                     ->route('gebaeude.edit', $gebaeude->id)
                     ->with('warning', 'Dieses Gebäude hat keine aktiven Artikel. Bitte fügen Sie zuerst Artikel hinzu.');
             }
 
-            $rechnung = \App\Models\Rechnung::createFromGebaeude($gebaeude);
+            // ⭐ NEU: Jahresrechnung-Parameter aus Request
+            $istJahresrechnung = $request->boolean('ist_jahresrechnung', false);
+
+            // Rechnung erstellen
+            $rechnung = \App\Models\Rechnung::createFromGebaeude(
+                $gebaeude,
+                [],
+                $istJahresrechnung
+            );
+
+            $gebaeude->update(['rechnung_schreiben' => 0]);
 
             Log::info('Rechnung aus Gebäude erstellt', [
-                'rechnung_id'    => $rechnung->id,
-                'rechnung_nr'    => $rechnung->nummern,
-                'gebaeude_id'    => $gebaeude->id,
-                'gebaeude_codex' => $gebaeude->codex,
-                'positionen'     => $rechnung->positionen->count(),
+                'rechnung_id'        => $rechnung->id,
+                'rechnung_nr'        => $rechnung->rechnungsnummer,
+                'gebaeude_id'        => $gebaeude->id,
+                'gebaeude_codex'     => $gebaeude->codex,
+                'positionen'         => $rechnung->positionen->count(),
+                'ist_jahresrechnung' => $istJahresrechnung,
+                'profil'             => $gebaeude->fatturaProfile->bezeichnung ?? 'kein Profil',
             ]);
+
+            // Erfolgs-Nachricht mit Hinweis auf Jahresrechnung
+            $successMsg = "Rechnung {$rechnung->rechnungsnummer} wurde erfolgreich aus Gebäude {$gebaeude->codex} erstellt.";
+            if ($istJahresrechnung) {
+                $successMsg .= " (Jahresrechnung)";
+            }
 
             return redirect()
                 ->route('rechnung.edit', $rechnung->id)
-                ->with('success', "Rechnung {$rechnung->nummern} wurde erfolgreich aus Gebäude {$gebaeude->codex} erstellt.");
+                ->with('success', $successMsg);
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
                 'gebaeude_id' => $id,
@@ -873,6 +893,7 @@ class GebaeudeController extends Controller
                 ->with('error', 'Fehler beim Erstellen der Rechnung: ' . $e->getMessage());
         }
     }
+
 
     /**
      * Setzt individuellen Aufschlag für Gebäude
@@ -948,21 +969,21 @@ class GebaeudeController extends Controller
     public function erstelleAdresse(int $id)
     {
         Log::info('erstelleAdresse aufgerufen', ['id' => $id]);
-        
+
         try {
             $gebaeude = Gebaeude::findOrFail($id);
             Log::info('Gebäude gefunden', ['codex' => $gebaeude->codex]);
-            
+
             // Bereits vorhanden?
             if ($gebaeude->postadresse_id || $gebaeude->rechnungsempfaenger_id) {
                 return back()->with('warning', 'Dieses Gebäude hat bereits eine Adresse.');
             }
-            
+
             // Minimale Daten vorhanden?
             if (empty($gebaeude->strasse) || empty($gebaeude->wohnort)) {
                 return back()->with('error', 'Keine Adressdaten vorhanden (Straße/Ort fehlt).');
             }
-            
+
             // Adresse DIREKT erstellen (ohne Model-Methode)
             $adressDaten = [
                 'name'        => $gebaeude->gebaeude_name ?: $gebaeude->codex,
@@ -975,25 +996,24 @@ class GebaeudeController extends Controller
                 'handy'       => $gebaeude->handy,
                 'email'       => $gebaeude->email,
             ];
-            
+
             Log::info('Erstelle Adresse', $adressDaten);
-            
+
             $adresse = Adresse::create(array_filter($adressDaten));
-            
+
             Log::info('Adresse erstellt', ['adresse_id' => $adresse->id]);
-            
+
             // Gebäude aktualisieren
             $gebaeude->postadresse_id = $adresse->id;
             $gebaeude->rechnungsempfaenger_id = $adresse->id;
             $gebaeude->save();
-            
+
             Log::info('Gebäude aktualisiert', [
                 'postadresse_id' => $gebaeude->postadresse_id,
                 'rechnungsempfaenger_id' => $gebaeude->rechnungsempfaenger_id,
             ]);
-            
+
             return back()->with('success', "Adresse \"{$adresse->name}\" erstellt und zugewiesen.");
-            
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Adresse', [
                 'gebaeude_id' => $id,

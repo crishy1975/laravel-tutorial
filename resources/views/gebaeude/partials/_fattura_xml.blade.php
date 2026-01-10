@@ -1,4 +1,10 @@
-{{-- resources/views/rechnung/partials/_fattura_xml.blade.php --}}
+{{-- ═══════════════════════════════════════════════════════════════════════════════
+     DATEI: resources/views/rechnung/partials/_fattura_xml.blade.php
+     AKTION: Komplette Datei ersetzen
+     
+     ⭐ KORREKTUR: Zeile 37 - E-Mail von Postadresse statt Rechnungsempfänger
+═══════════════════════════════════════════════════════════════════════════════ --}}
+
 {{-- ⭐ MIT E-MAIL-VERSAND FUNKTION + STATUS-ÄNDERUNG --}}
 {{-- ⭐ Nutzt Sprachdatei: lang/de/email.php --}}
 
@@ -33,8 +39,8 @@
         ->limit(5)
         ->get();
     
-    // Standard-Empfänger ermitteln
-    $defaultEmail = $rechnung->re_email ?? $rechnung->postadresse?->email ?? '';
+    // ⭐ KORRIGIERT: E-Mail von Postadresse, PEC vom Rechnungsempfänger
+    $defaultEmail = $rechnung->post_email ?? $rechnung->postadresse?->email ?? '';
     $defaultPec = $rechnung->re_pec ?? '';
     
     // Status-Check für Buttons

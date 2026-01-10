@@ -448,8 +448,11 @@ class Rechnung extends Model
      * @param array $overrides Optionale Überschreibungen
      * @return self
      */
-    public static function createFromGebaeude(Gebaeude $gebaeude, array $overrides = []): self
-    {
+ public static function createFromGebaeude(
+        Gebaeude $gebaeude, 
+        array $overrides = [], 
+        bool $istJahresrechnung = false
+    ): self {
         // Jahr / Laufnummer ermitteln (mit Lock)
         $jahr = now()->year;
 
@@ -475,7 +478,20 @@ class Rechnung extends Model
             ->orderBy('datum')
             ->get();
 
-        $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
+        // ⭐ JAHRESRECHNUNG: Nur "Jahr/anno XXXX" statt Timeline-Daten
+        if ($istJahresrechnung) {
+            $leistungsdaten = "Jahr/anno {$jahr}";
+            
+            \Log::info('Jahresrechnung erstellt - Causale mit Jahr statt Timeline-Daten', [
+                'gebaeude_id'                  => $gebaeude->id,
+                'gebaeude_codex'               => $gebaeude->codex,
+                'jahr'                         => $jahr,
+                'timeline_eintraege_vorhanden' => $timelineEintraege->count(),
+                'profil'                       => $profile?->bezeichnung,
+            ]);
+        } else {
+            $leistungsdaten = self::formatLeistungsdaten($timelineEintraege, $jahr);
+        }
 
         // ═══════════════════════════════════════════════════════════
         // 💰 AUFSCHLAG-TYP ERMITTELN (für Tracking)
@@ -490,9 +506,6 @@ class Rechnung extends Model
         if ($gebaeudeAufschlag) {
             $aufschlagTyp = 'individuell';
         }
-
-        // ⭐ HINWEIS: aufschlag_prozent wird später aus den tatsächlichen 
-        //            Artikel-Aufschlägen berechnet (Durchschnitt/Max)
 
         // ═══════════════════════════════════════════════════════════
         // ⭐ ZAHLUNGSBEDINGUNGEN DEFAULT
@@ -584,7 +597,7 @@ class Rechnung extends Model
         $rechnung->save();
 
         // ═══════════════════════════════════════════════════════════
-        // 📦 POSITIONEN ERSTELLEN (⭐ KORRIGIERT: Pro Artikel basis_jahr!)
+        // 📦 POSITIONEN ERSTELLEN (Pro Artikel basis_jahr!)
         // ═══════════════════════════════════════════════════════════
 
         $artikelListe = $gebaeude->aktiveArtikel()
@@ -598,7 +611,7 @@ class Rechnung extends Model
         foreach ($artikelListe as $artikel) {
             $mwstSatz = $profile?->mwst_satz ?? 22.00;
 
-            // ⭐ KORRIGIERT: Preis mit kumulativem Aufschlag basierend auf ARTIKEL basis_jahr
+            // Preis mit kumulativem Aufschlag basierend auf ARTIKEL basis_jahr
             $basisPreis = (float) ($artikel->basis_preis ?? $artikel->einzelpreis);
             $artikelBasisJahr = (int) ($artikel->basis_jahr ?? $jahr);
 
@@ -637,7 +650,7 @@ class Rechnung extends Model
             ]);
         }
 
-        // ⭐ Durchschnittlichen Aufschlag speichern (für Tracking)
+        // Durchschnittlichen Aufschlag speichern (für Tracking)
         if ($artikelMitAufschlag > 0) {
             $durchschnittsAufschlag = round($totalAufschlag / $artikelMitAufschlag, 2);
             $rechnung->update(['aufschlag_prozent' => $durchschnittsAufschlag]);
@@ -662,14 +675,15 @@ class Rechnung extends Model
             }
 
             \Log::info('Timeline-Einträge als verrechnet markiert', [
-                'rechnung_id'     => $rechnung->id,
-                'rechnung_nummer' => $rechnungNummer,
+                'rechnung_id'      => $rechnung->id,
+                'rechnung_nummer'  => $rechnungNummer,
                 'anzahl_eintraege' => $timelineEintraege->count(),
             ]);
         }
 
         return $rechnung;
     }
+
 
 
 

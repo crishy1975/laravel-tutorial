@@ -1,3 +1,8 @@
+{{-- ═══════════════════════════════════════════════════════════════════════════════
+     DATEI: resources/views/gebaeude/form.blade.php
+     AKTION: Komplette Datei ersetzen
+═══════════════════════════════════════════════════════════════════════════════ --}}
+
 @extends('layouts.app')
 
 @section('content')
@@ -213,13 +218,24 @@
             <span class="d-sm-none">Speichern</span>
           </button>
 
+          {{-- ⭐ GEÄNDERT: Button öffnet jetzt Modal statt direkter Link --}}
           @if(!empty($gebaeude?->id))
-          <a href="{{ route('rechnung.create', ['gebaeude_id' => $gebaeude->id]) }}#content-vorschau"
-            class="btn btn-success order-2 order-sm-3">
-            <i class="bi bi-plus-circle"></i>
-            <span class="d-none d-sm-inline">Neue Rechnung</span>
-            <span class="d-sm-none">Rechnung</span>
-          </a>
+            @php
+              // Prüfen ob Rechnung erstellt werden kann
+              $kannRechnung = $gebaeude->rechnungsempfaenger_id 
+                           && $gebaeude->postadresse_id 
+                           && $gebaeude->fattura_profile_id
+                           && $gebaeude->aktiveArtikel->count() > 0;
+            @endphp
+            <button type="button" 
+                    class="btn btn-success order-2 order-sm-3"
+                    data-bs-toggle="modal" 
+                    data-bs-target="#modalRechnungErstellen"
+                    {{ !$kannRechnung ? 'disabled' : '' }}>
+              <i class="bi bi-plus-circle"></i>
+              <span class="d-none d-sm-inline">Neue Rechnung</span>
+              <span class="d-sm-none">Rechnung</span>
+            </button>
           @endif
 
           <a href="{{ route('gebaeude.index') }}" class="btn btn-outline-secondary order-3 order-sm-1">
@@ -232,15 +248,17 @@
   </div>
 </div>
 
-{{-- ═══════════════════════════════════════════════════════════ --}}
+{{-- ═══════════════════════════════════════════════════════════════════════════════ --}}
 {{-- Modals AUSSERHALB des Formulars --}}
-{{-- ═══════════════════════════════════════════════════════════ --}}
+{{-- ═══════════════════════════════════════════════════════════════════════════════ --}}
 @if(!empty($gebaeude->id))
   @include('gebaeude.partials._aufschlag_modals', ['gebaeude' => $gebaeude])
   {{-- Log-Modals --}}
   @include('gebaeude.partials._log_modals', ['gebaeude' => $gebaeude])
   {{-- ⭐ NEU: Dokumente-Modals (Kamera, Upload, Bearbeiten, Loeschen) --}}
   @include('gebaeude-dokumente._dokumente_modals', ['gebaeude' => $gebaeude])
+  {{-- ⭐ NEU: Rechnung-Erstellen-Modal (mit Jahresrechnung-Option für Kondominium) --}}
+  @include('gebaeude.partials._modal_rechnung_erstellen', ['gebaeude' => $gebaeude])
 @endif
 
 @endsection

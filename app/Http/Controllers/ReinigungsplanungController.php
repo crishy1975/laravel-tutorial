@@ -1,4 +1,12 @@
 <?php
+// ═══════════════════════════════════════════════════════════════════════════════
+// DATEI: app/Http/Controllers/ReinigungsplanungController.php
+// AKTION: Komplette Datei ersetzen
+// 
+// ⭐ KORREKTUR: FaelligkeitsService wird NICHT mehr bei index() aufgerufen!
+//    Die Fälligkeitsdaten werden aus der Datenbank gelesen (bereits gespeichert).
+//    Der Service wird nur bei markErledigt() aufgerufen (Timeline-Eintrag).
+// ═══════════════════════════════════════════════════════════════════════════════
 
 namespace App\Http\Controllers;
 
@@ -19,7 +27,9 @@ class ReinigungsplanungController extends Controller
 
     /**
      * Reinigungsplanung-Übersicht mit Filtern
-     * ⭐ NEU: Filter werden in Session gespeichert
+     * 
+     * ⭐ OPTIMIERT: Keine FaelligkeitsService-Aufrufe mehr!
+     *    Die Felder faellig, datum_faelligkeit, letzter_termin sind bereits in der DB.
      */
     public function index(Request $request)
     {
@@ -73,7 +83,7 @@ class ReinigungsplanungController extends Controller
         // Query aufbauen
         $query = Gebaeude::query()->with(['touren']);
         
-        // ⭐ NEU: Filter nach Datum und/oder Person (über Timeline)
+        // ⭐ Filter nach Datum und/oder Person (über Timeline)
         if (!empty($filterDatum) || !empty($filterPerson)) {
             $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
                 if (!empty($filterDatum)) {
@@ -112,57 +122,78 @@ class ReinigungsplanungController extends Controller
             });
         }
 
+        // ⭐ Filter: Status direkt über DB-Feld 'faellig'
+        if ($filterStatus === 'offen') {
+            $query->where('faellig', true);
+        } elseif ($filterStatus === 'erledigt') {
+            $query->where('faellig', false);
+        }
+
         // Sortierung: Straße, dann Hausnummer (numerisch)
         $query->orderBy('strasse')
               ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
               ->orderBy('hausnummer');
 
-        // Gebäude laden
-        $gebaeude = $query->get();
-
-        // ⭐ NEU: FaelligkeitsService für Berechnung verwenden
-        $gebaeude = $gebaeude->map(function ($g) {
-            $letzteReinigung = $this->faelligkeitsService->getLetzteReinigung($g);
-            $naechsteFaelligkeit = $this->faelligkeitsService->getNaechsteFaelligkeit($g);
-            $istFaellig = $this->faelligkeitsService->istFaellig($g);
-
-            // Als zusätzliche Attribute anhängen
-            $g->letzte_reinigung_datum = $letzteReinigung;
-            $g->ist_erledigt = !$istFaellig; // Erledigt = nicht fällig
-            $g->naechste_faelligkeit = $naechsteFaelligkeit;
-
-            return $g;
-        });
-
-        // Filter: Status (nach Berechnung)
-        if ($filterStatus === 'offen') {
-            $gebaeude = $gebaeude->filter(fn($g) => !$g->ist_erledigt);
-        } elseif ($filterStatus === 'erledigt') {
-            $gebaeude = $gebaeude->filter(fn($g) => $g->ist_erledigt);
+        // ⭐ Statistiken VOR Pagination berechnen (Clone der Query)
+        $statsQuery = clone $query;
+        $totalCount = $statsQuery->count();
+        
+        // Für Status-Statistik: Ohne Status-Filter
+        $statsBaseQuery = Gebaeude::query()->with(['touren']);
+        
+        // Gleiche Filter wie oben (außer Status)
+        if (!empty($filterDatum) || !empty($filterPerson)) {
+            $statsBaseQuery->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
+                if (!empty($filterDatum)) {
+                    $q->whereDate('datum', $filterDatum);
+                }
+                if (!empty($filterPerson)) {
+                    $q->where('person_id', $filterPerson);
+                }
+            });
         }
-
-        // Statistiken (vor Pagination!)
+        if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {
+            $monatFeld = 'm' . str_pad($filterMonat, 2, '0', STR_PAD_LEFT);
+            $statsBaseQuery->where($monatFeld, true);
+        }
+        if (!empty($filterCodex)) {
+            $statsBaseQuery->where('codex', 'LIKE', '%' . $filterCodex . '%');
+        }
+        if (!empty($filterGebaeude)) {
+            $statsBaseQuery->where(function ($q) use ($filterGebaeude) {
+                $q->where('gebaeude_name', 'LIKE', '%' . $filterGebaeude . '%')
+                  ->orWhere('strasse', 'LIKE', '%' . $filterGebaeude . '%')
+                  ->orWhere('wohnort', 'LIKE', '%' . $filterGebaeude . '%');
+            });
+        }
+        if (!empty($filterTour)) {
+            $statsBaseQuery->whereHas('touren', function ($q) use ($filterTour) {
+                $q->where('tour.id', $filterTour);
+            });
+        }
+        
+        $gesamtCount = $statsBaseQuery->count();
+        $offenCount = (clone $statsBaseQuery)->where('faellig', true)->count();
+        $erledigtCount = (clone $statsBaseQuery)->where('faellig', false)->count();
+        
         $stats = [
-            'gesamt'   => $gebaeude->count(),
-            'offen'    => $gebaeude->filter(fn($g) => !$g->ist_erledigt)->count(),
-            'erledigt' => $gebaeude->filter(fn($g) => $g->ist_erledigt)->count(),
+            'gesamt'   => $gesamtCount,
+            'offen'    => $offenCount,
+            'erledigt' => $erledigtCount,
         ];
 
-        // ⭐ Pagination (20 pro Seite)
+        // ⭐ Pagination (20 pro Seite) - direkt über Query Builder
         $perPage = 20;
-        $currentPage = $request->input('page', 1);
-        $pagedData = $gebaeude->forPage($currentPage, $perPage);
-        
-        $gebaeude = new \Illuminate\Pagination\LengthAwarePaginator(
-            $pagedData->values(),
-            $stats['gesamt'],
-            $perPage,
-            $currentPage,
-            [
-                'path' => $request->url(),
-                'query' => $filters, // Filter an Pagination-Links anhängen
-            ]
-        );
+        $gebaeude = $query->paginate($perPage)->appends($filters);
+
+        // ⭐ Attribute für View hinzufügen (aus DB-Feldern, KEIN Service-Aufruf!)
+        $gebaeude->getCollection()->transform(function ($g) {
+            // Diese Felder sind bereits in der Datenbank gespeichert!
+            $g->letzte_reinigung_datum = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
+            $g->ist_erledigt = !$g->faellig; // Erledigt = nicht fällig
+            $g->naechste_faelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
+            return $g;
+        });
 
         // Touren für Dropdown
         $touren = Tour::orderBy('name')->get(['id', 'name', 'aktiv']);
@@ -186,7 +217,7 @@ class ReinigungsplanungController extends Controller
             12 => 'Dezember',
         ];
 
-        // ⭐ NEU: Nachricht-Vorschläge für SMS/WhatsApp Modal
+        // ⭐ Nachricht-Vorschläge für SMS/WhatsApp Modal
         $nachrichtVorschlaege = Textvorschlag::fuerKategorie('reinigung_nachricht');
 
         return view('reinigungsplanung.index', compact(
@@ -208,6 +239,8 @@ class ReinigungsplanungController extends Controller
 
     /**
      * Schnell-Aktion: Als erledigt markieren (Timeline-Eintrag erstellen)
+     * 
+     * ⭐ HIER wird der FaelligkeitsService aufgerufen - nur bei Änderungen!
      */
     public function markErledigt(Request $request, int $gebaeudeId)
     {
@@ -241,7 +274,7 @@ class ReinigungsplanungController extends Controller
         
         $gebaeude->update($updateData);
 
-        // ⭐ Fälligkeit über Service neu berechnen (aktualisiert auch gemachte_reinigungen)
+        // ⭐ FaelligkeitsService: Nur HIER aufrufen (bei Timeline-Änderung)
         $this->faelligkeitsService->aktualisiereGebaeude($gebaeude);
 
         if ($request->expectsJson()) {
@@ -256,10 +289,12 @@ class ReinigungsplanungController extends Controller
 
     /**
      * Export als CSV
+     * 
+     * ⭐ OPTIMIERT: Verwendet ebenfalls DB-Felder statt Service
      */
     public function export(Request $request)
     {
-        // ⭐ NEU: Filter auch aus Session laden für Export
+        // ⭐ Filter auch aus Session laden für Export
         $sessionKey = 'reinigungsplanung_filter';
         $filters = $request->session()->get($sessionKey, []);
         
@@ -274,7 +309,7 @@ class ReinigungsplanungController extends Controller
 
         $query = Gebaeude::query()->with(['touren']);
         
-        // ⭐ NEU: Filter nach Datum und/oder Person (über Timeline)
+        // ⭐ Filter nach Datum und/oder Person (über Timeline)
         if (!empty($filterDatum) || !empty($filterPerson)) {
             $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
                 if (!empty($filterDatum)) {
@@ -311,6 +346,13 @@ class ReinigungsplanungController extends Controller
             });
         }
 
+        // ⭐ Status-Filter über DB-Feld
+        if ($filterStatus === 'offen') {
+            $query->where('faellig', true);
+        } elseif ($filterStatus === 'erledigt') {
+            $query->where('faellig', false);
+        }
+
         // Sortierung: Straße, dann Hausnummer (numerisch)
         $query->orderBy('strasse')
               ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
@@ -343,9 +385,10 @@ class ReinigungsplanungController extends Controller
             fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status'], ';');
 
             foreach ($gebaeude as $g) {
-                $letzteReinigung = $this->faelligkeitsService->getLetzteReinigung($g);
-                $naechsteFaelligkeit = $this->faelligkeitsService->getNaechsteFaelligkeit($g);
-                $istFaellig = $this->faelligkeitsService->istFaellig($g);
+                // ⭐ Direkt aus DB-Feldern lesen - KEIN Service-Aufruf!
+                $letzteReinigung = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
+                $naechsteFaelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
+                $istFaellig = (bool) $g->faellig;
 
                 fputcsv($file, [
                     $g->codex,
@@ -353,7 +396,7 @@ class ReinigungsplanungController extends Controller
                     trim($g->strasse . ' ' . $g->hausnummer . ', ' . $g->plz . ' ' . $g->wohnort),
                     $g->touren->pluck('name')->implode(', '),
                     $letzteReinigung ? $letzteReinigung->format('d.m.Y') : '-',
-                    $naechsteFaelligkeit->format('d.m.Y'),
+                    $naechsteFaelligkeit ? $naechsteFaelligkeit->format('d.m.Y') : '-',
                     $istFaellig ? 'Offen' : 'Erledigt',
                 ], ';');
             }
