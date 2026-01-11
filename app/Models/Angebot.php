@@ -287,12 +287,32 @@ class Angebot extends Model
         $angebot->status = 'entwurf';
         $angebot->save();
         
-        // Positionen aus aktiven Artikeln erstellen
+        // Positionen aus aktiven Artikeln erstellen (MIT Preisaufschlag)
         $nettoSumme = 0;
         $position = 1;
+        $jahr = now()->year;
+        $aufschlagAngewendet = false;
         
         foreach ($gebaeude->aktiveArtikel as $artikel) {
-            $einzelpreis = (float) $artikel->einzelpreis;
+            $basisPreis = (float) $artikel->einzelpreis;
+            
+            // Preis mit Aufschlag berechnen
+            // Falls preis_gueltig_ab existiert: kumulative Berechnung
+            // Sonst: einfacher Aufschlag für aktuelles Jahr
+            if (!empty($artikel->preis_gueltig_ab)) {
+                $einzelpreis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+                    $basisPreis,
+                    $artikel->preis_gueltig_ab,
+                    $jahr
+                );
+            } else {
+                $einzelpreis = $gebaeude->berechnePreisMitAufschlag($basisPreis, $jahr);
+            }
+            
+            if ($einzelpreis != $basisPreis) {
+                $aufschlagAngewendet = true;
+            }
+            
             $anzahl = (float) $artikel->anzahl;
             $gesamtpreis = round($einzelpreis * $anzahl, 2);
             
@@ -313,11 +333,15 @@ class Angebot extends Model
         $angebot->berechneBetraege();
         
         // Log erstellen
+        $aufschlagInfo = $aufschlagAngewendet 
+            ? ' (Preisaufschlag ' . $gebaeude->getAufschlagProzent($jahr) . '% angewendet)'
+            : '';
+        
         AngebotLog::log(
             $angebot->id,
             'erstellt',
             'Angebot erstellt',
-            'Angebot aus Gebaeude ' . ($gebaeude->codex ?: $gebaeude->id) . ' erstellt'
+            'Angebot aus Gebaeude ' . ($gebaeude->codex ?: $gebaeude->id) . ' erstellt' . $aufschlagInfo
         );
         
         return $angebot;
