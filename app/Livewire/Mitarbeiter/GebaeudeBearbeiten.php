@@ -253,66 +253,89 @@ class GebaeudeBearbeiten extends Component
     {
         $this->validate();
 
-        $gebaeude = Gebaeude::with('touren')->findOrFail($this->gebaeudeId);
+        try {
+            $gebaeude = Gebaeude::with('touren')->findOrFail($this->gebaeudeId);
 
-        // Alte Daten sammeln
-        $alteDaten = [
-            'codex' => $gebaeude->codex,
-            'gebaeude_name' => $gebaeude->gebaeude_name,
-            'strasse' => $gebaeude->strasse,
-            'hausnummer' => $gebaeude->hausnummer,
-            'plz' => $gebaeude->plz,
-            'wohnort' => $gebaeude->wohnort,
-            'land' => $gebaeude->land,
-            'telefon' => $gebaeude->telefon,
-            'handy' => $gebaeude->handy,
-            'email' => $gebaeude->email,
-            'geplante_reinigungen' => $gebaeude->geplante_reinigungen,
-            'bemerkung' => $gebaeude->bemerkung,
-            'm01' => $gebaeude->m01, 'm02' => $gebaeude->m02, 'm03' => $gebaeude->m03,
-            'm04' => $gebaeude->m04, 'm05' => $gebaeude->m05, 'm06' => $gebaeude->m06,
-            'm07' => $gebaeude->m07, 'm08' => $gebaeude->m08, 'm09' => $gebaeude->m09,
-            'm10' => $gebaeude->m10, 'm11' => $gebaeude->m11, 'm12' => $gebaeude->m12,
-            'touren' => $gebaeude->touren->pluck('id')->toArray(),
-        ];
+            // Alte Daten sammeln
+            $alteDaten = [
+                'codex' => $gebaeude->codex,
+                'gebaeude_name' => $gebaeude->gebaeude_name,
+                'strasse' => $gebaeude->strasse,
+                'hausnummer' => $gebaeude->hausnummer,
+                'plz' => $gebaeude->plz,
+                'wohnort' => $gebaeude->wohnort,
+                'land' => $gebaeude->land,
+                'telefon' => $gebaeude->telefon,
+                'handy' => $gebaeude->handy,
+                'email' => $gebaeude->email,
+                'geplante_reinigungen' => $gebaeude->geplante_reinigungen,
+                'bemerkung' => $gebaeude->bemerkung,
+                'm01' => (bool) $gebaeude->m01,
+                'm02' => (bool) $gebaeude->m02,
+                'm03' => (bool) $gebaeude->m03,
+                'm04' => (bool) $gebaeude->m04,
+                'm05' => (bool) $gebaeude->m05,
+                'm06' => (bool) $gebaeude->m06,
+                'm07' => (bool) $gebaeude->m07,
+                'm08' => (bool) $gebaeude->m08,
+                'm09' => (bool) $gebaeude->m09,
+                'm10' => (bool) $gebaeude->m10,
+                'm11' => (bool) $gebaeude->m11,
+                'm12' => (bool) $gebaeude->m12,
+                'touren' => $gebaeude->touren->pluck('id')->map(fn($id) => (int) $id)->toArray(),
+            ];
 
-        // Neue Daten sammeln
-        $neueDaten = [
-            'codex' => $this->codex,
-            'gebaeude_name' => $this->gebaeude_name,
-            'strasse' => $this->strasse,
-            'hausnummer' => $this->hausnummer,
-            'plz' => $this->plz,
-            'wohnort' => $this->wohnort,
-            'land' => $this->land,
-            'telefon' => $this->telefon,
-            'handy' => $this->handy,
-            'email' => $this->email,
-            'geplante_reinigungen' => $this->geplante_reinigungen,
-            'bemerkung' => $this->bemerkung,
-            'm01' => $this->m01, 'm02' => $this->m02, 'm03' => $this->m03,
-            'm04' => $this->m04, 'm05' => $this->m05, 'm06' => $this->m06,
-            'm07' => $this->m07, 'm08' => $this->m08, 'm09' => $this->m09,
-            'm10' => $this->m10, 'm11' => $this->m11, 'm12' => $this->m12,
-            'touren' => $this->selectedTouren,
-        ];
+            // Neue Daten sammeln - Typen korrekt casten
+            $neueDaten = [
+                'codex' => $this->codex,
+                'gebaeude_name' => $this->gebaeude_name ?: null,
+                'strasse' => $this->strasse,
+                'hausnummer' => $this->hausnummer,
+                'plz' => $this->plz,
+                'wohnort' => $this->wohnort,
+                'land' => $this->land,
+                'telefon' => $this->telefon ?: null,
+                'handy' => $this->handy ?: null,
+                'email' => $this->email ?: null,
+                'geplante_reinigungen' => (int) ($this->geplante_reinigungen ?? 0),
+                'bemerkung' => $this->bemerkung ?: null,
+                'm01' => (bool) $this->m01,
+                'm02' => (bool) $this->m02,
+                'm03' => (bool) $this->m03,
+                'm04' => (bool) $this->m04,
+                'm05' => (bool) $this->m05,
+                'm06' => (bool) $this->m06,
+                'm07' => (bool) $this->m07,
+                'm08' => (bool) $this->m08,
+                'm09' => (bool) $this->m09,
+                'm10' => (bool) $this->m10,
+                'm11' => (bool) $this->m11,
+                'm12' => (bool) $this->m12,
+                'touren' => array_map('intval', $this->selectedTouren ?? []),
+            ];
 
-        // Änderungsvorschlag erstellen
-        GebaeudeAenderungsvorschlag::create([
-            'gebaeude_id' => $this->gebaeudeId,
-            'user_id' => auth()->id(),
-            'typ' => 'aenderung',
-            'status' => 'pending',
-            'alte_daten' => $alteDaten,
-            'neue_daten' => $neueDaten,
-            'bemerkung' => $this->bemerkung_mitarbeiter,
-        ]);
+            // Änderungsvorschlag erstellen
+            GebaeudeAenderungsvorschlag::create([
+                'gebaeude_id' => $this->gebaeudeId,
+                'user_id' => auth()->id(),
+                'typ' => 'aenderung',
+                'status' => 'pending',
+                'alte_daten' => $alteDaten,
+                'neue_daten' => $neueDaten,
+                'bemerkung' => $this->bemerkung_mitarbeiter ?: null,
+            ]);
 
-        // Success
-        session()->flash('success', 'Änderungsvorschlag für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde erstellt.');
-        
-        // Modal schließen
-        $this->modalSchliessen();
+            // Success
+            session()->flash('success', 'Änderungsvorschlag für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde erstellt.');
+            
+            // Modal schließen
+            $this->modalSchliessen();
+            
+        } catch (\Exception $e) {
+            // Fehler loggen und anzeigen
+            \Log::error('Fehler beim Erstellen des Änderungsvorschlags: ' . $e->getMessage());
+            session()->flash('error', 'Fehler beim Speichern: ' . $e->getMessage());
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

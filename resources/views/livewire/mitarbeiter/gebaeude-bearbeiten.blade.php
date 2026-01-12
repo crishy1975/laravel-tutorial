@@ -27,6 +27,15 @@ PFAD:  resources/views/livewire/mitarbeiter/gebaeude-bearbeiten.blade.php
         </div>
     @endif
 
+    {{-- Error Alert --}}
+    @if(session()->has('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     {{-- Info-Box --}}
     <div class="alert alert-info mb-3" role="alert">
         <i class="bi bi-info-circle"></i>

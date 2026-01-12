@@ -266,7 +266,22 @@ class GebaeudeAenderungsvorschlag extends Model
         }
 
         try {
-            $neuesGebaeude = Gebaeude::create($this->neue_daten);
+            // Touren separat behandeln (Many-to-Many Beziehung)
+            $touren = null;
+            $datenOhneTouren = $this->neue_daten;
+            
+            if (isset($datenOhneTouren['touren'])) {
+                $touren = $datenOhneTouren['touren'];
+                unset($datenOhneTouren['touren']);
+            }
+
+            // Neues Gebäude erstellen
+            $neuesGebaeude = Gebaeude::create($datenOhneTouren);
+            
+            // Touren syncen (falls vorhanden)
+            if (is_array($touren) && !empty($touren)) {
+                $neuesGebaeude->touren()->sync($touren);
+            }
             
             // Gebäude-ID im Vorschlag speichern
             $this->update(['gebaeude_id' => $neuesGebaeude->id]);
@@ -284,6 +299,7 @@ class GebaeudeAenderungsvorschlag extends Model
     protected function aktualisiereGebaeude(): bool
     {
         if (!$this->gebaeude) {
+            \Log::error('Kein Gebäude zum Aktualisieren vorhanden');
             return false;
         }
 
@@ -293,7 +309,23 @@ class GebaeudeAenderungsvorschlag extends Model
         }
 
         try {
-            $this->gebaeude->update($this->neue_daten);
+            // Touren separat behandeln (Many-to-Many Beziehung)
+            $touren = null;
+            $datenOhneTouren = $this->neue_daten;
+            
+            if (isset($datenOhneTouren['touren'])) {
+                $touren = $datenOhneTouren['touren'];
+                unset($datenOhneTouren['touren']);
+            }
+
+            // Gebäude-Daten aktualisieren
+            $this->gebaeude->update($datenOhneTouren);
+
+            // Touren syncen (falls vorhanden)
+            if (is_array($touren)) {
+                $this->gebaeude->touren()->sync($touren);
+            }
+
             return true;
         } catch (\Exception $e) {
             \Log::error('Fehler beim Aktualisieren des Gebäudes: ' . $e->getMessage());
