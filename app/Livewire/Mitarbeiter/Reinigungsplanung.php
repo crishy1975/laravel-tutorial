@@ -24,6 +24,7 @@ class Reinigungsplanung extends Component
     public $filterTour = '';
     public $filterMonat = '';
     public $filterStatus = '';
+    public $filterCodex = '';
     public $suchbegriff = '';
 
     // Erledigt Modal
@@ -75,6 +76,7 @@ class Reinigungsplanung extends Component
         $this->filterTour = session('reinigung_filter_tour', '');
         $this->filterMonat = session('reinigung_filter_monat', now()->month);
         $this->filterStatus = session('reinigung_filter_status', '');
+        $this->filterCodex = session('reinigung_filter_codex', '');
         $this->suchbegriff = session('reinigung_filter_suche', '');
         
         $this->erledigtDatum = today()->format('Y-m-d');
@@ -102,6 +104,12 @@ class Reinigungsplanung extends Component
     public function updatedFilterStatus($value)
     {
         session(['reinigung_filter_status' => $value]);
+        $this->resetPage();
+    }
+
+    public function updatedFilterCodex($value)
+    {
+        session(['reinigung_filter_codex' => $value]);
         $this->resetPage();
     }
 
@@ -140,11 +148,15 @@ class Reinigungsplanung extends Component
             $query->whereHas('touren', fn($q) => $q->where('tour.id', $this->filterTour));
         }
 
-        // Filter: Suchbegriff (inkl. Codex)
+        // Filter: Codex
+        if (!empty($this->filterCodex)) {
+            $query->where('codex', 'LIKE', '%' . $this->filterCodex . '%');
+        }
+
+        // Filter: Suchbegriff (Name, Straße, Ort)
         if (!empty($this->suchbegriff)) {
             $query->where(function($q) {
-                $q->where('codex', 'LIKE', '%' . $this->suchbegriff . '%')
-                  ->orWhere('gebaeude_name', 'LIKE', '%' . $this->suchbegriff . '%')
+                $q->where('gebaeude_name', 'LIKE', '%' . $this->suchbegriff . '%')
                   ->orWhere('strasse', 'LIKE', '%' . $this->suchbegriff . '%')
                   ->orWhere('wohnort', 'LIKE', '%' . $this->suchbegriff . '%');
             });
@@ -200,6 +212,7 @@ class Reinigungsplanung extends Component
         $this->filterTour = '';
         $this->filterMonat = now()->month;
         $this->filterStatus = '';
+        $this->filterCodex = '';
         $this->suchbegriff = '';
         
         // Session leeren
@@ -207,6 +220,7 @@ class Reinigungsplanung extends Component
             'reinigung_filter_tour',
             'reinigung_filter_monat', 
             'reinigung_filter_status',
+            'reinigung_filter_codex',
             'reinigung_filter_suche'
         ]);
         session(['reinigung_filter_monat' => now()->month]);
