@@ -78,7 +78,7 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                     <div class="col-12 col-md-5">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" class="form-control" placeholder="Suche..." 
+                            <input type="text" class="form-control" placeholder="Codex, Name, Straße, Ort..." 
                                    wire:model.live.debounce.500ms="suchbegriff">
                             @if($suchbegriff)
                                 <button class="btn btn-outline-secondary" wire:click="$set('suchbegriff', '')">
@@ -129,21 +129,32 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                 @if($gebaeude->count() > 0)
                     <div class="list-group list-group-flush">
                         @foreach($gebaeude as $geb)
-                            <div class="list-group-item p-2 p-md-3">
+                            <div class="list-group-item p-2 p-md-3 {{ $geb->ist_erledigt ? 'bg-success bg-opacity-10 border-start border-success border-3' : '' }}">
                                 <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1 me-2">
+                                    <div class="flex-grow-1 me-2 {{ $geb->ist_erledigt ? 'opacity-75' : '' }}">
                                         {{-- Codex & Status --}}
                                         <div class="d-flex align-items-center mb-1">
-                                            <strong class="me-2">{{ $geb->codex }}</strong>
+                                            <strong class="me-2 {{ $geb->ist_erledigt ? 'text-success' : '' }}">
+                                                @if($geb->ist_erledigt)
+                                                    <i class="bi bi-check-circle-fill text-success me-1"></i>
+                                                @endif
+                                                {{ $geb->codex }}
+                                            </strong>
                                             @if($geb->ist_erledigt)
-                                                <span class="badge bg-success"><i class="bi bi-check-circle"></i></span>
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check2"></i> Erledigt
+                                                </span>
                                             @else
-                                                <span class="badge bg-warning text-dark"><i class="bi bi-clock-history"></i></span>
+                                                <span class="badge bg-warning text-dark">
+                                                    <i class="bi bi-clock-history"></i> Offen
+                                                </span>
                                             @endif
                                         </div>
                                         
                                         @if($geb->gebaeude_name)
-                                            <div class="text-muted small mb-1">{{ $geb->gebaeude_name }}</div>
+                                            <div class="small mb-1 {{ $geb->ist_erledigt ? 'text-success' : 'text-muted' }}">
+                                                {{ $geb->gebaeude_name }}
+                                            </div>
                                         @endif
                                         
                                         {{-- Adresse mit Maps --}}
@@ -152,18 +163,18 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                             $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($adresse);
                                         @endphp
                                         <div class="small mb-2">
-                                            <a href="{{ $mapsUrl }}" target="_blank" class="text-decoration-none text-dark">
-                                                <i class="bi bi-geo-alt text-danger"></i> {{ $adresse }}
+                                            <a href="{{ $mapsUrl }}" target="_blank" class="text-decoration-none {{ $geb->ist_erledigt ? 'text-success' : 'text-dark' }}">
+                                                <i class="bi bi-geo-alt {{ $geb->ist_erledigt ? 'text-success' : 'text-danger' }}"></i> {{ $adresse }}
                                                 <i class="bi bi-box-arrow-up-right small text-muted"></i>
                                             </a>
                                         </div>
 
-                                        {{-- Kontakt-Buttons --}}
+                                        {{-- Kontakt-Buttons (dezenter bei erledigten) --}}
                                         @if($geb->telefon || $geb->handy)
                                             <div class="d-flex flex-wrap gap-1 mb-2">
                                                 @if($geb->telefon)
                                                     <a href="tel:{{ preg_replace('/[^0-9+]/', '', $geb->telefon) }}" 
-                                                       class="btn btn-sm btn-outline-primary" title="Anrufen">
+                                                       class="btn btn-sm {{ $geb->ist_erledigt ? 'btn-outline-success' : 'btn-outline-primary' }}" title="Anrufen">
                                                         <i class="bi bi-telephone"></i>
                                                     </a>
                                                 @endif
@@ -174,13 +185,13 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                                         $handyWA = ltrim($handyClean, '+');
                                                         if (!str_starts_with($handyClean, '+')) $handyWA = '39' . $handyWA;
                                                     @endphp
-                                                    <a href="tel:{{ $handyClean }}" class="btn btn-sm btn-outline-success" title="Handy">
+                                                    <a href="tel:{{ $handyClean }}" class="btn btn-sm {{ $geb->ist_erledigt ? 'btn-outline-success' : 'btn-outline-success' }}" title="Handy">
                                                         <i class="bi bi-phone"></i>
                                                     </a>
                                                     <a href="https://wa.me/{{ $handyWA }}" target="_blank" class="btn btn-sm btn-success" title="WhatsApp">
                                                         <i class="bi bi-whatsapp"></i>
                                                     </a>
-                                                    <a href="sms:{{ $handyClean }}" class="btn btn-sm btn-outline-info" title="SMS">
+                                                    <a href="sms:{{ $handyClean }}" class="btn btn-sm {{ $geb->ist_erledigt ? 'btn-outline-success' : 'btn-outline-info' }}" title="SMS">
                                                         <i class="bi bi-chat-dots"></i>
                                                     </a>
                                                 @endif
@@ -188,21 +199,31 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
                                         @endif
 
                                         {{-- Termine --}}
-                                        <div class="small text-muted">
+                                        <div class="small {{ $geb->ist_erledigt ? 'text-success' : 'text-muted' }}">
                                             @if($geb->letzte_reinigung_datum)
-                                                <i class="bi bi-calendar-event"></i> Letzte: {{ $geb->letzte_reinigung_datum->format('d.m.Y') }}
+                                                <i class="bi bi-calendar-event"></i> 
+                                                Letzte: <strong>{{ $geb->letzte_reinigung_datum->format('d.m.Y') }}</strong>
                                             @endif
-                                            @if($geb->naechste_faelligkeit)
-                                                <span class="ms-2"><i class="bi bi-calendar-check"></i> Nächste: {{ $geb->naechste_faelligkeit->format('d.m.Y') }}</span>
+                                            @if($geb->naechste_faelligkeit && !$geb->ist_erledigt)
+                                                <span class="ms-2">
+                                                    <i class="bi bi-calendar-check"></i> 
+                                                    Nächste: {{ $geb->naechste_faelligkeit->format('d.m.Y') }}
+                                                </span>
                                             @endif
                                         </div>
                                     </div>
 
                                     {{-- Aktionen --}}
                                     <div class="d-flex flex-column gap-1">
-                                        <button class="btn btn-sm btn-outline-success" wire:click="erledigtModalOeffnen({{ $geb->id }})" title="Erledigt">
-                                            <i class="bi bi-check-circle"></i>
-                                        </button>
+                                        @if(!$geb->ist_erledigt)
+                                            <button class="btn btn-sm btn-success" wire:click="erledigtModalOeffnen({{ $geb->id }})" title="Als erledigt markieren">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        @else
+                                            <button class="btn btn-sm btn-outline-success" wire:click="erledigtModalOeffnen({{ $geb->id }})" title="Weitere Reinigung eintragen">
+                                                <i class="bi bi-plus-circle"></i>
+                                            </button>
+                                        @endif
                                         <button class="btn btn-sm btn-outline-primary" wire:click="bearbeitenModalOeffnen({{ $geb->id }})" title="Ändern">
                                             <i class="bi bi-pencil"></i>
                                         </button>
