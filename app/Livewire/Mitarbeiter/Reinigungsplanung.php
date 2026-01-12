@@ -71,7 +71,12 @@ class Reinigungsplanung extends Component
 
     public function mount()
     {
-        $this->filterMonat = now()->month;
+        // Filter aus Session laden
+        $this->filterTour = session('reinigung_filter_tour', '');
+        $this->filterMonat = session('reinigung_filter_monat', now()->month);
+        $this->filterStatus = session('reinigung_filter_status', '');
+        $this->suchbegriff = session('reinigung_filter_suche', '');
+        
         $this->erledigtDatum = today()->format('Y-m-d');
     }
 
@@ -79,6 +84,31 @@ class Reinigungsplanung extends Component
     public function alleTouren()
     {
         return Tour::where('aktiv', true)->orderBy('name')->get();
+    }
+
+    // Filter in Session speichern bei Änderung
+    public function updatedFilterTour($value)
+    {
+        session(['reinigung_filter_tour' => $value]);
+        $this->resetPage();
+    }
+
+    public function updatedFilterMonat($value)
+    {
+        session(['reinigung_filter_monat' => $value]);
+        $this->resetPage();
+    }
+
+    public function updatedFilterStatus($value)
+    {
+        session(['reinigung_filter_status' => $value]);
+        $this->resetPage();
+    }
+
+    public function updatedSuchbegriff($value)
+    {
+        session(['reinigung_filter_suche' => $value]);
+        $this->resetPage();
     }
 
     public function render()
@@ -110,7 +140,7 @@ class Reinigungsplanung extends Component
             $query->whereHas('touren', fn($q) => $q->where('tour.id', $this->filterTour));
         }
 
-        // Filter: Suchbegriff
+        // Filter: Suchbegriff (inkl. Codex)
         if (!empty($this->suchbegriff)) {
             $query->where(function($q) {
                 $q->where('codex', 'LIKE', '%' . $this->suchbegriff . '%')
@@ -165,16 +195,22 @@ class Reinigungsplanung extends Component
         ]);
     }
 
-    // Filter-Events
-    public function updatingFilterTour() { $this->resetPage(); }
-    public function updatingFilterMonat() { $this->resetPage(); }
-    public function updatingFilterStatus() { $this->resetPage(); }
-    public function updatingSuchbegriff() { $this->resetPage(); }
-
     public function filterZuruecksetzen()
     {
-        $this->reset(['filterTour', 'filterMonat', 'filterStatus', 'suchbegriff']);
+        $this->filterTour = '';
         $this->filterMonat = now()->month;
+        $this->filterStatus = '';
+        $this->suchbegriff = '';
+        
+        // Session leeren
+        session()->forget([
+            'reinigung_filter_tour',
+            'reinigung_filter_monat', 
+            'reinigung_filter_status',
+            'reinigung_filter_suche'
+        ]);
+        session(['reinigung_filter_monat' => now()->month]);
+        
         $this->resetPage();
     }
 
