@@ -75,10 +75,22 @@ PFAD:  resources/views/livewire/mitarbeiter/reinigungsplanung.blade.php
             </div>
             <div class="card-body py-2">
                 <div class="row g-2">
-                    <div class="col-12 col-md-5">
+                    <div class="col-6 col-md-2">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi bi-upc"></i></span>
+                            <input type="text" class="form-control" placeholder="Codex" 
+                                   wire:model.live.debounce.500ms="filterCodex">
+                            @if($filterCodex)
+                                <button class="btn btn-outline-secondary" wire:click="$set('filterCodex', '')">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" class="form-control" placeholder="Codex, Name, Straße, Ort..." 
+                            <input type="text" class="form-control" placeholder="Name, Straße, Ort..." 
                                    wire:model.live.debounce.500ms="suchbegriff">
                             @if($suchbegriff)
                                 <button class="btn btn-outline-secondary" wire:click="$set('suchbegriff', '')">
