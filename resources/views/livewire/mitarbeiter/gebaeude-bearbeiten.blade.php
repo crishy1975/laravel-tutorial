@@ -27,6 +27,15 @@ PFAD:  resources/views/livewire/mitarbeiter/gebaeude-bearbeiten.blade.php
         </div>
     @endif
 
+    {{-- Info Alert (Debug) --}}
+    @if(session()->has('info'))
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="bi bi-info-circle"></i>
+            {{ session('info') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     {{-- Error Alert --}}
     @if(session()->has('error'))
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -212,6 +221,13 @@ PFAD:  resources/views/livewire/mitarbeiter/gebaeude-bearbeiten.blade.php
 
                     {{-- Modal Body --}}
                     <div class="modal-body">
+                        {{-- Fehleranzeige im Modal --}}
+                        @error('general')
+                            <div class="alert alert-danger py-2 mb-3">
+                                <i class="bi bi-exclamation-triangle"></i> {{ $message }}
+                            </div>
+                        @enderror
+
                         <div class="alert alert-info py-2 mb-3">
                             <small><i class="bi bi-info-circle"></i> Änderungen müssen von einem Admin genehmigt werden.</small>
                         </div>
@@ -332,6 +348,11 @@ PFAD:  resources/views/livewire/mitarbeiter/gebaeude-bearbeiten.blade.php
 
                     {{-- Modal Footer --}}
                     <div class="modal-footer">
+                        {{-- DEBUG TEST BUTTON --}}
+                        <button type="button" class="btn btn-warning" wire:click="testSpeichern">
+                            <i class="bi bi-bug"></i> TEST
+                        </button>
+                        
                         <button type="button" class="btn btn-secondary" wire:click="modalSchliessen">
                             <i class="bi bi-x-circle"></i> Abbrechen
                         </button>

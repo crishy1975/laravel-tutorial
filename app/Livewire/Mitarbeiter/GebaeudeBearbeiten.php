@@ -6,6 +6,7 @@ namespace App\Livewire\Mitarbeiter;
 use App\Models\Gebaeude;
 use App\Models\GebaeudeAenderungsvorschlag;
 use App\Models\Tour;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -245,16 +246,40 @@ class GebaeudeBearbeiten extends Component
         $this->land = 'IT';
     }
 
+    // DEBUG: Einfache Test-Methode
+    public function testSpeichern()
+    {
+        \Log::info('TEST: testSpeichern wurde aufgerufen!');
+        session()->flash('success', 'TEST ERFOLGREICH: Die Methode wurde aufgerufen!');
+    }
+
     // ═══════════════════════════════════════════════════════════
     // 💾 SPEICHERN (als Änderungsvorschlag)
     // ═══════════════════════════════════════════════════════════
     
     public function aenderungVorschlagen()
     {
-        $this->validate();
+        // DEBUG: Wird diese Methode überhaupt aufgerufen?
+        \Log::info('=== aenderungVorschlagen START ===');
+        \Log::info('gebaeudeId: ' . $this->gebaeudeId);
+        \Log::info('user_id: ' . auth()->id());
+        
+        // Sofort Flash-Message setzen um zu sehen ob Methode aufgerufen wird
+        session()->flash('info', 'Methode wurde aufgerufen für Gebäude ID: ' . $this->gebaeudeId);
+
+        // Debug: Validierung
+        try {
+            $this->validate();
+            \Log::info('Validierung OK');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Validierung fehlgeschlagen: ' . json_encode($e->errors()));
+            $this->addError('general', 'Validierung fehlgeschlagen: ' . implode(', ', array_map(fn($arr) => implode(', ', $arr), $e->errors())));
+            return;
+        }
 
         try {
             $gebaeude = Gebaeude::with('touren')->findOrFail($this->gebaeudeId);
+            \Log::info('Gebäude gefunden: ' . $gebaeude->codex);
 
             // Alte Daten sammeln
             $alteDaten = [
@@ -285,7 +310,7 @@ class GebaeudeBearbeiten extends Component
                 'touren' => $gebaeude->touren->pluck('id')->map(fn($id) => (int) $id)->toArray(),
             ];
 
-            // Neue Daten sammeln - Typen korrekt casten
+            // Neue Daten sammeln
             $neueDaten = [
                 'codex' => $this->codex,
                 'gebaeude_name' => $this->gebaeude_name ?: null,
@@ -314,28 +339,36 @@ class GebaeudeBearbeiten extends Component
                 'touren' => array_map('intval', $this->selectedTouren ?? []),
             ];
 
-            // Änderungsvorschlag erstellen
-            GebaeudeAenderungsvorschlag::create([
+            \Log::info('Daten vorbereitet, erstelle Vorschlag...');
+
+            // Änderungsvorschlag erstellen - DIREKT mit DB::table
+            $id = \DB::table('gebaeude_aenderungsvorschlaege')->insertGetId([
                 'gebaeude_id' => $this->gebaeudeId,
                 'user_id' => auth()->id(),
                 'typ' => 'aenderung',
                 'status' => 'pending',
-                'alte_daten' => $alteDaten,
-                'neue_daten' => $neueDaten,
+                'alte_daten' => json_encode($alteDaten),
+                'neue_daten' => json_encode($neueDaten),
                 'bemerkung' => $this->bemerkung_mitarbeiter ?: null,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
+            
+            \Log::info('Vorschlag erstellt mit ID: ' . $id);
 
             // Success
-            session()->flash('success', 'Änderungsvorschlag für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' wurde erstellt.');
+            session()->flash('success', 'Änderungsvorschlag wurde erstellt (ID: ' . $id . ')');
             
             // Modal schließen
             $this->modalSchliessen();
             
         } catch (\Exception $e) {
-            // Fehler loggen und anzeigen
-            \Log::error('Fehler beim Erstellen des Änderungsvorschlags: ' . $e->getMessage());
-            session()->flash('error', 'Fehler beim Speichern: ' . $e->getMessage());
+            \Log::error('FEHLER: ' . $e->getMessage());
+            \Log::error('Stack: ' . $e->getTraceAsString());
+            $this->addError('general', 'Fehler: ' . $e->getMessage());
         }
+        
+        \Log::info('=== aenderungVorschlagen ENDE ===');
     }
 
     // ═══════════════════════════════════════════════════════════
