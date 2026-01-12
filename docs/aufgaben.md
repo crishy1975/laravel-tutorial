@@ -20,3 +20,8 @@ x summe der rechnungen statistik
 x summe positionen stimmt niccht
 
 x bei pdf rechnung c.f. in großbuchstaben
+
+xml rechnungen mit namen
+xml rechnungen änderung bei falschen c.f., cod. sub, p.i. cig, usw.
+
+zugang mitarbeiter
