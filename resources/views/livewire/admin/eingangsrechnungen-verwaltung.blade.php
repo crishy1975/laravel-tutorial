@@ -191,6 +191,7 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                 @endif
                             </th>
                             <th class="text-center">Status</th>
+                            <th class="text-center">Zahlung</th>
                             <th style="width: 160px;">Aktionen</th>
                         </tr>
                     </thead>
@@ -219,6 +220,22 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                     <span class="badge {{ $rechnung->status_badge_class }}">
                                         {{ ucfirst($rechnung->status) }}
                                     </span>
+                                </td>
+                                <td class="text-center">
+                                    @if($rechnung->modalita_pagamento)
+                                        @php
+                                            $methode = \App\Models\Eingangsrechnung::MODALITA_TO_METHODE[$rechnung->modalita_pagamento] ?? 'bank';
+                                            $icon = match($methode) {
+                                                'bank' => 'bi-bank',
+                                                'karte' => 'bi-credit-card',
+                                                'bar' => 'bi-cash-stack',
+                                                default => 'bi-question-circle',
+                                            };
+                                        @endphp
+                                        <i class="{{ $icon }}" title="{{ $rechnung->modalita_pagamento_text }}"></i>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($rechnung->status === 'offen')
@@ -301,6 +318,18 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                 <span class="badge {{ $rechnung->status_badge_class }}">
                                     {{ ucfirst($rechnung->status) }}
                                 </span>
+                                @if($rechnung->modalita_pagamento)
+                                    @php
+                                        $methode = \App\Models\Eingangsrechnung::MODALITA_TO_METHODE[$rechnung->modalita_pagamento] ?? 'bank';
+                                        $icon = match($methode) {
+                                            'bank' => 'bi-bank',
+                                            'karte' => 'bi-credit-card',
+                                            'bar' => 'bi-cash-stack',
+                                            default => 'bi-question-circle',
+                                        };
+                                    @endphp
+                                    <i class="{{ $icon }} ms-1" title="{{ $rechnung->modalita_pagamento_text }}"></i>
+                                @endif
                             </div>
                         </div>
                         
