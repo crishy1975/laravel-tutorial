@@ -157,16 +157,19 @@ class Eingangsrechnung extends Model
 
         // Beim Erstellen: Status automatisch setzen basierend auf Zahlungsart
         static::creating(function ($rechnung) {
-            if ($rechnung->modalita_pagamento && !$rechnung->isDirty('status')) {
+            if ($rechnung->modalita_pagamento) {
                 $methode = self::MODALITA_TO_METHODE[$rechnung->modalita_pagamento] ?? 'bank';
-                $status = self::METHODE_TO_STATUS[$methode] ?? 'offen';
-
+                
+                // Zahlungsmethode setzen
                 $rechnung->zahlungsmethode = $methode;
-                $rechnung->status = $status;
-
-                // Bei Sofortzahlung (bar/karte) auch bezahlt_am setzen
-                if ($status === 'bezahlt' && !$rechnung->bezahlt_am) {
+                
+                // Status: bar/karte = bezahlt, bank = offen
+                if (in_array($methode, ['bar', 'karte'])) {
+                    $rechnung->status = 'bezahlt';
                     $rechnung->bezahlt_am = $rechnung->rechnungsdatum ?? now();
+                } else {
+                    $rechnung->status = 'offen';
+                    $rechnung->bezahlt_am = null;
                 }
             }
         });
@@ -254,24 +257,27 @@ class Eingangsrechnung extends Model
 
     /**
      * Status und Zahlungsmethode basierend auf Modalita Pagamento setzen
-     * Bar/Karte → bezahlt, Bank → offen
+     * Bar/Karte → bezahlt, Bank/Überweisung → offen
      */
-    public function setzeStatusNachZahlungsart(): void
+    public function setzeStatusNachZahlungsart(): bool
     {
         if (!$this->modalita_pagamento) {
-            return;
+            return false;
         }
 
         $methode = self::MODALITA_TO_METHODE[$this->modalita_pagamento] ?? 'bank';
-        $status = self::METHODE_TO_STATUS[$methode] ?? 'offen';
-
         $this->zahlungsmethode = $methode;
-        $this->status = $status;
 
-        // Bei Sofortzahlung (bar/karte) auch bezahlt_am setzen
-        if ($status === 'bezahlt' && !$this->bezahlt_am) {
+        // bar/karte = bezahlt, bank = offen
+        if (in_array($methode, ['bar', 'karte'])) {
+            $this->status = 'bezahlt';
             $this->bezahlt_am = $this->rechnungsdatum ?? now();
+        } else {
+            $this->status = 'offen';
+            $this->bezahlt_am = null;
         }
+
+        return $this->save();
     }
 
     /**
@@ -284,7 +290,9 @@ class Eingangsrechnung extends Model
         }
 
         $methode = self::MODALITA_TO_METHODE[$modalita] ?? 'bank';
-        return self::METHODE_TO_STATUS[$methode] ?? 'offen';
+        
+        // bar/karte = bezahlt, bank = offen
+        return in_array($methode, ['bar', 'karte']) ? 'bezahlt' : 'offen';
     }
 
     /**
