@@ -676,6 +676,25 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                             <span>{{ $detailRechnung->faelligkeitsdatum?->format('d.m.Y') ?? '-' }}</span>
                                         </div>
                                         <div class="d-flex justify-content-between small">
+                                            <span class="text-muted">Zahlungsart:</span>
+                                            <span>
+                                                @if($detailRechnung->modalita_pagamento)
+                                                    @php
+                                                        $methode = \App\Models\Eingangsrechnung::MODALITA_TO_METHODE[$detailRechnung->modalita_pagamento] ?? 'bank';
+                                                        $icon = match($methode) {
+                                                            'bank' => 'bi-bank',
+                                                            'karte' => 'bi-credit-card',
+                                                            'bar' => 'bi-cash-stack',
+                                                            default => 'bi-question-circle',
+                                                        };
+                                                    @endphp
+                                                    <i class="{{ $icon }} me-1"></i>{{ $detailRechnung->modalita_pagamento_text }}
+                                                @else
+                                                    -
+                                                @endif
+                                            </span>
+                                        </div>
+                                        <div class="d-flex justify-content-between small">
                                             <span class="text-muted">Status:</span>
                                             <span class="badge {{ $detailRechnung->status_badge_class }}">{{ ucfirst($detailRechnung->status) }}</span>
                                         </div>
