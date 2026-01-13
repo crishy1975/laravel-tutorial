@@ -148,6 +148,31 @@ class Eingangsrechnung extends Model
     ];
 
     // ═══════════════════════════════════════════════════════════
+    // 🔄 MODEL EVENTS
+    // ═══════════════════════════════════════════════════════════
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Beim Erstellen: Status automatisch setzen basierend auf Zahlungsart
+        static::creating(function ($rechnung) {
+            if ($rechnung->modalita_pagamento && !$rechnung->isDirty('status')) {
+                $methode = self::MODALITA_TO_METHODE[$rechnung->modalita_pagamento] ?? 'bank';
+                $status = self::METHODE_TO_STATUS[$methode] ?? 'offen';
+
+                $rechnung->zahlungsmethode = $methode;
+                $rechnung->status = $status;
+
+                // Bei Sofortzahlung (bar/karte) auch bezahlt_am setzen
+                if ($status === 'bezahlt' && !$rechnung->bezahlt_am) {
+                    $rechnung->bezahlt_am = $rechnung->rechnungsdatum ?? now();
+                }
+            }
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // 🔗 BEZIEHUNGEN
     // ═══════════════════════════════════════════════════════════
 
