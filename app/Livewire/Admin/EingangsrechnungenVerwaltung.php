@@ -11,6 +11,7 @@ namespace App\Livewire\Admin;
 use App\Models\Lieferant;
 use App\Models\Eingangsrechnung;
 use App\Services\FatturaImportService;
+use App\Helpers\FeiertagHelper;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
@@ -55,6 +56,10 @@ class EingangsrechnungenVerwaltung extends Component
 
     // Detail-Ansicht
     public ?int $detailRechnungId = null;
+
+    // Zahlungsexport (Checkboxen)
+    public array $ausgewaehlteRechnungen = [];
+    public bool $alleAusgewaehlt = false;
 
     // ═══════════════════════════════════════════════════════════
     // 🔄 LIFECYCLE
@@ -402,6 +407,215 @@ class EingangsrechnungenVerwaltung extends Component
     }
 
     // ═══════════════════════════════════════════════════════════
+    // 💳 ZAHLUNGSEXPORT
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Einzelne Rechnung auswählen/abwählen
+     */
+    public function toggleAuswahl(int $id): void
+    {
+        if (in_array($id, $this->ausgewaehlteRechnungen)) {
+            $this->ausgewaehlteRechnungen = array_values(
+                array_diff($this->ausgewaehlteRechnungen, [$id])
+            );
+        } else {
+            $this->ausgewaehlteRechnungen[] = $id;
+        }
+        
+        $this->updateAlleAusgewaehlt();
+    }
+
+    /**
+     * Alle offenen Rechnungen auf aktueller Seite auswählen/abwählen
+     */
+    public function toggleAlleAuswahl(): void
+    {
+        $offeneIds = $this->rechnungen
+            ->where('status', 'offen')
+            ->pluck('id')
+            ->toArray();
+
+        if ($this->alleAusgewaehlt) {
+            // Alle abwählen
+            $this->ausgewaehlteRechnungen = array_values(
+                array_diff($this->ausgewaehlteRechnungen, $offeneIds)
+            );
+        } else {
+            // Alle auswählen
+            $this->ausgewaehlteRechnungen = array_unique(
+                array_merge($this->ausgewaehlteRechnungen, $offeneIds)
+            );
+        }
+        
+        $this->alleAusgewaehlt = !$this->alleAusgewaehlt;
+    }
+
+    /**
+     * Auswahl zurücksetzen
+     */
+    public function auswahlZuruecksetzen(): void
+    {
+        $this->ausgewaehlteRechnungen = [];
+        $this->alleAusgewaehlt = false;
+    }
+
+    /**
+     * Prüft ob alle offenen Rechnungen der Seite ausgewählt sind
+     */
+    protected function updateAlleAusgewaehlt(): void
+    {
+        $offeneIds = $this->rechnungen
+            ->where('status', 'offen')
+            ->pluck('id')
+            ->toArray();
+
+        $this->alleAusgewaehlt = !empty($offeneIds) && 
+            empty(array_diff($offeneIds, $this->ausgewaehlteRechnungen));
+    }
+
+    /**
+     * Summe der ausgewählten Rechnungen
+     */
+    public function getAuswahlSummeProperty(): float
+    {
+        if (empty($this->ausgewaehlteRechnungen)) {
+            return 0;
+        }
+
+        return Eingangsrechnung::whereIn('id', $this->ausgewaehlteRechnungen)
+            ->sum('brutto_betrag');
+    }
+
+    /**
+     * CSV für Banküberweisung exportieren - Vorbereiten und URL generieren
+     */
+    public function exportierenUndBezahlen(): void
+    {
+        if (empty($this->ausgewaehlteRechnungen)) {
+            session()->flash('error', 'Keine Rechnungen ausgewählt.');
+            return;
+        }
+
+        $rechnungen = Eingangsrechnung::with('lieferant')
+            ->whereIn('id', $this->ausgewaehlteRechnungen)
+            ->where('status', 'offen')
+            ->get();
+
+        if ($rechnungen->isEmpty()) {
+            session()->flash('error', 'Keine offenen Rechnungen in der Auswahl.');
+            return;
+        }
+
+        // Prüfen ob alle Lieferanten eine IBAN haben
+        $ohneIban = $rechnungen->filter(fn($r) => !$r->lieferant->hatIban());
+        if ($ohneIban->isNotEmpty()) {
+            $namen = $ohneIban->pluck('lieferant.name')->unique()->implode(', ');
+            session()->flash('error', "Fehlende IBAN bei: {$namen}");
+            return;
+        }
+
+        // CSV erstellen
+        $csvData = $this->erstelleCsvDaten($rechnungen);
+        
+        // CSV als temporäre Datei speichern
+        $filename = 'Zahlungen_' . now()->format('Y-m-d_His') . '.csv';
+        $filepath = storage_path('app/public/temp/' . $filename);
+        
+        // Temp-Verzeichnis erstellen falls nicht vorhanden
+        if (!is_dir(storage_path('app/public/temp'))) {
+            mkdir(storage_path('app/public/temp'), 0755, true);
+        }
+        
+        $handle = fopen($filepath, 'w');
+        fwrite($handle, "\xEF\xBB\xBF"); // BOM für Excel UTF-8
+        foreach ($csvData as $row) {
+            fputcsv($handle, $row, ';');
+        }
+        fclose($handle);
+
+        // Rechnungen als bezahlt markieren
+        $this->markiereAlsBezahlt($rechnungen);
+
+        // Auswahl zurücksetzen
+        $anzahl = count($this->ausgewaehlteRechnungen);
+        $this->auswahlZuruecksetzen();
+
+        session()->flash('success', "{$anzahl} Rechnungen exportiert und als bezahlt markiert.");
+
+        // Download via JavaScript auslösen
+        $this->dispatch('download-file', url: asset('storage/temp/' . $filename));
+    }
+
+    /**
+     * CSV-Daten erstellen
+     */
+    protected function erstelleCsvDaten($rechnungen): array
+    {
+        $data = [];
+
+        // Header
+        $data[] = [
+            'Empfänger-Bezeichnung',
+            'Empfänger-Adresse',
+            'Empfänger-PLZ',
+            'Empfänger-Ort',
+            'Empfänger-IBAN',
+            'Betrag',
+            'Beschreibung',
+            'Durchführungsdatum',
+            'Empfänger-Steuernummer',
+        ];
+
+        foreach ($rechnungen as $rechnung) {
+            // Zahlungsdatum: Rechnungsdatum + 30 Tage, nächster Bankarbeitstag
+            $zahlungsdatum = FeiertagHelper::berechneZahlungsdatum(
+                $rechnung->rechnungsdatum,
+                30
+            );
+
+            $data[] = [
+                $rechnung->lieferant->name,
+                '', // Adresse
+                '', // PLZ
+                '', // Ort
+                $rechnung->lieferant->iban,
+                number_format($rechnung->brutto_betrag, 2, ',', ''), // Betrag mit Komma
+                'Rechnung: ' . $rechnung->rechnungsnummer,
+                $zahlungsdatum->format('d.m.Y'),
+                '', // Steuernummer
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Rechnungen als bezahlt markieren mit Zahlungsvermerk
+     */
+    protected function markiereAlsBezahlt($rechnungen): void
+    {
+        foreach ($rechnungen as $rechnung) {
+            $zahlungsdatum = FeiertagHelper::berechneZahlungsdatum(
+                $rechnung->rechnungsdatum,
+                30
+            );
+
+            $vermerk = $rechnung->notiz 
+                ? $rechnung->notiz . "\n" 
+                : '';
+            $vermerk .= 'Bankexport am ' . now()->format('d.m.Y') . ', Zahlung geplant: ' . $zahlungsdatum->format('d.m.Y');
+
+            $rechnung->update([
+                'status'          => 'bezahlt',
+                'zahlungsmethode' => 'bank',
+                'bezahlt_am'      => $zahlungsdatum,
+                'notiz'           => $vermerk,
+            ]);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // 🎨 RENDER
     // ═══════════════════════════════════════════════════════════
 
@@ -413,6 +627,7 @@ class EingangsrechnungenVerwaltung extends Component
             'statistik'      => $this->statistik,
             'filterSummen'   => $this->filterSummen,
             'detailRechnung' => $this->detailRechnung,
+            'auswahlSumme'   => $this->auswahlSumme,
         ])->layout('layouts.app', ['title' => 'Eingangsrechnungen']);
     }
 }
