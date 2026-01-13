@@ -137,6 +137,16 @@ class Eingangsrechnung extends Model
         'MP23' => 'bank',
     ];
 
+    /**
+     * Mapping: Zahlungsmethode → Standard-Status
+     * bar/karte = sofort bezahlt, bank = offen (Überweisung ausstehend)
+     */
+    public const METHODE_TO_STATUS = [
+        'bar'   => 'bezahlt',
+        'karte' => 'bezahlt',
+        'bank'  => 'offen',
+    ];
+
     // ═══════════════════════════════════════════════════════════
     // 🔗 BEZIEHUNGEN
     // ═══════════════════════════════════════════════════════════
@@ -216,6 +226,41 @@ class Eingangsrechnung extends Model
     // ═══════════════════════════════════════════════════════════
     // 🛠️ HILFSMETHODEN
     // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Status und Zahlungsmethode basierend auf Modalita Pagamento setzen
+     * Bar/Karte → bezahlt, Bank → offen
+     */
+    public function setzeStatusNachZahlungsart(): void
+    {
+        if (!$this->modalita_pagamento) {
+            return;
+        }
+
+        $methode = self::MODALITA_TO_METHODE[$this->modalita_pagamento] ?? 'bank';
+        $status = self::METHODE_TO_STATUS[$methode] ?? 'offen';
+
+        $this->zahlungsmethode = $methode;
+        $this->status = $status;
+
+        // Bei Sofortzahlung (bar/karte) auch bezahlt_am setzen
+        if ($status === 'bezahlt' && !$this->bezahlt_am) {
+            $this->bezahlt_am = $this->rechnungsdatum ?? now();
+        }
+    }
+
+    /**
+     * Ermittelt den Standard-Status für eine Zahlungsart
+     */
+    public static function getStatusFuerModalita(?string $modalita): string
+    {
+        if (!$modalita) {
+            return 'offen';
+        }
+
+        $methode = self::MODALITA_TO_METHODE[$modalita] ?? 'bank';
+        return self::METHODE_TO_STATUS[$methode] ?? 'offen';
+    }
 
     /**
      * Rechnung als bezahlt markieren
