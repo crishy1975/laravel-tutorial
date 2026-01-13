@@ -164,6 +164,27 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
          ANSICHT: RECHNUNGEN
          ═══════════════════════════════════════════════════════════ --}}
     @if($ansicht === 'rechnungen')
+
+        {{-- Export-Leiste (wenn Rechnungen ausgewählt) --}}
+        @if(count($ausgewaehlteRechnungen) > 0)
+            <div class="alert alert-primary py-2 mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <i class="bi bi-check2-square me-1"></i>
+                        <strong>{{ count($ausgewaehlteRechnungen) }}</strong> Rechnung(en) ausgewählt
+                        <span class="ms-2 fw-bold">€ {{ number_format($auswahlSumme, 2, ',', '.') }}</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" wire:click="auswahlZuruecksetzen">
+                            <i class="bi bi-x-lg me-1"></i>Abwählen
+                        </button>
+                        <button class="btn btn-sm btn-primary" wire:click="exportierenUndBezahlen">
+                            <i class="bi bi-download me-1"></i>CSV Export & Bezahlen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        @endif
     
         {{-- DESKTOP: Tabelle (ab md) --}}
         <div class="card d-none d-md-block">
@@ -171,6 +192,13 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                 <table class="table table-hover table-sm mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" 
+                                       class="form-check-input" 
+                                       wire:click="toggleAlleAuswahl"
+                                       {{ $alleAusgewaehlt ? 'checked' : '' }}
+                                       title="Alle offenen auswählen">
+                            </th>
                             <th style="width: 90px;" role="button" wire:click="sortieren('rechnungsdatum')">
                                 Datum
                                 @if($sortierSpalte === 'rechnungsdatum')
@@ -198,6 +226,14 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                     <tbody>
                         @forelse($rechnungen as $rechnung)
                             <tr class="{{ $rechnung->istUeberfaellig() ? 'table-danger' : ($rechnung->istGutschrift() ? 'table-info' : '') }}">
+                                <td class="text-center">
+                                    @if($rechnung->status === 'offen')
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               wire:click="toggleAuswahl({{ $rechnung->id }})"
+                                               {{ in_array($rechnung->id, $ausgewaehlteRechnungen) ? 'checked' : '' }}>
+                                    @endif
+                                </td>
                                 <td><small>{{ $rechnung->rechnungsdatum->format('d.m.Y') }}</small></td>
                                 <td>
                                     <strong>{{ $rechnung->lieferant->name }}</strong>
@@ -265,7 +301,7 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     Keine Rechnungen gefunden.
                                 </td>
@@ -275,9 +311,10 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                     @if($filterSummen['anzahl'] > 0)
                         <tfoot class="table-light">
                             <tr class="fw-bold small">
+                                <td></td>
                                 <td colspan="3" class="text-end">{{ $filterSummen['anzahl'] }} Rechnungen:</td>
                                 <td class="text-end">€ {{ number_format($filterSummen['gesamt'], 2, ',', '.') }}</td>
-                                <td colspan="2" class="text-center">
+                                <td colspan="3" class="text-center">
                                     <span class="text-warning">{{ number_format($filterSummen['offen'], 2, ',', '.') }}</span> /
                                     <span class="text-success">{{ number_format($filterSummen['bezahlt'], 2, ',', '.') }}</span>
                                 </td>
@@ -296,21 +333,29 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
         {{-- MOBILE: Cards (unter md) --}}
         <div class="d-md-none">
             @forelse($rechnungen as $rechnung)
-                <div class="card mb-2 {{ $rechnung->istUeberfaellig() ? 'border-danger' : ($rechnung->istGutschrift() ? 'border-info' : '') }}">
+                <div class="card mb-2 {{ $rechnung->istUeberfaellig() ? 'border-danger' : ($rechnung->istGutschrift() ? 'border-info' : '') }} {{ in_array($rechnung->id, $ausgewaehlteRechnungen) ? 'border-primary border-2' : '' }}">
                     <div class="card-body py-2 px-3">
-                        {{-- Kopfzeile: Lieferant + Betrag --}}
+                        {{-- Kopfzeile: Checkbox + Lieferant + Betrag --}}
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <div>
-                                <strong class="d-block">{{ $rechnung->lieferant->name }}</strong>
-                                <small class="text-muted">
-                                    {{ $rechnung->rechnungsdatum->format('d.m.Y') }} · 
-                                    <a href="#" wire:click.prevent="detailAnzeigen({{ $rechnung->id }})" class="text-decoration-none">
-                                        {{ $rechnung->rechnungsnummer }}
-                                    </a>
-                                    @if($rechnung->istGutschrift())
-                                        <span class="badge bg-info">Gutschrift</span>
-                                    @endif
-                                </small>
+                            <div class="d-flex align-items-start">
+                                @if($rechnung->status === 'offen')
+                                    <input type="checkbox" 
+                                           class="form-check-input me-2 mt-1" 
+                                           wire:click="toggleAuswahl({{ $rechnung->id }})"
+                                           {{ in_array($rechnung->id, $ausgewaehlteRechnungen) ? 'checked' : '' }}>
+                                @endif
+                                <div>
+                                    <strong class="d-block">{{ $rechnung->lieferant->name }}</strong>
+                                    <small class="text-muted">
+                                        {{ $rechnung->rechnungsdatum->format('d.m.Y') }} · 
+                                        <a href="#" wire:click.prevent="detailAnzeigen({{ $rechnung->id }})" class="text-decoration-none">
+                                            {{ $rechnung->rechnungsnummer }}
+                                        </a>
+                                        @if($rechnung->istGutschrift())
+                                            <span class="badge bg-info">Gutschrift</span>
+                                        @endif
+                                    </small>
+                                </div>
                             </div>
                             <div class="text-end">
                                 <span class="fw-bold fs-5 {{ $rechnung->istGutschrift() ? 'text-success' : '' }}">€ {{ number_format($rechnung->brutto_betrag, 2, ',', '.') }}</span>
@@ -779,3 +824,16 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
         </div>
     @endif
 </div>
+
+@script
+<script>
+    $wire.on('download-file', ({ url }) => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+</script>
+@endscript
