@@ -88,8 +88,7 @@ class RechnungController extends Controller
                 $q->where('geb_name', 'like', $like)
                     ->orWhere('re_name', 'like', $like)
                     ->orWhere('post_name', 'like', $like)
-                    ->orWhere('post_email', 'like', $like)
-                    ->orWhere('re_email', 'like', $like);
+                    ->orWhere('post_email', 'like', $like);
             });
         }
 
