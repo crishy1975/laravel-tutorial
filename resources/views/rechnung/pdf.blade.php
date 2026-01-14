@@ -636,6 +636,11 @@
                 </tr>
                 @endif
                 
+                @php
+                    // ⭐ Zahlbetrag berechnen: Brutto minus Quellensteuer (Ritenuta)
+                    $zahlbetragBerechnet = $rechnung->brutto_summe - ($rechnung->ritenuta_betrag ?? 0);
+                @endphp
+                
                 <tr class="total">
                     <td class="label">
                         @if($rechnung->typ_rechnung === 'gutschrift')
@@ -648,7 +653,7 @@
                             @endif
                         @endif
                     </td>
-                    <td class="value">{{ number_format($rechnung->zahlbetrag ?? $rechnung->brutto_summe, 2, ',', '.') }} €</td>
+                    <td class="value">{{ number_format($zahlbetragBerechnet, 2, ',', '.') }} €</td>
                 </tr>
             </table>
         </div>
