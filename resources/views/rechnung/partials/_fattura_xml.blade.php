@@ -382,14 +382,6 @@ Mit freundlichen Grüßen";
                         </button>
                     </div>
                     @endif
-                    <div class="col-md-{{ $defaultPec ? '4' : '4' }}">
-                        <button type="button" 
-                                class="btn btn-outline-secondary w-100"
-                                onclick="previewEmail()">
-                            <i class="bi bi-eye"></i>
-                            Vorschau
-                        </button>
-                    </div>
                     @if(!$defaultPec && $istEntwurf)
                     <div class="col-md-4">
                         <button type="button" 
@@ -556,19 +548,6 @@ function sendEmail(typ) {
         attach_xml: attachXml ? '1' : '0',
         copy_me: copyMe ? '1' : '0',
     });
-}
-
-function previewEmail() {
-    var betreff = document.getElementById('email_betreff').value;
-    var nachricht = document.getElementById('email_nachricht').value;
-    var attachPdf = document.getElementById('attach_pdf').checked;
-    var attachXml = document.getElementById('attach_xml') ? document.getElementById('attach_xml').checked : false;
-    
-    var anhaenge = [];
-    if (attachPdf) anhaenge.push('PDF');
-    if (attachXml) anhaenge.push('XML');
-    
-    alert('═══════════════════════════════════\nE-MAIL VORSCHAU\n═══════════════════════════════════\n\nBetreff: ' + betreff + '\n\n───────────────────────────────────\n' + nachricht + '\n───────────────────────────────────\n\nAnhänge: ' + (anhaenge.length > 0 ? anhaenge.join(', ') : 'Keine'));
 }
 </script>
 
