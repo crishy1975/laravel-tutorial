@@ -219,8 +219,14 @@ class FatturaXmlGenerator
 
     protected function generateFilename(string $progressivo): string
     {
-        $partitaIva = $this->profil->partita_iva_numeric;
-        return "{$partitaIva}_{$progressivo}.xml";
+        // Format: {Rechnungsnummer}_{Datum}.xml
+        $rechnungsnummer = $this->rechnung->rechnungsnummer;
+        $datum = $this->formatDate($this->rechnung->rechnungsdatum);
+        
+        // Sonderzeichen entfernen (z.B. "/" → "-")
+        $rechnungsnummer = str_replace(['/', '\\', ' '], '-', $rechnungsnummer);
+        
+        return "{$rechnungsnummer}_{$datum}.xml";
     }
 
     // ═══════════════════════════════════════════════════════════
