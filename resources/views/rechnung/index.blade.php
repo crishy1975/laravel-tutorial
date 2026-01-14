@@ -252,11 +252,12 @@
                     </div>
                 </div>
                 <div class="col-2 col-md-6 d-flex align-items-center justify-content-end gap-2">
-                    @if($statusFilter ?? false)
-                    <a href="{{ route('rechnung.index') }}" class="btn btn-outline-secondary" title="Filter zurücksetzen">
+                    <button type="button"
+                        class="btn btn-outline-secondary"
+                        id="btnResetFilter"
+                        title="Filter zurücksetzen">
                         <i class="bi bi-x-lg"></i>
-                    </a>
-                    @endif
+                    </button>
                     <button type="button"
                         class="btn btn-primary"
                         id="btnFilterRechnungen"
@@ -504,6 +505,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const baseIndexUrl = "{{ route('rechnung.index') }}";
+    const COOKIE_NAME = 'rechnung_filter';
+    const COOKIE_DAYS = 30;
 
     const nummerInput = document.getElementById('filter-nummer');
     const codexInput = document.getElementById('filter-codex');
@@ -512,7 +515,85 @@ document.addEventListener('DOMContentLoaded', function() {
     const datumBisInput = document.getElementById('filter-datum-bis');
     const statusInput = document.getElementById('filter-status');
     const btnFilter = document.getElementById('btnFilterRechnungen');
+    const btnReset = document.getElementById('btnResetFilter');
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Cookie Funktionen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function setCookie(name, value, days) {
+        const expires = new Date();
+        expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+        document.cookie = name + '=' + encodeURIComponent(JSON.stringify(value)) + 
+                          ';expires=' + expires.toUTCString() + 
+                          ';path=/;SameSite=Lax';
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + '=';
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i].trim();
+            if (c.indexOf(nameEQ) === 0) {
+                try {
+                    return JSON.parse(decodeURIComponent(c.substring(nameEQ.length)));
+                } catch (e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    function deleteCookie(name) {
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter in Cookie speichern
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function saveFilterToCookie() {
+        const filterData = {
+            nummer: nummerInput?.value || '',
+            codex: codexInput?.value || '',
+            suche: sucheInput?.value || '',
+            datum_von: datumVonInput?.value || '',
+            datum_bis: datumBisInput?.value || '',
+            status_filter: statusInput?.value || ''
+        };
+        setCookie(COOKIE_NAME, filterData, COOKIE_DAYS);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter aus Cookie in Felder laden
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function loadFilterFromCookie() {
+        const filterData = getCookie(COOKIE_NAME);
+        if (!filterData) return;
+
+        // Felder mit Cookie-Werten befüllen (überschreibt Server-Werte nur wenn leer)
+        if (nummerInput && !nummerInput.value && filterData.nummer) {
+            nummerInput.value = filterData.nummer;
+        }
+        if (codexInput && !codexInput.value && filterData.codex) {
+            codexInput.value = filterData.codex;
+        }
+        if (sucheInput && !sucheInput.value && filterData.suche) {
+            sucheInput.value = filterData.suche;
+        }
+        if (datumVonInput && filterData.datum_von) {
+            datumVonInput.value = filterData.datum_von;
+        }
+        if (datumBisInput && filterData.datum_bis) {
+            datumBisInput.value = filterData.datum_bis;
+        }
+        if (statusInput && !statusInput.value && filterData.status_filter) {
+            statusInput.value = filterData.status_filter;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter anwenden
+    // ═══════════════════════════════════════════════════════════════════════════════
     function applyFilter() {
         const nummer = nummerInput?.value ?? '';
         const codex = codexInput?.value ?? '';
@@ -520,6 +601,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const datumVon = datumVonInput?.value ?? '';
         const datumBis = datumBisInput?.value ?? '';
         const status = statusInput?.value ?? '';
+
+        // Filter in Cookie speichern
+        saveFilterToCookie();
 
         const params = new URLSearchParams();
 
@@ -537,8 +621,26 @@ document.addEventListener('DOMContentLoaded', function() {
         window.location.href = targetUrl;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter zurücksetzen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function resetFilter() {
+        // Cookie löschen
+        deleteCookie(COOKIE_NAME);
+        
+        // Zur Index-Seite ohne Parameter
+        window.location.href = baseIndexUrl;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Event Listener
+    // ═══════════════════════════════════════════════════════════════════════════════
     if (btnFilter) {
         btnFilter.addEventListener('click', applyFilter);
+    }
+
+    if (btnReset) {
+        btnReset.addEventListener('click', resetFilter);
     }
 
     // Status-Select: Sofort filtern bei Änderung
@@ -546,6 +648,7 @@ document.addEventListener('DOMContentLoaded', function() {
         statusInput.addEventListener('change', applyFilter);
     }
 
+    // Enter-Taste in Eingabefeldern
     [nummerInput, codexInput, sucheInput, datumVonInput, datumBisInput].forEach(function(input) {
         if (!input) return;
         input.addEventListener('keydown', function(event) {
@@ -555,6 +658,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Initialisierung: Cookie in Felder laden (kein automatisches Filtern)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    loadFilterFromCookie();
 });
 </script>
 @endpush
