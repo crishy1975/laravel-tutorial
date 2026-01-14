@@ -183,15 +183,6 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
         </div>
     </div>
 
-    {{-- Schnellaktion: Gleiche Adresse (eigene Zeile auf Mobile) --}}
-    @if(!$readonly)
-    <div class="col-12 mb-3">
-        <button type="button" id="btn-copy-re-to-post" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-copy"></i> Postadresse = Rechnungsempfänger
-        </button>
-    </div>
-    @endif
-
     {{-- ═══════════════════════════════════════════════════════════
          RECHNUNGSDATEN
          ═══════════════════════════════════════════════════════════ --}}
@@ -965,7 +956,6 @@ document.addEventListener('DOMContentLoaded', function() {
     var postSelect = document.getElementById('postadresse_id');
     var reBtn = document.getElementById('re_edit_btn');
     var postBtn = document.getElementById('post_edit_btn');
-    var copyBtn = document.getElementById('btn-copy-re-to-post');
     var returnTo = encodeURIComponent(window.location.href);
     var baseUrl = '{{ url("/adresse") }}';
 
@@ -1084,29 +1074,5 @@ document.addEventListener('DOMContentLoaded', function() {
         if (postSelect) postSelect.addEventListener('change', handlePostChange);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // Kopieren-Button: Rechnungsempfänger → Postadresse
-    // ═══════════════════════════════════════════════════════════════════════════════
-    if (copyBtn) {
-        copyBtn.addEventListener('click', function() {
-            if (!reSelect || !postSelect) return;
-            
-            var reVal = reSelect.value;
-            if (!reVal) {
-                alert('Bitte zuerst einen Rechnungsempfänger auswählen.');
-                return;
-            }
-            
-            // Select2: Wert setzen und change-Event auslösen
-            if (typeof $ !== 'undefined' && $.fn.select2) {
-                $('#postadresse_id').val(reVal).trigger('change');
-            } else {
-                postSelect.value = reVal;
-            }
-            
-            // Vorschau aktualisieren
-            handlePostChange();
-        });
-    }
 });
 </script>
