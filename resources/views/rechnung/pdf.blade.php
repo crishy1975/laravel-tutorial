@@ -458,7 +458,7 @@
                                     <br><small>CF: {{ $rechnung->re_steuernummer }}</small>
                                 @endif
                                 @if($rechnung->re_mwst_nummer)
-                                    <br><small>P.IVA: {{ $rechnung->re_mwst_nummer }}</small>
+                                    <br><small>P.IVAxxx: {{ $rechnung->re_mwst_nummer }}</small>
                                 @endif
                             @elseif($rechnung->rechnungsempfaenger)
                                 <div class="address-name">{{ $rechnung->rechnungsempfaenger->name }}</div>
@@ -521,7 +521,7 @@
             @if($rechnung->typ_rechnung === 'gutschrift')
                 GUTSCHRIFT / NOTA DI CREDITO Nr. {{ $rechnung->rechnungsnummer }}
             @else
-                RECHNUNG / FATTURA Nr. {{ $rechnung->rechnungsnummer }}
+                RECHNUNG  / FATTURA Nr. {{ $rechnung->rechnungsnummer }}
             @endif
         </div>
         
