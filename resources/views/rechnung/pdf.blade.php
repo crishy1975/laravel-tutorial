@@ -807,4 +807,9 @@
             @if($unternehmen->telefon) | Tel: {{ $unternehmen->telefon }}@endif
             @if($unternehmen->email) | {{ $unternehmen->email }}@endif
         @else
-            Meisterb
+            Meisterbetrieb Resch GmbH | Musterstraße 123, 39100 Bozen (BZ) | CF: 12345678901 |            Meisterbetrieb Resch GmbH | Musterstraße 123, 39100 Bozen | P.IVA: 12345678901
+        @endif
+    </div>
+    
+</body>
+</html>
