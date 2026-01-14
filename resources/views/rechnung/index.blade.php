@@ -211,7 +211,7 @@
                             name="suche"
                             value="{{ $suche ?? '' }}"
                             placeholder="Suche">
-                        <label for="filter-suche">Suche (Gebäude, Empfänger)</label>
+                        <label for="filter-suche">Suche (Gebäude, Empfänger, E-Mail)</label>
                     </div>
                 </div>
                 <div class="col-12 col-md-4">

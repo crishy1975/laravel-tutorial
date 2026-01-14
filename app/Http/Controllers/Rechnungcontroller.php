@@ -80,14 +80,16 @@ class RechnungController extends Controller
         }
 
         // ──────────────────────────────────────────────────────────────────────────
-        // 5. Filter: Suche
+        // 5. Filter: Suche (inkl. E-Mail)
         // ──────────────────────────────────────────────────────────────────────────
         if (!empty($suche)) {
             $like = '%' . $suche . '%';
             $query->where(function ($q) use ($like) {
                 $q->where('geb_name', 'like', $like)
                     ->orWhere('re_name', 'like', $like)
-                    ->orWhere('post_name', 'like', $like);
+                    ->orWhere('post_name', 'like', $like)
+                    ->orWhere('post_email', 'like', $like)
+                    ->orWhere('re_email', 'like', $like);
             });
         }
 
