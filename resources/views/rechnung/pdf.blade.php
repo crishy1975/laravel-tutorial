@@ -407,7 +407,7 @@
                             @if($unternehmen->codice_fiscale)<strong>CF:</strong> {{ $unternehmen->codice_fiscale }}@endif
                         @else
                             <strong>Tel:</strong> +39 0471 123456<br>
-                            <strong>E-Mail:</strong> info@example.com<br>
+                            <strong>E-Mail:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c8a1a6aea788adb0a9a5b8a4ade6aba7a5">[email&#160;protected]</a><br>
                             <strong>P.IVA:</strong> 12345678901
                         @endif
                     </div>
@@ -641,10 +641,14 @@
                         @if($rechnung->typ_rechnung === 'gutschrift')
                             GUTSCHRIFTBETRAG / IMPORTO CREDITO
                         @else
-                            GESAMTBETRAG / IMPORTO TOTALE
+                            @if($rechnung->ritenuta_betrag > 0)
+                                ZAHLBETRAG / IMPORTO DA PAGARE
+                            @else
+                                GESAMTBETRAG / IMPORTO TOTALE
+                            @endif
                         @endif
                     </td>
-                    <td class="value">{{ number_format($rechnung->brutto_summe, 2, ',', '.') }} €</td>
+                    <td class="value">{{ number_format($rechnung->zahlbetrag ?? $rechnung->brutto_summe, 2, ',', '.') }} €</td>
                 </tr>
             </table>
         </div>
@@ -803,9 +807,4 @@
             @if($unternehmen->telefon) | Tel: {{ $unternehmen->telefon }}@endif
             @if($unternehmen->email) | {{ $unternehmen->email }}@endif
         @else
-            Meisterbetrieb Resch GmbH | Musterstraße 123, 39100 Bozen | P.IVA: 12345678901
-        @endif
-    </div>
-    
-</body>
-</html>
+            Meisterb
