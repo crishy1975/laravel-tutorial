@@ -41,13 +41,13 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                 <h6 class="mb-0"><i class="bi bi-person-circle"></i> Rechnungsempfänger</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                {{-- Dropdown zur Adressauswahl (TomSelect) --}}
+                {{-- Dropdown zur Adressauswahl (Select2) --}}
                 <label class="form-label small mb-1">Adresse wählen</label>
                 <select id="rechnungsempfaenger_id" name="rechnungsempfaenger_id"
-                    class="form-select form-select-sm js-tomselect @error('rechnungsempfaenger_id') is-invalid @enderror"
-                    placeholder="- Adresse wählen -"
+                    class="form-select form-select-sm js-select2 @error('rechnungsempfaenger_id') is-invalid @enderror"
+                    data-placeholder="- Adresse wählen -"
                     {{ $readonly ? 'disabled' : '' }}>
-                    <option value="">- Adresse wählen -</option>
+                    <option value=""></option>
                     @foreach($adressen ?? [] as $adresse)
                         <option value="{{ $adresse->id }}"
                             data-name="{{ $adresse->name }}"
@@ -119,13 +119,13 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                 <h6 class="mb-0"><i class="bi bi-envelope"></i> Postadresse</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                {{-- Dropdown zur Adressauswahl (TomSelect) --}}
+                {{-- Dropdown zur Adressauswahl (Select2) --}}
                 <label class="form-label small mb-1">Adresse wählen</label>
                 <select id="postadresse_id" name="postadresse_id"
-                    class="form-select form-select-sm js-tomselect @error('postadresse_id') is-invalid @enderror"
-                    placeholder="- Adresse wählen -"
+                    class="form-select form-select-sm js-select2 @error('postadresse_id') is-invalid @enderror"
+                    data-placeholder="- Adresse wählen -"
                     {{ $readonly ? 'disabled' : '' }}>
-                    <option value="">- Adresse wählen -</option>
+                    <option value=""></option>
                     @foreach($adressen ?? [] as $adresse)
                         <option value="{{ $adresse->id }}"
                             data-name="{{ $adresse->name }}"
@@ -956,7 +956,7 @@ document.addEventListener('DOMContentLoaded', function() {
 @endif
 
 {{-- ═══════════════════════════════════════════════════════════
-     JavaScript: Adress-Dropdown Funktionalität (TomSelect kompatibel)
+     JavaScript: Adress-Dropdown Funktionalität (Select2 mit Suchfeld)
      ═══════════════════════════════════════════════════════════ --}}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -970,36 +970,34 @@ document.addEventListener('DOMContentLoaded', function() {
     var baseUrl = '{{ url("/adresse") }}';
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // TomSelect Initialisierung MIT Suchfeld
+    // Select2 Initialisierung MIT Suchfeld (nur wenn noch nicht initialisiert)
     // ═══════════════════════════════════════════════════════════════════════════════
-    var tomSelectConfig = {
-        create: false,
-        allowEmptyOption: true,
-        placeholder: '- Adresse wählen -',
-        searchField: ['text'],           // Suche im Text
-        sortField: [{ field: 'text', direction: 'asc' }],
-        maxOptions: null,                // Alle Optionen anzeigen
-        // Rendering für bessere Darstellung
-        render: {
-            option: function(data, escape) {
-                return '<div class="py-1">' + escape(data.text) + '</div>';
-            },
-            item: function(data, escape) {
-                return '<div>' + escape(data.text) + '</div>';
-            }
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        // Rechnungsempfänger (nur initialisieren wenn noch nicht Select2)
+        var $reSelect = $('#rechnungsempfaenger_id');
+        if ($reSelect.length && !$reSelect.hasClass('select2-hidden-accessible')) {
+            $reSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '- Adresse wählen -',
+                allowClear: true,
+                width: '100%',
+                language: 'de',
+                minimumResultsForSearch: 0  // Suchfeld immer anzeigen
+            });
         }
-    };
 
-    // TomSelect für Rechnungsempfänger initialisieren
-    var reTomSelect = null;
-    if (reSelect && typeof TomSelect !== 'undefined' && !reSelect.tomselect) {
-        reTomSelect = new TomSelect(reSelect, tomSelectConfig);
-    }
-
-    // TomSelect für Postadresse initialisieren
-    var postTomSelect = null;
-    if (postSelect && typeof TomSelect !== 'undefined' && !postSelect.tomselect) {
-        postTomSelect = new TomSelect(postSelect, tomSelectConfig);
+        // Postadresse (nur initialisieren wenn noch nicht Select2)
+        var $postSelect = $('#postadresse_id');
+        if ($postSelect.length && !$postSelect.hasClass('select2-hidden-accessible')) {
+            $postSelect.select2({
+                theme: 'bootstrap-5',
+                placeholder: '- Adresse wählen -',
+                allowClear: true,
+                width: '100%',
+                language: 'de',
+                minimumResultsForSearch: 0  // Suchfeld immer anzeigen
+            });
+        }
     }
 
     // Button URL aktualisieren
@@ -1071,21 +1069,19 @@ document.addEventListener('DOMContentLoaded', function() {
     updateButton(postSelect, postBtn);
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Event-Listener für TomSelect (direkt an Instanz) oder native Select
+    // Event-Listener für Select2
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Rechnungsempfänger
-    if (reTomSelect) {
-        reTomSelect.on('change', handleReChange);
-    } else if (reSelect) {
-        reSelect.addEventListener('change', handleReChange);
-    }
-
-    // Postadresse
-    if (postTomSelect) {
-        postTomSelect.on('change', handlePostChange);
-    } else if (postSelect) {
-        postSelect.addEventListener('change', handlePostChange);
+    if (typeof $ !== 'undefined' && $.fn.select2) {
+        // Rechnungsempfänger
+        $('#rechnungsempfaenger_id').on('select2:select select2:clear', handleReChange);
+        
+        // Postadresse
+        $('#postadresse_id').on('select2:select select2:clear', handlePostChange);
+    } else {
+        // Fallback für native Select
+        if (reSelect) reSelect.addEventListener('change', handleReChange);
+        if (postSelect) postSelect.addEventListener('change', handlePostChange);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -1101,14 +1097,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // TomSelect: Wert setzen (mit silent=false um change-Event auszulösen)
-            if (postTomSelect) {
-                postTomSelect.setValue(reVal, false);
+            // Select2: Wert setzen und change-Event auslösen
+            if (typeof $ !== 'undefined' && $.fn.select2) {
+                $('#postadresse_id').val(reVal).trigger('change');
             } else {
-                // Fallback für native Select
                 postSelect.value = reVal;
-                handlePostChange();
             }
+            
+            // Vorschau aktualisieren
+            handlePostChange();
         });
     }
 });
