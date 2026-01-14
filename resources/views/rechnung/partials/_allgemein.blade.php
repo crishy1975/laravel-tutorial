@@ -12,8 +12,8 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
          ═══════════════════════════════════════════════════════════ --}}
 
     {{-- Gebäude (nur Anzeige) --}}
-    <div class="col-12 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm">
+    <div class="col-12 col-lg-4 mb-3">
+        <div class="card border-0 shadow-sm">
             <div class="card-header bg-secondary text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-building"></i> Gebäude</h6>
             </div>
@@ -21,31 +21,33 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                 <div class="mb-1"><strong>Codex:</strong> {{ $rechnung->geb_codex ?: '-' }}</div>
                 <div class="mb-1"><strong>Name:</strong> {{ $rechnung->geb_name ?: '-' }}</div>
                 <div class="mb-1"><strong>Adresse:</strong> {{ $rechnung->geb_adresse ?: '-' }}</div>
-                @if($rechnung->gebaeude_id && Route::has('gebaeude.edit'))
-                <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}" class="btn btn-sm btn-outline-secondary mt-2">
-                    <i class="bi bi-box-arrow-up-right"></i> <span class="d-none d-sm-inline">Gebäude</span> öffnen
-                </a>
-                @endif
             </div>
+            @if($rechnung->gebaeude_id && Route::has('gebaeude.edit'))
+            <div class="card-footer bg-transparent border-top-0 pt-0">
+                <a href="{{ route('gebaeude.edit', $rechnung->gebaeude_id) }}" class="btn btn-sm btn-outline-secondary w-100">
+                    <i class="bi bi-box-arrow-up-right"></i> Gebäude öffnen
+                </a>
+            </div>
+            @endif
         </div>
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
          RECHNUNGSEMPFÄNGER (Dropdown + Vorschau)
          ═══════════════════════════════════════════════════════════ --}}
-    <div class="col-12 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm">
+    <div class="col-12 col-lg-4 mb-3">
+        <div class="card border-0 shadow-sm">
             <div class="card-header bg-primary text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-person-circle"></i> Rechnungsempfänger</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                {{-- Dropdown zur Adressauswahl --}}
+                {{-- Dropdown zur Adressauswahl (TomSelect) --}}
                 <label class="form-label small mb-1">Adresse wählen</label>
                 <select id="rechnungsempfaenger_id" name="rechnungsempfaenger_id"
-                    class="form-select form-select-sm js-select2 @error('rechnungsempfaenger_id') is-invalid @enderror"
-                    data-placeholder="- Adresse wählen -"
+                    class="form-select form-select-sm js-tomselect @error('rechnungsempfaenger_id') is-invalid @enderror"
+                    placeholder="- Adresse wählen -"
                     {{ $readonly ? 'disabled' : '' }}>
-                    <option value=""></option>
+                    <option value="">- Adresse wählen -</option>
                     @foreach($adressen ?? [] as $adresse)
                         <option value="{{ $adresse->id }}"
                             data-name="{{ $adresse->name }}"
@@ -65,7 +67,7 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                         </option>
                     @endforeach
                 </select>
-                @error('rechnungsempfaenger_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                @error('rechnungsempfaenger_id') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
 
                 {{-- Adress-Vorschau (aktuelle Snapshot-Daten) --}}
                 <div id="re-preview" class="mt-3 pt-3 border-top">
@@ -84,42 +86,46 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                     <div class="mb-1 text-muted">
                         <span id="re-preview-land">{{ $rechnung->re_land }}</span>
                     </div>
-                    {{-- Steuer-Infos immer anzeigen (für JS-Update) --}}
-                    <div class="mt-2 pt-2 border-top">
-                        <div class="mb-1"><small><i class="bi bi-credit-card me-1"></i>CF: <span id="re-preview-cf">{{ $rechnung->re_steuernummer ?: '-' }}</span></small></div>
-                        <div class="mb-1"><small><i class="bi bi-receipt me-1"></i>P.IVA: <span id="re-preview-piva">{{ $rechnung->re_mwst_nummer ?: '-' }}</span></small></div>
-                        <div class="mb-1"><small><i class="bi bi-upc me-1"></i>SDI: <span id="re-preview-sdi">{{ $rechnung->re_codice_univoco ?: '-' }}</span></small></div>
-                        <div><small><i class="bi bi-envelope me-1"></i>PEC: <span id="re-preview-pec">{{ $rechnung->re_pec ?: '-' }}</span></small></div>
+                    {{-- Steuer-Infos --}}
+                    <div class="mt-2 pt-2 border-top small">
+                        <div class="row g-1">
+                            <div class="col-6"><i class="bi bi-credit-card me-1"></i>CF: <span id="re-preview-cf">{{ $rechnung->re_steuernummer ?: '-' }}</span></div>
+                            <div class="col-6"><i class="bi bi-receipt me-1"></i>P.IVA: <span id="re-preview-piva">{{ $rechnung->re_mwst_nummer ?: '-' }}</span></div>
+                            <div class="col-6"><i class="bi bi-upc me-1"></i>SDI: <span id="re-preview-sdi">{{ $rechnung->re_codice_univoco ?: '-' }}</span></div>
+                            <div class="col-6"><i class="bi bi-envelope me-1"></i>PEC: <span id="re-preview-pec">{{ $rechnung->re_pec ?: '-' }}</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
+            {{-- Button IN Card-Footer --}}
+            <div class="card-footer bg-transparent border-top-0 pt-0">
+                @php $re_id = old('rechnungsempfaenger_id', $rechnung->rechnungsempfaenger_id); @endphp
+                <a id="re_edit_btn"
+                   href="{{ $re_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $re_id, 'returnTo' => url()->current()]) : '#' }}"
+                   class="btn btn-outline-primary btn-sm w-100 {{ $re_id ? '' : 'disabled' }}"
+                   {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
+                    <i class="bi bi-pencil-square"></i> Adresse bearbeiten
+                </a>
+            </div>
         </div>
-        {{-- Bearbeiten-Button unter der Card --}}
-        @php $re_id = old('rechnungsempfaenger_id', $rechnung->rechnungsempfaenger_id); @endphp
-        <a id="re_edit_btn"
-           href="{{ $re_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $re_id, 'returnTo' => url()->current()]) : '#' }}"
-           class="btn btn-outline-primary btn-sm w-100 mt-2 {{ $re_id ? '' : 'disabled' }}"
-           {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
-            <i class="bi bi-pencil-square"></i> Adresse bearbeiten
-        </a>
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
          POSTADRESSE (Dropdown + Vorschau)
          ═══════════════════════════════════════════════════════════ --}}
-    <div class="col-12 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm">
+    <div class="col-12 col-lg-4 mb-3">
+        <div class="card border-0 shadow-sm">
             <div class="card-header bg-info text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-envelope"></i> Postadresse</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                {{-- Dropdown zur Adressauswahl --}}
+                {{-- Dropdown zur Adressauswahl (TomSelect) --}}
                 <label class="form-label small mb-1">Adresse wählen</label>
                 <select id="postadresse_id" name="postadresse_id"
-                    class="form-select form-select-sm js-select2 @error('postadresse_id') is-invalid @enderror"
-                    data-placeholder="- Adresse wählen -"
+                    class="form-select form-select-sm js-tomselect @error('postadresse_id') is-invalid @enderror"
+                    placeholder="- Adresse wählen -"
                     {{ $readonly ? 'disabled' : '' }}>
-                    <option value=""></option>
+                    <option value="">- Adresse wählen -</option>
                     @foreach($adressen ?? [] as $adresse)
                         <option value="{{ $adresse->id }}"
                             data-name="{{ $adresse->name }}"
@@ -136,7 +142,7 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                         </option>
                     @endforeach
                 </select>
-                @error('postadresse_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                @error('postadresse_id') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
 
                 {{-- Adress-Vorschau (aktuelle Snapshot-Daten) --}}
                 <div id="post-preview" class="mt-3 pt-3 border-top">
@@ -155,27 +161,31 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                     <div class="mb-1 text-muted">
                         <span id="post-preview-land">{{ $rechnung->post_land }}</span>
                     </div>
-                    {{-- E-Mail/PEC immer anzeigen (für JS-Update) --}}
-                    <div class="mt-2 pt-2 border-top">
-                        <div class="mb-1"><small><i class="bi bi-envelope me-1"></i>E-Mail: <span id="post-preview-email">{{ $rechnung->post_email ?: '-' }}</span></small></div>
-                        <div><small><i class="bi bi-envelope-at me-1"></i>PEC: <span id="post-preview-pec">{{ $rechnung->post_pec ?: '-' }}</span></small></div>
+                    {{-- E-Mail/PEC --}}
+                    <div class="mt-2 pt-2 border-top small">
+                        <div class="row g-1">
+                            <div class="col-6"><i class="bi bi-envelope me-1"></i>E-Mail: <span id="post-preview-email">{{ $rechnung->post_email ?: '-' }}</span></div>
+                            <div class="col-6"><i class="bi bi-envelope-at me-1"></i>PEC: <span id="post-preview-pec">{{ $rechnung->post_pec ?: '-' }}</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
+            {{-- Button IN Card-Footer --}}
+            <div class="card-footer bg-transparent border-top-0 pt-0">
+                @php $post_id = old('postadresse_id', $rechnung->postadresse_id); @endphp
+                <a id="post_edit_btn"
+                   href="{{ $post_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $post_id, 'returnTo' => url()->current()]) : '#' }}"
+                   class="btn btn-outline-info btn-sm w-100 {{ $post_id ? '' : 'disabled' }}"
+                   {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
+                    <i class="bi bi-pencil-square"></i> Adresse bearbeiten
+                </a>
+            </div>
         </div>
-        {{-- Bearbeiten-Button unter der Card --}}
-        @php $post_id = old('postadresse_id', $rechnung->postadresse_id); @endphp
-        <a id="post_edit_btn"
-           href="{{ $post_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $post_id, 'returnTo' => url()->current()]) : '#' }}"
-           class="btn btn-outline-info btn-sm w-100 mt-2 {{ $post_id ? '' : 'disabled' }}"
-           {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
-            <i class="bi bi-pencil-square"></i> Adresse bearbeiten
-        </a>
     </div>
 
-    {{-- Schnellaktion: Gleiche Adresse --}}
+    {{-- Schnellaktion: Gleiche Adresse (eigene Zeile auf Mobile) --}}
     @if(!$readonly)
-    <div class="col-12 col-lg-4 d-flex align-items-end">
+    <div class="col-12 mb-3">
         <button type="button" id="btn-copy-re-to-post" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-copy"></i> Postadresse = Rechnungsempfänger
         </button>
@@ -946,7 +956,7 @@ document.addEventListener('DOMContentLoaded', function() {
 @endif
 
 {{-- ═══════════════════════════════════════════════════════════
-     JavaScript: Adress-Dropdown Funktionalität
+     JavaScript: Adress-Dropdown Funktionalität (TomSelect kompatibel)
      ═══════════════════════════════════════════════════════════ --}}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -972,14 +982,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Helper: Text in Element setzen
+    function setTextIfExists(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value || '';
+    }
+
     // Vorschau für Rechnungsempfänger aktualisieren
     function updateRePreview(option) {
         if (!option || !option.dataset) return;
-        
-        var setTextIfExists = function(id, value) {
-            var el = document.getElementById(id);
-            if (el) el.textContent = value || '';
-        };
         
         setTextIfExists('re-preview-name', option.dataset.name || '(nicht gewählt)');
         setTextIfExists('re-preview-strasse', option.dataset.strasse || '');
@@ -998,11 +1009,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function updatePostPreview(option) {
         if (!option || !option.dataset) return;
         
-        var setTextIfExists = function(id, value) {
-            var el = document.getElementById(id);
-            if (el) el.textContent = value || '';
-        };
-        
         setTextIfExists('post-preview-name', option.dataset.name || '(nicht gewählt)');
         setTextIfExists('post-preview-strasse', option.dataset.strasse || '');
         setTextIfExists('post-preview-hausnummer', option.dataset.hausnummer || '');
@@ -1014,47 +1020,51 @@ document.addEventListener('DOMContentLoaded', function() {
         setTextIfExists('post-preview-pec', option.dataset.pec || '-');
     }
 
+    // Handler für Select-Änderung
+    function handleReChange() {
+        updateButton(reSelect, reBtn);
+        var selectedOption = reSelect.options[reSelect.selectedIndex];
+        updateRePreview(selectedOption);
+    }
+
+    function handlePostChange() {
+        updateButton(postSelect, postBtn);
+        var selectedOption = postSelect.options[postSelect.selectedIndex];
+        updatePostPreview(selectedOption);
+    }
+
     // Initial Button-Status setzen
     updateButton(reSelect, reBtn);
     updateButton(postSelect, postBtn);
 
-    // Event Listener für Rechnungsempfänger
+    // Event Listener für native Select-Änderungen
     if (reSelect) {
-        reSelect.addEventListener('change', function() {
-            updateButton(reSelect, reBtn);
-            var selectedOption = reSelect.options[reSelect.selectedIndex];
-            updateRePreview(selectedOption);
-        });
+        reSelect.addEventListener('change', handleReChange);
     }
-
-    // Event Listener für Postadresse
     if (postSelect) {
-        postSelect.addEventListener('change', function() {
-            updateButton(postSelect, postBtn);
-            var selectedOption = postSelect.options[postSelect.selectedIndex];
-            updatePostPreview(selectedOption);
-        });
+        postSelect.addEventListener('change', handlePostChange);
     }
 
-    // Select2 Support
-    if (typeof $ !== 'undefined') {
-        if (reSelect) {
-            $(reSelect).on('select2:select select2:clear', function() {
-                updateButton(reSelect, reBtn);
-                var selectedOption = reSelect.options[reSelect.selectedIndex];
-                updateRePreview(selectedOption);
-            });
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TomSelect Support - wird nach TomSelect-Initialisierung aufgerufen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Warte kurz bis TomSelect initialisiert ist
+    setTimeout(function() {
+        // TomSelect für Rechnungsempfänger
+        if (reSelect && reSelect.tomselect) {
+            reSelect.tomselect.on('change', handleReChange);
         }
-        if (postSelect) {
-            $(postSelect).on('select2:select select2:clear', function() {
-                updateButton(postSelect, postBtn);
-                var selectedOption = postSelect.options[postSelect.selectedIndex];
-                updatePostPreview(selectedOption);
-            });
+        
+        // TomSelect für Postadresse
+        if (postSelect && postSelect.tomselect) {
+            postSelect.tomselect.on('change', handlePostChange);
         }
-    }
+    }, 100);
 
+    // ═══════════════════════════════════════════════════════════════════════════════
     // Kopieren-Button: Rechnungsempfänger → Postadresse
+    // ═══════════════════════════════════════════════════════════════════════════════
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {
             if (!reSelect || !postSelect) return;
@@ -1065,18 +1075,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Wert übernehmen
-            postSelect.value = reVal;
-            
-            // Select2 aktualisieren falls vorhanden
-            if (typeof $ !== 'undefined' && $(postSelect).data('select2')) {
-                $(postSelect).trigger('change');
+            // TomSelect: Wert setzen
+            if (postSelect.tomselect) {
+                postSelect.tomselect.setValue(reVal, true);
+            } else {
+                // Fallback für native Select
+                postSelect.value = reVal;
             }
             
             // Button und Vorschau aktualisieren
-            updateButton(postSelect, postBtn);
-            var selectedOption = postSelect.options[postSelect.selectedIndex];
-            updatePostPreview(selectedOption);
+            handlePostChange();
         });
     }
 });
