@@ -30,224 +30,159 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
         </div>
     </div>
 
-    {{-- Rechnungsempfänger (EDITIERBAR) --}}
+    {{-- ═══════════════════════════════════════════════════════════
+         RECHNUNGSEMPFÄNGER (Dropdown + Vorschau)
+         ═══════════════════════════════════════════════════════════ --}}
     <div class="col-12 col-lg-4">
         <div class="card h-100 border-0 shadow-sm">
             <div class="card-header bg-primary text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-person-circle"></i> Rechnungsempfänger</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                <div class="row g-2">
-                    {{-- Name --}}
-                    <div class="col-12">
-                        <label class="form-label small mb-1">Name</label>
-                        <input type="text" name="re_name" 
-                            class="form-control form-control-sm @error('re_name') is-invalid @enderror"
-                            value="{{ old('re_name', $rechnung->re_name) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                {{-- Dropdown zur Adressauswahl --}}
+                <label class="form-label small mb-1">Adresse wählen</label>
+                <select id="rechnungsempfaenger_id" name="rechnungsempfaenger_id"
+                    class="form-select form-select-sm js-select2 @error('rechnungsempfaenger_id') is-invalid @enderror"
+                    data-placeholder="- Adresse wählen -"
+                    {{ $readonly ? 'disabled' : '' }}>
+                    <option value=""></option>
+                    @foreach($adressen ?? [] as $adresse)
+                        <option value="{{ $adresse->id }}"
+                            data-name="{{ $adresse->name }}"
+                            data-strasse="{{ $adresse->strasse }}"
+                            data-hausnummer="{{ $adresse->hausnummer }}"
+                            data-plz="{{ $adresse->plz }}"
+                            data-wohnort="{{ $adresse->wohnort }}"
+                            data-provinz="{{ $adresse->provinz }}"
+                            data-land="{{ $adresse->land }}"
+                            data-steuernummer="{{ $adresse->steuernummer }}"
+                            data-mwst="{{ $adresse->mwst_nummer }}"
+                            data-codice="{{ $adresse->codice_univoco }}"
+                            data-pec="{{ $adresse->pec }}"
+                            data-email="{{ $adresse->email }}"
+                            {{ old('rechnungsempfaenger_id', $rechnung->rechnungsempfaenger_id) == $adresse->id ? 'selected' : '' }}>
+                            {{ $adresse->name }} - {{ $adresse->wohnort }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('rechnungsempfaenger_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+
+                {{-- Adress-Vorschau (aktuelle Snapshot-Daten) --}}
+                <div id="re-preview" class="mt-3 pt-3 border-top">
+                    <div class="mb-1"><strong id="re-preview-name">{{ $rechnung->re_name ?: '(nicht gewählt)' }}</strong></div>
+                    <div class="mb-1 text-muted">
+                        <i class="bi bi-geo-alt me-1"></i>
+                        <span id="re-preview-strasse">{{ $rechnung->re_strasse }}</span>
+                        <span id="re-preview-hausnummer">{{ $rechnung->re_hausnummer }}</span>
                     </div>
-                    
-                    {{-- Straße + Hausnummer --}}
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Straße</label>
-                        <input type="text" name="re_strasse" 
-                            class="form-control form-control-sm @error('re_strasse') is-invalid @enderror"
-                            value="{{ old('re_strasse', $rechnung->re_strasse) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="mb-1 text-muted">
+                        <i class="bi bi-signpost me-1"></i>
+                        <span id="re-preview-plz">{{ $rechnung->re_plz }}</span>
+                        <span id="re-preview-wohnort">{{ $rechnung->re_wohnort }}</span>
+                        <span id="re-preview-provinz">{{ $rechnung->re_provinz ? '(' . $rechnung->re_provinz . ')' : '' }}</span>
                     </div>
-                    <div class="col-4">
-                        <label class="form-label small mb-1">Nr.</label>
-                        <input type="text" name="re_hausnummer" 
-                            class="form-control form-control-sm @error('re_hausnummer') is-invalid @enderror"
-                            value="{{ old('re_hausnummer', $rechnung->re_hausnummer) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="mb-1 text-muted">
+                        <span id="re-preview-land">{{ $rechnung->re_land }}</span>
                     </div>
-                    
-                    {{-- PLZ + Ort --}}
-                    <div class="col-4">
-                        <label class="form-label small mb-1">PLZ</label>
-                        <input type="text" name="re_plz" 
-                            class="form-control form-control-sm @error('re_plz') is-invalid @enderror"
-                            value="{{ old('re_plz', $rechnung->re_plz) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    @if($rechnung->re_steuernummer || $rechnung->re_mwst_nummer)
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="mb-1"><small><i class="bi bi-credit-card me-1"></i>CF: <span id="re-preview-cf">{{ $rechnung->re_steuernummer ?: '-' }}</span></small></div>
+                        <div class="mb-1"><small><i class="bi bi-receipt me-1"></i>P.IVA: <span id="re-preview-piva">{{ $rechnung->re_mwst_nummer ?: '-' }}</span></small></div>
+                        <div class="mb-1"><small><i class="bi bi-upc me-1"></i>SDI: <span id="re-preview-sdi">{{ $rechnung->re_codice_univoco ?: '-' }}</span></small></div>
+                        <div><small><i class="bi bi-envelope me-1"></i>PEC: <span id="re-preview-pec">{{ $rechnung->re_pec ?: '-' }}</span></small></div>
                     </div>
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Ort</label>
-                        <input type="text" name="re_wohnort" 
-                            class="form-control form-control-sm @error('re_wohnort') is-invalid @enderror"
-                            value="{{ old('re_wohnort', $rechnung->re_wohnort) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- Provinz + Land --}}
-                    <div class="col-4">
-                        <label class="form-label small mb-1">Provinz</label>
-                        <input type="text" name="re_provinz" 
-                            class="form-control form-control-sm @error('re_provinz') is-invalid @enderror"
-                            value="{{ old('re_provinz', $rechnung->re_provinz) }}"
-                            placeholder="z.B. BZ"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_provinz') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Land</label>
-                        <input type="text" name="re_land" 
-                            class="form-control form-control-sm @error('re_land') is-invalid @enderror"
-                            value="{{ old('re_land', $rechnung->re_land) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_land') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- ⭐ Steuerkodex (Codice Fiscale) --}}
-                    <div class="col-12">
-                        <label class="form-label small mb-1">
-                            <i class="bi bi-credit-card-2-front"></i> Steuerkodex
-                            <small class="text-muted">(Codice Fiscale)</small>
-                        </label>
-                        <input type="text" name="re_steuernummer" 
-                            class="form-control form-control-sm @error('re_steuernummer') is-invalid @enderror"
-                            value="{{ old('re_steuernummer', $rechnung->re_steuernummer) }}"
-                            placeholder="z.B. RSSMRA80A01H501U"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_steuernummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- MwSt. Nr. (Partita IVA) --}}
-                    <div class="col-12">
-                        <label class="form-label small mb-1">
-                            <i class="bi bi-receipt"></i> MwSt. Nr.
-                            <small class="text-muted">(Partita IVA)</small>
-                        </label>
-                        <input type="text" name="re_mwst_nummer" 
-                            class="form-control form-control-sm @error('re_mwst_nummer') is-invalid @enderror"
-                            value="{{ old('re_mwst_nummer', $rechnung->re_mwst_nummer) }}"
-                            placeholder="z.B. IT01234567890"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_mwst_nummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- Codice Univoco + PEC --}}
-                    <div class="col-6">
-                        <label class="form-label small mb-1">Codice SDI</label>
-                        <input type="text" name="re_codice_univoco" 
-                            class="form-control form-control-sm @error('re_codice_univoco') is-invalid @enderror"
-                            value="{{ old('re_codice_univoco', $rechnung->re_codice_univoco) }}"
-                            placeholder="7 Zeichen"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_codice_univoco') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label small mb-1">PEC</label>
-                        <input type="email" name="re_pec" 
-                            class="form-control form-control-sm @error('re_pec') is-invalid @enderror"
-                            value="{{ old('re_pec', $rechnung->re_pec) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('re_pec') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
+                    @endif
                 </div>
             </div>
         </div>
+        {{-- Bearbeiten-Button unter der Card --}}
+        @php $re_id = old('rechnungsempfaenger_id', $rechnung->rechnungsempfaenger_id); @endphp
+        <a id="re_edit_btn"
+           href="{{ $re_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $re_id, 'returnTo' => url()->current()]) : '#' }}"
+           class="btn btn-outline-primary btn-sm w-100 mt-2 {{ $re_id ? '' : 'disabled' }}"
+           {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
+            <i class="bi bi-pencil-square"></i> Adresse bearbeiten
+        </a>
     </div>
 
-    {{-- Postadresse (EDITIERBAR) --}}
+    {{-- ═══════════════════════════════════════════════════════════
+         POSTADRESSE (Dropdown + Vorschau)
+         ═══════════════════════════════════════════════════════════ --}}
     <div class="col-12 col-lg-4">
         <div class="card h-100 border-0 shadow-sm">
             <div class="card-header bg-info text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-envelope"></i> Postadresse</h6>
             </div>
             <div class="card-body small p-2 p-md-3">
-                <div class="row g-2">
-                    {{-- Name --}}
-                    <div class="col-12">
-                        <label class="form-label small mb-1">Name</label>
-                        <input type="text" name="post_name" 
-                            class="form-control form-control-sm @error('post_name') is-invalid @enderror"
-                            value="{{ old('post_name', $rechnung->post_name) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                {{-- Dropdown zur Adressauswahl --}}
+                <label class="form-label small mb-1">Adresse wählen</label>
+                <select id="postadresse_id" name="postadresse_id"
+                    class="form-select form-select-sm js-select2 @error('postadresse_id') is-invalid @enderror"
+                    data-placeholder="- Adresse wählen -"
+                    {{ $readonly ? 'disabled' : '' }}>
+                    <option value=""></option>
+                    @foreach($adressen ?? [] as $adresse)
+                        <option value="{{ $adresse->id }}"
+                            data-name="{{ $adresse->name }}"
+                            data-strasse="{{ $adresse->strasse }}"
+                            data-hausnummer="{{ $adresse->hausnummer }}"
+                            data-plz="{{ $adresse->plz }}"
+                            data-wohnort="{{ $adresse->wohnort }}"
+                            data-provinz="{{ $adresse->provinz }}"
+                            data-land="{{ $adresse->land }}"
+                            data-email="{{ $adresse->email }}"
+                            data-pec="{{ $adresse->pec }}"
+                            {{ old('postadresse_id', $rechnung->postadresse_id) == $adresse->id ? 'selected' : '' }}>
+                            {{ $adresse->name }} - {{ $adresse->wohnort }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('postadresse_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+
+                {{-- Adress-Vorschau (aktuelle Snapshot-Daten) --}}
+                <div id="post-preview" class="mt-3 pt-3 border-top">
+                    <div class="mb-1"><strong id="post-preview-name">{{ $rechnung->post_name ?: '(nicht gewählt)' }}</strong></div>
+                    <div class="mb-1 text-muted">
+                        <i class="bi bi-geo-alt me-1"></i>
+                        <span id="post-preview-strasse">{{ $rechnung->post_strasse }}</span>
+                        <span id="post-preview-hausnummer">{{ $rechnung->post_hausnummer }}</span>
                     </div>
-                    
-                    {{-- Straße + Hausnummer --}}
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Straße</label>
-                        <input type="text" name="post_strasse" 
-                            class="form-control form-control-sm @error('post_strasse') is-invalid @enderror"
-                            value="{{ old('post_strasse', $rechnung->post_strasse) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="mb-1 text-muted">
+                        <i class="bi bi-signpost me-1"></i>
+                        <span id="post-preview-plz">{{ $rechnung->post_plz }}</span>
+                        <span id="post-preview-wohnort">{{ $rechnung->post_wohnort }}</span>
+                        <span id="post-preview-provinz">{{ $rechnung->post_provinz ? '(' . $rechnung->post_provinz . ')' : '' }}</span>
                     </div>
-                    <div class="col-4">
-                        <label class="form-label small mb-1">Nr.</label>
-                        <input type="text" name="post_hausnummer" 
-                            class="form-control form-control-sm @error('post_hausnummer') is-invalid @enderror"
-                            value="{{ old('post_hausnummer', $rechnung->post_hausnummer) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    <div class="mb-1 text-muted">
+                        <span id="post-preview-land">{{ $rechnung->post_land }}</span>
                     </div>
-                    
-                    {{-- PLZ + Ort --}}
-                    <div class="col-4">
-                        <label class="form-label small mb-1">PLZ</label>
-                        <input type="text" name="post_plz" 
-                            class="form-control form-control-sm @error('post_plz') is-invalid @enderror"
-                            value="{{ old('post_plz', $rechnung->post_plz) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    @if($rechnung->post_email || $rechnung->post_pec)
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="mb-1"><small><i class="bi bi-envelope me-1"></i>E-Mail: <span id="post-preview-email">{{ $rechnung->post_email ?: '-' }}</span></small></div>
+                        <div><small><i class="bi bi-envelope-at me-1"></i>PEC: <span id="post-preview-pec">{{ $rechnung->post_pec ?: '-' }}</span></small></div>
                     </div>
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Ort</label>
-                        <input type="text" name="post_wohnort" 
-                            class="form-control form-control-sm @error('post_wohnort') is-invalid @enderror"
-                            value="{{ old('post_wohnort', $rechnung->post_wohnort) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- Provinz + Land --}}
-                    <div class="col-4">
-                        <label class="form-label small mb-1">Provinz</label>
-                        <input type="text" name="post_provinz" 
-                            class="form-control form-control-sm @error('post_provinz') is-invalid @enderror"
-                            value="{{ old('post_provinz', $rechnung->post_provinz) }}"
-                            placeholder="z.B. BZ"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_provinz') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    <div class="col-8">
-                        <label class="form-label small mb-1">Land</label>
-                        <input type="text" name="post_land" 
-                            class="form-control form-control-sm @error('post_land') is-invalid @enderror"
-                            value="{{ old('post_land', $rechnung->post_land) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_land') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    
-                    {{-- E-Mail + PEC --}}
-                    <div class="col-6">
-                        <label class="form-label small mb-1">E-Mail</label>
-                        <input type="email" name="post_email" 
-                            class="form-control form-control-sm @error('post_email') is-invalid @enderror"
-                            value="{{ old('post_email', $rechnung->post_email) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_email') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label small mb-1">PEC</label>
-                        <input type="email" name="post_pec" 
-                            class="form-control form-control-sm @error('post_pec') is-invalid @enderror"
-                            value="{{ old('post_pec', $rechnung->post_pec) }}"
-                            {{ $readonly ? 'disabled' : '' }}>
-                        @error('post_pec') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
+                    @endif
                 </div>
             </div>
         </div>
+        {{-- Bearbeiten-Button unter der Card --}}
+        @php $post_id = old('postadresse_id', $rechnung->postadresse_id); @endphp
+        <a id="post_edit_btn"
+           href="{{ $post_id && Route::has('adresse.edit') ? route('adresse.edit', ['id' => $post_id, 'returnTo' => url()->current()]) : '#' }}"
+           class="btn btn-outline-info btn-sm w-100 mt-2 {{ $post_id ? '' : 'disabled' }}"
+           {{ $readonly ? 'style=pointer-events:none;opacity:0.5;' : '' }}>
+            <i class="bi bi-pencil-square"></i> Adresse bearbeiten
+        </a>
     </div>
+
+    {{-- Schnellaktion: Gleiche Adresse --}}
+    @if(!$readonly)
+    <div class="col-12 col-lg-4 d-flex align-items-end">
+        <button type="button" id="btn-copy-re-to-post" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-copy"></i> Postadresse = Rechnungsempfänger
+        </button>
+    </div>
+    @endif
 
     {{-- ═══════════════════════════════════════════════════════════
          RECHNUNGSDATEN
@@ -1011,3 +946,140 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 </script>
 @endif
+
+{{-- ═══════════════════════════════════════════════════════════
+     JavaScript: Adress-Dropdown Funktionalität
+     ═══════════════════════════════════════════════════════════ --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Elemente
+    var reSelect = document.getElementById('rechnungsempfaenger_id');
+    var postSelect = document.getElementById('postadresse_id');
+    var reBtn = document.getElementById('re_edit_btn');
+    var postBtn = document.getElementById('post_edit_btn');
+    var copyBtn = document.getElementById('btn-copy-re-to-post');
+    var returnTo = encodeURIComponent(window.location.href);
+    var baseUrl = '{{ url("/adresse") }}';
+
+    // Button URL aktualisieren
+    function updateButton(select, btn) {
+        if (!select || !btn) return;
+        var id = select.value;
+        if (id) {
+            btn.href = baseUrl + '/' + id + '/edit?returnTo=' + returnTo;
+            btn.classList.remove('disabled');
+        } else {
+            btn.href = '#';
+            btn.classList.add('disabled');
+        }
+    }
+
+    // Vorschau für Rechnungsempfänger aktualisieren
+    function updateRePreview(option) {
+        if (!option || !option.dataset) return;
+        
+        var setTextIfExists = function(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value || '';
+        };
+        
+        setTextIfExists('re-preview-name', option.dataset.name || '(nicht gewählt)');
+        setTextIfExists('re-preview-strasse', option.dataset.strasse || '');
+        setTextIfExists('re-preview-hausnummer', option.dataset.hausnummer || '');
+        setTextIfExists('re-preview-plz', option.dataset.plz || '');
+        setTextIfExists('re-preview-wohnort', option.dataset.wohnort || '');
+        setTextIfExists('re-preview-provinz', option.dataset.provinz ? '(' + option.dataset.provinz + ')' : '');
+        setTextIfExists('re-preview-land', option.dataset.land || '');
+        setTextIfExists('re-preview-cf', option.dataset.steuernummer || '-');
+        setTextIfExists('re-preview-piva', option.dataset.mwst || '-');
+        setTextIfExists('re-preview-sdi', option.dataset.codice || '-');
+        setTextIfExists('re-preview-pec', option.dataset.pec || '-');
+    }
+
+    // Vorschau für Postadresse aktualisieren
+    function updatePostPreview(option) {
+        if (!option || !option.dataset) return;
+        
+        var setTextIfExists = function(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value || '';
+        };
+        
+        setTextIfExists('post-preview-name', option.dataset.name || '(nicht gewählt)');
+        setTextIfExists('post-preview-strasse', option.dataset.strasse || '');
+        setTextIfExists('post-preview-hausnummer', option.dataset.hausnummer || '');
+        setTextIfExists('post-preview-plz', option.dataset.plz || '');
+        setTextIfExists('post-preview-wohnort', option.dataset.wohnort || '');
+        setTextIfExists('post-preview-provinz', option.dataset.provinz ? '(' + option.dataset.provinz + ')' : '');
+        setTextIfExists('post-preview-land', option.dataset.land || '');
+        setTextIfExists('post-preview-email', option.dataset.email || '-');
+        setTextIfExists('post-preview-pec', option.dataset.pec || '-');
+    }
+
+    // Initial Button-Status setzen
+    updateButton(reSelect, reBtn);
+    updateButton(postSelect, postBtn);
+
+    // Event Listener für Rechnungsempfänger
+    if (reSelect) {
+        reSelect.addEventListener('change', function() {
+            updateButton(reSelect, reBtn);
+            var selectedOption = reSelect.options[reSelect.selectedIndex];
+            updateRePreview(selectedOption);
+        });
+    }
+
+    // Event Listener für Postadresse
+    if (postSelect) {
+        postSelect.addEventListener('change', function() {
+            updateButton(postSelect, postBtn);
+            var selectedOption = postSelect.options[postSelect.selectedIndex];
+            updatePostPreview(selectedOption);
+        });
+    }
+
+    // Select2 Support
+    if (typeof $ !== 'undefined') {
+        if (reSelect) {
+            $(reSelect).on('select2:select select2:clear', function() {
+                updateButton(reSelect, reBtn);
+                var selectedOption = reSelect.options[reSelect.selectedIndex];
+                updateRePreview(selectedOption);
+            });
+        }
+        if (postSelect) {
+            $(postSelect).on('select2:select select2:clear', function() {
+                updateButton(postSelect, postBtn);
+                var selectedOption = postSelect.options[postSelect.selectedIndex];
+                updatePostPreview(selectedOption);
+            });
+        }
+    }
+
+    // Kopieren-Button: Rechnungsempfänger → Postadresse
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            if (!reSelect || !postSelect) return;
+            
+            var reVal = reSelect.value;
+            if (!reVal) {
+                alert('Bitte zuerst einen Rechnungsempfänger auswählen.');
+                return;
+            }
+            
+            // Wert übernehmen
+            postSelect.value = reVal;
+            
+            // Select2 aktualisieren falls vorhanden
+            if (typeof $ !== 'undefined' && $(postSelect).data('select2')) {
+                $(postSelect).trigger('change');
+            }
+            
+            // Button und Vorschau aktualisieren
+            updateButton(postSelect, postBtn);
+            var selectedOption = postSelect.options[postSelect.selectedIndex];
+            updatePostPreview(selectedOption);
+        });
+    }
+});
+</script>
