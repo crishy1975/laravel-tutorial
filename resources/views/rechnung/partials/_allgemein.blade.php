@@ -30,38 +30,221 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
         </div>
     </div>
 
-    {{-- Rechnungsempfänger (nur Anzeige) --}}
+    {{-- Rechnungsempfänger (EDITIERBAR) --}}
     <div class="col-12 col-lg-4">
         <div class="card h-100 border-0 shadow-sm">
             <div class="card-header bg-primary text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-person-circle"></i> Rechnungsempfänger</h6>
             </div>
-            <div class="card-body small">
-                <address class="mb-0">
-                    <strong>{{ $rechnung->re_name ?: '(noch nicht angegeben)' }}</strong><br>
-                    @if($rechnung->re_strasse){{ $rechnung->re_strasse }} {{ $rechnung->re_hausnummer }}<br>@endif
-                    @if($rechnung->re_plz || $rechnung->re_wohnort){{ $rechnung->re_plz }} {{ $rechnung->re_wohnort }}<br>@endif
-                    @if($rechnung->re_land){{ $rechnung->re_land }}<br>@endif
-                    @if($rechnung->re_mwst_nummer)<small>MwSt: {{ $rechnung->re_mwst_nummer }}</small>@endif
-                </address>
+            <div class="card-body small p-2 p-md-3">
+                <div class="row g-2">
+                    {{-- Name --}}
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Name</label>
+                        <input type="text" name="re_name" 
+                            class="form-control form-control-sm @error('re_name') is-invalid @enderror"
+                            value="{{ old('re_name', $rechnung->re_name) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- Straße + Hausnummer --}}
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Straße</label>
+                        <input type="text" name="re_strasse" 
+                            class="form-control form-control-sm @error('re_strasse') is-invalid @enderror"
+                            value="{{ old('re_strasse', $rechnung->re_strasse) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Nr.</label>
+                        <input type="text" name="re_hausnummer" 
+                            class="form-control form-control-sm @error('re_hausnummer') is-invalid @enderror"
+                            value="{{ old('re_hausnummer', $rechnung->re_hausnummer) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- PLZ + Ort --}}
+                    <div class="col-4">
+                        <label class="form-label small mb-1">PLZ</label>
+                        <input type="text" name="re_plz" 
+                            class="form-control form-control-sm @error('re_plz') is-invalid @enderror"
+                            value="{{ old('re_plz', $rechnung->re_plz) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Ort</label>
+                        <input type="text" name="re_wohnort" 
+                            class="form-control form-control-sm @error('re_wohnort') is-invalid @enderror"
+                            value="{{ old('re_wohnort', $rechnung->re_wohnort) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- Provinz + Land --}}
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Provinz</label>
+                        <input type="text" name="re_provinz" 
+                            class="form-control form-control-sm @error('re_provinz') is-invalid @enderror"
+                            value="{{ old('re_provinz', $rechnung->re_provinz) }}"
+                            placeholder="z.B. BZ"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_provinz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Land</label>
+                        <input type="text" name="re_land" 
+                            class="form-control form-control-sm @error('re_land') is-invalid @enderror"
+                            value="{{ old('re_land', $rechnung->re_land) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_land') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- ⭐ Steuerkodex (Codice Fiscale) --}}
+                    <div class="col-12">
+                        <label class="form-label small mb-1">
+                            <i class="bi bi-credit-card-2-front"></i> Steuerkodex
+                            <small class="text-muted">(Codice Fiscale)</small>
+                        </label>
+                        <input type="text" name="re_steuernummer" 
+                            class="form-control form-control-sm @error('re_steuernummer') is-invalid @enderror"
+                            value="{{ old('re_steuernummer', $rechnung->re_steuernummer) }}"
+                            placeholder="z.B. RSSMRA80A01H501U"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_steuernummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- MwSt. Nr. (Partita IVA) --}}
+                    <div class="col-12">
+                        <label class="form-label small mb-1">
+                            <i class="bi bi-receipt"></i> MwSt. Nr.
+                            <small class="text-muted">(Partita IVA)</small>
+                        </label>
+                        <input type="text" name="re_mwst_nummer" 
+                            class="form-control form-control-sm @error('re_mwst_nummer') is-invalid @enderror"
+                            value="{{ old('re_mwst_nummer', $rechnung->re_mwst_nummer) }}"
+                            placeholder="z.B. IT01234567890"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_mwst_nummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- Codice Univoco + PEC --}}
+                    <div class="col-6">
+                        <label class="form-label small mb-1">Codice SDI</label>
+                        <input type="text" name="re_codice_univoco" 
+                            class="form-control form-control-sm @error('re_codice_univoco') is-invalid @enderror"
+                            value="{{ old('re_codice_univoco', $rechnung->re_codice_univoco) }}"
+                            placeholder="7 Zeichen"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_codice_univoco') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-1">PEC</label>
+                        <input type="email" name="re_pec" 
+                            class="form-control form-control-sm @error('re_pec') is-invalid @enderror"
+                            value="{{ old('re_pec', $rechnung->re_pec) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('re_pec') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    {{-- Postadresse (nur Anzeige) --}}
+    {{-- Postadresse (EDITIERBAR) --}}
     <div class="col-12 col-lg-4">
         <div class="card h-100 border-0 shadow-sm">
             <div class="card-header bg-info text-white py-2">
                 <h6 class="mb-0"><i class="bi bi-envelope"></i> Postadresse</h6>
             </div>
-            <div class="card-body small">
-                <address class="mb-0">
-                    <strong>{{ $rechnung->post_name ?: '(noch nicht angegeben)' }}</strong><br>
-                    @if($rechnung->post_strasse){{ $rechnung->post_strasse }} {{ $rechnung->post_hausnummer }}<br>@endif
-                    @if($rechnung->post_plz || $rechnung->post_wohnort){{ $rechnung->post_plz }} {{ $rechnung->post_wohnort }}<br>@endif
-                    @if($rechnung->post_land){{ $rechnung->post_land }}<br>@endif
-                    @if($rechnung->post_email)<small>E-Mail: {{ $rechnung->post_email }}</small>@endif
-                </address>
+            <div class="card-body small p-2 p-md-3">
+                <div class="row g-2">
+                    {{-- Name --}}
+                    <div class="col-12">
+                        <label class="form-label small mb-1">Name</label>
+                        <input type="text" name="post_name" 
+                            class="form-control form-control-sm @error('post_name') is-invalid @enderror"
+                            value="{{ old('post_name', $rechnung->post_name) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- Straße + Hausnummer --}}
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Straße</label>
+                        <input type="text" name="post_strasse" 
+                            class="form-control form-control-sm @error('post_strasse') is-invalid @enderror"
+                            value="{{ old('post_strasse', $rechnung->post_strasse) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Nr.</label>
+                        <input type="text" name="post_hausnummer" 
+                            class="form-control form-control-sm @error('post_hausnummer') is-invalid @enderror"
+                            value="{{ old('post_hausnummer', $rechnung->post_hausnummer) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- PLZ + Ort --}}
+                    <div class="col-4">
+                        <label class="form-label small mb-1">PLZ</label>
+                        <input type="text" name="post_plz" 
+                            class="form-control form-control-sm @error('post_plz') is-invalid @enderror"
+                            value="{{ old('post_plz', $rechnung->post_plz) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_plz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Ort</label>
+                        <input type="text" name="post_wohnort" 
+                            class="form-control form-control-sm @error('post_wohnort') is-invalid @enderror"
+                            value="{{ old('post_wohnort', $rechnung->post_wohnort) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_wohnort') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- Provinz + Land --}}
+                    <div class="col-4">
+                        <label class="form-label small mb-1">Provinz</label>
+                        <input type="text" name="post_provinz" 
+                            class="form-control form-control-sm @error('post_provinz') is-invalid @enderror"
+                            value="{{ old('post_provinz', $rechnung->post_provinz) }}"
+                            placeholder="z.B. BZ"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_provinz') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-8">
+                        <label class="form-label small mb-1">Land</label>
+                        <input type="text" name="post_land" 
+                            class="form-control form-control-sm @error('post_land') is-invalid @enderror"
+                            value="{{ old('post_land', $rechnung->post_land) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_land') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    
+                    {{-- E-Mail + PEC --}}
+                    <div class="col-6">
+                        <label class="form-label small mb-1">E-Mail</label>
+                        <input type="email" name="post_email" 
+                            class="form-control form-control-sm @error('post_email') is-invalid @enderror"
+                            value="{{ old('post_email', $rechnung->post_email) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_email') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-1">PEC</label>
+                        <input type="email" name="post_pec" 
+                            class="form-control form-control-sm @error('post_pec') is-invalid @enderror"
+                            value="{{ old('post_pec', $rechnung->post_pec) }}"
+                            {{ $readonly ? 'disabled' : '' }}>
+                        @error('post_pec') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -312,6 +495,14 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                         <input type="text" name="auftrag_id" class="form-control form-control-sm @error('auftrag_id') is-invalid @enderror"
                             value="{{ old('auftrag_id', $rechnung->auftrag_id) }}" {{ $readonly ? 'disabled' : '' }}>
                         @error('auftrag_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                    </div>
+
+                    {{-- ⭐ NEU: Auftragsdatum --}}
+                    <div class="col-6 col-md-3">
+                        <label class="form-label small mb-1">Auftragsdatum</label>
+                        <input type="date" name="auftrag_datum" class="form-control form-control-sm @error('auftrag_datum') is-invalid @enderror"
+                            value="{{ old('auftrag_datum', $rechnung->auftrag_datum?->format('Y-m-d')) }}" {{ $readonly ? 'disabled' : '' }}>
+                        @error('auftrag_datum') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
                 </div>
