@@ -239,8 +239,13 @@ class MahnungService
         $faelligAm = $rechnung->rechnungsdatum->copy()->addDays($zahlungsfristTage);
         $tageUeberfaellig = $faelligAm->diffInDays(now());
 
-        // ⭐ Rechnungsbetrag (Brutto) - Feld heißt brutto_summe!
-        $rechnungsbetrag = (float) ($rechnung->brutto_summe ?? $rechnung->netto_summe ?? 0);
+        // ⭐ Rechnungsbetrag: zahlbetrag berücksichtigt Quellensteuer (Ritenuta) bei Kondominium!
+        // Fallback-Kette: zahlbetrag → zahlbar_betrag → brutto_summe → netto_summe
+        $rechnungsbetrag = (float) ($rechnung->zahlbetrag 
+            ?? $rechnung->zahlbar_betrag 
+            ?? $rechnung->brutto_summe 
+            ?? $rechnung->netto_summe 
+            ?? 0);
         $spesen = (float) $stufe->spesen;
         $gesamtbetrag = $rechnungsbetrag + $spesen;
 
@@ -726,8 +731,8 @@ class MahnungService
 
         return [
             'ueberfaellig_gesamt' => $ueberfaellige->count(),
-            // ⭐ brutto_summe statt brutto!
-            'ueberfaellig_betrag' => $ueberfaellige->sum(fn($r) => (float) ($r->brutto_summe ?? 0)),
+            // ⭐ zahlbetrag berücksichtigt Quellensteuer (Ritenuta) bei Kondominium!
+            'ueberfaellig_betrag' => $ueberfaellige->sum(fn($r) => (float) ($r->zahlbetrag ?? $r->zahlbar_betrag ?? $r->brutto_summe ?? 0)),
             'ohne_email'          => $ueberfaellige->filter(fn($r) => !$r->hat_email)->count(),
             'mahnungen_entwurf'   => Mahnung::entwurf()->count(),
             'mahnungen_gesendet'  => Mahnung::gesendet()->count(),
