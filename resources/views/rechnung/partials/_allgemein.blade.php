@@ -84,14 +84,13 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                     <div class="mb-1 text-muted">
                         <span id="re-preview-land">{{ $rechnung->re_land }}</span>
                     </div>
-                    @if($rechnung->re_steuernummer || $rechnung->re_mwst_nummer)
+                    {{-- Steuer-Infos immer anzeigen (für JS-Update) --}}
                     <div class="mt-2 pt-2 border-top">
                         <div class="mb-1"><small><i class="bi bi-credit-card me-1"></i>CF: <span id="re-preview-cf">{{ $rechnung->re_steuernummer ?: '-' }}</span></small></div>
                         <div class="mb-1"><small><i class="bi bi-receipt me-1"></i>P.IVA: <span id="re-preview-piva">{{ $rechnung->re_mwst_nummer ?: '-' }}</span></small></div>
                         <div class="mb-1"><small><i class="bi bi-upc me-1"></i>SDI: <span id="re-preview-sdi">{{ $rechnung->re_codice_univoco ?: '-' }}</span></small></div>
                         <div><small><i class="bi bi-envelope me-1"></i>PEC: <span id="re-preview-pec">{{ $rechnung->re_pec ?: '-' }}</span></small></div>
                     </div>
-                    @endif
                 </div>
             </div>
         </div>
@@ -156,12 +155,11 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                     <div class="mb-1 text-muted">
                         <span id="post-preview-land">{{ $rechnung->post_land }}</span>
                     </div>
-                    @if($rechnung->post_email || $rechnung->post_pec)
+                    {{-- E-Mail/PEC immer anzeigen (für JS-Update) --}}
                     <div class="mt-2 pt-2 border-top">
                         <div class="mb-1"><small><i class="bi bi-envelope me-1"></i>E-Mail: <span id="post-preview-email">{{ $rechnung->post_email ?: '-' }}</span></small></div>
                         <div><small><i class="bi bi-envelope-at me-1"></i>PEC: <span id="post-preview-pec">{{ $rechnung->post_pec ?: '-' }}</span></small></div>
                     </div>
-                    @endif
                 </div>
             </div>
         </div>

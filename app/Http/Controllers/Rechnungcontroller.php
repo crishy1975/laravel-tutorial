@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Rechnung;
 use App\Models\Gebaeude;
+use App\Models\Adresse;
 use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
 use App\Models\FatturaXmlLog;
@@ -362,10 +363,13 @@ class RechnungController extends Controller
         $gebaeude_liste = Gebaeude::orderBy('codex')->get();
         $profile = FatturaProfile::all();
 
+        // ⭐ NEU: Adressen für Dropdown laden
+        $adressen = Adresse::orderBy('name')->get();
+
         // Zahlungsbedingungen fuer Dropdown
         $zahlungsbedingungen = Zahlungsbedingung::options();
 
-        return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile', 'zahlungsbedingungen'));
+        return view('rechnung.form', compact('rechnung', 'gebaeude_liste', 'profile', 'zahlungsbedingungen', 'adressen'));
     }
 
     /**
@@ -391,6 +395,7 @@ class RechnungController extends Controller
             'rechnungsdatum'     => ['required', 'date'],
             'zahlungsbedingungen' => ['nullable', 'in:sofort,netto_7,netto_14,netto_30,netto_60,netto_90,netto_120,bezahlt'],
             'zahlungsziel'       => ['nullable', 'date'],
+            'faelligkeitsdatum'  => ['nullable', 'date'], // ⭐ Alias für zahlungsziel aus dem Formular
             'status'             => ['nullable', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
             'typ_rechnung'       => ['required', Rule::in(['rechnung', 'gutschrift'])],
             'bezahlt_am'         => ['nullable', 'date'],
@@ -398,6 +403,10 @@ class RechnungController extends Controller
             // ⭐ NEU: Jahr und Laufnummer (für manuelle Korrektur)
             'jahr'               => ['nullable', 'integer', 'min:2000', 'max:2099'],
             'laufnummer'         => ['nullable', 'integer', 'min:1'],
+
+            // ⭐ NEU: Adress-Auswahl (Dropdown)
+            'rechnungsempfaenger_id' => ['nullable', 'exists:adressen,id'],
+            'postadresse_id'         => ['nullable', 'exists:adressen,id'],
 
             // Leistungsdaten (Text, kein Datum mehr)
             'leistungsdaten'     => ['nullable', 'string', 'max:255'],
@@ -419,6 +428,9 @@ class RechnungController extends Controller
             // Preis-Aufschlag (readonly, nur zur Info)
             'aufschlag_prozent'  => ['nullable', 'numeric', 'min:-100', 'max:100'],
             'aufschlag_typ'      => ['nullable', 'string', 'in:global,individuell,keiner'],
+
+            // ⭐ NEU: Causale (Rechnungstext)
+            'fattura_causale'    => ['nullable', 'string'],
         ]);
 
         Log::info('Validation OK', ['validated_keys' => array_keys($validated)]);
@@ -432,6 +444,66 @@ class RechnungController extends Controller
                 'neu_jahr'        => $validated['jahr'] ?? $rechnung->jahr,
                 'neu_laufnummer'  => $validated['laufnummer'] ?? $rechnung->laufnummer,
             ]);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // ⭐ NEU: RECHNUNGSEMPFÄNGER - Snapshot-Felder aus Adresse kopieren
+        // ═══════════════════════════════════════════════════════════════════════════════
+        if (isset($validated['rechnungsempfaenger_id']) && $validated['rechnungsempfaenger_id']) {
+            $reAdresse = Adresse::find($validated['rechnungsempfaenger_id']);
+            if ($reAdresse) {
+                $rechnung->rechnungsempfaenger_id = $reAdresse->id;
+                $rechnung->re_name           = $reAdresse->name;
+                $rechnung->re_strasse        = $reAdresse->strasse;
+                $rechnung->re_hausnummer     = $reAdresse->hausnummer;
+                $rechnung->re_plz            = $reAdresse->plz;
+                $rechnung->re_wohnort        = $reAdresse->wohnort;
+                $rechnung->re_provinz        = $reAdresse->provinz;
+                $rechnung->re_land           = $reAdresse->land;
+                $rechnung->re_steuernummer   = $reAdresse->steuernummer;
+                $rechnung->re_mwst_nummer    = $reAdresse->mwst_nummer;
+                $rechnung->re_codice_univoco = $reAdresse->codice_univoco;
+                $rechnung->re_pec            = $reAdresse->pec;
+
+                Log::info('Rechnungsempfänger-Snapshot aktualisiert', [
+                    'adresse_id' => $reAdresse->id,
+                    're_name'    => $reAdresse->name,
+                ]);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // ⭐ NEU: POSTADRESSE - Snapshot-Felder aus Adresse kopieren
+        // ═══════════════════════════════════════════════════════════════════════════════
+        if (isset($validated['postadresse_id']) && $validated['postadresse_id']) {
+            $postAdresse = Adresse::find($validated['postadresse_id']);
+            if ($postAdresse) {
+                $rechnung->postadresse_id  = $postAdresse->id;
+                $rechnung->post_name       = $postAdresse->name;
+                $rechnung->post_strasse    = $postAdresse->strasse;
+                $rechnung->post_hausnummer = $postAdresse->hausnummer;
+                $rechnung->post_plz        = $postAdresse->plz;
+                $rechnung->post_wohnort    = $postAdresse->wohnort;
+                $rechnung->post_provinz    = $postAdresse->provinz;
+                $rechnung->post_land       = $postAdresse->land;
+                $rechnung->post_email      = $postAdresse->email;
+                $rechnung->post_pec        = $postAdresse->pec;
+
+                Log::info('Postadresse-Snapshot aktualisiert', [
+                    'adresse_id' => $postAdresse->id,
+                    'post_name'  => $postAdresse->name,
+                ]);
+            }
+        }
+
+        // Entferne die Adress-IDs aus validated, da wir sie manuell verarbeitet haben
+        unset($validated['rechnungsempfaenger_id']);
+        unset($validated['postadresse_id']);
+
+        // ⭐ faelligkeitsdatum → zahlungsziel mappen (Formular verwendet anderen Namen)
+        if (isset($validated['faelligkeitsdatum'])) {
+            $validated['zahlungsziel'] = $validated['faelligkeitsdatum'];
+            unset($validated['faelligkeitsdatum']);
         }
 
         // Felder in das Modell schreiben
