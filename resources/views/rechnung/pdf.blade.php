@@ -521,7 +521,7 @@
             @if($rechnung->typ_rechnung === 'gutschrift')
                 GUTSCHRIFT / NOTA DI CREDITO Nr. {{ $rechnung->rechnungsnummer }}
             @else
-                RECHNUNG  / FATTURA Nr. {{ $rechnung->rechnungsnummer }}
+                RECHNUNG / FATTURA Nr. {{ $rechnung->rechnungsnummer }}
             @endif
         </div>
         
