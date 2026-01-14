@@ -969,6 +969,39 @@ document.addEventListener('DOMContentLoaded', function() {
     var returnTo = encodeURIComponent(window.location.href);
     var baseUrl = '{{ url("/adresse") }}';
 
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TomSelect Initialisierung MIT Suchfeld
+    // ═══════════════════════════════════════════════════════════════════════════════
+    var tomSelectConfig = {
+        create: false,
+        allowEmptyOption: true,
+        placeholder: '- Adresse wählen -',
+        searchField: ['text'],           // Suche im Text
+        sortField: [{ field: 'text', direction: 'asc' }],
+        maxOptions: null,                // Alle Optionen anzeigen
+        // Rendering für bessere Darstellung
+        render: {
+            option: function(data, escape) {
+                return '<div class="py-1">' + escape(data.text) + '</div>';
+            },
+            item: function(data, escape) {
+                return '<div>' + escape(data.text) + '</div>';
+            }
+        }
+    };
+
+    // TomSelect für Rechnungsempfänger initialisieren
+    var reTomSelect = null;
+    if (reSelect && typeof TomSelect !== 'undefined' && !reSelect.tomselect) {
+        reTomSelect = new TomSelect(reSelect, tomSelectConfig);
+    }
+
+    // TomSelect für Postadresse initialisieren
+    var postTomSelect = null;
+    if (postSelect && typeof TomSelect !== 'undefined' && !postSelect.tomselect) {
+        postTomSelect = new TomSelect(postSelect, tomSelectConfig);
+    }
+
     // Button URL aktualisieren
     function updateButton(select, btn) {
         if (!select || !btn) return;
@@ -1037,30 +1070,23 @@ document.addEventListener('DOMContentLoaded', function() {
     updateButton(reSelect, reBtn);
     updateButton(postSelect, postBtn);
 
-    // Event Listener für native Select-Änderungen
-    if (reSelect) {
-        reSelect.addEventListener('change', handleReChange);
-    }
-    if (postSelect) {
-        postSelect.addEventListener('change', handlePostChange);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════════
-    // TomSelect Support - wird nach TomSelect-Initialisierung aufgerufen
+    // Event-Listener für TomSelect (direkt an Instanz) oder native Select
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Warte kurz bis TomSelect initialisiert ist
-    setTimeout(function() {
-        // TomSelect für Rechnungsempfänger
-        if (reSelect && reSelect.tomselect) {
-            reSelect.tomselect.on('change', handleReChange);
-        }
-        
-        // TomSelect für Postadresse
-        if (postSelect && postSelect.tomselect) {
-            postSelect.tomselect.on('change', handlePostChange);
-        }
-    }, 100);
+    // Rechnungsempfänger
+    if (reTomSelect) {
+        reTomSelect.on('change', handleReChange);
+    } else if (reSelect) {
+        reSelect.addEventListener('change', handleReChange);
+    }
+
+    // Postadresse
+    if (postTomSelect) {
+        postTomSelect.on('change', handlePostChange);
+    } else if (postSelect) {
+        postSelect.addEventListener('change', handlePostChange);
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // Kopieren-Button: Rechnungsempfänger → Postadresse
@@ -1075,16 +1101,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // TomSelect: Wert setzen
-            if (postSelect.tomselect) {
-                postSelect.tomselect.setValue(reVal, true);
+            // TomSelect: Wert setzen (mit silent=false um change-Event auszulösen)
+            if (postTomSelect) {
+                postTomSelect.setValue(reVal, false);
             } else {
                 // Fallback für native Select
                 postSelect.value = reVal;
+                handlePostChange();
             }
-            
-            // Button und Vorschau aktualisieren
-            handlePostChange();
         });
     }
 });
