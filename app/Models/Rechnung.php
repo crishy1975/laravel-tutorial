@@ -17,6 +17,7 @@ use App\Models\FatturaProfile;
 use App\Models\RechnungPosition;
 use App\Enums\Zahlungsbedingung;
 use App\Models\FatturaXmlLog;
+use App\Enums\RechnungLogTyp;
 
 class Rechnung extends Model
 {
