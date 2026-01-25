@@ -461,6 +461,26 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
     </div>
 
     {{-- ═══════════════════════════════════════════════════════════
+         BEMERKUNG (intern) - ⭐ NEU
+         ═══════════════════════════════════════════════════════════ --}}
+
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light py-2">
+                <h6 class="mb-0 small"><i class="bi bi-sticky"></i> Bemerkung (intern)</h6>
+            </div>
+            <div class="card-body p-2 p-md-3">
+                <textarea name="bemerkung" 
+                    class="form-control form-control-sm @error('bemerkung') is-invalid @enderror" 
+                    rows="2"
+                    placeholder="Interne Notizen (erscheint nicht auf der Rechnung)"
+                    {{ $readonly ? 'disabled' : '' }}>{{ old('bemerkung', $rechnung->bemerkung) }}</textarea>
+                @error('bemerkung') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            </div>
+        </div>
+    </div>
+
+    {{-- ═══════════════════════════════════════════════════════════
          RECHNUNGSPOSITIONEN (READONLY) - MOBILE-OPTIMIERT
          ═══════════════════════════════════════════════════════════ --}}
 
