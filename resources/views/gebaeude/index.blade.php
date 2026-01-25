@@ -129,7 +129,7 @@
                                    value="{{ $codex ?? '' }}" placeholder="z.B. gam">
                         </div>
                         <div class="col-6 col-md-3">
-                            <label class="form-label small mb-1">Gebäudename</label>
+                            <label class="form-label small mb-1">Gebäude / Postadresse</label>
                             <input type="text" name="gebaeude_name" class="form-control form-control-sm" 
                                    value="{{ $gebaeude_name ?? '' }}" placeholder="Name...">
                         </div>

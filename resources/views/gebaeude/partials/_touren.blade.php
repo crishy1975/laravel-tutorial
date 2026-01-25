@@ -1,5 +1,6 @@
 {{-- resources/views/gebaeude/partials/_touren.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Vertikal gestapelt auf Smartphones --}}
+{{-- FIX: Zentrale Hidden Inputs statt doppelte in Mobile/Desktop --}}
 
 @php
 $hasId = isset($gebaeude) && $gebaeude?->exists;
@@ -7,6 +8,15 @@ $zugeordnet = $hasId ? $gebaeude->touren : collect();
 $zugeordnetIds = $zugeordnet->pluck('id')->toArray();
 $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zugeordnetIds));
 @endphp
+
+{{-- ═══════════════════════════════════════════════════════════════════
+     ZENTRALE HIDDEN INPUTS - NUR HIER, nicht in Mobile/Desktop!
+═══════════════════════════════════════════════════════════════════ --}}
+<div id="tour-hidden-inputs">
+  @foreach($zugeordnet as $tour)
+    <input type="hidden" name="tour_ids[]" value="{{ $tour->id }}">
+  @endforeach
+</div>
 
 <div class="row g-3">
   
@@ -59,7 +69,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
           <button type="button" class="btn btn-sm btn-outline-danger remove-tour-mobile ms-2" data-tour-id="{{ $tour->id }}" data-tour-name="{{ $tour->name }}" data-tour-beschreibung="{{ Str::limit($tour->beschreibung ?? '', 30) }}">
             <i class="bi bi-x-lg"></i>
           </button>
-          <input type="hidden" name="tour_ids[]" value="{{ $tour->id }}">
+          {{-- ENTFERNT: Hidden Input war hier - jetzt zentral --}}
         </div>
         @empty
         <div class="text-center text-muted py-3 small empty-hint">
@@ -171,7 +181,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
                     <i class="bi bi-x-lg"></i>
                   </button>
                 </div>
-                <input type="hidden" name="tour_ids[]" value="{{ $tour->id }}">
+                {{-- ENTFERNT: Hidden Input war hier - jetzt zentral --}}
               </div>
               @empty
               <div class="text-center text-muted py-4 drop-zone-hint">
@@ -195,34 +205,107 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
   @enderror
 
   @endunless
-
 </div>
 
 @push('styles')
 <style>
-.tour-list { min-height: 80px; }
 .tour-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 8px;
-  margin-bottom: 6px;
-  cursor: move;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 0.375rem;
+  border: 1px solid #dee2e6;
+  cursor: grab;
   transition: all 0.2s ease;
 }
-.tour-card:hover { border-color: #0d6efd; }
-.tour-card.assigned { background: #f8f9ff; border-left: 3px solid #0d6efd; }
-.tour-card.dragging { opacity: 0.5; }
-.drop-zone-hint { border: 2px dashed #dee2e6; border-radius: 6px; }
+.tour-card:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+.tour-card.assigned {
+  background: #e7f1ff;
+  border-color: #86b7fe;
+}
+.tour-card.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+.tour-list {
+  min-height: 100px;
+}
+.tour-list.drag-over {
+  background: #f0f7ff;
+  border: 2px dashed #0d6efd;
+  border-radius: 0.375rem;
+}
+
+/* Mobile Tour Items */
+.tour-item-mobile {
+  transition: background 0.2s ease;
+}
+.tour-item-mobile:active {
+  background: #f8f9fa;
+}
 </style>
 @endpush
 
 @push('scripts')
 <script>
 (function() {
-  // ========================================
-  // MOBILE Funktionalitaet
-  // ========================================
+  'use strict';
+  
+  // ════════════════════════════════════════════════════════════════════
+  // ZENTRALE FUNKTION: Hidden Inputs aktualisieren
+  // ════════════════════════════════════════════════════════════════════
+  var hiddenInputsContainer = document.getElementById('tour-hidden-inputs');
+  
+  function updateHiddenInputs() {
+    if (!hiddenInputsContainer) return;
+    
+    // Container leeren
+    hiddenInputsContainer.innerHTML = '';
+    
+    // IDs sammeln - Desktop hat Priorität, fallback auf Mobile
+    var zugeordnetDesktop = document.getElementById('zugeordnete-touren');
+    var zugeordnetMobile = document.getElementById('zugeordnete-touren-mobile');
+    
+    var tourIds = [];
+    
+    // Desktop-Touren auslesen (wenn sichtbar/vorhanden)
+    if (zugeordnetDesktop) {
+      zugeordnetDesktop.querySelectorAll('.tour-card[data-tour-id]').forEach(function(card) {
+        var id = card.dataset.tourId;
+        if (id && tourIds.indexOf(id) === -1) {
+          tourIds.push(id);
+        }
+      });
+    }
+    
+    // Falls Desktop leer, Mobile auslesen
+    if (tourIds.length === 0 && zugeordnetMobile) {
+      zugeordnetMobile.querySelectorAll('.tour-item-mobile[data-tour-id]').forEach(function(item) {
+        var id = item.dataset.tourId;
+        if (id && tourIds.indexOf(id) === -1) {
+          tourIds.push(id);
+        }
+      });
+    }
+    
+    // Hidden Inputs erstellen
+    tourIds.forEach(function(id) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'tour_ids[]';
+      input.value = id;
+      hiddenInputsContainer.appendChild(input);
+    });
+    
+    console.log('Hidden Inputs aktualisiert:', tourIds);
+  }
+  
+  // ════════════════════════════════════════════════════════════════════
+  // MOBILE Handling
+  // ════════════════════════════════════════════════════════════════════
   var zugeordnetMobile = document.getElementById('zugeordnete-touren-mobile');
   var verfuegbarMobile = document.getElementById('verfuegbare-touren-mobile');
   
@@ -264,8 +347,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
         '<button type="button" class="btn btn-sm btn-outline-danger remove-tour-mobile ms-2" ' +
           'data-tour-id="' + tourId + '" data-tour-name="' + tourName + '" data-tour-beschreibung="' + tourBeschreibung + '">' +
           '<i class="bi bi-x-lg"></i>' +
-        '</button>' +
-        '<input type="hidden" name="tour_ids[]" value="' + tourId + '">';
+        '</button>';
       
       // Altes Element entfernen, neues hinzufuegen
       item.remove();
@@ -277,6 +359,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
       }
       
       updateMobileCounts();
+      updateHiddenInputs(); // ⭐ WICHTIG
     });
     
     // Tour entfernen (Mobile)
@@ -322,6 +405,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
       
       updateMobileCounts();
       updateMobilePositions();
+      updateHiddenInputs(); // ⭐ WICHTIG
     });
     
     function updateMobileCounts() {
@@ -339,9 +423,9 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
     }
   }
   
-  // ========================================
+  // ════════════════════════════════════════════════════════════════════
   // DESKTOP Drag & Drop
-  // ========================================
+  // ════════════════════════════════════════════════════════════════════
   var verfuegbarContainer = document.getElementById('verfuegbare-touren');
   var zugeordnetContainer = document.getElementById('zugeordnete-touren');
   
@@ -361,7 +445,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
     });
   }
   
-  // Button-Clicks
+  // Button-Clicks: Tour hinzufuegen
   document.querySelectorAll('.add-tour').forEach(function(btn) {
     btn.onclick = function(e) {
       e.preventDefault();
@@ -382,18 +466,14 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
         grip.after(badge);
       }
       
-      // Hidden input
-      var hidden = document.createElement('input');
-      hidden.type = 'hidden';
-      hidden.name = 'tour_ids[]';
-      hidden.value = this.dataset.tourId;
-      card.appendChild(hidden);
+      // ENTFERNT: Hidden Input wird nicht mehr hier erstellt
       
       zugeordnetContainer.querySelector('.drop-zone-hint')?.remove();
       zugeordnetContainer.appendChild(card);
       
       updateCounts();
       updatePositionNumbers();
+      updateHiddenInputs(); // ⭐ WICHTIG
       attachButtonHandlers();
     };
   });
@@ -412,12 +492,14 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
         var grip = card.querySelector('.bi-grip-vertical');
         if (grip) grip.classList.replace('text-primary', 'text-muted');
         card.querySelector('.badge.bg-primary')?.remove();
-        card.querySelector('input[type="hidden"]')?.remove();
+        
+        // ENTFERNT: Hidden Input wird nicht mehr hier entfernt (ist zentral)
         
         verfuegbarContainer.appendChild(card);
         
         updateCounts();
         updatePositionNumbers();
+        updateHiddenInputs(); // ⭐ WICHTIG
         attachButtonHandlers();
       };
     });
@@ -425,6 +507,90 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
   
   attachButtonHandlers();
   updateCounts();
+  
+  // ════════════════════════════════════════════════════════════════════
+  // Drag & Drop Events
+  // ════════════════════════════════════════════════════════════════════
+  var draggedCard = null;
+  
+  document.querySelectorAll('.tour-card').forEach(function(card) {
+    card.addEventListener('dragstart', function(e) {
+      draggedCard = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    card.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      draggedCard = null;
+      document.querySelectorAll('.drag-over').forEach(function(el) {
+        el.classList.remove('drag-over');
+      });
+    });
+  });
+  
+  [verfuegbarContainer, zugeordnetContainer].forEach(function(container) {
+    container.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('drag-over');
+    });
+    
+    container.addEventListener('dragleave', function(e) {
+      if (!this.contains(e.relatedTarget)) {
+        this.classList.remove('drag-over');
+      }
+    });
+    
+    container.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      
+      if (!draggedCard) return;
+      
+      var isZugeordnet = this === zugeordnetContainer;
+      
+      if (isZugeordnet) {
+        // Zur zugeordneten Liste
+        draggedCard.classList.add('assigned');
+        var btn = draggedCard.querySelector('button');
+        if (btn) {
+          btn.className = 'btn btn-sm btn-outline-danger remove-tour';
+          btn.innerHTML = '<i class="bi bi-x-lg"></i>';
+        }
+        var grip = draggedCard.querySelector('.bi-grip-vertical');
+        if (grip) {
+          grip.classList.replace('text-muted', 'text-primary');
+          if (!draggedCard.querySelector('.badge.bg-primary')) {
+            var badge = document.createElement('span');
+            badge.className = 'badge bg-primary';
+            badge.textContent = '1';
+            grip.after(badge);
+          }
+        }
+        zugeordnetContainer.querySelector('.drop-zone-hint')?.remove();
+      } else {
+        // Zur verfuegbaren Liste
+        draggedCard.classList.remove('assigned');
+        var btn = draggedCard.querySelector('button');
+        if (btn) {
+          btn.className = 'btn btn-sm btn-outline-primary add-tour';
+          btn.innerHTML = '<i class="bi bi-arrow-right"></i>';
+        }
+        var grip = draggedCard.querySelector('.bi-grip-vertical');
+        if (grip) grip.classList.replace('text-primary', 'text-muted');
+        draggedCard.querySelector('.badge.bg-primary')?.remove();
+      }
+      
+      this.appendChild(draggedCard);
+      
+      updateCounts();
+      updatePositionNumbers();
+      updateHiddenInputs(); // ⭐ WICHTIG
+      attachButtonHandlers();
+    });
+  });
+  
 })();
 </script>
 @endpush

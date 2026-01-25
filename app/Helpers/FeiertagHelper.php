@@ -114,10 +114,19 @@ class FeiertagHelper
 
     /**
      * Berechnet das Zahlungsdatum: Rechnungsdatum + Tage, nächster Bankarbeitstag
+     * 
+     * ⭐ Das Datum darf nicht in der Vergangenheit liegen!
      */
     public static function berechneZahlungsdatum(Carbon $rechnungsdatum, int $tage = 30): Carbon
     {
         $zahlungsdatum = $rechnungsdatum->copy()->addDays($tage);
+        
+        // ⭐ Wenn Zahlungsdatum in der Vergangenheit liegt → auf heute setzen
+        $heute = Carbon::today();
+        if ($zahlungsdatum->lt($heute)) {
+            $zahlungsdatum = $heute;
+        }
+        
         return self::naechsterBankarbeitstag($zahlungsdatum);
     }
 }

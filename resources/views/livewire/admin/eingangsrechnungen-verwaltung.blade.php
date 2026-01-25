@@ -237,7 +237,9 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                 <td><small>{{ $rechnung->rechnungsdatum->format('d.m.Y') }}</small></td>
                                 <td>
                                     <strong>{{ $rechnung->lieferant->name }}</strong>
-                                    @if(!$rechnung->lieferant->hatIban())
+                                    @if($rechnung->lieferant->hatIban())
+                                        <i class="bi bi-bank text-success" title="IBAN vorhanden"></i>
+                                    @else
                                         <i class="bi bi-exclamation-circle text-warning" title="Keine IBAN"></i>
                                     @endif
                                 </td>
@@ -345,7 +347,14 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                            {{ in_array($rechnung->id, $ausgewaehlteRechnungen) ? 'checked' : '' }}>
                                 @endif
                                 <div>
-                                    <strong class="d-block">{{ $rechnung->lieferant->name }}</strong>
+                                    <strong class="d-block">
+                                        {{ $rechnung->lieferant->name }}
+                                        @if($rechnung->lieferant->hatIban())
+                                            <i class="bi bi-bank text-success" title="IBAN vorhanden"></i>
+                                        @else
+                                            <i class="bi bi-exclamation-circle text-warning" title="Keine IBAN"></i>
+                                        @endif
+                                    </strong>
                                     <small class="text-muted">
                                         {{ $rechnung->rechnungsdatum->format('d.m.Y') }} · 
                                         <a href="#" wire:click.prevent="detailAnzeigen({{ $rechnung->id }})" class="text-decoration-none">
@@ -484,9 +493,10 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                                 <td class="text-end">€ {{ number_format($lieferant->summe_gesamt ?? 0, 2, ',', '.') }}</td>
                                 <td>
                                     @if($lieferant->iban)
+                                        <i class="bi bi-check-circle text-success me-1" title="IBAN vorhanden"></i>
                                         <code class="small">{{ $lieferant->iban_formatiert }}</code>
                                     @else
-                                        <span class="text-warning"><i class="bi bi-exclamation-circle"></i></span>
+                                        <span class="text-warning"><i class="bi bi-exclamation-circle"></i> fehlt</span>
                                     @endif
                                 </td>
                                 <td>
@@ -535,7 +545,9 @@ PFAD:  resources/views/livewire/admin/eingangsrechnungen-verwaltung.blade.php
                         
                         <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
                             <span>{{ $lieferant->eingangsrechnungen_count }} Rechnungen · € {{ number_format($lieferant->summe_gesamt ?? 0, 2, ',', '.') }}</span>
-                            @if(!$lieferant->iban)
+                            @if($lieferant->iban)
+                                <span class="text-success"><i class="bi bi-check-circle"></i> IBAN</span>
+                            @else
                                 <span class="text-warning"><i class="bi bi-exclamation-circle"></i> IBAN fehlt</span>
                             @endif
                         </div>

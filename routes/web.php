@@ -181,7 +181,16 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
 
     // ==================== Rechnungen ====================
+    // ==================== Rechnungen ====================
     Route::prefix('rechnung')->name('rechnung.')->group(function () {
+
+        // ⭐ NEU: Integritätsprüfung (VOR den parametrisierten Routen!)
+        Route::get('/integritaet', [RechnungController::class, 'integritaetsReport'])->name('integritaet');
+        Route::post('/validate', [RechnungController::class, 'validateBeforeCreate'])->name('validate');
+        Route::get('/duplikate/{gebaeudeId}', [RechnungController::class, 'duplikatePruefen'])->name('duplikate');
+        Route::get('/luecken/{jahr?}', [RechnungController::class, 'lueckenPruefen'])->name('luecken');
+
+        // Standard CRUD
         Route::get('/', [RechnungController::class, 'index'])->name('index');
         Route::get('/create', [RechnungController::class, 'create'])->name('create');
         Route::post('/store', [RechnungController::class, 'store'])->name('store');

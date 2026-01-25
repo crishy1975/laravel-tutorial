@@ -3,6 +3,10 @@
 @extends('layouts.app')
 
 @section('content')
+
+
+
+
 <div class="container-fluid px-2 px-md-3">
     <div class="card shadow-sm border-0">
 
@@ -11,19 +15,19 @@
             <h4 class="mb-0 fs-5 fs-md-4">
                 <i class="bi bi-receipt"></i>
                 @if($rechnung->exists)
-                    @if($rechnung->typ_rechnung === 'gutschrift')
-                        <span class="d-none d-sm-inline">Gutschrift</span>
-                        <span class="d-sm-none">GS</span>
-                        {{ $rechnung->rechnungsnummer }}
-                        <span class="d-none d-md-inline">bearbeiten</span>
-                    @else
-                        <span class="d-none d-sm-inline">Rechnung</span>
-                        <span class="d-sm-none">RE</span>
-                        {{ $rechnung->rechnungsnummer }}
-                        <span class="d-none d-md-inline">bearbeiten</span>
-                    @endif
+                @if($rechnung->typ_rechnung === 'gutschrift')
+                <span class="d-none d-sm-inline">Gutschrift</span>
+                <span class="d-sm-none">GS</span>
+                {{ $rechnung->rechnungsnummer }}
+                <span class="d-none d-md-inline">bearbeiten</span>
                 @else
-                    Neue Rechnung
+                <span class="d-none d-sm-inline">Rechnung</span>
+                <span class="d-sm-none">RE</span>
+                {{ $rechnung->rechnungsnummer }}
+                <span class="d-none d-md-inline">bearbeiten</span>
+                @endif
+                @else
+                Neue Rechnung
                 @endif
 
                 @if($rechnung->exists)
@@ -46,7 +50,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         @endif
-        
+
         @if(session('warning'))
         <div class="alert alert-warning alert-dismissible fade show mt-3 mx-2 mx-md-3">
             <i class="bi bi-exclamation-circle"></i> {{ session('warning') }}
@@ -87,10 +91,10 @@
                         <i class="bi bi-file-earmark-code"></i>
                         <span class="d-none d-sm-inline">FatturaPA</span>
                         @php
-                            $xmlLogCount = \App\Models\FatturaXmlLog::where('rechnung_id', $rechnung->id)->count();
+                        $xmlLogCount = \App\Models\FatturaXmlLog::where('rechnung_id', $rechnung->id)->count();
                         @endphp
                         @if($xmlLogCount > 0)
-                            <span class="badge bg-success ms-1">{{ $xmlLogCount }}</span>
+                        <span class="badge bg-success ms-1">{{ $xmlLogCount }}</span>
                         @endif
                     </button>
                 </li>
@@ -104,17 +108,17 @@
                         <i class="bi bi-clock-history"></i>
                         <span class="d-none d-sm-inline">Log</span>
                         @php
-                            $logCount = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)->count();
-                            $offeneErinnerungen = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)
-                                ->offeneErinnerungen()->count();
+                        $logCount = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)->count();
+                        $offeneErinnerungen = \App\Models\RechnungLog::where('rechnung_id', $rechnung->id)
+                        ->offeneErinnerungen()->count();
                         @endphp
                         @if($logCount > 0)
-                            <span class="badge bg-secondary ms-1">{{ $logCount }}</span>
+                        <span class="badge bg-secondary ms-1">{{ $logCount }}</span>
                         @endif
                         @if($offeneErinnerungen > 0)
-                            <span class="badge bg-warning ms-1" title="Offene Erinnerungen">
-                                <i class="bi bi-bell"></i> {{ $offeneErinnerungen }}
-                            </span>
+                        <span class="badge bg-warning ms-1" title="Offene Erinnerungen">
+                            <i class="bi bi-bell"></i> {{ $offeneErinnerungen }}
+                        </span>
                         @endif
                     </button>
                 </li>
@@ -170,15 +174,15 @@
                     <div>
                         {{-- PDF Buttons (links) --}}
                         @if($rechnung->exists)
-                            <a href="{{ route('rechnung.pdf.download', $rechnung->id) }}" class="btn btn-outline-danger">
-                                <i class="bi bi-file-earmark-pdf"></i> PDF
-                            </a>
-                            <a href="{{ route('rechnung.pdf.preview', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
-                                <i class="bi bi-eye"></i> PDF Vorschau
-                            </a>
+                        <a href="{{ route('rechnung.pdf.download', $rechnung->id) }}" class="btn btn-outline-danger">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                        </a>
+                        <a href="{{ route('rechnung.pdf.preview', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
+                            <i class="bi bi-eye"></i> PDF Vorschau
+                        </a>
                         @endif
                     </div>
-                    
+
                     <div>
                         {{-- Speichern & Navigation (rechts) --}}
                         @if(!$rechnung->exists || $rechnung->ist_editierbar)

@@ -344,7 +344,13 @@ class GebaeudeController extends Controller
             $query->where('codex', 'like', "%{$codex}%");
         }
         if ($gebaeude_name !== '') {
-            $query->where('gebaeude_name', 'like', "%{$gebaeude_name}%");
+            // ⭐ Suche in Gebäudename UND Postadresse-Name
+            $query->where(function ($q) use ($gebaeude_name) {
+                $q->where('gebaeude_name', 'like', "%{$gebaeude_name}%")
+                  ->orWhereHas('postadresse', function ($sub) use ($gebaeude_name) {
+                      $sub->where('name', 'like', "%{$gebaeude_name}%");
+                  });
+            });
         }
         if ($strasse !== '') {
             $query->where('strasse', 'like', "%{$strasse}%");
@@ -872,15 +878,70 @@ class GebaeudeController extends Controller
                 'profil'             => $gebaeude->fatturaProfile->bezeichnung ?? 'kein Profil',
             ]);
 
+            // ═══════════════════════════════════════════════════════════
+            // ⭐ NEU: Validierung NACH Erstellung
+            // ═══════════════════════════════════════════════════════════
+            $warnings = [];
+            
+            Log::info('=== RECHNUNGS-VALIDIERUNG START ===', [
+                'rechnung_id' => $rechnung->id,
+                'rechnung_nummer' => $rechnung->rechnungsnummer,
+                'gebaeude_id' => $gebaeude->id,
+                'brutto_summe' => $rechnung->brutto_summe,
+                'jahr' => $rechnung->jahr,
+            ]);
+            
+            // 1. Duplikat-Prüfung (gleicher Betrag auf gleiches Gebäude)
+            $duplikat = \App\Models\Rechnung::pruefeDuplikat(
+                $gebaeude->id,
+                (float) $rechnung->brutto_summe,
+                $rechnung->jahr,
+                $rechnung->id  // Eigene ID ausschließen
+            );
+            
+            Log::info('Duplikat-Prüfung Ergebnis', [
+                'is_duplicate' => $duplikat['is_duplicate'],
+                'message' => $duplikat['message'],
+            ]);
+            
+            if ($duplikat['is_duplicate']) {
+                $warnings[] = $duplikat['message'];
+            }
+            
+            // 2. Lücken-Prüfung (alle fehlenden Nummern im Jahr)
+            $luecken = \App\Models\Rechnung::findeAlleLuecken($rechnung->jahr);
+            
+            Log::info('Lücken-Prüfung Ergebnis', [
+                'has_gaps' => $luecken['has_gaps'],
+                'missing' => $luecken['missing'] ?? [],
+                'message' => $luecken['message'],
+            ]);
+            
+            if ($luecken['has_gaps']) {
+                $warnings[] = $luecken['message'];
+            }
+            
+            Log::info('=== RECHNUNGS-VALIDIERUNG ENDE ===', [
+                'warnings_count' => count($warnings),
+                'warnings' => $warnings,
+            ]);
+
             // Erfolgs-Nachricht mit Hinweis auf Jahresrechnung
             $successMsg = "Rechnung {$rechnung->rechnungsnummer} wurde erfolgreich aus Gebäude {$gebaeude->codex} erstellt.";
             if ($istJahresrechnung) {
                 $successMsg .= " (Jahresrechnung)";
             }
 
-            return redirect()
-                ->route('rechnung.edit', $rechnung->id)
-                ->with('success', $successMsg);
+            // Warnungen anzeigen falls vorhanden
+            $redirect = redirect()->route('rechnung.edit', $rechnung->id);
+            
+            if (!empty($warnings)) {
+                session()->flash('rechnung_warnings', $warnings);
+                return $redirect->with('warning', implode(' | ', $warnings));
+            }
+
+            return $redirect->with('success', $successMsg);
+            
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Rechnung aus Gebäude', [
                 'gebaeude_id' => $id,

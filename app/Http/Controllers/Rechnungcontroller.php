@@ -222,6 +222,124 @@ class RechnungController extends Controller
    
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // 🔍 INTEGRITÄTSPRÜFUNG & VALIDIERUNG (NEU)
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Integritäts-Report Seite anzeigen.
+     * 
+     * Zeigt:
+     * - Lücken in Rechnungsnummern
+     * - Mögliche Duplikate (gleicher Betrag auf gleiches Gebäude)
+     * 
+     * Route: GET /rechnung/integritaet
+     */
+    public function integritaetsReport(Request $request)
+    {
+        $jahr = $request->input('jahr', now()->year);
+        $report = Rechnung::getIntegritaetsReport($jahr);
+        
+        // Verfügbare Jahre für Dropdown
+        $verfuegbareJahre = Rechnung::selectRaw('DISTINCT jahr')
+            ->orderByDesc('jahr')
+            ->pluck('jahr')
+            ->toArray();
+        
+        // Falls keine Rechnungen existieren, aktuelles Jahr + 2 Vorjahre
+        if (empty($verfuegbareJahre)) {
+            $verfuegbareJahre = [now()->year, now()->year - 1, now()->year - 2];
+        }
+        
+        return view('rechnung.integritaet', compact('report', 'jahr', 'verfuegbareJahre'));
+    }
+
+    /**
+     * AJAX Endpoint für Live-Validierung im Formular.
+     * 
+     * Prüft vor dem Erstellen auf:
+     * - Mögliche Duplikate
+     * - Lücken in Rechnungsnummern
+     * 
+     * Route: POST /rechnung/validate
+     */
+    public function validateBeforeCreate(Request $request)
+    {
+        $gebaeudeId = $request->input('gebaeude_id');
+        $betrag = $request->input('betrag');
+        $jahr = $request->input('jahr', now()->year);
+        
+        $warnings = [];
+        
+        // Duplikat-Prüfung
+        if ($gebaeudeId && $betrag) {
+            $duplikat = Rechnung::pruefeDuplikat((int) $gebaeudeId, (float) $betrag, (int) $jahr);
+            if ($duplikat['is_duplicate']) {
+                $warnings[] = [
+                    'type' => 'duplicate',
+                    'message' => $duplikat['message'],
+                    'existing_id' => $duplikat['existing']->id ?? null,
+                    'existing_nummer' => $duplikat['existing']?->rechnungsnummer,
+                ];
+            }
+        }
+        
+        // Lücken-Prüfung für nächste Nummer
+        $naechsteNummer = Rechnung::getNextLaufnummer((int) $jahr);
+        $luecke = Rechnung::pruefeLaufnummerLuecke((int) $jahr, $naechsteNummer);
+        if ($luecke['has_gap']) {
+            $warnings[] = [
+                'type' => 'gap',
+                'message' => $luecke['message'],
+                'missing' => $luecke['missing'],
+            ];
+        }
+        
+        return response()->json([
+            'warnings' => $warnings,
+            'next_number' => $naechsteNummer,
+            'next_rechnungsnummer' => $jahr . '/' . str_pad($naechsteNummer, 4, '0', STR_PAD_LEFT),
+        ]);
+    }
+
+    /**
+     * Prüft Duplikate für ein bestimmtes Gebäude.
+     * 
+     * Route: GET /rechnung/duplikate/{gebaeudeId}
+     */
+    public function duplikatePruefen(Request $request, int $gebaeudeId)
+    {
+        $jahr = $request->input('jahr');
+        
+        $duplikate = Rechnung::findeDuplikate($gebaeudeId, $jahr);
+        $gebaeude = Gebaeude::find($gebaeudeId);
+        
+        return response()->json([
+            'gebaeude_id' => $gebaeudeId,
+            'gebaeude_name' => $gebaeude?->gebaeude_name ?? $gebaeude?->codex,
+            'jahr' => $jahr,
+            'duplikate' => $duplikate,
+            'hat_duplikate' => $duplikate->isNotEmpty(),
+        ]);
+    }
+
+    /**
+     * Prüft Lücken in Rechnungsnummern für ein Jahr.
+     * 
+     * Route: GET /rechnung/luecken/{jahr?}
+     */
+    public function lueckenPruefen(Request $request, ?int $jahr = null)
+    {
+        $jahr = $jahr ?? $request->input('jahr', now()->year);
+        
+        $luecken = Rechnung::findeAlleLuecken($jahr);
+        
+        return response()->json([
+            'jahr' => $jahr,
+            'luecken' => $luecken,
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // CREATE / STORE - Neue Rechnung erstellen
     // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -265,9 +383,61 @@ class RechnungController extends Controller
 
             $rechnung = Rechnung::createFromGebaeude($gebaeude);
 
-            return redirect()
-                ->route('rechnung.edit', $rechnung->id)
-                ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebaeude {$gebaeude->codex} erstellt.");
+            // ⭐ Validierung NACH Erstellung (mit tatsächlichen Werten)
+            $warnings = [];
+            
+            Log::info('=== RECHNUNGS-VALIDIERUNG START ===', [
+                'rechnung_id' => $rechnung->id,
+                'rechnung_nummer' => $rechnung->rechnungsnummer,
+                'gebaeude_id' => $gebaeude->id,
+                'brutto_summe' => $rechnung->brutto_summe,
+                'jahr' => $rechnung->jahr,
+            ]);
+            
+            // 1. Duplikat-Prüfung (gleicher Betrag auf gleiches Gebäude)
+            $duplikat = Rechnung::pruefeDuplikat(
+                $gebaeude->id,
+                (float) $rechnung->brutto_summe,
+                $rechnung->jahr,
+                $rechnung->id  // Eigene ID ausschließen
+            );
+            
+            Log::info('Duplikat-Prüfung Ergebnis', [
+                'is_duplicate' => $duplikat['is_duplicate'],
+                'message' => $duplikat['message'],
+            ]);
+            
+            if ($duplikat['is_duplicate']) {
+                $warnings[] = $duplikat['message'];
+            }
+            
+            // 2. Lücken-Prüfung (alle fehlenden Nummern im Jahr)
+            $luecken = Rechnung::findeAlleLuecken($rechnung->jahr);
+            
+            Log::info('Lücken-Prüfung Ergebnis', [
+                'has_gaps' => $luecken['has_gaps'],
+                'missing' => $luecken['missing'] ?? [],
+                'message' => $luecken['message'],
+            ]);
+            
+            if ($luecken['has_gaps']) {
+                $warnings[] = $luecken['message'];
+            }
+            
+            Log::info('=== RECHNUNGS-VALIDIERUNG ENDE ===', [
+                'warnings_count' => count($warnings),
+                'warnings' => $warnings,
+            ]);
+
+            // Warnungen anzeigen
+            $redirect = redirect()->route('rechnung.edit', $rechnung->id);
+            
+            if (!empty($warnings)) {
+                session()->flash('rechnung_warnings', $warnings);
+                return $redirect->with('warning', implode(' | ', $warnings));
+            }
+
+            return $redirect->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde aus Gebaeude {$gebaeude->codex} erstellt.");
         } catch (\Exception $e) {
             Log::error('Fehler beim Erstellen der Rechnung aus Gebaeude', [
                 'gebaeude_id' => $request->integer('gebaeude_id'),
@@ -337,9 +507,61 @@ class RechnungController extends Controller
 
         $rechnung = $gebaeude->createRechnung($validated);
 
-        return redirect()
-            ->route('rechnung.edit', $rechnung->id)
-            ->with('success', "Rechnung {$rechnung->rechnungsnummer} erfolgreich angelegt.");
+        // ⭐ Validierung NACH Erstellung (mit tatsächlichen Werten)
+        $warnings = [];
+        
+        Log::info('=== RECHNUNGS-VALIDIERUNG (store) START ===', [
+            'rechnung_id' => $rechnung->id,
+            'rechnung_nummer' => $rechnung->rechnungsnummer,
+            'gebaeude_id' => $gebaeude->id,
+            'brutto_summe' => $rechnung->brutto_summe,
+            'jahr' => $rechnung->jahr,
+        ]);
+        
+        // 1. Duplikat-Prüfung (gleicher Betrag auf gleiches Gebäude)
+        $duplikat = Rechnung::pruefeDuplikat(
+            $gebaeude->id,
+            (float) $rechnung->brutto_summe,
+            $rechnung->jahr,
+            $rechnung->id  // Eigene ID ausschließen
+        );
+        
+        Log::info('Duplikat-Prüfung Ergebnis', [
+            'is_duplicate' => $duplikat['is_duplicate'],
+            'message' => $duplikat['message'],
+        ]);
+        
+        if ($duplikat['is_duplicate']) {
+            $warnings[] = $duplikat['message'];
+        }
+        
+        // 2. Lücken-Prüfung (alle fehlenden Nummern im Jahr)
+        $luecken = Rechnung::findeAlleLuecken($rechnung->jahr);
+        
+        Log::info('Lücken-Prüfung Ergebnis', [
+            'has_gaps' => $luecken['has_gaps'],
+            'missing' => $luecken['missing'] ?? [],
+            'message' => $luecken['message'],
+        ]);
+        
+        if ($luecken['has_gaps']) {
+            $warnings[] = $luecken['message'];
+        }
+        
+        Log::info('=== RECHNUNGS-VALIDIERUNG (store) ENDE ===', [
+            'warnings_count' => count($warnings),
+            'warnings' => $warnings,
+        ]);
+
+        // Warnungen anzeigen
+        $redirect = redirect()->route('rechnung.edit', $rechnung->id);
+        
+        if (!empty($warnings)) {
+            session()->flash('rechnung_warnings', $warnings);
+            return $redirect->with('warning', implode(' | ', $warnings));
+        }
+
+        return $redirect->with('success', "Rechnung {$rechnung->rechnungsnummer} erfolgreich angelegt.");
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════

@@ -488,9 +488,9 @@ class EingangsrechnungenVerwaltung extends Component
     }
 
     /**
-     * CSV für Banküberweisung exportieren - Vorbereiten und URL generieren
+     * CSV für Banküberweisung exportieren und als bezahlt markieren
      */
-    public function exportierenUndBezahlen(): void
+    public function exportierenUndBezahlen()
     {
         if (empty($this->ausgewaehlteRechnungen)) {
             session()->flash('error', 'Keine Rechnungen ausgewählt.');
@@ -518,22 +518,6 @@ class EingangsrechnungenVerwaltung extends Component
         // CSV erstellen
         $csvData = $this->erstelleCsvDaten($rechnungen);
         
-        // CSV als temporäre Datei speichern
-        $filename = 'Zahlungen_' . now()->format('Y-m-d_His') . '.csv';
-        $filepath = storage_path('app/public/temp/' . $filename);
-        
-        // Temp-Verzeichnis erstellen falls nicht vorhanden
-        if (!is_dir(storage_path('app/public/temp'))) {
-            mkdir(storage_path('app/public/temp'), 0755, true);
-        }
-        
-        $handle = fopen($filepath, 'w');
-        fwrite($handle, "\xEF\xBB\xBF"); // BOM für Excel UTF-8
-        foreach ($csvData as $row) {
-            fputcsv($handle, $row, ';');
-        }
-        fclose($handle);
-
         // Rechnungen als bezahlt markieren
         $this->markiereAlsBezahlt($rechnungen);
 
@@ -543,8 +527,20 @@ class EingangsrechnungenVerwaltung extends Component
 
         session()->flash('success', "{$anzahl} Rechnungen exportiert und als bezahlt markiert.");
 
-        // Download via JavaScript auslösen
-        $this->dispatch('download-file', url: asset('storage/temp/' . $filename));
+        // ⭐ Livewire streamDownload - funktioniert direkt ohne temporäre Dateien
+        $filename = 'Zahlungen_' . now()->format('Y-m-d_His') . '.csv';
+        
+        return response()->streamDownload(function () use ($csvData) {
+            $handle = fopen('php://output', 'w');
+            // BOM für Excel UTF-8
+            fwrite($handle, "\xEF\xBB\xBF");
+            foreach ($csvData as $row) {
+                fputcsv($handle, $row, ';');
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     /**

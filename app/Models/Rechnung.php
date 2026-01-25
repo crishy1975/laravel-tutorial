@@ -282,9 +282,327 @@ class Rechnung extends Model
             ])
             ->exists();
     }
-// ─────────────────────────────────────────────────────────────────────────
-// SCHRITT 3: Statische Methoden (am Ende der Klasse einfügen)
-// ─────────────────────────────────────────────────────────────────────────
+
+    // ═══════════════════════════════════════════════════════════
+    // 🔍 VALIDIERUNG & WARNUNGEN (NEU)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Prüft auf mögliche Duplikate: Gleicher Betrag auf gleiches Gebäude im selben Jahr.
+     * 
+     * @param int $gebaeudeId
+     * @param float $betrag (brutto_summe)
+     * @param int|null $jahr (Standard: aktuelles Jahr)
+     * @param int|null $excludeId ID einer bestehenden Rechnung ausschließen (für Updates)
+     * @return array{is_duplicate: bool, existing: ?Rechnung, message: ?string}
+     */
+    public static function pruefeDuplikat(
+        int $gebaeudeId, 
+        float $betrag, 
+        ?int $jahr = null,
+        ?int $excludeId = null
+    ): array {
+        $jahr = $jahr ?? now()->year;
+        
+        // Toleranz für Rundungsdifferenzen (1 Cent)
+        $toleranz = 0.02;
+        $min = $betrag - $toleranz;
+        $max = $betrag + $toleranz;
+        
+        $query = static::where('gebaeude_id', $gebaeudeId)
+            ->where('jahr', $jahr)
+            ->where('status', '!=', 'cancelled')
+            ->where('brutto_summe', '>=', $min)
+            ->where('brutto_summe', '<=', $max);
+        
+        // Bei Update: Eigene ID ausschließen
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        \Log::info('pruefeDuplikat DEBUG', [
+            'gebaeude_id' => $gebaeudeId,
+            'betrag' => $betrag,
+            'jahr' => $jahr,
+            'exclude_id' => $excludeId,
+            'min' => $min,
+            'max' => $max,
+            'sql' => $query->toSql(),
+        ]);
+        
+        $existing = $query->first();
+        
+        \Log::info('pruefeDuplikat RESULT', [
+            'found' => $existing ? true : false,
+            'existing_id' => $existing?->id,
+            'existing_brutto' => $existing?->brutto_summe,
+        ]);
+        
+        if ($existing) {
+            $rechnungsnummer = $existing->jahr . '/' . str_pad($existing->laufnummer, 4, '0', STR_PAD_LEFT);
+            
+            return [
+                'is_duplicate' => true,
+                'existing' => $existing,
+                'message' => "⚠️ Mögliches Duplikat: Rechnung {$rechnungsnummer} vom " . 
+                             $existing->rechnungsdatum?->format('d.m.Y') . 
+                             " hat den gleichen Betrag (" . number_format($betrag, 2, ',', '.') . " €) für dieses Gebäude.",
+            ];
+        }
+        
+        return [
+            'is_duplicate' => false,
+            'existing' => null,
+            'message' => null,
+        ];
+    }
+
+    /**
+     * Prüft ob eine bestimmte Laufnummer eine Lücke erzeugen würde.
+     * 
+     * @param int $jahr
+     * @param int $neueLaufnummer
+     * @return array{has_gap: bool, missing: array, message: ?string}
+     */
+    public static function pruefeLaufnummerLuecke(int $jahr, int $neueLaufnummer): array
+    {
+        // Alle existierenden Laufnummern im Jahr holen
+        $existierende = static::where('jahr', $jahr)
+            ->whereNull('deleted_at')
+            ->pluck('laufnummer')
+            ->sort()
+            ->values()
+            ->toArray();
+        
+        // Wenn keine Rechnungen existieren und neue Nr. > 1 → Lücke
+        if (empty($existierende) && $neueLaufnummer > 1) {
+            $missing = range(1, $neueLaufnummer - 1);
+            return [
+                'has_gap' => true,
+                'missing' => $missing,
+                'message' => "⚠️ Lücke: Es fehlen die Nummern " . implode(', ', $missing) . " im Jahr {$jahr}.",
+            ];
+        }
+        
+        // Höchste existierende Nummer
+        $hoechste = !empty($existierende) ? max($existierende) : 0;
+        
+        // Wenn neue Nummer größer als höchste + 1 → Lücke
+        if ($neueLaufnummer > $hoechste + 1) {
+            $missing = range($hoechste + 1, $neueLaufnummer - 1);
+            return [
+                'has_gap' => true,
+                'missing' => $missing,
+                'message' => "⚠️ Lücke: Es fehlen die Nummern " . implode(', ', $missing) . " im Jahr {$jahr}.",
+            ];
+        }
+        
+        return [
+            'has_gap' => false,
+            'missing' => [],
+            'message' => null,
+        ];
+    }
+
+    /**
+     * Findet alle Lücken in den Rechnungsnummern eines Jahres.
+     * 
+     * @param int $jahr
+     * @return array{has_gaps: bool, missing: array, message: ?string}
+     */
+    public static function findeAlleLuecken(int $jahr): array
+    {
+        // SoftDeletes: Nur nicht-gelöschte Rechnungen zählen
+        $existierende = static::where('jahr', $jahr)
+            ->pluck('laufnummer')
+            ->sort()
+            ->values()
+            ->toArray();
+        
+        \Log::info('findeAlleLuecken DEBUG', [
+            'jahr' => $jahr,
+            'existierende' => $existierende,
+            'anzahl' => count($existierende),
+        ]);
+        
+        if (empty($existierende)) {
+            return [
+                'has_gaps' => false,
+                'missing' => [],
+                'message' => "Keine Rechnungen im Jahr {$jahr} vorhanden.",
+            ];
+        }
+        
+        $hoechste = max($existierende);
+        $sollNummern = range(1, $hoechste);
+        $fehlende = array_values(array_diff($sollNummern, $existierende));
+        
+        \Log::info('findeAlleLuecken RESULT', [
+            'hoechste' => $hoechste,
+            'soll' => $sollNummern,
+            'fehlende' => $fehlende,
+        ]);
+        
+        if (empty($fehlende)) {
+            return [
+                'has_gaps' => false,
+                'missing' => [],
+                'message' => "✓ Alle Rechnungsnummern 1-{$hoechste} im Jahr {$jahr} sind vorhanden.",
+            ];
+        }
+        
+        // Fehlende Nummern formatieren
+        $formatierteLuecken = array_map(function($nr) use ($jahr) {
+            return $jahr . '/' . str_pad($nr, 4, '0', STR_PAD_LEFT);
+        }, $fehlende);
+        
+        return [
+            'has_gaps' => true,
+            'missing' => $fehlende,
+            'missing_formatted' => $formatierteLuecken,
+            'message' => "⚠️ Fehlende Rechnungsnummern im Jahr {$jahr}: " . implode(', ', $formatierteLuecken),
+        ];
+    }
+
+    /**
+     * Findet alle möglichen Duplikate für ein Gebäude.
+     * 
+     * @param int $gebaeudeId
+     * @param int|null $jahr (null = alle Jahre)
+     * @return \Illuminate\Support\Collection Gruppiert nach Betrag
+     */
+    public static function findeDuplikate(int $gebaeudeId, ?int $jahr = null): \Illuminate\Support\Collection
+    {
+        $query = static::where('gebaeude_id', $gebaeudeId)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('deleted_at');
+        
+        if ($jahr) {
+            $query->where('jahr', $jahr);
+        }
+        
+        return $query->get()
+            ->groupBy(function ($rechnung) {
+                // Gruppiere nach Brutto-Summe (auf 2 Dezimalstellen gerundet)
+                return number_format((float) $rechnung->brutto_summe, 2, '.', '');
+            })
+            ->filter(function ($group) {
+                // Nur Gruppen mit mehr als einer Rechnung
+                return $group->count() > 1;
+            })
+            ->map(function ($group) {
+                return [
+                    'betrag' => (float) $group->first()->brutto_summe,
+                    'anzahl' => $group->count(),
+                    'rechnungen' => $group->map(function ($r) {
+                        return [
+                            'id' => $r->id,
+                            'nummer' => $r->jahr . '/' . str_pad($r->laufnummer, 4, '0', STR_PAD_LEFT),
+                            'datum' => $r->rechnungsdatum?->format('d.m.Y'),
+                            'status' => $r->status,
+                        ];
+                    }),
+                ];
+            });
+    }
+
+    /**
+     * Führt alle Validierungen vor dem Erstellen durch.
+     * 
+     * @param int $gebaeudeId
+     * @param float $betrag
+     * @param int $jahr
+     * @param int $laufnummer
+     * @return array{warnings: array, can_proceed: bool}
+     */
+    public static function validiereVorErstellung(
+        int $gebaeudeId, 
+        float $betrag, 
+        int $jahr, 
+        int $laufnummer
+    ): array {
+        $warnings = [];
+        
+        // 1. Duplikat-Prüfung
+        $duplikat = static::pruefeDuplikat($gebaeudeId, $betrag, $jahr);
+        if ($duplikat['is_duplicate']) {
+            $warnings[] = $duplikat['message'];
+        }
+        
+        // 2. Laufnummer-Lücken-Prüfung
+        $luecke = static::pruefeLaufnummerLuecke($jahr, $laufnummer);
+        if ($luecke['has_gap']) {
+            $warnings[] = $luecke['message'];
+        }
+        
+        return [
+            'warnings' => $warnings,
+            'can_proceed' => true, // Warnungen blockieren nicht, nur informieren
+            'duplikat_info' => $duplikat,
+            'luecken_info' => $luecke,
+        ];
+    }
+
+    /**
+     * Gibt eine Übersicht aller Integritätsprobleme zurück.
+     * 
+     * @param int|null $jahr
+     * @return array
+     */
+    public static function getIntegritaetsReport(?int $jahr = null): array
+    {
+        $jahr = $jahr ?? now()->year;
+        
+        // 1. Lücken finden
+        $luecken = static::findeAlleLuecken($jahr);
+        
+        // 2. Alle Duplikate finden (über alle Gebäude)
+        $alleDuplikate = [];
+        
+        $gebaeudeIds = static::where('jahr', $jahr)
+            ->whereNull('deleted_at')
+            ->distinct()
+            ->pluck('gebaeude_id');
+        
+        foreach ($gebaeudeIds as $gebaeudeId) {
+            $duplikate = static::findeDuplikate($gebaeudeId, $jahr);
+            
+            if ($duplikate->isNotEmpty()) {
+                $gebaeude = Gebaeude::find($gebaeudeId);
+                $alleDuplikate[$gebaeudeId] = [
+                    'gebaeude_name' => $gebaeude?->gebaeude_name ?? $gebaeude?->codex ?? "ID: {$gebaeudeId}",
+                    'duplikate' => $duplikate,
+                ];
+            }
+        }
+        
+        return [
+            'jahr' => $jahr,
+            'luecken' => $luecken,
+            'duplikate' => $alleDuplikate,
+            'hat_probleme' => $luecken['has_gaps'] || !empty($alleDuplikate),
+        ];
+    }
+
+    /**
+     * Nächste verfügbare Laufnummer für ein Jahr.
+     * 
+     * @param int|null $jahr
+     * @return int
+     */
+    public static function getNextLaufnummer(?int $jahr = null): int
+    {
+        $jahr = $jahr ?? now()->year;
+        
+        $maxLaufnummer = (int) static::where('jahr', $jahr)
+            ->max('laufnummer');
+        
+        return $maxLaufnummer + 1;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STATISCHE METHODEN
+    // ─────────────────────────────────────────────────────────────────────────
 
     /**
      * ⭐ Generiert Causale statisch (ULTRA-KOMPAKT)
@@ -411,29 +729,6 @@ class Rechnung extends Model
         ]);
     }
 
-
-
-
-    /**
-     * ══════════════════════════════════════════════════════════════════════════════
-     * ⭐ KORRIGIERTE createFromGebaeude METHODE
-     * ══════════════════════════════════════════════════════════════════════════════
-     * 
-     * PROBLEM VORHER:
-     * - Der Code berechnete einen globalen Aufschlag für ALLE Artikel
-     * - Das basis_jahr des einzelnen Artikels wurde ignoriert
-     * - Artikel mit basis_jahr=2025 bekamen trotzdem den Aufschlag für 2025
-     * 
-     * LÖSUNG:
-     * - Für JEDEN Artikel wird der Aufschlag individuell berechnet
-     * - Basierend auf dessen basis_jahr und basis_preis
-     * - Verwendet $gebaeude->berechnePreisMitKumulativerErhoehung()
-     * 
-     * ERSETZE in app/Models/Rechnung.php die Methode createFromGebaeude() 
-     * (ca. Zeilen 383-619) mit dem folgenden Code:
-     * ══════════════════════════════════════════════════════════════════════════════
-     */
-
     /**
      * Erstellt eine Rechnung aus einem Gebäude.
      * 
@@ -448,7 +743,7 @@ class Rechnung extends Model
      * @param array $overrides Optionale Überschreibungen
      * @return self
      */
- public static function createFromGebaeude(
+    public static function createFromGebaeude(
         Gebaeude $gebaeude, 
         array $overrides = [], 
         bool $istJahresrechnung = false
@@ -683,11 +978,6 @@ class Rechnung extends Model
 
         return $rechnung;
     }
-
-
-
-
-
 
     /**
      * Formatiert Timeline-Einträge zu einem Leistungsdaten-String.
@@ -1063,89 +1353,89 @@ class Rechnung extends Model
     }
 
     public function getErwarteterZahlbetragAttribute(): float
-{
-    // 1. Primär: zahlbar_betrag wenn bereits korrekt gesetzt
-    if ($this->zahlbar_betrag !== null && (float) $this->zahlbar_betrag > 0) {
-        return (float) $this->zahlbar_betrag;
+    {
+        // 1. Primär: zahlbar_betrag wenn bereits korrekt gesetzt
+        if ($this->zahlbar_betrag !== null && (float) $this->zahlbar_betrag > 0) {
+            return (float) $this->zahlbar_betrag;
+        }
+
+        // 2. Berechnung basierend auf Rechnungstyp
+        $brutto = (float) ($this->brutto_summe ?? 0);
+        $netto = (float) ($this->netto_summe ?? $brutto);
+        $mwst = (float) ($this->mwst_betrag ?? ($brutto - $netto));
+        $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
+
+        // Prüfe FatturaProfile oder direkte Flags
+        $profile = $this->fatturaProfile;
+        
+        $isSplitPayment = $profile?->split_payment 
+            ?? $this->split_payment 
+            ?? false;
+        
+        $isReverseCharge = $profile?->reverse_charge 
+            ?? $this->reverse_charge 
+            ?? ($this->natura_esenzione !== null && in_array($this->natura_esenzione, ['N2', 'N2.1', 'N2.2', 'N3', 'N3.1', 'N3.2', 'N3.3', 'N3.4', 'N3.5', 'N3.6', 'N6', 'N6.1', 'N6.2', 'N6.3', 'N6.4', 'N6.5', 'N6.6', 'N6.7', 'N6.8', 'N6.9']))
+            ?? false;
+        
+        // Ritenuta aus Profil holen falls nicht direkt gesetzt
+        if ($ritenuta == 0 && $profile?->ritenuta > 0) {
+            $ritenutaSatz = (float) $profile->ritenuta;
+            $ritenuta = round($netto * ($ritenutaSatz / 100), 2);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // BERECHNUNG
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Reverse Charge: Kunde zahlt nur Netto (MwSt wird vom Kunden selbst abgeführt)
+        if ($isReverseCharge) {
+            return round($netto - $ritenuta, 2);
+        }
+
+        // Split-Payment: Kunde zahlt Netto, MwSt geht direkt an Finanzamt
+        if ($isSplitPayment) {
+            return round($netto - $ritenuta, 2);
+        }
+
+        // Ritenuta ohne Split-Payment: Brutto minus Ritenuta
+        if ($ritenuta > 0) {
+            return round($brutto - $ritenuta, 2);
+        }
+
+        // Normal: Brutto
+        return $brutto;
     }
 
-    // 2. Berechnung basierend auf Rechnungstyp
-    $brutto = (float) ($this->brutto_summe ?? 0);
-    $netto = (float) ($this->netto_summe ?? $brutto);
-    $mwst = (float) ($this->mwst_betrag ?? ($brutto - $netto));
-    $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
-
-    // Prüfe FatturaProfile oder direkte Flags
-    $profile = $this->fatturaProfile;
-    
-    $isSplitPayment = $profile?->split_payment 
-        ?? $this->split_payment 
-        ?? false;
-    
-    $isReverseCharge = $profile?->reverse_charge 
-        ?? $this->reverse_charge 
-        ?? ($this->natura_esenzione !== null && in_array($this->natura_esenzione, ['N2', 'N2.1', 'N2.2', 'N3', 'N3.1', 'N3.2', 'N3.3', 'N3.4', 'N3.5', 'N3.6', 'N6', 'N6.1', 'N6.2', 'N6.3', 'N6.4', 'N6.5', 'N6.6', 'N6.7', 'N6.8', 'N6.9']))
-        ?? false;
-    
-    // Ritenuta aus Profil holen falls nicht direkt gesetzt
-    if ($ritenuta == 0 && $profile?->ritenuta > 0) {
-        $ritenutaSatz = (float) $profile->ritenuta;
-        $ritenuta = round($netto * ($ritenutaSatz / 100), 2);
+    /**
+     * Formatierter erwarteter Zahlbetrag
+     */
+    public function getErwarteterZahlbetragFormatAttribute(): string
+    {
+        return number_format($this->erwarteter_zahlbetrag, 2, ',', '.') . ' €';
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // BERECHNUNG
-    // ─────────────────────────────────────────────────────────────────────
+    /**
+     * Erklärt wie der Zahlbetrag zustande kommt
+     */
+    public function getZahlbetragErklaerungAttribute(): string
+    {
+        $profile = $this->fatturaProfile;
+        $isSplitPayment = $profile?->split_payment ?? $this->split_payment ?? false;
+        $isReverseCharge = $profile?->reverse_charge ?? $this->reverse_charge ?? false;
+        $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
 
-    // Reverse Charge: Kunde zahlt nur Netto (MwSt wird vom Kunden selbst abgeführt)
-    if ($isReverseCharge) {
-        return round($netto - $ritenuta, 2);
+        if ($isReverseCharge) {
+            return 'Reverse Charge: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
+        }
+
+        if ($isSplitPayment) {
+            return 'Split-Payment: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
+        }
+
+        if ($ritenuta > 0) {
+            return 'Brutto − Ritenuta';
+        }
+
+        return 'Brutto';
     }
-
-    // Split-Payment: Kunde zahlt Netto, MwSt geht direkt an Finanzamt
-    if ($isSplitPayment) {
-        return round($netto - $ritenuta, 2);
-    }
-
-    // Ritenuta ohne Split-Payment: Brutto minus Ritenuta
-    if ($ritenuta > 0) {
-        return round($brutto - $ritenuta, 2);
-    }
-
-    // Normal: Brutto
-    return $brutto;
-}
-
-/**
- * Formatierter erwarteter Zahlbetrag
- */
-public function getErwarteterZahlbetragFormatAttribute(): string
-{
-    return number_format($this->erwarteter_zahlbetrag, 2, ',', '.') . ' €';
-}
-
-/**
- * Erklärt wie der Zahlbetrag zustande kommt
- */
-public function getZahlbetragErklaerungAttribute(): string
-{
-    $profile = $this->fatturaProfile;
-    $isSplitPayment = $profile?->split_payment ?? $this->split_payment ?? false;
-    $isReverseCharge = $profile?->reverse_charge ?? $this->reverse_charge ?? false;
-    $ritenuta = (float) ($this->ritenuta_betrag ?? 0);
-
-    if ($isReverseCharge) {
-        return 'Reverse Charge: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
-    }
-
-    if ($isSplitPayment) {
-        return 'Split-Payment: Netto' . ($ritenuta > 0 ? ' − Ritenuta' : '');
-    }
-
-    if ($ritenuta > 0) {
-        return 'Brutto − Ritenuta';
-    }
-
-    return 'Brutto';
-}
 }
