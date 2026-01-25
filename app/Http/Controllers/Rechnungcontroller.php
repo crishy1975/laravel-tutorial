@@ -1916,4 +1916,52 @@ class RechnungController extends Controller
             'codex'         => $gebaeude->codex,
         ]);
     }
+
+<?php
+/**
+ * ══════════════════════════════════════════════════════════════════════════════
+ * METHODE FÜR: app/Http/Controllers/RechnungController.php
+ * ══════════════════════════════════════════════════════════════════════════════
+ * 
+ * Diese Methode in die RechnungController-Klasse einfügen.
+ */
+
+/**
+ * Erstellt eine Gutschrift aus einer bestehenden Rechnung.
+ * 
+ * @param Rechnung $rechnung Die Original-Rechnung
+ * @return \Illuminate\Http\RedirectResponse
+ */
+public function gutschrift(Rechnung $rechnung)
+{
+    try {
+        // Nur aus Rechnungen, nicht aus Gutschriften
+        if ($rechnung->typ_rechnung === 'gutschrift') {
+            return back()->with('error', 'Aus einer Gutschrift kann keine weitere Gutschrift erstellt werden.');
+        }
+
+        $gutschrift = $rechnung->erstelleGutschrift();
+
+        Log::info('Gutschrift erstellt', [
+            'original_id'       => $rechnung->id,
+            'original_nummer'   => $rechnung->rechnungsnummer,
+            'gutschrift_id'     => $gutschrift->id,
+            'gutschrift_nummer' => $gutschrift->rechnungsnummer,
+        ]);
+
+        return redirect()
+            ->route('rechnung.edit', $gutschrift->id)
+            ->with('success', "Gutschrift {$gutschrift->rechnungsnummer} wurde erfolgreich erstellt.");
+
+    } catch (\Exception $e) {
+        Log::error('Fehler beim Erstellen der Gutschrift', [
+            'rechnung_id' => $rechnung->id,
+            'error'       => $e->getMessage(),
+        ]);
+
+        return back()->with('error', 'Fehler beim Erstellen der Gutschrift: ' . $e->getMessage());
+    }
+}
+
+
 }
