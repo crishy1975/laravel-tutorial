@@ -1450,6 +1450,7 @@ class Rechnung extends Model
      * Benötigte Imports (falls nicht vorhanden):
      * use App\Models\RechnungPosition;
      * use App\Models\RechnungLog;
+     * use App\Enums\RechnungLogTyp;
      * use Illuminate\Support\Facades\DB;
      */
 
@@ -1530,7 +1531,7 @@ class Rechnung extends Model
         // Log-Eintrag bei Original-Rechnung
         RechnungLog::create([
             'rechnung_id' => $this->id,
-            'typ'         => 'gutschrift_erstellt',
+            'typ'         => RechnungLogTyp::GUTSCHRIFT_ERSTELLT,
             'titel'       => 'Gutschrift erstellt',
             'nachricht'   => "Gutschrift {$gutschrift->rechnungsnummer} wurde aus dieser Rechnung erstellt.",
             'metadata'    => [
@@ -1543,7 +1544,7 @@ class Rechnung extends Model
         // Log-Eintrag bei Gutschrift
         RechnungLog::create([
             'rechnung_id' => $gutschrift->id,
-            'typ'         => 'erstellt',
+            'typ'         => RechnungLogTyp::RECHNUNG_ERSTELLT,
             'titel'       => 'Gutschrift erstellt',
             'nachricht'   => "Erstellt aus Rechnung {$this->rechnungsnummer}.",
             'metadata'    => [
