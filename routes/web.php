@@ -181,7 +181,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
 
     // ==================== Rechnungen ====================
-    // ==================== Rechnungen ====================
     Route::prefix('rechnung')->name('rechnung.')->group(function () {
 
         // ⭐ NEU: Integritätsprüfung (VOR den parametrisierten Routen!)

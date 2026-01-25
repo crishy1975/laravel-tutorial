@@ -238,18 +238,18 @@ class RechnungController extends Controller
     {
         $jahr = $request->input('jahr', now()->year);
         $report = Rechnung::getIntegritaetsReport($jahr);
-        
+
         // Verfügbare Jahre für Dropdown
         $verfuegbareJahre = Rechnung::selectRaw('DISTINCT jahr')
             ->orderByDesc('jahr')
             ->pluck('jahr')
             ->toArray();
-        
+
         // Falls keine Rechnungen existieren, aktuelles Jahr + 2 Vorjahre
         if (empty($verfuegbareJahre)) {
             $verfuegbareJahre = [now()->year, now()->year - 1, now()->year - 2];
         }
-        
+
         return view('rechnung.integritaet', compact('report', 'jahr', 'verfuegbareJahre'));
     }
 
@@ -267,9 +267,9 @@ class RechnungController extends Controller
         $gebaeudeId = $request->input('gebaeude_id');
         $betrag = $request->input('betrag');
         $jahr = $request->input('jahr', now()->year);
-        
+
         $warnings = [];
-        
+
         // Duplikat-Prüfung
         if ($gebaeudeId && $betrag) {
             $duplikat = Rechnung::pruefeDuplikat((int) $gebaeudeId, (float) $betrag, (int) $jahr);
@@ -282,7 +282,7 @@ class RechnungController extends Controller
                 ];
             }
         }
-        
+
         // Lücken-Prüfung für nächste Nummer
         $naechsteNummer = Rechnung::getNextLaufnummer((int) $jahr);
         $luecke = Rechnung::pruefeLaufnummerLuecke((int) $jahr, $naechsteNummer);
@@ -293,7 +293,7 @@ class RechnungController extends Controller
                 'missing' => $luecke['missing'],
             ];
         }
-        
+
         return response()->json([
             'warnings' => $warnings,
             'next_number' => $naechsteNummer,
@@ -309,10 +309,10 @@ class RechnungController extends Controller
     public function duplikatePruefen(Request $request, int $gebaeudeId)
     {
         $jahr = $request->input('jahr');
-        
+
         $duplikate = Rechnung::findeDuplikate($gebaeudeId, $jahr);
         $gebaeude = Gebaeude::find($gebaeudeId);
-        
+
         return response()->json([
             'gebaeude_id' => $gebaeudeId,
             'gebaeude_name' => $gebaeude?->gebaeude_name ?? $gebaeude?->codex,
@@ -330,9 +330,9 @@ class RechnungController extends Controller
     public function lueckenPruefen(Request $request, ?int $jahr = null)
     {
         $jahr = $jahr ?? $request->input('jahr', now()->year);
-        
+
         $luecken = Rechnung::findeAlleLuecken($jahr);
-        
+
         return response()->json([
             'jahr' => $jahr,
             'luecken' => $luecken,
@@ -385,7 +385,7 @@ class RechnungController extends Controller
 
             // ⭐ Validierung NACH Erstellung (mit tatsächlichen Werten)
             $warnings = [];
-            
+
             Log::info('=== RECHNUNGS-VALIDIERUNG START ===', [
                 'rechnung_id' => $rechnung->id,
                 'rechnung_nummer' => $rechnung->rechnungsnummer,
@@ -393,7 +393,7 @@ class RechnungController extends Controller
                 'brutto_summe' => $rechnung->brutto_summe,
                 'jahr' => $rechnung->jahr,
             ]);
-            
+
             // 1. Duplikat-Prüfung (gleicher Betrag auf gleiches Gebäude)
             $duplikat = Rechnung::pruefeDuplikat(
                 $gebaeude->id,
@@ -401,29 +401,29 @@ class RechnungController extends Controller
                 $rechnung->jahr,
                 $rechnung->id  // Eigene ID ausschließen
             );
-            
+
             Log::info('Duplikat-Prüfung Ergebnis', [
                 'is_duplicate' => $duplikat['is_duplicate'],
                 'message' => $duplikat['message'],
             ]);
-            
+
             if ($duplikat['is_duplicate']) {
                 $warnings[] = $duplikat['message'];
             }
-            
+
             // 2. Lücken-Prüfung (alle fehlenden Nummern im Jahr)
             $luecken = Rechnung::findeAlleLuecken($rechnung->jahr);
-            
+
             Log::info('Lücken-Prüfung Ergebnis', [
                 'has_gaps' => $luecken['has_gaps'],
                 'missing' => $luecken['missing'] ?? [],
                 'message' => $luecken['message'],
             ]);
-            
+
             if ($luecken['has_gaps']) {
                 $warnings[] = $luecken['message'];
             }
-            
+
             Log::info('=== RECHNUNGS-VALIDIERUNG ENDE ===', [
                 'warnings_count' => count($warnings),
                 'warnings' => $warnings,
@@ -431,7 +431,7 @@ class RechnungController extends Controller
 
             // Warnungen anzeigen
             $redirect = redirect()->route('rechnung.edit', $rechnung->id);
-            
+
             if (!empty($warnings)) {
                 session()->flash('rechnung_warnings', $warnings);
                 return $redirect->with('warning', implode(' | ', $warnings));
@@ -509,7 +509,7 @@ class RechnungController extends Controller
 
         // ⭐ Validierung NACH Erstellung (mit tatsächlichen Werten)
         $warnings = [];
-        
+
         Log::info('=== RECHNUNGS-VALIDIERUNG (store) START ===', [
             'rechnung_id' => $rechnung->id,
             'rechnung_nummer' => $rechnung->rechnungsnummer,
@@ -517,7 +517,7 @@ class RechnungController extends Controller
             'brutto_summe' => $rechnung->brutto_summe,
             'jahr' => $rechnung->jahr,
         ]);
-        
+
         // 1. Duplikat-Prüfung (gleicher Betrag auf gleiches Gebäude)
         $duplikat = Rechnung::pruefeDuplikat(
             $gebaeude->id,
@@ -525,29 +525,29 @@ class RechnungController extends Controller
             $rechnung->jahr,
             $rechnung->id  // Eigene ID ausschließen
         );
-        
+
         Log::info('Duplikat-Prüfung Ergebnis', [
             'is_duplicate' => $duplikat['is_duplicate'],
             'message' => $duplikat['message'],
         ]);
-        
+
         if ($duplikat['is_duplicate']) {
             $warnings[] = $duplikat['message'];
         }
-        
+
         // 2. Lücken-Prüfung (alle fehlenden Nummern im Jahr)
         $luecken = Rechnung::findeAlleLuecken($rechnung->jahr);
-        
+
         Log::info('Lücken-Prüfung Ergebnis', [
             'has_gaps' => $luecken['has_gaps'],
             'missing' => $luecken['missing'] ?? [],
             'message' => $luecken['message'],
         ]);
-        
+
         if ($luecken['has_gaps']) {
             $warnings[] = $luecken['message'];
         }
-        
+
         Log::info('=== RECHNUNGS-VALIDIERUNG (store) ENDE ===', [
             'warnings_count' => count($warnings),
             'warnings' => $warnings,
@@ -555,7 +555,7 @@ class RechnungController extends Controller
 
         // Warnungen anzeigen
         $redirect = redirect()->route('rechnung.edit', $rechnung->id);
-        
+
         if (!empty($warnings)) {
             session()->flash('rechnung_warnings', $warnings);
             return $redirect->with('warning', implode(' | ', $warnings));
@@ -1917,51 +1917,47 @@ class RechnungController extends Controller
         ]);
     }
 
-<?php
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * METHODE FÜR: app/Http/Controllers/RechnungController.php
- * ══════════════════════════════════════════════════════════════════════════════
- * 
- * Diese Methode in die RechnungController-Klasse einfügen.
- */
+    /**
+     * ══════════════════════════════════════════════════════════════════════════════
+     * METHODE FÜR: app/Http/Controllers/RechnungController.php
+     * ══════════════════════════════════════════════════════════════════════════════
+     * 
+     * Diese Methode in die RechnungController-Klasse einfügen.
+     */
 
-/**
- * Erstellt eine Gutschrift aus einer bestehenden Rechnung.
- * 
- * @param Rechnung $rechnung Die Original-Rechnung
- * @return \Illuminate\Http\RedirectResponse
- */
-public function gutschrift(Rechnung $rechnung)
-{
-    try {
-        // Nur aus Rechnungen, nicht aus Gutschriften
-        if ($rechnung->typ_rechnung === 'gutschrift') {
-            return back()->with('error', 'Aus einer Gutschrift kann keine weitere Gutschrift erstellt werden.');
+    /**
+     * Erstellt eine Gutschrift aus einer bestehenden Rechnung.
+     * 
+     * @param Rechnung $rechnung Die Original-Rechnung
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function gutschrift(Rechnung $rechnung)
+    {
+        try {
+            // Nur aus Rechnungen, nicht aus Gutschriften
+            if ($rechnung->typ_rechnung === 'gutschrift') {
+                return back()->with('error', 'Aus einer Gutschrift kann keine weitere Gutschrift erstellt werden.');
+            }
+
+            $gutschrift = $rechnung->erstelleGutschrift();
+
+            Log::info('Gutschrift erstellt', [
+                'original_id'       => $rechnung->id,
+                'original_nummer'   => $rechnung->rechnungsnummer,
+                'gutschrift_id'     => $gutschrift->id,
+                'gutschrift_nummer' => $gutschrift->rechnungsnummer,
+            ]);
+
+            return redirect()
+                ->route('rechnung.edit', $gutschrift->id)
+                ->with('success', "Gutschrift {$gutschrift->rechnungsnummer} wurde erfolgreich erstellt.");
+        } catch (\Exception $e) {
+            Log::error('Fehler beim Erstellen der Gutschrift', [
+                'rechnung_id' => $rechnung->id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Fehler beim Erstellen der Gutschrift: ' . $e->getMessage());
         }
-
-        $gutschrift = $rechnung->erstelleGutschrift();
-
-        Log::info('Gutschrift erstellt', [
-            'original_id'       => $rechnung->id,
-            'original_nummer'   => $rechnung->rechnungsnummer,
-            'gutschrift_id'     => $gutschrift->id,
-            'gutschrift_nummer' => $gutschrift->rechnungsnummer,
-        ]);
-
-        return redirect()
-            ->route('rechnung.edit', $gutschrift->id)
-            ->with('success', "Gutschrift {$gutschrift->rechnungsnummer} wurde erfolgreich erstellt.");
-
-    } catch (\Exception $e) {
-        Log::error('Fehler beim Erstellen der Gutschrift', [
-            'rechnung_id' => $rechnung->id,
-            'error'       => $e->getMessage(),
-        ]);
-
-        return back()->with('error', 'Fehler beim Erstellen der Gutschrift: ' . $e->getMessage());
     }
-}
-
-
 }
