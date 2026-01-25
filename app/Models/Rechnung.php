@@ -297,29 +297,29 @@ class Rechnung extends Model
      * @return array{is_duplicate: bool, existing: ?Rechnung, message: ?string}
      */
     public static function pruefeDuplikat(
-        int $gebaeudeId, 
-        float $betrag, 
+        int $gebaeudeId,
+        float $betrag,
         ?int $jahr = null,
         ?int $excludeId = null
     ): array {
         $jahr = $jahr ?? now()->year;
-        
+
         // Toleranz für Rundungsdifferenzen (1 Cent)
         $toleranz = 0.02;
         $min = $betrag - $toleranz;
         $max = $betrag + $toleranz;
-        
+
         $query = static::where('gebaeude_id', $gebaeudeId)
             ->where('jahr', $jahr)
             ->where('status', '!=', 'cancelled')
             ->where('brutto_summe', '>=', $min)
             ->where('brutto_summe', '<=', $max);
-        
+
         // Bei Update: Eigene ID ausschließen
         if ($excludeId) {
             $query->where('id', '!=', $excludeId);
         }
-        
+
         \Log::info('pruefeDuplikat DEBUG', [
             'gebaeude_id' => $gebaeudeId,
             'betrag' => $betrag,
@@ -329,27 +329,27 @@ class Rechnung extends Model
             'max' => $max,
             'sql' => $query->toSql(),
         ]);
-        
+
         $existing = $query->first();
-        
+
         \Log::info('pruefeDuplikat RESULT', [
             'found' => $existing ? true : false,
             'existing_id' => $existing?->id,
             'existing_brutto' => $existing?->brutto_summe,
         ]);
-        
+
         if ($existing) {
             $rechnungsnummer = $existing->jahr . '/' . str_pad($existing->laufnummer, 4, '0', STR_PAD_LEFT);
-            
+
             return [
                 'is_duplicate' => true,
                 'existing' => $existing,
-                'message' => "⚠️ Mögliches Duplikat: Rechnung {$rechnungsnummer} vom " . 
-                             $existing->rechnungsdatum?->format('d.m.Y') . 
-                             " hat den gleichen Betrag (" . number_format($betrag, 2, ',', '.') . " €) für dieses Gebäude.",
+                'message' => "⚠️ Mögliches Duplikat: Rechnung {$rechnungsnummer} vom " .
+                    $existing->rechnungsdatum?->format('d.m.Y') .
+                    " hat den gleichen Betrag (" . number_format($betrag, 2, ',', '.') . " €) für dieses Gebäude.",
             ];
         }
-        
+
         return [
             'is_duplicate' => false,
             'existing' => null,
@@ -373,7 +373,7 @@ class Rechnung extends Model
             ->sort()
             ->values()
             ->toArray();
-        
+
         // Wenn keine Rechnungen existieren und neue Nr. > 1 → Lücke
         if (empty($existierende) && $neueLaufnummer > 1) {
             $missing = range(1, $neueLaufnummer - 1);
@@ -383,10 +383,10 @@ class Rechnung extends Model
                 'message' => "⚠️ Lücke: Es fehlen die Nummern " . implode(', ', $missing) . " im Jahr {$jahr}.",
             ];
         }
-        
+
         // Höchste existierende Nummer
         $hoechste = !empty($existierende) ? max($existierende) : 0;
-        
+
         // Wenn neue Nummer größer als höchste + 1 → Lücke
         if ($neueLaufnummer > $hoechste + 1) {
             $missing = range($hoechste + 1, $neueLaufnummer - 1);
@@ -396,7 +396,7 @@ class Rechnung extends Model
                 'message' => "⚠️ Lücke: Es fehlen die Nummern " . implode(', ', $missing) . " im Jahr {$jahr}.",
             ];
         }
-        
+
         return [
             'has_gap' => false,
             'missing' => [],
@@ -418,13 +418,13 @@ class Rechnung extends Model
             ->sort()
             ->values()
             ->toArray();
-        
+
         \Log::info('findeAlleLuecken DEBUG', [
             'jahr' => $jahr,
             'existierende' => $existierende,
             'anzahl' => count($existierende),
         ]);
-        
+
         if (empty($existierende)) {
             return [
                 'has_gaps' => false,
@@ -432,17 +432,17 @@ class Rechnung extends Model
                 'message' => "Keine Rechnungen im Jahr {$jahr} vorhanden.",
             ];
         }
-        
+
         $hoechste = max($existierende);
         $sollNummern = range(1, $hoechste);
         $fehlende = array_values(array_diff($sollNummern, $existierende));
-        
+
         \Log::info('findeAlleLuecken RESULT', [
             'hoechste' => $hoechste,
             'soll' => $sollNummern,
             'fehlende' => $fehlende,
         ]);
-        
+
         if (empty($fehlende)) {
             return [
                 'has_gaps' => false,
@@ -450,12 +450,12 @@ class Rechnung extends Model
                 'message' => "✓ Alle Rechnungsnummern 1-{$hoechste} im Jahr {$jahr} sind vorhanden.",
             ];
         }
-        
+
         // Fehlende Nummern formatieren
-        $formatierteLuecken = array_map(function($nr) use ($jahr) {
+        $formatierteLuecken = array_map(function ($nr) use ($jahr) {
             return $jahr . '/' . str_pad($nr, 4, '0', STR_PAD_LEFT);
         }, $fehlende);
-        
+
         return [
             'has_gaps' => true,
             'missing' => $fehlende,
@@ -476,11 +476,11 @@ class Rechnung extends Model
         $query = static::where('gebaeude_id', $gebaeudeId)
             ->where('status', '!=', 'cancelled')
             ->whereNull('deleted_at');
-        
+
         if ($jahr) {
             $query->where('jahr', $jahr);
         }
-        
+
         return $query->get()
             ->groupBy(function ($rechnung) {
                 // Gruppiere nach Brutto-Summe (auf 2 Dezimalstellen gerundet)
@@ -516,25 +516,25 @@ class Rechnung extends Model
      * @return array{warnings: array, can_proceed: bool}
      */
     public static function validiereVorErstellung(
-        int $gebaeudeId, 
-        float $betrag, 
-        int $jahr, 
+        int $gebaeudeId,
+        float $betrag,
+        int $jahr,
         int $laufnummer
     ): array {
         $warnings = [];
-        
+
         // 1. Duplikat-Prüfung
         $duplikat = static::pruefeDuplikat($gebaeudeId, $betrag, $jahr);
         if ($duplikat['is_duplicate']) {
             $warnings[] = $duplikat['message'];
         }
-        
+
         // 2. Laufnummer-Lücken-Prüfung
         $luecke = static::pruefeLaufnummerLuecke($jahr, $laufnummer);
         if ($luecke['has_gap']) {
             $warnings[] = $luecke['message'];
         }
-        
+
         return [
             'warnings' => $warnings,
             'can_proceed' => true, // Warnungen blockieren nicht, nur informieren
@@ -552,21 +552,21 @@ class Rechnung extends Model
     public static function getIntegritaetsReport(?int $jahr = null): array
     {
         $jahr = $jahr ?? now()->year;
-        
+
         // 1. Lücken finden
         $luecken = static::findeAlleLuecken($jahr);
-        
+
         // 2. Alle Duplikate finden (über alle Gebäude)
         $alleDuplikate = [];
-        
+
         $gebaeudeIds = static::where('jahr', $jahr)
             ->whereNull('deleted_at')
             ->distinct()
             ->pluck('gebaeude_id');
-        
+
         foreach ($gebaeudeIds as $gebaeudeId) {
             $duplikate = static::findeDuplikate($gebaeudeId, $jahr);
-            
+
             if ($duplikate->isNotEmpty()) {
                 $gebaeude = Gebaeude::find($gebaeudeId);
                 $alleDuplikate[$gebaeudeId] = [
@@ -575,7 +575,7 @@ class Rechnung extends Model
                 ];
             }
         }
-        
+
         return [
             'jahr' => $jahr,
             'luecken' => $luecken,
@@ -593,10 +593,10 @@ class Rechnung extends Model
     public static function getNextLaufnummer(?int $jahr = null): int
     {
         $jahr = $jahr ?? now()->year;
-        
+
         $maxLaufnummer = (int) static::where('jahr', $jahr)
             ->max('laufnummer');
-        
+
         return $maxLaufnummer + 1;
     }
 
@@ -744,8 +744,8 @@ class Rechnung extends Model
      * @return self
      */
     public static function createFromGebaeude(
-        Gebaeude $gebaeude, 
-        array $overrides = [], 
+        Gebaeude $gebaeude,
+        array $overrides = [],
         bool $istJahresrechnung = false
     ): self {
         // Jahr / Laufnummer ermitteln (mit Lock)
@@ -776,7 +776,7 @@ class Rechnung extends Model
         // ⭐ JAHRESRECHNUNG: Nur "Jahr/anno XXXX" statt Timeline-Daten
         if ($istJahresrechnung) {
             $leistungsdaten = "Jahr/anno {$jahr}";
-            
+
             \Log::info('Jahresrechnung erstellt - Causale mit Jahr statt Timeline-Daten', [
                 'gebaeude_id'                  => $gebaeude->id,
                 'gebaeude_codex'               => $gebaeude->codex,
@@ -1367,16 +1367,16 @@ class Rechnung extends Model
 
         // Prüfe FatturaProfile oder direkte Flags
         $profile = $this->fatturaProfile;
-        
-        $isSplitPayment = $profile?->split_payment 
-            ?? $this->split_payment 
+
+        $isSplitPayment = $profile?->split_payment
+            ?? $this->split_payment
             ?? false;
-        
-        $isReverseCharge = $profile?->reverse_charge 
-            ?? $this->reverse_charge 
+
+        $isReverseCharge = $profile?->reverse_charge
+            ?? $this->reverse_charge
             ?? ($this->natura_esenzione !== null && in_array($this->natura_esenzione, ['N2', 'N2.1', 'N2.2', 'N3', 'N3.1', 'N3.2', 'N3.3', 'N3.4', 'N3.5', 'N3.6', 'N6', 'N6.1', 'N6.2', 'N6.3', 'N6.4', 'N6.5', 'N6.6', 'N6.7', 'N6.8', 'N6.9']))
             ?? false;
-        
+
         // Ritenuta aus Profil holen falls nicht direkt gesetzt
         if ($ritenuta == 0 && $profile?->ritenuta > 0) {
             $ritenutaSatz = (float) $profile->ritenuta;
@@ -1437,5 +1437,121 @@ class Rechnung extends Model
         }
 
         return 'Brutto';
+    }
+
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════════
+     * METHODE FÜR: app/Models/Rechnung.php
+     * ══════════════════════════════════════════════════════════════════════════════
+     * 
+     * Diese Methode in die Rechnung Model-Klasse einfügen.
+     * 
+     * Benötigte Imports (falls nicht vorhanden):
+     * use App\Models\RechnungPosition;
+     * use App\Models\RechnungLog;
+     * use Illuminate\Support\Facades\DB;
+     */
+
+    /**
+     * Erstellt eine Gutschrift aus dieser Rechnung.
+     * 
+     * - Kopiert alle Daten (Snapshots, Positionen)
+     * - Neue Laufnummer im gleichen Nummernkreis
+     * - typ_rechnung = 'gutschrift'
+     * - Bemerkung wird gesetzt: "Gutschrift zu Rechnung XXXX/YYYY"
+     * - Log-Eintrag wird erstellt
+     * 
+     * @return self Die neue Gutschrift
+     */
+    public function erstelleGutschrift(): self
+    {
+        // Jahr / Laufnummer ermitteln (mit Lock)
+        $jahr = now()->year;
+
+        $laufnummer = DB::transaction(function () use ($jahr) {
+            $maxLaufnummer = (int) self::where('jahr', $jahr)
+                ->lockForUpdate()
+                ->max('laufnummer');
+            return $maxLaufnummer + 1;
+        });
+
+        // Alle Felder kopieren außer die auszuschließenden
+        $exclude = [
+            'id',
+            'created_at',
+            'updated_at',
+            'deleted_at',
+            'jahr',
+            'laufnummer',
+            'rechnungsdatum',
+            'zahlungsziel',
+            'bezahlt_am',
+            'status',
+            'typ_rechnung',
+            'pdf_pfad',
+            'xml_pfad',
+            'bemerkung',  // Wird neu gesetzt
+        ];
+
+        $data = collect($this->attributes)
+            ->except($exclude)
+            ->toArray();
+
+        // Neue Werte setzen
+        $data['jahr'] = $jahr;
+        $data['laufnummer'] = $laufnummer;
+        $data['rechnungsdatum'] = now()->toDateString();
+        $data['zahlungsziel'] = static::berechneZahlungsziel(now(), $this->zahlungsbedingungen)?->toDateString();
+        $data['status'] = 'draft';
+        $data['typ_rechnung'] = 'gutschrift';
+        $data['bezahlt_am'] = null;
+
+        // ⭐ Bemerkung mit Referenz zur Original-Rechnung
+        $data['bemerkung'] = "Gutschrift zu Rechnung {$this->rechnungsnummer}";
+
+        // Gutschrift erstellen
+        $gutschrift = self::create($data);
+
+        // Positionen kopieren
+        foreach ($this->positionen as $position) {
+            $positionData = collect($position->attributes)
+                ->except(['id', 'rechnung_id', 'created_at', 'updated_at', 'deleted_at'])
+                ->toArray();
+
+            $positionData['rechnung_id'] = $gutschrift->id;
+
+            RechnungPosition::create($positionData);
+        }
+
+        // Summen neu berechnen (sicherheitshalber)
+        $gutschrift->recalculate();
+
+        // Log-Eintrag bei Original-Rechnung
+        RechnungLog::create([
+            'rechnung_id' => $this->id,
+            'typ'         => 'gutschrift_erstellt',
+            'titel'       => 'Gutschrift erstellt',
+            'nachricht'   => "Gutschrift {$gutschrift->rechnungsnummer} wurde aus dieser Rechnung erstellt.",
+            'metadata'    => [
+                'gutschrift_id'     => $gutschrift->id,
+                'gutschrift_nummer' => $gutschrift->rechnungsnummer,
+                'betrag'            => $gutschrift->brutto_summe,
+            ],
+        ]);
+
+        // Log-Eintrag bei Gutschrift
+        RechnungLog::create([
+            'rechnung_id' => $gutschrift->id,
+            'typ'         => 'erstellt',
+            'titel'       => 'Gutschrift erstellt',
+            'nachricht'   => "Erstellt aus Rechnung {$this->rechnungsnummer}.",
+            'metadata'    => [
+                'original_rechnung_id'     => $this->id,
+                'original_rechnung_nummer' => $this->rechnungsnummer,
+            ],
+        ]);
+
+        return $gutschrift;
     }
 }
