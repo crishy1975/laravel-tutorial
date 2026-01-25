@@ -1,11 +1,8 @@
 {{-- resources/views/rechnung/form.blade.php --}}
-{{-- ⭐ MOBILE-OPTIMIERTE VERSION --}}
+{{-- ⭐ MOBILE-OPTIMIERTE VERSION MIT GUTSCHRIFT-BUTTON --}}
 @extends('layouts.app')
 
 @section('content')
-
-
-
 
 <div class="container-fluid px-2 px-md-3">
     <div class="card shadow-sm border-0">
@@ -180,6 +177,13 @@
                         <a href="{{ route('rechnung.pdf.preview', $rechnung->id) }}" class="btn btn-outline-secondary" target="_blank">
                             <i class="bi bi-eye"></i> PDF Vorschau
                         </a>
+
+                        {{-- ⭐ NEU: Gutschrift-Button (nur bei Rechnungen, nicht bei Gutschriften) --}}
+                        @if($rechnung->typ_rechnung !== 'gutschrift')
+                        <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalGutschrift">
+                            <i class="bi bi-receipt-cutoff"></i> Gutschrift
+                        </button>
+                        @endif
                         @endif
                     </div>
 
@@ -218,6 +222,13 @@
                             <i class="bi bi-eye"></i> Vorschau
                         </a>
                     </div>
+
+                    {{-- ⭐ NEU: Gutschrift-Button (Mobile) --}}
+                    @if($rechnung->typ_rechnung !== 'gutschrift')
+                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalGutschrift">
+                        <i class="bi bi-receipt-cutoff"></i> Gutschrift erstellen
+                    </button>
+                    @endif
                     @endif
 
                     {{-- Zurück-Button --}}
@@ -227,15 +238,20 @@
                 </div>
             </div>
         </form>
-        {{-- ═══════════════════════════════════════════════════════════
+        {{-- ═══════════════════════════════════════════════════════════════
              ENDE DES HAUPTFORMULARS
-        ═══════════════════════════════════════════════════════════ --}}
+        ═══════════════════════════════════════════════════════════════ --}}
 
     </div>
 </div>
 
 {{-- ⭐⭐⭐ KRITISCH: Modals AUSSERHALB des Hauptformulars einbinden! ⭐⭐⭐ --}}
 @stack('modals')
+
+{{-- ⭐ NEU: Gutschrift-Modal (nur bei bestehenden Rechnungen, nicht bei Gutschriften) --}}
+@if($rechnung->exists && $rechnung->typ_rechnung !== 'gutschrift')
+    @include('rechnung.partials._modal_gutschrift')
+@endif
 
 @endsection
 
