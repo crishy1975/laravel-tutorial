@@ -241,7 +241,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/rechnung/{rechnung}/logs/notiz', [RechnungLogController::class, 'quickNotiz'])->name('rechnung.logs.notiz');
     Route::post('/rechnung/{rechnung}/logs/mitteilung', [RechnungLogController::class, 'quickMitteilung'])->name('rechnung.logs.mitteilung');
     Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard'])->name('rechnung.logs.dashboard');
-
+    Route::post('/rechnung/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('rechnung.gutschrift');
 
     // ==================== Preis-Aufschläge ====================
     Route::prefix('preis-aufschlaege')->name('preis-aufschlaege.')->group(function () {
