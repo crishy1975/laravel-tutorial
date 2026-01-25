@@ -33,8 +33,8 @@ enum RechnungLogTyp: string
     
     case MAHNUNG_ERSTELLT = 'mahnung_erstellt';
     case MAHNUNG_VERSANDT = 'mahnung_versandt';
-    case MAHNUNG_TELEFONISCH = 'mahnung_telefonisch';  // ⭐ NEU
-    case MAHNUNG_STORNIERT = 'mahnung_storniert';      // ⭐ NEU
+    case MAHNUNG_TELEFONISCH = 'mahnung_telefonisch';
+    case MAHNUNG_STORNIERT = 'mahnung_storniert';
     
     // ═══════════════════════════════════════════════════════════
     // VERSAND
@@ -84,7 +84,7 @@ enum RechnungLogTyp: string
     case ZAHLUNG_TEILWEISE = 'zahlung_teilweise';
     case ZAHLUNG_RUECKBUCHUNG = 'zahlung_rueckbuchung';
     case ZAHLUNG_ERINNERUNG = 'zahlung_erinnerung';
-    case BANK_MATCH = 'bank_match';  // ⭐ NEU für Bank-Zuordnung
+    case BANK_MATCH = 'bank_match';
     
     // ═══════════════════════════════════════════════════════════
     // SYSTEM / SONSTIGES
@@ -93,6 +93,7 @@ enum RechnungLogTyp: string
     case RECHNUNG_ERSTELLT = 'rechnung_erstellt';
     case RECHNUNG_BEARBEITET = 'rechnung_bearbeitet';
     case RECHNUNG_KOPIERT = 'rechnung_kopiert';
+    case GUTSCHRIFT_ERSTELLT = 'gutschrift_erstellt';  // ⭐ NEU
     
     case NOTIZ = 'notiz';
     case ERINNERUNG = 'erinnerung';
@@ -127,8 +128,8 @@ enum RechnungLogTyp: string
             
             self::MAHNUNG_ERSTELLT => 'Mahnung erstellt',
             self::MAHNUNG_VERSANDT => 'Mahnung versandt',
-            self::MAHNUNG_TELEFONISCH => 'Telefonische Mahnung',  // ⭐ NEU
-            self::MAHNUNG_STORNIERT => 'Mahnung storniert',       // ⭐ NEU
+            self::MAHNUNG_TELEFONISCH => 'Telefonische Mahnung',
+            self::MAHNUNG_STORNIERT => 'Mahnung storniert',
             
             // Versand
             self::EMAIL_VERSANDT => 'E-Mail versandt',
@@ -166,12 +167,13 @@ enum RechnungLogTyp: string
             self::ZAHLUNG_TEILWEISE => 'Teilzahlung eingegangen',
             self::ZAHLUNG_RUECKBUCHUNG => 'Rueckbuchung',
             self::ZAHLUNG_ERINNERUNG => 'Zahlungserinnerung',
-            self::BANK_MATCH => 'Bank-Zuordnung',  // ⭐ NEU
+            self::BANK_MATCH => 'Bank-Zuordnung',
             
             // System
             self::RECHNUNG_ERSTELLT => 'Rechnung erstellt',
             self::RECHNUNG_BEARBEITET => 'Rechnung bearbeitet',
             self::RECHNUNG_KOPIERT => 'Rechnung kopiert',
+            self::GUTSCHRIFT_ERSTELLT => 'Gutschrift erstellt',  // ⭐ NEU
             
             self::NOTIZ => 'Notiz',
             self::ERINNERUNG => 'Erinnerung',
@@ -199,8 +201,8 @@ enum RechnungLogTyp: string
             self::PDF_VERSANDT => 'bi-file-earmark-arrow-up',
             
             self::MAHNUNG_ERSTELLT, self::MAHNUNG_VERSANDT => 'bi-exclamation-triangle',
-            self::MAHNUNG_TELEFONISCH => 'bi-telephone-x',  // ⭐ NEU
-            self::MAHNUNG_STORNIERT => 'bi-x-octagon',      // ⭐ NEU
+            self::MAHNUNG_TELEFONISCH => 'bi-telephone-x',
+            self::MAHNUNG_STORNIERT => 'bi-x-octagon',
             
             // Versand
             self::EMAIL_VERSANDT, self::EMAIL_GELESEN => 'bi-envelope',
@@ -232,12 +234,13 @@ enum RechnungLogTyp: string
             self::ZAHLUNG_EINGEGANGEN, self::ZAHLUNG_TEILWEISE => 'bi-currency-euro',
             self::ZAHLUNG_RUECKBUCHUNG => 'bi-arrow-return-left',
             self::ZAHLUNG_ERINNERUNG => 'bi-bell',
-            self::BANK_MATCH => 'bi-link-45deg',  // ⭐ NEU
+            self::BANK_MATCH => 'bi-link-45deg',
             
             // System
             self::RECHNUNG_ERSTELLT => 'bi-plus-circle',
             self::RECHNUNG_BEARBEITET => 'bi-pencil-square',
             self::RECHNUNG_KOPIERT => 'bi-files',
+            self::GUTSCHRIFT_ERSTELLT => 'bi-receipt-cutoff',  // ⭐ NEU
             
             self::NOTIZ => 'bi-sticky',
             self::ERINNERUNG => 'bi-bell',
@@ -264,7 +267,7 @@ enum RechnungLogTyp: string
             self::XML_ERSTELLT, self::XML_VALIDIERT, self::XML_SIGNIERT,
             self::PDF_ERSTELLT, self::EMAIL_VERSANDT, self::EMAIL_GELESEN,
             self::RECHNUNG_ERSTELLT, self::RECHNUNG_BEARBEITET,
-            self::STATUS_GEAENDERT, self::BANK_MATCH => 'info',  // ⭐ NEU: BANK_MATCH
+            self::STATUS_GEAENDERT, self::BANK_MATCH => 'info',
             
             // Primary (dunkelblau)
             self::XML_VERSANDT, self::PDF_VERSANDT, self::PEC_VERSANDT,
@@ -274,13 +277,14 @@ enum RechnungLogTyp: string
             self::MAHNUNG_ERSTELLT, self::MAHNUNG_VERSANDT,
             self::ZAHLUNG_ERINNERUNG, self::STATUS_UEBERFAELLIG,
             self::ZAHLUNG_TEILWEISE, self::ERINNERUNG, self::WIEDERVORLAGE,
-            self::RUECKRUF_ANGEFORDERT => 'warning',
+            self::RUECKRUF_ANGEFORDERT,
+            self::GUTSCHRIFT_ERSTELLT => 'warning',  // ⭐ NEU
             
             // Danger (rot)
             self::XML_ABGELEHNT, self::XML_FEHLER, self::EMAIL_FEHLER,
             self::PEC_FEHLER, self::STATUS_STORNIERT, 
             self::ZAHLUNG_RUECKBUCHUNG, self::TELEFONAT_VERPASST,
-            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT => 'danger',  // ⭐ NEU
+            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT => 'danger',
             
             // Secondary (grau)
             self::TELEFONAT, self::TELEFONAT_EINGEHEND, self::TELEFONAT_AUSGEHEND,
@@ -303,7 +307,7 @@ enum RechnungLogTyp: string
             self::XML_ABGELEHNT, self::XML_FEHLER,
             self::PDF_ERSTELLT, self::PDF_VERSANDT,
             self::MAHNUNG_ERSTELLT, self::MAHNUNG_VERSANDT,
-            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT => 'dokument',  // ⭐ NEU
+            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT => 'dokument',
             
             self::EMAIL_VERSANDT, self::EMAIL_GELESEN, self::EMAIL_FEHLER,
             self::PEC_VERSANDT, self::PEC_ZUGESTELLT, self::PEC_FEHLER,
@@ -319,9 +323,10 @@ enum RechnungLogTyp: string
             
             self::ZAHLUNG_EINGEGANGEN, self::ZAHLUNG_TEILWEISE,
             self::ZAHLUNG_RUECKBUCHUNG, self::ZAHLUNG_ERINNERUNG,
-            self::BANK_MATCH => 'zahlung',  // ⭐ NEU
+            self::BANK_MATCH => 'zahlung',
             
             self::RECHNUNG_ERSTELLT, self::RECHNUNG_BEARBEITET, self::RECHNUNG_KOPIERT,
+            self::GUTSCHRIFT_ERSTELLT,  // ⭐ NEU
             self::NOTIZ, self::ERINNERUNG, self::WIEDERVORLAGE,
             self::SYSTEM_AUTO, self::IMPORT, self::EXPORT => 'system',
         };
