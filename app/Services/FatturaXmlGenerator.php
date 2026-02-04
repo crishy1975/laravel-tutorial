@@ -704,26 +704,34 @@ class FatturaXmlGenerator
             $nettoSumme = $positionen->sum('netto_gesamt');
             $mwstBetrag = $positionen->sum('mwst_betrag');
 
+            // ⭐ Korrekte Reihenfolge laut FatturaPA XSD (2.2.2):
+            // 1. AliquotaIVA
             $this->addElement('AliquotaIVA', $riepilogo, $this->formatAmount($satz));
 
-            // ⭐ FIX: Natura-Code korrekt setzen basierend auf Reverse Charge
+            // 2. Natura (bei MwSt = 0)
             if ($satz == 0) {
                 $natura = $this->getNaturaCode();
                 $this->addElement('Natura', $riepilogo, $natura);
-                
-                // ⭐ RiferimentoNormativo für Reverse Charge (Art. 17)
-                if ($this->rechnung->reverse_charge) {
-                    $this->addElement('RiferimentoNormativo', $riepilogo, 'Inversione contabile art. 17 DPR 633/72');
-                }
             }
 
+            // 3. SpeseAccessorie (nicht implementiert)
+            // 4. Arrotondamento (nicht implementiert)
+
+            // 5. ImponibileImporto
             $this->addElement('ImponibileImporto', $riepilogo, $this->formatAmount($nettoSumme));
+
+            // 6. Imposta
             $this->addElement('Imposta', $riepilogo, $this->formatAmount($mwstBetrag));
 
-            // ⭐ FIX: EsigibilitaIVA NUR bei normaler MwSt, NICHT bei Reverse Charge
+            // 7. EsigibilitaIVA - NUR bei normaler MwSt, NICHT bei Reverse Charge
             if (!($satz == 0 && $this->rechnung->reverse_charge)) {
                 $esigibilita = $this->rechnung->split_payment ? 'S' : 'I';
                 $this->addElement('EsigibilitaIVA', $riepilogo, $esigibilita);
+            }
+
+            // 8. RiferimentoNormativo - MUSS am Ende stehen!
+            if ($satz == 0 && $this->rechnung->reverse_charge) {
+                $this->addElement('RiferimentoNormativo', $riepilogo, 'Inversione contabile art. 17 DPR 633/72');
             }
         }
     }
