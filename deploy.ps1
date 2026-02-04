@@ -68,6 +68,7 @@ $GlobalConfig = @{
 
 $SyncFolders = @(
     @{ Local = "app";                  Remote = "app";                  Delete = $true  }
+    @{ Local = "bootstrap";            Remote = "bootstrap";            Delete = $false }
     @{ Local = "config";               Remote = "config";               Delete = $true  }
     @{ Local = "database\migrations";  Remote = "database/migrations";  Delete = $false }
     @{ Local = "database\seeders";     Remote = "database/seeders";     Delete = $false }
