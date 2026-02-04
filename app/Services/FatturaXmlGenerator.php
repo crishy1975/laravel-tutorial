@@ -691,11 +691,6 @@ class FatturaXmlGenerator
         if ($position->mwst_satz == 0) {
             $natura = $this->getNaturaCode();
             $this->addElement('Natura', $linea, $natura);
-            
-            // ⭐ RiferimentoNormativo für Reverse Charge (Art. 17)
-            if ($this->rechnung->reverse_charge) {
-                $this->addElement('RiferimentoNormativo', $linea, 'Inversione contabile art. 17 DPR 633/72');
-            }
         }
     }
 
