@@ -339,10 +339,9 @@ function Run-Migration {
     Write-Host "  Befehle werden ausgefuehrt:" -ForegroundColor White
     Write-Host "    - composer install --no-dev" -ForegroundColor Gray
     Write-Host "    - php artisan migrate --force" -ForegroundColor Gray
-    Write-Host "    - php artisan cache:clear" -ForegroundColor Gray
-    Write-Host "    - php artisan config:cache" -ForegroundColor Gray
-    Write-Host "    - php artisan route:cache" -ForegroundColor Gray
-    Write-Host "    - php artisan view:cache" -ForegroundColor Gray
+    Write-Host "    - php artisan optimize:clear" -ForegroundColor Gray
+    Write-Host "    - php artisan optimize" -ForegroundColor Gray
+    Write-Host "    - chmod -R 775 storage bootstrap/cache" -ForegroundColor Gray
     Write-Host "    - php artisan up" -ForegroundColor Gray
     Write-Host ""
     
@@ -358,7 +357,7 @@ function Run-Migration {
     
     # Einzeiliger Befehl
     $cmd = @"
-cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='
+cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Optimize ===' && php artisan optimize:clear && php artisan optimize && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='
 "@
     
     ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd

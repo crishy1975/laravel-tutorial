@@ -189,17 +189,13 @@ set SSH_SCRIPT=%TEMP%\deploy_ssh.txt
     echo composer install --no-dev --optimize-autoloader --no-interaction
     echo echo "=== Migrationen ==="
     echo php artisan migrate --force
-    echo echo "=== Cache leeren ==="
-    echo php artisan cache:clear
-    echo php artisan config:cache
-    echo php artisan route:cache
-    echo php artisan view:cache
+    echo echo "=== Optimize ==="
+    echo php artisan optimize:clear
+    echo php artisan optimize
     echo echo "=== Berechtigungen ==="
     echo chmod -R 775 storage bootstrap/cache
     echo echo "=== Wartungsmodus aus ==="
     echo php artisan up
-    echo echo "=== Optimize Clear ==="
-    echo php artisan optimize:clear
     echo echo "=== FERTIG ==="
 ) > "%SSH_SCRIPT%"
 
