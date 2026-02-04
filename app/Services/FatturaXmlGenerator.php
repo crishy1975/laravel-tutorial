@@ -691,6 +691,11 @@ class FatturaXmlGenerator
         if ($position->mwst_satz == 0) {
             $natura = $this->getNaturaCode();
             $this->addElement('Natura', $linea, $natura);
+            
+            // ⭐ RiferimentoNormativo für Reverse Charge (Art. 17)
+            if ($this->rechnung->reverse_charge) {
+                $this->addElement('RiferimentoNormativo', $linea, 'Inversione contabile art. 17 DPR 633/72');
+            }
         }
     }
 
@@ -710,13 +715,21 @@ class FatturaXmlGenerator
             if ($satz == 0) {
                 $natura = $this->getNaturaCode();
                 $this->addElement('Natura', $riepilogo, $natura);
+                
+                // ⭐ RiferimentoNormativo für Reverse Charge (Art. 17)
+                if ($this->rechnung->reverse_charge) {
+                    $this->addElement('RiferimentoNormativo', $riepilogo, 'Inversione contabile art. 17 DPR 633/72');
+                }
             }
 
             $this->addElement('ImponibileImporto', $riepilogo, $this->formatAmount($nettoSumme));
             $this->addElement('Imposta', $riepilogo, $this->formatAmount($mwstBetrag));
 
-            $esigibilita = $this->rechnung->split_payment ? 'S' : 'I';
-            $this->addElement('EsigibilitaIVA', $riepilogo, $esigibilita);
+            // ⭐ FIX: EsigibilitaIVA NUR bei normaler MwSt, NICHT bei Reverse Charge
+            if (!($satz == 0 && $this->rechnung->reverse_charge)) {
+                $esigibilita = $this->rechnung->split_payment ? 'S' : 'I';
+                $this->addElement('EsigibilitaIVA', $riepilogo, $esigibilita);
+            }
         }
     }
 
