@@ -1,6 +1,6 @@
 @echo off
 REM ═══════════════════════════════════════════════════════════════════════════
-REM  LARAVEL DEPLOY SCRIPT - Hostinger
+REM  LARAVEL DEPLOY SCRIPT - Hostinger (Multi-Account)
 REM  
 REM  Voraussetzung: WinSCP installiert (https://winscp.net)
 REM  
@@ -10,17 +10,11 @@ REM ═════════════════════════�
 setlocal EnableDelayedExpansion
 
 REM ─────────────────────────────────────────────────────────────────────────────
-REM  KONFIGURATION - HIER ANPASSEN!
+REM  KONFIGURATION
 REM ─────────────────────────────────────────────────────────────────────────────
 
-REM SFTP-Zugangsdaten (aus Hostinger hPanel)
-set SFTP_HOST=deine-domain.de
-set SFTP_USER=u123456789
-set SFTP_PORT=22
-
-REM Pfade
+REM Lokaler Pfad
 set LOCAL_PATH=C:\Users\Christian\Documents\entwicklung\laravel-tutorial
-set REMOTE_PATH=/home/%SFTP_USER%/domains/%SFTP_HOST%/public_html
 
 REM WinSCP Pfad (Standard-Installation)
 set WINSCP_PATH="C:\Program Files (x86)\WinSCP\WinSCP.com"
@@ -29,15 +23,13 @@ REM ─────────────────────────�
 REM  SCRIPT START
 REM ─────────────────────────────────────────────────────────────────────────────
 
+cls
 echo.
 echo ╔══════════════════════════════════════════════════════════════════════════╗
 echo ║                    LARAVEL DEPLOYMENT - HOSTINGER                        ║
 echo ╚══════════════════════════════════════════════════════════════════════════╝
 echo.
-echo  Server:  %SFTP_HOST%
-echo  User:    %SFTP_USER%
-echo  Local:   %LOCAL_PATH%
-echo  Remote:  %REMOTE_PATH%
+echo  Lokaler Pfad: %LOCAL_PATH%
 echo.
 
 REM Prüfen ob WinSCP existiert
@@ -45,10 +37,78 @@ if not exist %WINSCP_PATH% (
     echo [FEHLER] WinSCP nicht gefunden: %WINSCP_PATH%
     echo.
     echo Bitte WinSCP installieren: https://winscp.net/eng/download.php
-    echo Oder den Pfad in diesem Script anpassen.
     pause
     exit /b 1
 )
+
+REM ─────────────────────────────────────────────────────────────────────────────
+REM  KONTO-AUSWAHL
+REM ─────────────────────────────────────────────────────────────────────────────
+
+echo  Waehle das Ziel-Konto:
+echo.
+echo  === PRODUKTION ===
+echo    [1] Resch GmbH    (reschc.space)
+echo    [2] Resch KG      (christianresch.esy.es/martin)
+echo.
+echo  === TEST ===
+echo    [3] Sandbox       (christianresch.esy.es/sandbox)
+echo.
+echo    [0] Abbrechen
+echo.
+
+set /p CHOICE="  Auswahl (0-3): "
+
+if "%CHOICE%"=="0" (
+    echo Abgebrochen.
+    exit /b 0
+)
+
+if "%CHOICE%"=="1" (
+    set SFTP_HOST=212.1.209.26
+    set SFTP_USER=u192633638
+    set SFTP_PORT=65002
+    set REMOTE_PATH=/home/u192633638/domains/reschc.space/public_html
+    set WEBSITE_URL=https://reschc.space
+    set ACCOUNT_NAME=Resch GmbH
+    goto :START_DEPLOY
+)
+
+if "%CHOICE%"=="2" (
+    set SFTP_HOST=212.1.209.26
+    set SFTP_USER=u854179217
+    set SFTP_PORT=65002
+    set REMOTE_PATH=/home/u854179217/domains/christianresch.esy.es/public_html/martin
+    set WEBSITE_URL=https://christianresch.esy.es/martin
+    set ACCOUNT_NAME=Resch KG
+    goto :START_DEPLOY
+)
+
+if "%CHOICE%"=="3" (
+    set SFTP_HOST=212.1.209.26
+    set SFTP_USER=u854179217
+    set SFTP_PORT=65002
+    set REMOTE_PATH=/home/u854179217/domains/christianresch.esy.es/public_html/sandbox
+    set WEBSITE_URL=https://christianresch.esy.es/sandbox
+    set ACCOUNT_NAME=Sandbox
+    goto :START_DEPLOY
+)
+
+echo Ungueltige Auswahl!
+pause
+exit /b 1
+
+:START_DEPLOY
+echo.
+echo ══════════════════════════════════════════════════════════════════════════
+echo  DEPLOYMENT: %ACCOUNT_NAME%
+echo ══════════════════════════════════════════════════════════════════════════
+echo.
+echo  Server:  %SFTP_HOST%
+echo  User:    %SFTP_USER%
+echo  Remote:  %REMOTE_PATH%
+echo  Website: %WEBSITE_URL%
+echo.
 
 REM Temporäres WinSCP-Script erstellen
 set WINSCP_SCRIPT=%TEMP%\deploy_winscp.txt
@@ -163,5 +223,7 @@ del "%WINSCP_SCRIPT%" 2>nul
 
 echo.
 echo Deployment abgeschlossen!
+echo.
+echo Website testen: %WEBSITE_URL%
 echo.
 pause

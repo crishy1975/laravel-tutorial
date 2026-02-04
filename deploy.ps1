@@ -8,11 +8,12 @@
 .PARAMETER Force
     Ohne Bestaetigung ausfuehren
 .PARAMETER Account
-    1 = Resch GmbH, 2 = Resch KG, 3 = Beide
+    1 = Resch GmbH, 2 = Resch KG, 3 = Sandbox, 4 = Alle
 .EXAMPLE
     .\deploy.ps1
     .\deploy.ps1 -Account 1
-    .\deploy.ps1 -Account 3 -Force
+    .\deploy.ps1 -Account 3
+    .\deploy.ps1 -Account 4 -Force
 #>
 
 param(
@@ -22,7 +23,7 @@ param(
 )
 
 # ==============================================================================
-#  KONFIGURATION - BEIDE KONTEN
+#  KONFIGURATION - ALLE KONTEN
 # ==============================================================================
 
 $Accounts = @{
@@ -33,6 +34,7 @@ $Accounts = @{
         SFTP_PORT     = 65002
         REMOTE_PATH   = "/home/u192633638/domains/reschc.space/public_html"
         WEBSITE_URL   = "https://reschc.space"
+        Color         = "Green"
     }
     2 = @{
         Name          = "Resch KG"
@@ -41,6 +43,16 @@ $Accounts = @{
         SFTP_PORT     = 65002
         REMOTE_PATH   = "/home/u854179217/domains/christianresch.esy.es/public_html/martin"
         WEBSITE_URL   = "https://christianresch.esy.es/martin"
+        Color         = "Yellow"
+    }
+    3 = @{
+        Name          = "Sandbox (Test)"
+        SFTP_HOST     = "212.1.209.26"
+        SFTP_USER     = "u854179217"
+        SFTP_PORT     = 65002
+        REMOTE_PATH   = "/home/u854179217/domains/christianresch.esy.es/public_html/sandbox"
+        WEBSITE_URL   = "https://christianresch.esy.es/sandbox"
+        Color         = "Cyan"
     }
 }
 
@@ -127,16 +139,22 @@ function Show-AccountMenu {
     Write-Host ""
     Write-Host "  Waehle das Ziel-Konto:" -ForegroundColor White
     Write-Host ""
-    Write-Host "    [1] Resch GmbH    (reschc.space)" -ForegroundColor Yellow
+    Write-Host "  === PRODUKTION ===" -ForegroundColor White
+    Write-Host "    [1] Resch GmbH    (reschc.space)" -ForegroundColor Green
     Write-Host "    [2] Resch KG      (christianresch.esy.es/martin)" -ForegroundColor Yellow
-    Write-Host "    [3] BEIDE Konten" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  === TEST ===" -ForegroundColor White
+    Write-Host "    [3] Sandbox       (christianresch.esy.es/sandbox)" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  === MEHRFACH ===" -ForegroundColor White
+    Write-Host "    [4] ALLE Konten (1+2+3)" -ForegroundColor Magenta
     Write-Host ""
     Write-Host "    [0] Abbrechen" -ForegroundColor Gray
     Write-Host ""
     
     do {
-        $choice = Read-Host "  Auswahl (1/2/3/0)"
-    } while ($choice -notmatch '^[0123]$')
+        $choice = Read-Host "  Auswahl (0-4)"
+    } while ($choice -notmatch '^[01234]$')
     
     return [int]$choice
 }
@@ -242,29 +260,28 @@ function Upload-ImportFiles {
     
     Show-Header "SCHRITT 2: Import-Dateien hochladen"
     
-    # Pruefen welche Dateien vorhanden sind
+    # Pruefen ob Import-Dateien vorhanden
+    $importPath = $GlobalConfig.IMPORT_PATH
     $foundFiles = @()
-    Write-Host "  Gefundene Dateien in $($GlobalConfig.IMPORT_PATH):" -ForegroundColor White
-    Write-Host ""
     
     foreach ($file in $ImportFiles) {
-        $filePath = Join-Path $GlobalConfig.IMPORT_PATH $file
+        $filePath = Join-Path $importPath $file
         if (Test-Path $filePath) {
-            $fileInfo = Get-Item $filePath
-            $size = [math]::Round($fileInfo.Length / 1KB, 1)
-            Write-Host "    [x] $file ($size KB)" -ForegroundColor Green
             $foundFiles += $file
+            Write-Host "  [x] $file" -ForegroundColor Green
         } else {
-            Write-Host "    [ ] $file (nicht gefunden)" -ForegroundColor Gray
+            Write-Host "  [ ] $file (nicht gefunden)" -ForegroundColor Gray
         }
     }
     
-    Write-Host ""
-    
     if ($foundFiles.Count -eq 0) {
-        Show-Warning "Keine Import-Dateien gefunden - ueberspringe Upload"
-        return $true
+        Show-Warning "Keine Import-Dateien gefunden in: $importPath"
+        return $false
     }
+    
+    Write-Host ""
+    Write-Host "  $($foundFiles.Count) Datei(en) gefunden" -ForegroundColor Yellow
+    Write-Host ""
     
     # WinSCP Script erstellen
     $WinSCPScript = "option batch abort`n"
@@ -272,16 +289,14 @@ function Upload-ImportFiles {
     $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
     $WinSCPScript += "`n"
     
-    # Import-Ordner erstellen
-    $remotePath = "$($AccountConfig.REMOTE_PATH)/storage/import"
-    $WinSCPScript += "call mkdir -p `"$remotePath`" 2>/dev/null || true`n"
+    $WinSCPScript += "# Import-Ordner erstellen`n"
+    $WinSCPScript += "call mkdir -p $($AccountConfig.REMOTE_PATH)/storage/import 2>/dev/null || true`n"
     $WinSCPScript += "`n"
     
-    # Dateien hochladen
     foreach ($file in $foundFiles) {
-        $localFile = Join-Path $GlobalConfig.IMPORT_PATH $file
+        $localFile = Join-Path $importPath $file
         $WinSCPScript += "echo Lade $file...`n"
-        $WinSCPScript += "put `"$localFile`" `"$remotePath/`"`n"
+        $WinSCPScript += "put `"$localFile`" `"$($AccountConfig.REMOTE_PATH)/storage/import/`"`n"
     }
     
     $WinSCPScript += "`nclose`nexit`n"
@@ -292,7 +307,7 @@ function Upload-ImportFiles {
     Write-Host "  Lade Import-Dateien hoch..." -ForegroundColor Yellow
     
     if ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde $($foundFiles.Count) Dateien hochladen" -ForegroundColor Magenta
+        Write-Host "  [DRY-RUN] Wuerde Import-Dateien hochladen" -ForegroundColor Magenta
         return $true
     }
     
@@ -302,16 +317,16 @@ function Upload-ImportFiles {
     Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
     
     if ($process.ExitCode -ne 0) {
-        Show-Err "Import-Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
+        Show-Err "Upload fehlgeschlagen! Siehe Log: $WinSCPLog"
         return $false
     }
     
-    Show-Success "$($foundFiles.Count) Import-Dateien hochgeladen"
+    Show-Success "Import-Dateien hochgeladen"
     return $true
 }
 
 # ==============================================================================
-#  SCHRITT 3: MIGRATION STARTEN
+#  SCHRITT 3: MIGRATION
 # ==============================================================================
 
 function Run-Migration {
@@ -321,31 +336,35 @@ function Run-Migration {
     
     Show-Header "SCHRITT 3: Datenbank-Migration"
     
-    Write-Host "  Fuehre folgende Befehle aus:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "    - composer install" -ForegroundColor Gray
+    Write-Host "  Befehle werden ausgefuehrt:" -ForegroundColor White
+    Write-Host "    - composer install --no-dev" -ForegroundColor Gray
     Write-Host "    - php artisan migrate --force" -ForegroundColor Gray
-    Write-Host "    - Cache leeren & neu aufbauen" -ForegroundColor Gray
-    Write-Host "    - Berechtigungen setzen" -ForegroundColor Gray
-    Write-Host "    - Wartungsmodus beenden" -ForegroundColor Gray
-    Write-Host "    - php artisan optimize:clear" -ForegroundColor Gray
+    Write-Host "    - php artisan cache:clear" -ForegroundColor Gray
+    Write-Host "    - php artisan config:cache" -ForegroundColor Gray
+    Write-Host "    - php artisan route:cache" -ForegroundColor Gray
+    Write-Host "    - php artisan view:cache" -ForegroundColor Gray
+    Write-Host "    - php artisan up" -ForegroundColor Gray
     Write-Host ""
     
     if ($DryRun) {
-        Write-Host "  [DRY-RUN] Wuerde Migrationen ausfuehren" -ForegroundColor Magenta
+        Write-Host "  [DRY-RUN] Wuerde Migration starten" -ForegroundColor Magenta
         return $true
     }
     
-    Write-Host "  Verbinde per SSH (Passwort eingeben)..." -ForegroundColor Yellow
+    Write-Host "  Starte Migration per SSH (Passwort eingeben)..." -ForegroundColor Yellow
     Write-Host ""
     
-    # ⭐ Einzeiliger Befehl - wird direkt ausgefuehrt und Ausgabe ist sichtbar
-    $cmd = "cd $($AccountConfig.REMOTE_PATH) && echo '=== Composer ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrate ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Rechte ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Up ===' && php artisan up && echo '' && echo '=== Optimize Clear ===' && php artisan optimize:clear && echo '' && echo '=== FERTIG ==='"
+    $remotePath = $AccountConfig.REMOTE_PATH
+    
+    # Einzeiliger Befehl
+    $cmd = @"
+cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Cache ===' && php artisan cache:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='
+"@
     
     ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
     
     if ($LASTEXITCODE -ne 0) {
-        Show-Warning "SSH-Befehle evtl. fehlgeschlagen"
+        Show-Warning "Migration evtl. fehlgeschlagen"
         return $false
     }
     
@@ -354,7 +373,7 @@ function Run-Migration {
 }
 
 # ==============================================================================
-#  SCHRITT 4: XML-IMPORT STARTEN
+#  SCHRITT 4: XML-IMPORT
 # ==============================================================================
 
 function Run-XmlImport {
@@ -364,13 +383,12 @@ function Run-XmlImport {
     
     Show-Header "SCHRITT 4: XML-Import"
     
-    Write-Host "  Import-Reihenfolge:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "    1. Adressen        (Adresse.xml)" -ForegroundColor Gray
-    Write-Host "    2. Gebaeude        (Gebaeude.xml)" -ForegroundColor Gray
-    Write-Host "    3. Timeline        (DatumAusfuehrung.xml) - nur 2024+2025" -ForegroundColor Gray
-    Write-Host "    4. Rechnungen      (FatturaPA.xml)" -ForegroundColor Gray
-    Write-Host "    5. Artikel         (Artikel.xml)" -ForegroundColor Gray
+    Write-Host "  Befehle werden ausgefuehrt:" -ForegroundColor White
+    Write-Host "    - import:access Adresse.xml --adressen" -ForegroundColor Gray
+    Write-Host "    - import:access Gebaeude.xml --gebaeude" -ForegroundColor Gray
+    Write-Host "    - import:timeline DatumAusfuehrung.xml" -ForegroundColor Gray
+    Write-Host "    - import:rechnungen FatturaPA.xml" -ForegroundColor Gray
+    Write-Host "    - import:access Artikel.xml --positionen" -ForegroundColor Gray
     Write-Host ""
     
     if ($DryRun) {
@@ -383,7 +401,7 @@ function Run-XmlImport {
     
     $remotePath = $AccountConfig.REMOTE_PATH
     
-    # ⭐ Einzeiliger Befehl - Ausgabe ist sichtbar!
+    # Einzeiliger Befehl - Ausgabe ist sichtbar!
     $cmd = @"
 cd $remotePath && echo '=== 1. ADRESSEN ===' && ([ -f storage/import/Adresse.xml ] && php artisan import:access storage/import/Adresse.xml --adressen || echo 'Nicht gefunden') && echo '' && echo '=== 2. GEBAEUDE ===' && ([ -f storage/import/Gebaeude.xml ] && php artisan import:access storage/import/Gebaeude.xml --gebaeude || echo 'Nicht gefunden') && echo '' && echo '=== 3. TIMELINE ===' && ([ -f storage/import/DatumAusfuehrung.xml ] && php artisan import:timeline storage/import/DatumAusfuehrung.xml || echo 'Nicht gefunden') && echo '' && echo '=== 4. RECHNUNGEN ===' && ([ -f storage/import/FatturaPA.xml ] && php artisan import:rechnungen storage/import/FatturaPA.xml || echo 'Nicht gefunden') && echo '' && echo '=== 5. ARTIKEL ===' && ([ -f storage/import/Artikel.xml ] && php artisan import:access storage/import/Artikel.xml --positionen || echo 'Nicht gefunden') && echo '' && echo '=== IMPORT FERTIG ==='
 "@
@@ -442,9 +460,12 @@ function Deploy-ToAccount {
         [hashtable]$AccountConfig
     )
     
+    $color = $AccountConfig.Color
+    if (-not $color) { $color = "White" }
+    
     Show-Header "DEPLOYMENT: $($AccountConfig.Name)"
     
-    Write-Host "  Website: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Cyan
+    Write-Host "  Website: $($AccountConfig.WEBSITE_URL)" -ForegroundColor $color
     Write-Host ""
     
     # SCHRITT 1: Projekt hochladen (immer)
@@ -496,7 +517,7 @@ function Deploy-ToAccount {
     # ABSCHLUSS
     Write-Host ""
     Write-Host "  ----------------------------------------" -ForegroundColor Gray
-    Write-Host "  Website testen: $($AccountConfig.WEBSITE_URL)" -ForegroundColor Green
+    Write-Host "  Website testen: $($AccountConfig.WEBSITE_URL)" -ForegroundColor $color
     Write-Host ""
     
     return $true
@@ -547,9 +568,10 @@ if ($Account -eq 0) {
 # Bestaetigung
 if (-not $Force -and -not $DryRun) {
     $targetText = switch ($Account) {
-        1 { "Resch GmbH" }
-        2 { "Resch KG" }
-        3 { "BEIDE KONTEN" }
+        1 { "Resch GmbH (Produktion)" }
+        2 { "Resch KG (Produktion)" }
+        3 { "Sandbox (Test)" }
+        4 { "ALLE 3 KONTEN" }
     }
     Write-Host ""
     $confirm = Read-Host "Deployment auf [$targetText] starten? (j/n)"
@@ -565,13 +587,18 @@ if (-not $Force -and -not $DryRun) {
 
 $success = $true
 
-if ($Account -eq 1 -or $Account -eq 3) {
+if ($Account -eq 1 -or $Account -eq 4) {
     $result = Deploy-ToAccount -AccountId 1 -AccountConfig $Accounts[1]
     if (-not $result) { $success = $false }
 }
 
-if ($Account -eq 2 -or $Account -eq 3) {
+if ($Account -eq 2 -or $Account -eq 4) {
     $result = Deploy-ToAccount -AccountId 2 -AccountConfig $Accounts[2]
+    if (-not $result) { $success = $false }
+}
+
+if ($Account -eq 3 -or $Account -eq 4) {
+    $result = Deploy-ToAccount -AccountId 3 -AccountConfig $Accounts[3]
     if (-not $result) { $success = $false }
 }
 
@@ -589,11 +616,14 @@ if ($success) {
 
 Write-Host ""
 
-if ($Account -eq 1 -or $Account -eq 3) {
-    Write-Host "  [1] $($Accounts[1].WEBSITE_URL)" -ForegroundColor Cyan
+if ($Account -eq 1 -or $Account -eq 4) {
+    Write-Host "  [1] $($Accounts[1].WEBSITE_URL)" -ForegroundColor Green
 }
-if ($Account -eq 2 -or $Account -eq 3) {
-    Write-Host "  [2] $($Accounts[2].WEBSITE_URL)" -ForegroundColor Cyan
+if ($Account -eq 2 -or $Account -eq 4) {
+    Write-Host "  [2] $($Accounts[2].WEBSITE_URL)" -ForegroundColor Yellow
+}
+if ($Account -eq 3 -or $Account -eq 4) {
+    Write-Host "  [3] $($Accounts[3].WEBSITE_URL)" -ForegroundColor Cyan
 }
 
 Write-Host ""
