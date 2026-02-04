@@ -687,8 +687,10 @@ class FatturaXmlGenerator
         $this->addElement('PrezzoTotale', $linea, $this->formatAmount($position->netto_gesamt));
         $this->addElement('AliquotaIVA', $linea, $this->formatAmount($position->mwst_satz));
 
+        // ⭐ FIX: Natura-Code korrekt setzen basierend auf Reverse Charge
         if ($position->mwst_satz == 0) {
-            $this->addElement('Natura', $linea, 'N1');
+            $natura = $this->getNaturaCode();
+            $this->addElement('Natura', $linea, $natura);
         }
     }
 
@@ -704,8 +706,10 @@ class FatturaXmlGenerator
 
             $this->addElement('AliquotaIVA', $riepilogo, $this->formatAmount($satz));
 
+            // ⭐ FIX: Natura-Code korrekt setzen basierend auf Reverse Charge
             if ($satz == 0) {
-                $this->addElement('Natura', $riepilogo, 'N1');
+                $natura = $this->getNaturaCode();
+                $this->addElement('Natura', $riepilogo, $natura);
             }
 
             $this->addElement('ImponibileImporto', $riepilogo, $this->formatAmount($nettoSumme));
@@ -875,6 +879,49 @@ class FatturaXmlGenerator
 
         // Sonst Fallback auf IT (Standard für Italien)
         return $this->profil->land ?? 'IT';
+    }
+
+    /**
+     * ⭐ NEU: Ermittelt den korrekten Natura-Code für MwSt-freie Positionen
+     * 
+     * FatturaPA Natura-Codes bei AliquotaIVA = 0:
+     * - N1     = Escluse ex art. 15 DPR 633/72 (ausgeschlossen)
+     * - N2.1   = Non soggette - artt. 7-7septies DPR 633/72
+     * - N2.2   = Non soggette - altri casi  
+     * - N3.x   = Non imponibili (Export, etc.)
+     * - N4     = Esenti (befreit)
+     * - N5     = Regime del margine
+     * - N6.x   = Inversione contabile / Reverse Charge (Art. 17):
+     *   - N6.1 = Cessione di rottami (Altmetall)
+     *   - N6.2 = Cessione di oro/argento puro
+     *   - N6.3 = Subappalto settore edile
+     *   - N6.4 = Cessione di fabbricati
+     *   - N6.5 = Cessione di telefoni cellulari
+     *   - N6.6 = Cessione di prodotti elettronici
+     *   - N6.7 = Prestazioni comparto edile
+     *   - N6.8 = Operazioni settore energetico
+     *   - N6.9 = Altri casi (Standard für Art. 17 Reverse Charge!)
+     * - N7     = IVA assolta in altro stato UE
+     * 
+     * @return string Natura-Code (z.B. "N6.9" für Reverse Charge)
+     */
+    protected function getNaturaCode(): string
+    {
+        // Priorität 1: Explizit gesetzter Natura-Code in der Rechnung
+        if (!empty($this->rechnung->natura_esenzione)) {
+            return $this->rechnung->natura_esenzione;
+        }
+
+        // Priorität 2: Reverse Charge Flag → N6.9 (Art. 17 - altri casi)
+        if ($this->rechnung->reverse_charge) {
+            return 'N6.9';
+        }
+
+        // Priorität 3: Split Payment ohne Reverse Charge ist normalerweise kein 0% MwSt-Fall
+        // aber falls doch → N1 als Fallback
+
+        // Default: N1 (Escluse ex art. 15)
+        return 'N1';
     }
 
     /**
