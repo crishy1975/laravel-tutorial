@@ -923,84 +923,84 @@ class FatturaXmlGenerator
      */
     protected function normalizeSpecialCharacters(string $value): string
     {
-        // 1. Bekannte Ersetzungen für typografische Zeichen
+        // 1. Bekannte Ersetzungen für typografische Zeichen (hex-codiert für PHP-Kompatibilität)
         $replacements = [
             // Dashes
-            '–' => '-',  // En-Dash (U+2013)
-            '—' => '-',  // Em-Dash (U+2014)
-            '‐' => '-',  // Hyphen (U+2010)
-            '‑' => '-',  // Non-Breaking Hyphen (U+2011)
-            '−' => '-',  // Minus Sign (U+2212)
-            '‒' => '-',  // Figure Dash (U+2012)
+            "\xE2\x80\x93" => '-',  // En-Dash (U+2013)
+            "\xE2\x80\x94" => '-',  // Em-Dash (U+2014)
+            "\xE2\x80\x90" => '-',  // Hyphen (U+2010)
+            "\xE2\x80\x91" => '-',  // Non-Breaking Hyphen (U+2011)
+            "\xE2\x88\x92" => '-',  // Minus Sign (U+2212)
+            "\xE2\x80\x92" => '-',  // Figure Dash (U+2012)
             
             // Quotes
-            ''' => "'",  // Left Single Quote (U+2018)
-            ''' => "'",  // Right Single Quote (U+2019)
-            '‚' => "'",  // Single Low-9 Quote (U+201A)
-            '‛' => "'",  // Single High-Reversed-9 Quote (U+201B)
-            '"' => '"',  // Left Double Quote (U+201C)
-            '"' => '"',  // Right Double Quote (U+201D)
-            '„' => '"',  // Double Low-9 Quote (U+201E)
-            '‟' => '"',  // Double High-Reversed-9 Quote (U+201F)
-            '«' => '"',  // Left Guillemet
-            '»' => '"',  // Right Guillemet
-            '‹' => "'",  // Single Left Guillemet
-            '›' => "'",  // Single Right Guillemet
+            "\xE2\x80\x98" => "'",  // Left Single Quote (U+2018)
+            "\xE2\x80\x99" => "'",  // Right Single Quote (U+2019)
+            "\xE2\x80\x9A" => "'",  // Single Low-9 Quote (U+201A)
+            "\xE2\x80\x9B" => "'",  // Single High-Reversed-9 Quote (U+201B)
+            "\xE2\x80\x9C" => '"',  // Left Double Quote (U+201C)
+            "\xE2\x80\x9D" => '"',  // Right Double Quote (U+201D)
+            "\xE2\x80\x9E" => '"',  // Double Low-9 Quote (U+201E)
+            "\xE2\x80\x9F" => '"',  // Double High-Reversed-9 Quote (U+201F)
+            "\xC2\xAB" => '"',      // Left Guillemet («)
+            "\xC2\xBB" => '"',      // Right Guillemet (»)
+            "\xE2\x80\xB9" => "'",  // Single Left Guillemet (‹)
+            "\xE2\x80\xBA" => "'",  // Single Right Guillemet (›)
             
             // Spaces
-            "\xC2\xA0" => ' ',  // Non-Breaking Space (U+00A0)
-            ' ' => ' ',  // En Space (U+2002)
-            ' ' => ' ',  // Em Space (U+2003)
-            ' ' => ' ',  // Three-Per-Em Space (U+2004)
-            ' ' => ' ',  // Four-Per-Em Space (U+2005)
-            ' ' => ' ',  // Six-Per-Em Space (U+2006)
-            ' ' => ' ',  // Figure Space (U+2007)
-            ' ' => ' ',  // Punctuation Space (U+2008)
-            ' ' => ' ',  // Thin Space (U+2009)
-            ' ' => ' ',  // Hair Space (U+200A)
-            '​' => '',   // Zero Width Space (U+200B)
+            "\xC2\xA0" => ' ',      // Non-Breaking Space (U+00A0)
+            "\xE2\x80\x82" => ' ',  // En Space (U+2002)
+            "\xE2\x80\x83" => ' ',  // Em Space (U+2003)
+            "\xE2\x80\x84" => ' ',  // Three-Per-Em Space (U+2004)
+            "\xE2\x80\x85" => ' ',  // Four-Per-Em Space (U+2005)
+            "\xE2\x80\x86" => ' ',  // Six-Per-Em Space (U+2006)
+            "\xE2\x80\x87" => ' ',  // Figure Space (U+2007)
+            "\xE2\x80\x88" => ' ',  // Punctuation Space (U+2008)
+            "\xE2\x80\x89" => ' ',  // Thin Space (U+2009)
+            "\xE2\x80\x8A" => ' ',  // Hair Space (U+200A)
+            "\xE2\x80\x8B" => '',   // Zero Width Space (U+200B)
             
             // Dots & Bullets
-            '…' => '...',  // Ellipsis (U+2026)
-            '•' => '-',    // Bullet (U+2022)
-            '◦' => '-',    // White Bullet (U+25E6)
-            '·' => '.',    // Middle Dot (U+00B7)
-            '․' => '.',    // One Dot Leader (U+2024)
+            "\xE2\x80\xA6" => '...', // Ellipsis (U+2026)
+            "\xE2\x80\xA2" => '-',   // Bullet (U+2022)
+            "\xE2\x97\xA6" => '-',   // White Bullet (U+25E6)
+            "\xC2\xB7" => '.',       // Middle Dot (U+00B7)
+            "\xE2\x80\xA4" => '.',   // One Dot Leader (U+2024)
             
-            // Arrows (oft in Beschreibungen)
-            '→' => '->',   // Right Arrow
-            '←' => '<-',   // Left Arrow
-            '↔' => '<->',  // Left Right Arrow
-            '⇒' => '=>',   // Double Right Arrow
-            '⇐' => '<=',   // Double Left Arrow
+            // Arrows
+            "\xE2\x86\x92" => '->',  // Right Arrow (→)
+            "\xE2\x86\x90" => '<-',  // Left Arrow (←)
+            "\xE2\x86\x94" => '<->', // Left Right Arrow (↔)
+            "\xE2\x87\x92" => '=>',  // Double Right Arrow (⇒)
+            "\xE2\x87\x90" => '<=',  // Double Left Arrow (⇐)
             
             // Math & Symbols
-            '×' => 'x',    // Multiplication Sign
-            '÷' => '/',    // Division Sign
-            '±' => '+/-',  // Plus-Minus
-            '≤' => '<=',   // Less Than or Equal
-            '≥' => '>=',   // Greater Than or Equal
-            '≠' => '!=',   // Not Equal
-            '≈' => '~',    // Almost Equal
-            '∞' => 'inf',  // Infinity
+            "\xC3\x97" => 'x',       // Multiplication Sign (×)
+            "\xC3\xB7" => '/',       // Division Sign (÷)
+            "\xC2\xB1" => '+/-',     // Plus-Minus (±)
+            "\xE2\x89\xA4" => '<=',  // Less Than or Equal (≤)
+            "\xE2\x89\xA5" => '>=',  // Greater Than or Equal (≥)
+            "\xE2\x89\xA0" => '!=',  // Not Equal (≠)
+            "\xE2\x89\x88" => '~',   // Almost Equal (≈)
+            "\xE2\x88\x9E" => 'inf', // Infinity (∞)
             
-            // Currency (außer € das in Latin-1 ist)
-            '£' => 'GBP',  // Pound - sicherheitshalber
-            '¥' => 'JPY',  // Yen
-            '₹' => 'INR',  // Indian Rupee
-            '₽' => 'RUB',  // Russian Ruble
+            // Currency
+            "\xC2\xA3" => 'GBP',     // Pound (£)
+            "\xC2\xA5" => 'JPY',     // Yen (¥)
+            "\xE2\x82\xB9" => 'INR', // Indian Rupee (₹)
+            "\xE2\x82\xBD" => 'RUB', // Russian Ruble (₽)
             
             // Trademark & Legal
-            '™' => '(TM)', // Trademark
-            '®' => '(R)',  // Registered
-            '©' => '(C)',  // Copyright
+            "\xE2\x84\xA2" => '(TM)', // Trademark (™)
+            "\xC2\xAE" => '(R)',      // Registered (®)
+            "\xC2\xA9" => '(C)',      // Copyright (©)
             
             // Fractions
-            '½' => '1/2',
-            '¼' => '1/4',
-            '¾' => '3/4',
-            '⅓' => '1/3',
-            '⅔' => '2/3',
+            "\xC2\xBD" => '1/2',     // ½
+            "\xC2\xBC" => '1/4',     // ¼
+            "\xC2\xBE" => '3/4',     // ¾
+            "\xE2\x85\x93" => '1/3', // ⅓
+            "\xE2\x85\x94" => '2/3', // ⅔
         ];
 
         $value = str_replace(array_keys($replacements), array_values($replacements), $value);
