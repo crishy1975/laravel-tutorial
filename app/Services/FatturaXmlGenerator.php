@@ -298,9 +298,11 @@ class FatturaXmlGenerator
         $this->addElement('IdPaese', $idFiscale, $paese);
         $this->addElement('IdCodice', $idFiscale, $this->profil->partita_iva_numeric);
 
-        if ($this->profil->codice_fiscale && 
-            $this->profil->codice_fiscale !== $this->profil->partita_iva_numeric) {
-            $this->addElement('CodiceFiscale', $datiAnagrafici, $this->profil->codice_fiscale);
+        // ⭐ FIX: CodiceFiscale IMMER angeben (D.P.R. 605-1973)
+        // Falls kein separater CodiceFiscale vorhanden → Partita IVA verwenden
+        $codiceFiscale = $this->profil->codice_fiscale ?: $this->profil->partita_iva_numeric;
+        if ($codiceFiscale) {
+            $this->addElement('CodiceFiscale', $datiAnagrafici, $codiceFiscale);
         }
 
         $anagrafica = $this->createElement('Anagrafica', $datiAnagrafici);
