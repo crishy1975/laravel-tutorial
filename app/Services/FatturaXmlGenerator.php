@@ -502,7 +502,9 @@ class FatturaXmlGenerator
         // 6-8. DatiBollo, DatiCassaPrevidenziale, ScontoMaggiorazione (nicht implementiert)
 
         // 9. ImportoTotaleDocumento - MUSS VOR Causale!
-        $this->addElement('ImportoTotaleDocumento', $datiDoc, $this->formatAmount($this->rechnung->brutto_summe));
+        // ⭐ FIX: Muss mit DatiRiepilogo übereinstimmen (ImponibileImporto + Imposta)
+        $importoTotale = $this->calculateImportoTotaleDocumento();
+        $this->addElement('ImportoTotaleDocumento', $datiDoc, $this->formatAmount($importoTotale));
 
         // 10. Arrotondamento (nicht implementiert)
 
@@ -841,37 +843,67 @@ class FatturaXmlGenerator
      * Logik:
      * - Split Payment (EsigibilitaIVA = "S"): Kunde zahlt nur NETTO (MwSt geht direkt an Fiskus)
      * - Ritenuta: Abzug vom Zahlbetrag
-     * - Standard: Brutto-Summe
+     * - Standard: Brutto-Summe (konsistent mit ImportoTotaleDocumento)
      * 
      * Kombinationen:
      * - Split Payment + Ritenuta: netto_summe - ritenuta_betrag
      * - Split Payment ohne Ritenuta: netto_summe
-     * - Ritenuta ohne Split Payment: zahlbar_betrag (brutto - ritenuta)
+     * - Ritenuta ohne Split Payment: brutto - ritenuta
      * - Keine Sonderfälle: brutto_summe
      */
     protected function calculateImportoPagamento(): float
     {
-        $netto = (float) $this->rechnung->netto_summe;
-        $brutto = (float) $this->rechnung->brutto_summe;
+        // Verwende berechnete Werte für Konsistenz
+        $brutto = $this->calculateImportoTotaleDocumento();
+        $netto = (float) $this->rechnung->positionen->sum('netto_gesamt');
         $ritenuta = (float) ($this->rechnung->ritenuta_betrag ?? 0);
         
         // Split Payment: Kunde zahlt nur Netto
         if ($this->rechnung->split_payment) {
             // Mit Ritenuta: Netto - Ritenuta
             if ($this->rechnung->ritenuta && $ritenuta > 0) {
-                return $netto - $ritenuta;
+                return round($netto - $ritenuta, 2);
             }
             // Ohne Ritenuta: nur Netto
-            return $netto;
+            return round($netto, 2);
         }
         
         // Kein Split Payment, aber Ritenuta
         if ($this->rechnung->ritenuta && $ritenuta > 0) {
-            return (float) $this->rechnung->zahlbar_betrag;
+            return round($brutto - $ritenuta, 2);
         }
         
-        // Standard: Brutto
+        // Standard: Brutto (bereits gerundet)
         return $brutto;
+    }
+
+    /**
+     * ⭐ NEU: Berechnet ImportoTotaleDocumento konsistent mit DatiRiepilogo
+     * 
+     * Formel: sum(ImponibileImporto) + sum(Imposta)
+     * 
+     * WICHTIG: Die Imposta muss genauso berechnet werden wie in buildDatiRiepilogo(),
+     * nämlich als round(netto * satz / 100, 2) pro MwSt-Gruppe.
+     * NICHT als Summe der bereits gerundeten Einzelbeträge!
+     */
+    protected function calculateImportoTotaleDocumento(): float
+    {
+        $grouped = $this->rechnung->positionen->groupBy('mwst_satz');
+        
+        $totalImponibile = 0.0;
+        $totalImposta = 0.0;
+        
+        foreach ($grouped as $satz => $positionen) {
+            $nettoSumme = (float) $positionen->sum('netto_gesamt');
+            
+            // Imposta EXAKT wie in buildDatiRiepilogo() berechnen!
+            $imposta = round($nettoSumme * (float) $satz / 100, 2);
+            
+            $totalImponibile += $nettoSumme;
+            $totalImposta += $imposta;
+        }
+        
+        return round($totalImponibile + $totalImposta, 2);
     }
 
     // ═══════════════════════════════════════════════════════════
