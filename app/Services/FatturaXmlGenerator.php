@@ -133,6 +133,7 @@ class FatturaXmlGenerator
     protected function validate(): void
     {
         $errors = [];
+        $warnings = [];
 
         if (!$this->profil->istFatturapaKonfiguriert()) {
             $fehlend = $this->profil->fehlendeFelderFatturaPA();
@@ -152,6 +153,17 @@ class FatturaXmlGenerator
 
         if (!$this->rechnung->rechnungsdatum) {
             $errors[] = 'Rechnungsdatum fehlt';
+        }
+
+        // ⭐ NEU: Warnung für PA-Rechnungen ohne CIG/CUP
+        if ($this->getFormatoTrasmissione() === 'FPA12') {
+            if (!$this->rechnung->cig && !$this->rechnung->cup) {
+                $warnings[] = 'PA-Rechnung ohne CIG/CUP: Empfohlen für öffentliche Aufträge';
+                Log::warning('FatturaPA: PA-Rechnung ohne CIG/CUP', [
+                    'rechnung_id' => $this->rechnung->id,
+                    'rechnungsnummer' => $this->rechnung->rechnungsnummer,
+                ]);
+            }
         }
 
         if (!empty($errors)) {
@@ -627,6 +639,14 @@ class FatturaXmlGenerator
             return;
         }
 
+        // ⭐ Warnung: Bei PA-Rechnungen sollte CIG oder CUP angegeben werden
+        if ($this->getFormatoTrasmissione() === 'FPA12' && !$this->rechnung->cig && !$this->rechnung->cup) {
+            Log::warning('FatturaPA: DatiOrdineAcquisto bei PA ohne CIG/CUP', [
+                'rechnung_id' => $this->rechnung->id,
+                'hinweis' => 'Bei PA-Rechnungen wird CIG oder CUP empfohlen',
+            ]);
+        }
+
         $datiOrdine = $this->createElement('DatiOrdineAcquisto', $parent);
 
         // 1. RiferimentoNumeroLinea (optional)
@@ -704,7 +724,11 @@ class FatturaXmlGenerator
             $riepilogo = $this->createElement('DatiRiepilogo', $parent);
 
             $nettoSumme = $positionen->sum('netto_gesamt');
-            $mwstBetrag = $positionen->sum('mwst_betrag');
+            
+            // ⭐ FIX: Imposta direkt aus ImponibileImporto berechnen!
+            // Formel laut FatturaPA: (AliquotaIVA * ImponibileImporto) / 100
+            // NICHT: Summe der gerundeten Einzelbeträge (führt zu Rundungsdifferenzen)
+            $mwstBetrag = round((float) $nettoSumme * (float) $satz / 100, 2);
 
             // ⭐ Korrekte Reihenfolge laut FatturaPA XSD (2.2.2):
             // 1. AliquotaIVA
@@ -784,9 +808,8 @@ class FatturaXmlGenerator
         }
 
         // 6. ImportoPagamento
-        $importo = $this->rechnung->ritenuta 
-            ? $this->rechnung->zahlbar_betrag 
-            : $this->rechnung->brutto_summe;
+        // ⭐ FIX: Bei Split Payment zahlt der Kunde nur NETTO (MwSt geht direkt an Fiskus)
+        $importo = $this->calculateImportoPagamento();
         $this->addElement('ImportoPagamento', $dettaglio, $this->formatAmount($importo));
 
         // 7-11. CodUfficioPostale, Quietanzante-Felder (nicht implementiert)
@@ -810,6 +833,45 @@ class FatturaXmlGenerator
         }
 
         // 17-21. Sconti, Penalità, CodicePagamento (nicht implementiert)
+    }
+
+    /**
+     * ⭐ NEU: Berechnet den korrekten ImportoPagamento
+     * 
+     * Logik:
+     * - Split Payment (EsigibilitaIVA = "S"): Kunde zahlt nur NETTO (MwSt geht direkt an Fiskus)
+     * - Ritenuta: Abzug vom Zahlbetrag
+     * - Standard: Brutto-Summe
+     * 
+     * Kombinationen:
+     * - Split Payment + Ritenuta: netto_summe - ritenuta_betrag
+     * - Split Payment ohne Ritenuta: netto_summe
+     * - Ritenuta ohne Split Payment: zahlbar_betrag (brutto - ritenuta)
+     * - Keine Sonderfälle: brutto_summe
+     */
+    protected function calculateImportoPagamento(): float
+    {
+        $netto = (float) $this->rechnung->netto_summe;
+        $brutto = (float) $this->rechnung->brutto_summe;
+        $ritenuta = (float) ($this->rechnung->ritenuta_betrag ?? 0);
+        
+        // Split Payment: Kunde zahlt nur Netto
+        if ($this->rechnung->split_payment) {
+            // Mit Ritenuta: Netto - Ritenuta
+            if ($this->rechnung->ritenuta && $ritenuta > 0) {
+                return $netto - $ritenuta;
+            }
+            // Ohne Ritenuta: nur Netto
+            return $netto;
+        }
+        
+        // Kein Split Payment, aber Ritenuta
+        if ($this->rechnung->ritenuta && $ritenuta > 0) {
+            return (float) $this->rechnung->zahlbar_betrag;
+        }
+        
+        // Standard: Brutto
+        return $brutto;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -842,7 +904,119 @@ class FatturaXmlGenerator
         }
 
         $value = (string) $value;
+        
+        // ⭐ FIX: Sonderzeichen normalisieren (FatturaPA erlaubt nur Latin-1 Zeichen)
+        $value = $this->normalizeSpecialCharacters($value);
+        
         $value = htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        return $value;
+    }
+
+    /**
+     * ⭐ NEU: Normalisiert Sonderzeichen für FatturaPA-Kompatibilität
+     * 
+     * FatturaPA akzeptiert nur Latin-1 Zeichen (ISO-8859-1).
+     * Diese Methode:
+     * 1. Ersetzt bekannte typografische Zeichen durch ASCII-Äquivalente
+     * 2. Entfernt alle verbleibenden ungültigen Zeichen
+     */
+    protected function normalizeSpecialCharacters(string $value): string
+    {
+        // 1. Bekannte Ersetzungen für typografische Zeichen
+        $replacements = [
+            // Dashes
+            '–' => '-',  // En-Dash (U+2013)
+            '—' => '-',  // Em-Dash (U+2014)
+            '‐' => '-',  // Hyphen (U+2010)
+            '‑' => '-',  // Non-Breaking Hyphen (U+2011)
+            '−' => '-',  // Minus Sign (U+2212)
+            '‒' => '-',  // Figure Dash (U+2012)
+            
+            // Quotes
+            ''' => "'",  // Left Single Quote (U+2018)
+            ''' => "'",  // Right Single Quote (U+2019)
+            '‚' => "'",  // Single Low-9 Quote (U+201A)
+            '‛' => "'",  // Single High-Reversed-9 Quote (U+201B)
+            '"' => '"',  // Left Double Quote (U+201C)
+            '"' => '"',  // Right Double Quote (U+201D)
+            '„' => '"',  // Double Low-9 Quote (U+201E)
+            '‟' => '"',  // Double High-Reversed-9 Quote (U+201F)
+            '«' => '"',  // Left Guillemet
+            '»' => '"',  // Right Guillemet
+            '‹' => "'",  // Single Left Guillemet
+            '›' => "'",  // Single Right Guillemet
+            
+            // Spaces
+            "\xC2\xA0" => ' ',  // Non-Breaking Space (U+00A0)
+            ' ' => ' ',  // En Space (U+2002)
+            ' ' => ' ',  // Em Space (U+2003)
+            ' ' => ' ',  // Three-Per-Em Space (U+2004)
+            ' ' => ' ',  // Four-Per-Em Space (U+2005)
+            ' ' => ' ',  // Six-Per-Em Space (U+2006)
+            ' ' => ' ',  // Figure Space (U+2007)
+            ' ' => ' ',  // Punctuation Space (U+2008)
+            ' ' => ' ',  // Thin Space (U+2009)
+            ' ' => ' ',  // Hair Space (U+200A)
+            '​' => '',   // Zero Width Space (U+200B)
+            
+            // Dots & Bullets
+            '…' => '...',  // Ellipsis (U+2026)
+            '•' => '-',    // Bullet (U+2022)
+            '◦' => '-',    // White Bullet (U+25E6)
+            '·' => '.',    // Middle Dot (U+00B7)
+            '․' => '.',    // One Dot Leader (U+2024)
+            
+            // Arrows (oft in Beschreibungen)
+            '→' => '->',   // Right Arrow
+            '←' => '<-',   // Left Arrow
+            '↔' => '<->',  // Left Right Arrow
+            '⇒' => '=>',   // Double Right Arrow
+            '⇐' => '<=',   // Double Left Arrow
+            
+            // Math & Symbols
+            '×' => 'x',    // Multiplication Sign
+            '÷' => '/',    // Division Sign
+            '±' => '+/-',  // Plus-Minus
+            '≤' => '<=',   // Less Than or Equal
+            '≥' => '>=',   // Greater Than or Equal
+            '≠' => '!=',   // Not Equal
+            '≈' => '~',    // Almost Equal
+            '∞' => 'inf',  // Infinity
+            
+            // Currency (außer € das in Latin-1 ist)
+            '£' => 'GBP',  // Pound - sicherheitshalber
+            '¥' => 'JPY',  // Yen
+            '₹' => 'INR',  // Indian Rupee
+            '₽' => 'RUB',  // Russian Ruble
+            
+            // Trademark & Legal
+            '™' => '(TM)', // Trademark
+            '®' => '(R)',  // Registered
+            '©' => '(C)',  // Copyright
+            
+            // Fractions
+            '½' => '1/2',
+            '¼' => '1/4',
+            '¾' => '3/4',
+            '⅓' => '1/3',
+            '⅔' => '2/3',
+        ];
+
+        $value = str_replace(array_keys($replacements), array_values($replacements), $value);
+
+        // 2. Versuche Transliteration für andere Unicode-Zeichen (z.B. ñ → n)
+        if (function_exists('iconv')) {
+            $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+            if ($transliterated !== false) {
+                $value = $transliterated;
+            }
+        }
+
+        // 3. Entferne alle verbleibenden Nicht-Latin-1 Zeichen
+        // Latin-1 (ISO-8859-1) erlaubt: 0x00-0xFF
+        // Wir behalten nur druckbare ASCII + deutsche Umlaute + übliche Sonderzeichen
+        $value = preg_replace('/[^\x20-\x7E\xA0-\xFF]/u', '', $value);
 
         return $value;
     }
