@@ -760,6 +760,8 @@ class FatturaXmlGenerator
             // 8. RiferimentoNormativo - MUSS am Ende stehen!
             if ($satz == 0 && $this->rechnung->reverse_charge) {
                 $this->addElement('RiferimentoNormativo', $riepilogo, 'Non imponibile art. 17, c.6, lett. a-ter) DPR 633/72');
+            } elseif ($this->rechnung->split_payment) {
+                $this->addElement('RiferimentoNormativo', $riepilogo, 'Splitpayment ex art. 17-ter DPR 633/72');
             }
         }
     }
