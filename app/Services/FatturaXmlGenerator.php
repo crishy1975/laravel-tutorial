@@ -759,7 +759,7 @@ class FatturaXmlGenerator
 
             // 8. RiferimentoNormativo - MUSS am Ende stehen!
             if ($satz == 0 && $this->rechnung->reverse_charge) {
-                $this->addElement('RiferimentoNormativo', $riepilogo, 'Inversione contabile art. 17 DPR 633/72');
+                $this->addElement('RiferimentoNormativo', $riepilogo, 'Non imponibile art. 17, c.6, lett. a-ter) DPR 633/72');
             }
         }
     }
