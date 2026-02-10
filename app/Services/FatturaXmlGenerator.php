@@ -1138,7 +1138,7 @@ class FatturaXmlGenerator
 
         // Priorität 2: Reverse Charge Flag → N6.9 (Art. 17 - altri casi)
         if ($this->rechnung->reverse_charge) {
-            return 'N6.9';
+            return 'N6.7';
         }
 
         // Priorität 3: Split Payment ohne Reverse Charge ist normalerweise kein 0% MwSt-Fall
