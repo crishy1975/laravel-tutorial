@@ -10,6 +10,9 @@ gebäude
     neuer button oben mit zurück zu index
     kontrolle über übersprungene rechnungs nummer
     bei neuer rechnung wird flag nicht entfernt
+    rechnung - gutschrift unterscheiden
+arbeitsbericht
+
 
 
 
