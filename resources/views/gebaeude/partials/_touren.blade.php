@@ -265,14 +265,18 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
     // Container leeren
     hiddenInputsContainer.innerHTML = '';
     
-    // IDs sammeln - Desktop hat Priorität, fallback auf Mobile
+    // IDs sammeln - prüfe welcher Container SICHTBAR ist
     var zugeordnetDesktop = document.getElementById('zugeordnete-touren');
     var zugeordnetMobile = document.getElementById('zugeordnete-touren-mobile');
     
     var tourIds = [];
     
-    // Desktop-Touren auslesen (wenn sichtbar/vorhanden)
-    if (zugeordnetDesktop) {
+    // Prüfe ob Desktop sichtbar ist (offsetParent !== null)
+    var desktopVisible = zugeordnetDesktop && zugeordnetDesktop.offsetParent !== null;
+    var mobileVisible = zugeordnetMobile && zugeordnetMobile.offsetParent !== null;
+    
+    // Desktop-Touren auslesen (nur wenn SICHTBAR)
+    if (desktopVisible) {
       zugeordnetDesktop.querySelectorAll('.tour-card[data-tour-id]').forEach(function(card) {
         var id = card.dataset.tourId;
         if (id && tourIds.indexOf(id) === -1) {
@@ -281,8 +285,8 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
       });
     }
     
-    // Falls Desktop leer, Mobile auslesen
-    if (tourIds.length === 0 && zugeordnetMobile) {
+    // Mobile-Touren auslesen (nur wenn SICHTBAR und Desktop nicht verwendet)
+    if (tourIds.length === 0 && mobileVisible) {
       zugeordnetMobile.querySelectorAll('.tour-item-mobile[data-tour-id]').forEach(function(item) {
         var id = item.dataset.tourId;
         if (id && tourIds.indexOf(id) === -1) {
@@ -300,7 +304,7 @@ $verfuegbar = ($tourenAlle ?? collect())->reject(fn($t) => in_array($t->id, $zug
       hiddenInputsContainer.appendChild(input);
     });
     
-    console.log('Hidden Inputs aktualisiert:', tourIds);
+    console.log('Hidden Inputs aktualisiert:', tourIds, '(Desktop:', desktopVisible, 'Mobile:', mobileVisible, ')');
   }
   
   // ════════════════════════════════════════════════════════════════════
