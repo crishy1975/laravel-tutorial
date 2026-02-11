@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Filter + Page in Cookie speichern
+    // Filter + Page + Scroll in Cookie speichern
     // ═══════════════════════════════════════════════════════════════════════════════
     function saveFilterToCookie() {
         const filterData = {
@@ -582,7 +582,8 @@ document.addEventListener('DOMContentLoaded', function() {
             datum_von: datumVonInput?.value || '',
             datum_bis: datumBisInput?.value || '',
             status_filter: statusInput?.value || '',
-            page: getCurrentPage()
+            page: getCurrentPage(),
+            scrollY: window.scrollY || 0
         };
         setCookie(COOKIE_NAME, filterData, COOKIE_DAYS);
     }
@@ -732,6 +733,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    // Bei Klick auf Rechnungs-Links: Scroll-Position speichern
+    // ═══════════════════════════════════════════════════════════════════════════════
+    document.querySelectorAll('a[href*="/rechnung/"]').forEach(function(link) {
+        link.addEventListener('click', saveFilterToCookie);
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Scroll-Position wiederherstellen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function restoreScrollPosition() {
+        const filterData = getCookie(COOKIE_NAME);
+        if (!filterData || !filterData.scrollY) return;
+        
+        // Scroll-Position wiederherstellen (kurz verzögert für DOM-Rendering)
+        setTimeout(function() {
+            window.scrollTo(0, filterData.scrollY);
+        }, 100);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     // Initialisierung
     // ═══════════════════════════════════════════════════════════════════════════════
     // 1. Prüfen ob Redirect aus Cookie nötig
@@ -744,6 +765,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (hasUrlFilterParams()) {
         saveFilterToCookie();
     }
+    
+    // 4. Scroll-Position wiederherstellen
+    restoreScrollPosition();
+    
+    // 5. Scroll-Position bei Verlassen speichern
+    window.addEventListener('beforeunload', saveFilterToCookie);
 });
 </script>
 @endpush
