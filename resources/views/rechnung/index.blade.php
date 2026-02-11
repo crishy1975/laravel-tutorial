@@ -549,7 +549,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Filter in Cookie speichern
+    // Aktuelle Page aus URL lesen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function getCurrentPage() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('page') || '1';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Prüfen ob URL Parameter hat (außer page)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function hasUrlFilterParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        // Prüfe ob irgendein Filter-Parameter vorhanden ist
+        return urlParams.has('nummer') || 
+               urlParams.has('codex') || 
+               urlParams.has('suche') || 
+               urlParams.has('datum_von') || 
+               urlParams.has('datum_bis') || 
+               urlParams.has('status_filter') ||
+               urlParams.has('page');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter + Page in Cookie speichern
     // ═══════════════════════════════════════════════════════════════════════════════
     function saveFilterToCookie() {
         const filterData = {
@@ -558,13 +581,54 @@ document.addEventListener('DOMContentLoaded', function() {
             suche: sucheInput?.value || '',
             datum_von: datumVonInput?.value || '',
             datum_bis: datumBisInput?.value || '',
-            status_filter: statusInput?.value || ''
+            status_filter: statusInput?.value || '',
+            page: getCurrentPage()
         };
         setCookie(COOKIE_NAME, filterData, COOKIE_DAYS);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Filter aus Cookie in Felder laden
+    // Bei Seitenaufruf ohne Parameter: Aus Cookie wiederherstellen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    function restoreFromCookieIfNeeded() {
+        // Nur wiederherstellen wenn KEINE URL-Parameter vorhanden
+        if (hasUrlFilterParams()) {
+            // URL hat Parameter -> speichere aktuelle Position
+            saveFilterToCookie();
+            return;
+        }
+
+        const filterData = getCookie(COOKIE_NAME);
+        if (!filterData) return;
+
+        // Prüfen ob es gespeicherte Filter gibt
+        const hasFilter = filterData.nummer || 
+                         filterData.codex || 
+                         filterData.suche || 
+                         filterData.status_filter ||
+                         (filterData.page && filterData.page !== '1');
+
+        if (!hasFilter) return;
+
+        // URL mit gespeicherten Filtern aufbauen
+        const params = new URLSearchParams();
+
+        if (filterData.nummer) params.append('nummer', filterData.nummer);
+        if (filterData.codex) params.append('codex', filterData.codex);
+        if (filterData.suche) params.append('suche', filterData.suche);
+        if (filterData.datum_von) params.append('datum_von', filterData.datum_von);
+        if (filterData.datum_bis) params.append('datum_bis', filterData.datum_bis);
+        if (filterData.status_filter) params.append('status_filter', filterData.status_filter);
+        if (filterData.page && filterData.page !== '1') params.append('page', filterData.page);
+
+        // Redirect zur gespeicherten Position
+        if (params.toString()) {
+            window.location.href = baseIndexUrl + '?' + params.toString();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filter aus Cookie in Felder laden (für manuelle Ansicht)
     // ═══════════════════════════════════════════════════════════════════════════════
     function loadFilterFromCookie() {
         const filterData = getCookie(COOKIE_NAME);
@@ -602,9 +666,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const datumBis = datumBisInput?.value ?? '';
         const status = statusInput?.value ?? '';
 
-        // Filter in Cookie speichern
-        saveFilterToCookie();
-
         const params = new URLSearchParams();
 
         if (nummer) params.append('nummer', nummer);
@@ -613,6 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (datumVon) params.append('datum_von', datumVon);
         if (datumBis) params.append('datum_bis', datumBis);
         if (status) params.append('status_filter', status);
+        // Bei neuem Filter: Page auf 1 zurücksetzen (nicht mitgeben)
 
         const targetUrl = params.toString()
             ? baseIndexUrl + '?' + params.toString()
@@ -660,9 +722,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Initialisierung: Cookie in Felder laden (kein automatisches Filtern)
+    // Pagination-Links: Cookie aktualisieren bei Klick
     // ═══════════════════════════════════════════════════════════════════════════════
+    document.querySelectorAll('.pagination a').forEach(function(link) {
+        link.addEventListener('click', function() {
+            // Kurz verzögert speichern, damit die URL noch aktuell ist
+            setTimeout(saveFilterToCookie, 100);
+        });
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Initialisierung
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 1. Prüfen ob Redirect aus Cookie nötig
+    restoreFromCookieIfNeeded();
+    
+    // 2. Cookie in Felder laden (falls kein Redirect)
     loadFilterFromCookie();
+    
+    // 3. Aktuelle Position speichern
+    if (hasUrlFilterParams()) {
+        saveFilterToCookie();
+    }
 });
 </script>
 @endpush
