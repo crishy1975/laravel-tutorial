@@ -33,10 +33,10 @@ class MahnungController extends Controller
     {
         $statistiken = $this->service->getStatistiken();
         $bankAktualitaet = $this->service->getBankAktualitaet();
-        
+
         // Letzte Mahnungen
         $letzteMahnungen = Mahnung::with([
-            'rechnung.rechnungsempfaenger', 
+            'rechnung.rechnungsempfaenger',
             'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
             'stufe'
         ])
@@ -57,7 +57,7 @@ class MahnungController extends Controller
     public function historie(Request $request)
     {
         $query = Mahnung::with([
-            'rechnung.rechnungsempfaenger', 
+            'rechnung.rechnungsempfaenger',
             'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
             'stufe'
         ])
@@ -105,13 +105,13 @@ class MahnungController extends Controller
     {
         $bankAktualitaet = $this->service->getBankAktualitaet();
         $stufen = MahnungStufe::getAlleAktiven();
-        
+
         // Alle überfälligen Rechnungen (mit ist_mahnbar Flag)
         $ueberfaellige = $this->service->getUeberfaelligeRechnungen();
-        
+
         // Gesperrte Rechnungen separat laden
         $gesperrte = $this->service->getGesperrteRechnungen();
-        
+
         // Einstellungen für Anzeige
         $einstellungen = [
             'zahlungsfrist_tage'            => MahnungEinstellung::getZahlungsfristTage(),
@@ -172,7 +172,7 @@ class MahnungController extends Controller
     public function versand()
     {
         $entwuerfe = Mahnung::with([
-            'rechnung.rechnungsempfaenger', 
+            'rechnung.rechnungsempfaenger',
             'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
             'stufe'
         ])
@@ -182,13 +182,13 @@ class MahnungController extends Controller
             ->get();
 
         // ⭐ Gruppieren nach Versandart-Möglichkeit (Postadresse-E-Mail!)
-        $mitEmail = $entwuerfe->filter(function($m) {
+        $mitEmail = $entwuerfe->filter(function ($m) {
             $postEmail = $m->rechnung?->gebaeude?->postadresse?->email;
             $rechnungEmail = $m->rechnung?->rechnungsempfaenger?->email;
             return !empty($postEmail) || !empty($rechnungEmail);
         });
-        
-        $ohneEmail = $entwuerfe->filter(function($m) {
+
+        $ohneEmail = $entwuerfe->filter(function ($m) {
             $postEmail = $m->rechnung?->gebaeude?->postadresse?->email;
             $rechnungEmail = $m->rechnung?->rechnungsempfaenger?->email;
             return empty($postEmail) && empty($rechnungEmail);
@@ -275,7 +275,6 @@ class MahnungController extends Controller
                 'ok'      => false,
                 'message' => $result['grund'] ?? 'Unbekannter Fehler',
             ], 500);
-
         } catch (\Exception $e) {
             Log::error('AJAX Mahnungsversand fehlgeschlagen', [
                 'mahnung_id' => $mahnung->id,
@@ -311,7 +310,7 @@ class MahnungController extends Controller
     public function show(Mahnung $mahnung)
     {
         $mahnung->load([
-            'rechnung.rechnungsempfaenger', 
+            'rechnung.rechnungsempfaenger',
             'rechnung.gebaeude.postadresse',  // ⭐ Postadresse laden!
             'stufe'
         ]);
@@ -333,7 +332,7 @@ class MahnungController extends Controller
     public function stornieren(Request $request, Mahnung $mahnung)
     {
         $grund = $request->input('grund');
-        
+
         if ($mahnung->stornieren($grund)) {
             return redirect()
                 ->back()
@@ -343,6 +342,38 @@ class MahnungController extends Controller
         return redirect()
             ->back()
             ->with('error', 'Mahnung konnte nicht storniert werden.');
+    }
+
+    /**
+     * ⭐ Entwurf löschen (nur status = 'entwurf')
+     */
+    public function destroy(Mahnung $mahnung)
+    {
+        // Nur Entwürfe dürfen gelöscht werden
+        if ($mahnung->status !== 'entwurf') {
+            return redirect()
+                ->back()
+                ->with('error', 'Nur Entwürfe können gelöscht werden. Versendete Mahnungen können storniert werden.');
+        }
+
+        $rechnungsnummer = $mahnung->rechnungsnummer_anzeige;
+
+        // PDF löschen falls vorhanden
+        if ($mahnung->pdf_pfad && file_exists(storage_path('app/' . $mahnung->pdf_pfad))) {
+            @unlink(storage_path('app/' . $mahnung->pdf_pfad));
+        }
+
+        $mahnung->delete();
+
+        Log::info('Mahnungs-Entwurf gelöscht', [
+            'mahnung_id'       => $mahnung->id,
+            'rechnungsnummer'  => $rechnungsnummer,
+            'user_id'          => auth()->id(),
+        ]);
+
+        return redirect()
+            ->back()
+            ->with('success', "Entwurf für Rechnung {$rechnungsnummer} wurde gelöscht.");
     }
 
     /**

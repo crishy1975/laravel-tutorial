@@ -319,7 +319,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/{mahnung}/pdf', [MahnungController::class, 'downloadPdf'])->name('pdf');
         Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
         Route::post('/{mahnung}/versende-einzeln', [MahnungController::class, 'versendeEinzeln'])->name('versende-einzeln');
-    });
+        Route::delete('/{mahnung}', [MahnungController::class, 'destroy'])->name('destroy');
+        });
 
 
     // ==================== Angebote ====================
