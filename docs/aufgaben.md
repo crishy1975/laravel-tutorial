@@ -16,7 +16,7 @@ arbeitsbericht
 rechnung 
     x filter
     doppelte rechnung mit back taste
-    bemerkung bei löschen
+    bemerkung bei löschen und backup
     bemerkung bei bezahlt
 
 angebote
