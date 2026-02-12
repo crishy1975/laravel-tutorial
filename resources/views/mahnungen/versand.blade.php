@@ -1,4 +1,5 @@
 {{-- resources/views/mahnungen/versand.blade.php --}}
+{{-- ⭐ NEU: Lösch-Button für Entwürfe hinzugefügt --}}
 @extends('layouts.app')
 
 @section('content')
@@ -41,6 +42,13 @@
     @if(session('warning'))
         <div class="alert alert-warning alert-dismissible fade show">
             <i class="bi bi-exclamation-triangle"></i> {{ session('warning') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-x-circle"></i> {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
@@ -148,7 +156,9 @@
             </div>
         </div>
 
-        {{-- Mit E-Mail --}}
+        {{-- ═══════════════════════════════════════════════════════════════════════ --}}
+        {{-- MIT E-MAIL --}}
+        {{-- ═══════════════════════════════════════════════════════════════════════ --}}
         @if($mitEmail->isNotEmpty())
             <div class="card mb-4" id="emailCard">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
@@ -174,6 +184,7 @@
                                 <th class="text-end">Spesen</th>
                                 <th class="text-end">Gesamt</th>
                                 <th>Status</th>
+                                <th class="text-center">Aktion</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -214,6 +225,19 @@
                                     <td class="status-cell">
                                         <span class="badge bg-secondary">Bereit</span>
                                     </td>
+                                    {{-- ⭐ NEU: Lösch-Button --}}
+                                    <td class="text-center">
+                                        <form method="POST" action="{{ route('mahnungen.destroy', $mahnung->id) }}" 
+                                              class="d-inline delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                    title="Entwurf löschen"
+                                                    onclick="return confirm('Entwurf für {{ $mahnung->rechnungsnummer_anzeige }} wirklich löschen?')">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -222,7 +246,9 @@
             </div>
         @endif
 
-        {{-- Ohne E-Mail (Postversand) --}}
+        {{-- ═══════════════════════════════════════════════════════════════════════ --}}
+        {{-- OHNE E-MAIL (Postversand) --}}
+        {{-- ═══════════════════════════════════════════════════════════════════════ --}}
         @if($ohneEmail->isNotEmpty())
             <div class="card" id="postCard">
                 <div class="card-header bg-warning d-flex justify-content-between align-items-center">
@@ -243,7 +269,7 @@
                                 <th class="text-end">Betrag</th>
                                 <th class="text-end">Spesen</th>
                                 <th class="text-end">Gesamt</th>
-                                <th>Aktion</th>
+                                <th class="text-center">Aktion</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -252,7 +278,7 @@
                                     $adresse = $mahnung->rechnung?->gebaeude?->postadresse 
                                              ?? $mahnung->rechnung?->rechnungsempfaenger;
                                 @endphp
-                                <tr>
+                                <tr id="row-post-{{ $mahnung->id }}">
                                     <td>
                                         <i class="bi bi-envelope-x text-warning"></i>
                                     </td>
@@ -276,20 +302,33 @@
                                     <td class="text-end">{{ number_format($mahnung->rechnungsbetrag, 2, ',', '.') }} €</td>
                                     <td class="text-end">{{ number_format($mahnung->spesen, 2, ',', '.') }} €</td>
                                     <td class="text-end fw-bold">{{ $mahnung->gesamtbetrag_formatiert }}</td>
-                                    <td>
+                                    <td class="text-center">
                                         <div class="btn-group btn-group-sm">
+                                            {{-- PDF Vorschau --}}
                                             <a href="{{ route('mahnungen.pdf', ['mahnung' => $mahnung->id, 'preview' => 1]) }}" 
                                                class="btn btn-outline-primary" title="PDF anzeigen" target="_blank">
                                                 <i class="bi bi-eye"></i>
                                             </a>
+                                            {{-- PDF Download --}}
                                             <a href="{{ route('mahnungen.pdf', $mahnung->id) }}" 
                                                class="btn btn-outline-secondary" title="PDF herunterladen">
                                                 <i class="bi bi-download"></i>
                                             </a>
+                                            {{-- Als versendet markieren --}}
                                             <form method="POST" action="{{ route('mahnungen.als-post-versendet', $mahnung->id) }}" class="d-inline">
                                                 @csrf
                                                 <button type="submit" class="btn btn-outline-success" title="Als versendet markieren">
                                                     <i class="bi bi-check"></i>
+                                                </button>
+                                            </form>
+                                            {{-- ⭐ NEU: Lösch-Button --}}
+                                            <form method="POST" action="{{ route('mahnungen.destroy', $mahnung->id) }}" class="d-inline">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline-danger" 
+                                                        title="Entwurf löschen"
+                                                        onclick="return confirm('Entwurf für {{ $mahnung->rechnungsnummer_anzeige }} wirklich löschen?')">
+                                                    <i class="bi bi-trash"></i>
                                                 </button>
                                             </form>
                                         </div>
