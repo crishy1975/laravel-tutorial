@@ -1,5 +1,6 @@
 {{-- resources/views/gebaeude/partials/_rechnungen.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Card-Layout auf Smartphones --}}
+{{-- ⭐ NEU: Gutschriften werden rot und mit negativem Betrag angezeigt --}}
 
 @if(!isset($gebaeude) || !$gebaeude->id)
     <div class="alert alert-info">
@@ -16,6 +17,19 @@
             'cancelled' => ['class' => 'danger', 'icon' => 'x-circle', 'label' => 'Storniert'],
             'overdue' => ['class' => 'warning', 'icon' => 'exclamation-triangle', 'label' => 'Ueberfaellig'],
         ];
+
+        // ⭐ Separate Zählung für Statistiken
+        $nurRechnungen = $rechnungen->where('typ_rechnung', '!=', 'gutschrift');
+        $nurGutschriften = $rechnungen->where('typ_rechnung', 'gutschrift');
+        
+        // ⭐ Effektiver Umsatz (Rechnungen minus Gutschriften)
+        $bruttoRechnungen = $nurRechnungen->sum('brutto_summe');
+        $bruttoGutschriften = $nurGutschriften->sum('brutto_summe');
+        $effektivBrutto = $bruttoRechnungen - $bruttoGutschriften;
+        
+        $nettoRechnungen = $nurRechnungen->sum('netto_summe');
+        $nettoGutschriften = $nurGutschriften->sum('netto_summe');
+        $effektivNetto = $nettoRechnungen - $nettoGutschriften;
     @endphp
 
     <div class="row g-3">
@@ -25,7 +39,12 @@
                 <h6 class="mb-0">
                     <i class="bi bi-receipt"></i> Rechnungen
                 </h6>
-                <small class="text-muted">{{ $rechnungen->count() }} Rechnungen</small>
+                <small class="text-muted">
+                    {{ $nurRechnungen->count() }} Rechnungen
+                    @if($nurGutschriften->count() > 0)
+                        <span class="text-danger">/ {{ $nurGutschriften->count() }} Gutschriften</span>
+                    @endif
+                </small>
             </div>
         </div>
 
@@ -39,12 +58,21 @@
             {{-- MOBILE: Cards --}}
             <div class="col-12 d-md-none">
                 @foreach($rechnungen as $rechnung)
-                    @php $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status]; @endphp
-                    <div class="card mb-2">
+                    @php 
+                        $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status];
+                        $istGutschrift = $rechnung->typ_rechnung === 'gutschrift';
+                    @endphp
+                    <div class="card mb-2 {{ $istGutschrift ? 'border-danger' : '' }}">
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
-                                    <strong>{{ $rechnung->rechnungsnummer ?? '-' }}</strong>
+                                    <strong class="{{ $istGutschrift ? 'text-danger' : '' }}">
+                                        {{ $rechnung->rechnungsnummer ?? '-' }}
+                                    </strong>
+                                    {{-- ⭐ Typ-Badge --}}
+                                    @if($istGutschrift)
+                                        <span class="badge bg-danger ms-1">Gutschrift</span>
+                                    @endif
                                     <div class="text-muted small">{{ $rechnung->rechnungsdatum?->format('d.m.Y') }}</div>
                                 </div>
                                 <span class="badge bg-{{ $config['class'] }}">
@@ -54,8 +82,13 @@
                             <div class="small text-muted mb-2">{{ Str::limit($rechnung->re_name ?? '-', 30) }}</div>
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <span class="fw-bold">{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} EUR</span>
-                                    <span class="text-muted small">(netto: {{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }})</span>
+                                    {{-- ⭐ Gutschrift: Negativer Betrag in Rot --}}
+                                    <span class="fw-bold {{ $istGutschrift ? 'text-danger' : '' }}">
+                                        {{ $istGutschrift ? '-' : '' }}{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }} EUR
+                                    </span>
+                                    <span class="text-muted small">
+                                        (netto: {{ $istGutschrift ? '-' : '' }}{{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }})
+                                    </span>
                                 </div>
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-primary">
@@ -80,6 +113,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Nr.</th>
+                                <th>Typ</th>
                                 <th>Datum</th>
                                 <th>Status</th>
                                 <th>Empfaenger</th>
@@ -90,9 +124,28 @@
                         </thead>
                         <tbody>
                             @foreach($rechnungen as $rechnung)
-                                @php $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status]; @endphp
-                                <tr>
-                                    <td><strong>{{ $rechnung->rechnungsnummer ?? '-' }}</strong></td>
+                                @php 
+                                    $config = $statusConfig[$rechnung->status] ?? ['class' => 'secondary', 'icon' => 'question', 'label' => $rechnung->status];
+                                    $istGutschrift = $rechnung->typ_rechnung === 'gutschrift';
+                                @endphp
+                                <tr class="{{ $istGutschrift ? 'table-danger' : '' }}">
+                                    <td>
+                                        <strong class="{{ $istGutschrift ? 'text-danger' : '' }}">
+                                            {{ $rechnung->rechnungsnummer ?? '-' }}
+                                        </strong>
+                                    </td>
+                                    <td>
+                                        {{-- ⭐ Typ-Badge --}}
+                                        @if($istGutschrift)
+                                            <span class="badge bg-danger">
+                                                <i class="bi bi-dash-circle"></i> Gutschrift
+                                            </span>
+                                        @else
+                                            <span class="badge bg-primary">
+                                                <i class="bi bi-receipt"></i> Rechnung
+                                            </span>
+                                        @endif
+                                    </td>
                                     <td>{{ $rechnung->rechnungsdatum?->format('d.m.Y') }}</td>
                                     <td>
                                         <span class="badge bg-{{ $config['class'] }}">
@@ -100,8 +153,13 @@
                                         </span>
                                     </td>
                                     <td>{{ Str::limit($rechnung->re_name ?? '-', 25) }}</td>
-                                    <td class="text-end">{{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }}</td>
-                                    <td class="text-end"><strong>{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }}</strong></td>
+                                    {{-- ⭐ Gutschrift: Negativer Betrag in Rot --}}
+                                    <td class="text-end {{ $istGutschrift ? 'text-danger fw-bold' : '' }}">
+                                        {{ $istGutschrift ? '-' : '' }}{{ number_format($rechnung->netto_summe ?? 0, 2, ',', '.') }}
+                                    </td>
+                                    <td class="text-end {{ $istGutschrift ? 'text-danger fw-bold' : '' }}">
+                                        <strong>{{ $istGutschrift ? '-' : '' }}{{ number_format($rechnung->brutto_summe ?? 0, 2, ',', '.') }}</strong>
+                                    </td>
                                     <td class="text-end">
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ route('rechnung.edit', $rechnung->id) }}" class="btn btn-outline-primary">
@@ -118,10 +176,25 @@
                             @endforeach
                         </tbody>
                         <tfoot class="table-light">
+                            {{-- ⭐ Separierte Summen --}}
+                            @if($nurGutschriften->count() > 0)
+                            <tr>
+                                <td colspan="5" class="text-end">Summe Rechnungen</td>
+                                <td class="text-end">{{ number_format($nettoRechnungen, 2, ',', '.') }}</td>
+                                <td class="text-end">{{ number_format($bruttoRechnungen, 2, ',', '.') }}</td>
+                                <td></td>
+                            </tr>
+                            <tr class="text-danger">
+                                <td colspan="5" class="text-end">Summe Gutschriften</td>
+                                <td class="text-end">-{{ number_format($nettoGutschriften, 2, ',', '.') }}</td>
+                                <td class="text-end">-{{ number_format($bruttoGutschriften, 2, ',', '.') }}</td>
+                                <td></td>
+                            </tr>
+                            @endif
                             <tr class="fw-bold">
-                                <td colspan="4">Gesamt</td>
-                                <td class="text-end">{{ number_format($rechnungen->sum('netto_summe'), 2, ',', '.') }}</td>
-                                <td class="text-end">{{ number_format($rechnungen->sum('brutto_summe'), 2, ',', '.') }}</td>
+                                <td colspan="5">Effektiv Gesamt</td>
+                                <td class="text-end">{{ number_format($effektivNetto, 2, ',', '.') }}</td>
+                                <td class="text-end">{{ number_format($effektivBrutto, 2, ',', '.') }}</td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -159,12 +232,13 @@
                             </div>
                         </div>
                     </div>
+                    {{-- ⭐ NEU: Gutschriften-Karte --}}
                     <div class="col-6 col-md-3">
-                        <div class="card border-warning h-100">
+                        <div class="card border-danger h-100">
                             <div class="card-body text-center p-2">
-                                <i class="bi bi-exclamation-triangle text-warning"></i>
-                                <div class="small text-muted">Offen</div>
-                                <strong class="text-warning">{{ $rechnungen->whereIn('status', ['sent', 'overdue'])->count() }}</strong>
+                                <i class="bi bi-dash-circle text-danger"></i>
+                                <div class="small text-muted">Gutschriften</div>
+                                <strong class="text-danger">{{ $nurGutschriften->count() }}</strong>
                             </div>
                         </div>
                     </div>
@@ -176,17 +250,25 @@
                 <div class="card border-primary">
                     <div class="card-body p-2">
                         <div class="row text-center">
-                            <div class="col-4 border-end">
-                                <small class="text-muted d-block">Gesamt</small>
-                                <strong>{{ number_format($rechnungen->sum('brutto_summe'), 2, ',', '.') }}</strong>
+                            <div class="col-3 border-end">
+                                <small class="text-muted d-block">Rechnungen</small>
+                                <strong>{{ number_format($bruttoRechnungen, 2, ',', '.') }}</strong>
                             </div>
-                            <div class="col-4 border-end">
-                                <small class="text-muted d-block">Bezahlt</small>
-                                <strong class="text-success">{{ number_format($rechnungen->where('status', 'paid')->sum('brutto_summe'), 2, ',', '.') }}</strong>
+                            <div class="col-3 border-end">
+                                <small class="text-muted d-block">Gutschriften</small>
+                                <strong class="text-danger">-{{ number_format($bruttoGutschriften, 2, ',', '.') }}</strong>
                             </div>
-                            <div class="col-4">
+                            <div class="col-3 border-end">
+                                <small class="text-muted d-block">Effektiv</small>
+                                <strong class="{{ $effektivBrutto < 0 ? 'text-danger' : 'text-primary' }}">
+                                    {{ number_format($effektivBrutto, 2, ',', '.') }}
+                                </strong>
+                            </div>
+                            <div class="col-3">
                                 <small class="text-muted d-block">Offen</small>
-                                <strong class="text-warning">{{ number_format($rechnungen->whereIn('status', ['sent', 'overdue'])->sum('brutto_summe'), 2, ',', '.') }}</strong>
+                                <strong class="text-warning">
+                                    {{ number_format($nurRechnungen->whereIn('status', ['sent', 'overdue'])->sum('brutto_summe'), 2, ',', '.') }}
+                                </strong>
                             </div>
                         </div>
                     </div>
