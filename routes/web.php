@@ -452,14 +452,13 @@ Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
 |
 */
 
-use App\Livewire\Messungen\AnlagenListe;
-use App\Livewire\Messungen\AnlagenEdit;
-use App\Livewire\Messungen\ImportAnlagen;
+// In web.php – ersetze den Messungen-Block mit:
+use Livewire\Volt\Volt;
 
 Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
-    Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
-    Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
-    Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
+    Route::get('/anlagen', \App\Livewire\Messungen\AnlagenListe::class)->name('anlagen.index');
+    Route::get('/anlagen/import', \App\Livewire\Messungen\ImportAnlagen::class)->name('anlagen.import');
+    Route::get('/anlagen/{kodex}', \App\Livewire\Messungen\AnlagenEdit::class)->name('anlagen.edit');
 });
 
 
