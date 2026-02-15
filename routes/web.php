@@ -461,18 +461,19 @@ use App\Livewire\Messungen\MessungEdit;
 use App\Livewire\Messungen\MessungenListe;
 
 Route::middleware(['auth'])->prefix('messungen')->name('messungen.')->group(function () {
-
+    
     // Anlagen
     Route::get('/', AnlagenListe::class)->name('anlagen.index');
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.liste');
     Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
     Route::get('/anlagen/{kodex}/edit', AnlagenEdit::class)->name('anlagen.edit');
-
-    // Messungen
-    Route::get('/liste', MessungenListe::class)->name('liste');
-    Route::get('/import', ImportMessungen::class)->name('import');
-    Route::get('/neu/{kodex}', MessungNeu::class)->name('neu');
-    Route::get('/{id}/edit', MessungEdit::class)->name('edit');
+    
+    // TODO: Messungen (noch nicht implementiert)
+    // Route::get('/liste', MessungenListe::class)->name('liste');
+    // Route::get('/import', ImportMessungen::class)->name('import');
+    // Route::get('/neu/{kodex}', MessungNeu::class)->name('neu');
+    // Route::get('/{id}/edit', MessungEdit::class)->name('edit');
+    
 });
 
 // ==================== Auth Routes (Breeze) ====================
