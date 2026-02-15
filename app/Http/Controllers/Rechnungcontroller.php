@@ -606,6 +606,46 @@ class RechnungController extends Controller
         $rechnung = Rechnung::findOrFail($id);
         Log::info('Rechnung geladen', ['re_name' => $rechnung->re_name]);
 
+        // ══════════════════════════════════════════════════════════════════════════════
+        // PATCH FÜR RechnungController::update()
+        // Füge diesen Code am ANFANG der update() Methode ein (nach $rechnung = ...)
+        // ══════════════════════════════════════════════════════════════════════════════
+
+        // ⭐ BEZAHLT-AKTION: Spezielles Handling wenn Modal verwendet wurde
+        if ($request->has('_bezahlt_aktion') && $request->input('_bezahlt_aktion') == '1') {
+
+            $bezahltGrund = $request->input('bezahlt_grund', '');
+            $bezahltAm = $request->input('bezahlt_am');
+
+            // Rechnung aktualisieren
+            $rechnung->update([
+                'zahlungsbedingungen' => 'bezahlt',
+                'status' => 'paid',
+                'bezahlt_am' => $bezahltAm,
+            ]);
+
+            // Log-Eintrag erstellen wenn gewünscht
+            if ($request->boolean('log_eintrag', true)) {
+                RechnungLog::create([
+                    'rechnung_id' => $rechnung->id,
+                    'typ'         => RechnungLogTyp::ZAHLUNG_EINGEGANGEN->value,
+                    'titel'       => 'Zahlung erhalten',
+                    'nachricht'   => $bezahltGrund,
+                    'metadata'    => [
+                        'betrag'      => $rechnung->zahlbar_betrag,
+                        'bezahlt_am'  => $bezahltAm,
+                        'erfasst_von' => auth()->user()?->name ?? 'System',
+                        'erfasst_am'  => now()->format('Y-m-d H:i:s'),
+                    ],
+                ]);
+            }
+
+            return redirect()
+                ->route('rechnung.edit', $rechnung->id)
+                ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde als bezahlt markiert.");
+        }
+
+
         if (!$rechnung->ist_editierbar) {
             Log::info('Rechnung nicht editierbar');
             return redirect()
