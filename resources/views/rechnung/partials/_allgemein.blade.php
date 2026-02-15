@@ -666,13 +666,6 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                 </button>
                 @endif
 
-                {{-- Button: Löschen --}}
-                @if(!$readonly)
-                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteRechnungModal">
-                    <i class="bi bi-trash"></i> Rechnung löschen
-                </button>
-                @endif
-
             </div>
 
         </div>
@@ -691,12 +684,6 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                 <i class="bi bi-building"></i> Zurück zum Gebäude
             </a>
             @endif
-
-            @if(!$readonly)
-            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteRechnungModal">
-                <i class="bi bi-trash"></i> Rechnung löschen
-            </button>
-            @endif
         </div>
     </div>
     @endif
@@ -707,64 +694,6 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
      MODALS (AUSSERHALB DES FORMULARS!)
      ═══════════════════════════════════════════════════════════ --}}
 
-{{-- Modal: Rechnung löschen --}}
-@if($rechnung->exists && !$readonly)
-<div class="modal fade" id="deleteRechnungModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Rechnung löschen?</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    Diese Aktion kann nicht rückgängig gemacht werden!
-                </div>
-                <p>Möchten Sie die Rechnung <strong>{{ $rechnung->rechnungsnummer }}</strong> wirklich löschen?</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <button type="button" class="btn btn-danger" id="btnConfirmDelete"
-                    data-delete-url="{{ route('rechnung.destroy', $rechnung->id) }}">
-                    Ja, löschen
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{{-- JavaScript: Löschen --}}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const btnDelete = document.getElementById('btnConfirmDelete');
-        if (btnDelete) {
-            btnDelete.addEventListener('click', function() {
-                const deleteUrl = this.dataset.deleteUrl;
-
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = deleteUrl;
-
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = '_token';
-                csrfInput.value = '{{ csrf_token() }}';
-                form.appendChild(csrfInput);
-
-                const methodInput = document.createElement('input');
-                methodInput.type = 'hidden';
-                methodInput.name = '_method';
-                methodInput.value = 'DELETE';
-                form.appendChild(methodInput);
-
-                document.body.appendChild(form);
-                form.submit();
-            });
-        }
-    });
-</script>
-@endif
 
 {{-- ⭐ Modal: Rechnungsnummer / Datum ändern (MIT VORSICHT!) --}}
 @if($rechnung->exists)
