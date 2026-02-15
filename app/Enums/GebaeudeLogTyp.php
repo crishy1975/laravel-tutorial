@@ -207,6 +207,10 @@ enum GebaeudeLogTyp: string
             self::RECHNUNG_ERSTELLT => 'bi-receipt',
             self::ANGEBOT_ERSTELLT => 'bi-file-earmark-text',
             self::FATTURA_PROFIL_GEAENDERT => 'bi-file-earmark-code',
+            self::RECHNUNG_GEAENDERT => 'bi-file-earmark-text',
+            self::RECHNUNG_GELOESCHT => 'bi-trash-fill',
+            self::RECHNUNG_WIEDERHERGESTELLT => 'bi-arrow-counterclockwise',
+
 
             // Reinigung
             self::REINIGUNG_DURCHGEFUEHRT => 'bi-check-circle-fill',
@@ -279,6 +283,8 @@ enum GebaeudeLogTyp: string
             self::RECHNUNG_ERSTELLT => 'success',
             self::ANGEBOT_ERSTELLT => 'primary',
             self::FATTURA_PROFIL_GEAENDERT => 'info',
+            self::RECHNUNG_GELOESCHT => 'danger',
+self::RECHNUNG_WIEDERHERGESTELLT => 'success',
 
             // Reinigung
             self::REINIGUNG_DURCHGEFUEHRT => 'success',
