@@ -1,5 +1,5 @@
 {{-- resources/views/rechnung/form.blade.php --}}
-{{-- ⭐ MOBILE-OPTIMIERTE VERSION MIT GUTSCHRIFT-BUTTON --}}
+{{-- ⭐ MOBILE-OPTIMIERTE VERSION MIT GUTSCHRIFT-BUTTON UND SOFT-DELETE --}}
 @extends('layouts.app')
 
 @section('content')
@@ -169,6 +169,13 @@
                 {{-- Desktop Layout --}}
                 <div class="d-none d-md-flex justify-content-between align-items-center">
                     <div>
+                        {{-- ⭐ NEU: Löschen-Button (nur bei Entwürfen) --}}
+                        @if($rechnung->exists && $rechnung->ist_editierbar)
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalLoeschen">
+                            <i class="bi bi-trash3"></i> Löschen
+                        </button>
+                        @endif
+
                         {{-- PDF Buttons (links) --}}
                         @if($rechnung->exists)
                         <a href="{{ route('rechnung.pdf.download', $rechnung->id) }}" class="btn btn-outline-danger">
@@ -178,7 +185,7 @@
                             <i class="bi bi-eye"></i> PDF Vorschau
                         </a>
 
-                        {{-- ⭐ NEU: Gutschrift-Button (nur bei Rechnungen, nicht bei Gutschriften) --}}
+                        {{-- Gutschrift-Button (nur bei Rechnungen, nicht bei Gutschriften) --}}
                         @if($rechnung->typ_rechnung !== 'gutschrift')
                         <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalGutschrift">
                             <i class="bi bi-receipt-cutoff"></i> Gutschrift
@@ -223,10 +230,17 @@
                         </a>
                     </div>
 
-                    {{-- ⭐ NEU: Gutschrift-Button (Mobile) --}}
+                    {{-- Gutschrift-Button (Mobile) --}}
                     @if($rechnung->typ_rechnung !== 'gutschrift')
                     <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalGutschrift">
                         <i class="bi bi-receipt-cutoff"></i> Gutschrift erstellen
+                    </button>
+                    @endif
+
+                    {{-- ⭐ NEU: Löschen-Button (Mobile, nur bei Entwürfen) --}}
+                    @if($rechnung->ist_editierbar)
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalLoeschen">
+                        <i class="bi bi-trash3"></i> Rechnung löschen
                     </button>
                     @endif
                     @endif
@@ -248,9 +262,14 @@
 {{-- ⭐⭐⭐ KRITISCH: Modals AUSSERHALB des Hauptformulars einbinden! ⭐⭐⭐ --}}
 @stack('modals')
 
-{{-- ⭐ NEU: Gutschrift-Modal (nur bei bestehenden Rechnungen, nicht bei Gutschriften) --}}
+{{-- Gutschrift-Modal (nur bei bestehenden Rechnungen, nicht bei Gutschriften) --}}
 @if($rechnung->exists && $rechnung->typ_rechnung !== 'gutschrift')
     @include('rechnung.partials._modal_gutschrift')
+@endif
+
+{{-- ⭐ NEU: Löschen-Modal (nur bei Entwürfen) --}}
+@if($rechnung->exists && $rechnung->ist_editierbar)
+    @include('rechnung.partials._modal_loeschen')
 @endif
 
 @endsection
