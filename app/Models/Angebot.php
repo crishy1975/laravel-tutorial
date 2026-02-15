@@ -225,6 +225,14 @@ class Angebot extends Model
      * Erstellt ein Angebot aus einem Gebaeude
      * 
      * WICHTIG: E-Mail wird aus der POSTADRESSE geholt!
+     * 
+     * @param Gebaeude $gebaeude
+     * @param array $overrides  Optionen:
+     *   - titel: Angebots-Titel
+     *   - datum: Angebotsdatum
+     *   - gueltig_bis: Gültigkeitsdatum
+     *   - mit_aufschlag: bool (Standard: true) - Preisaufschlag anwenden?
+     *   - einleitung, bemerkung_kunde, bemerkung_intern: Texte
      */
     public static function createFromGebaeude(Gebaeude $gebaeude, array $overrides = []): self
     {
@@ -233,6 +241,9 @@ class Angebot extends Model
         $empfaenger = $gebaeude->rechnungsempfaenger;
         $postadresse = $gebaeude->postadresse;
         $jahr = now()->year;
+        
+        // NEU: Aufschlag-Option auslesen (Standard: true = mit Aufschlag)
+        $mitAufschlag = $overrides['mit_aufschlag'] ?? true;
 
         // Angebot erstellen
         $angebot = new static();
@@ -287,7 +298,7 @@ class Angebot extends Model
         $angebot->status = 'entwurf';
         $angebot->save();
         
-        // Positionen aus aktiven Artikeln erstellen (MIT Preisaufschlag)
+        // Positionen aus aktiven Artikeln erstellen
         $nettoSumme = 0;
         $position = 1;
         $jahr = now()->year;
@@ -296,21 +307,26 @@ class Angebot extends Model
         foreach ($gebaeude->aktiveArtikel as $artikel) {
             $basisPreis = (float) $artikel->einzelpreis;
             
-            // Preis mit Aufschlag berechnen
-            // Falls preis_gueltig_ab existiert: kumulative Berechnung
-            // Sonst: einfacher Aufschlag für aktuelles Jahr
-            if (!empty($artikel->preis_gueltig_ab)) {
-                $einzelpreis = $gebaeude->berechnePreisMitKumulativerErhoehung(
-                    $basisPreis,
-                    $artikel->preis_gueltig_ab,
-                    $jahr
-                );
+            // Preis berechnen - mit oder ohne Aufschlag
+            if ($mitAufschlag) {
+                // Falls preis_gueltig_ab existiert: kumulative Berechnung
+                // Sonst: einfacher Aufschlag für aktuelles Jahr
+                if (!empty($artikel->preis_gueltig_ab)) {
+                    $einzelpreis = $gebaeude->berechnePreisMitKumulativerErhoehung(
+                        $basisPreis,
+                        $artikel->preis_gueltig_ab,
+                        $jahr
+                    );
+                } else {
+                    $einzelpreis = $gebaeude->berechnePreisMitAufschlag($basisPreis, $jahr);
+                }
+                
+                if ($einzelpreis != $basisPreis) {
+                    $aufschlagAngewendet = true;
+                }
             } else {
-                $einzelpreis = $gebaeude->berechnePreisMitAufschlag($basisPreis, $jahr);
-            }
-            
-            if ($einzelpreis != $basisPreis) {
-                $aufschlagAngewendet = true;
+                // OHNE Aufschlag: Originalpreis verwenden
+                $einzelpreis = $basisPreis;
             }
             
             $anzahl = (float) $artikel->anzahl;
@@ -333,9 +349,13 @@ class Angebot extends Model
         $angebot->berechneBetraege();
         
         // Log erstellen
-        $aufschlagInfo = $aufschlagAngewendet 
-            ? ' (Preisaufschlag ' . $gebaeude->getAufschlagProzent($jahr) . '% angewendet)'
-            : '';
+        if ($mitAufschlag && $aufschlagAngewendet) {
+            $aufschlagInfo = ' (Preisaufschlag ' . $gebaeude->getAufschlagProzent($jahr) . '% angewendet)';
+        } elseif (!$mitAufschlag) {
+            $aufschlagInfo = ' (ohne Preisaufschlag)';
+        } else {
+            $aufschlagInfo = '';
+        }
         
         AngebotLog::log(
             $angebot->id,

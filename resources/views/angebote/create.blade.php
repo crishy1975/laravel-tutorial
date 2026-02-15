@@ -1,5 +1,6 @@
 {{-- resources/views/angebote/create.blade.php --}}
 {{-- MOBIL-OPTIMIERT: Verbessertes Design, Dropdown-Fix --}}
+{{-- NEU: Option für Preisaufschlag --}}
 
 @extends('layouts.app')
 
@@ -122,6 +123,33 @@
                                     Standard: 30 Tage ab heute
                                 </div>
                             </div>
+                            
+                            {{-- NEU: Preisaufschlag Option --}}
+                            <div class="col-12">
+                                <hr class="my-3">
+                                <div class="form-check form-switch">
+                                    {{-- Hidden field sendet "0" wenn Checkbox nicht aktiviert --}}
+                                    <input type="hidden" name="mit_aufschlag" value="0">
+                                    <input class="form-check-input" type="checkbox" role="switch" 
+                                           id="mitAufschlag" name="mit_aufschlag" value="1" checked>
+                                    <label class="form-check-label fw-semibold" for="mitAufschlag">
+                                        <i class="bi bi-percent me-1 text-secondary"></i>
+                                        Preisaufschlag anwenden
+                                    </label>
+                                </div>
+                                <div class="form-text mt-2 ms-4" id="aufschlagInfo">
+                                    <i class="bi bi-arrow-up-right text-success me-1"></i>
+                                    <span class="text-muted">
+                                        Jaehrliche Preiserhoehung wird auf die Artikelpreise angewendet
+                                    </span>
+                                </div>
+                                <div class="form-text mt-1 ms-4 d-none" id="aufschlagInfoOff">
+                                    <i class="bi bi-dash text-warning me-1"></i>
+                                    <span class="text-muted">
+                                        Originalpreise aus den Artikeln werden verwendet (ohne Erhoehung)
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -189,54 +217,22 @@
             <div class="card shadow-sm mb-3">
                 <div class="card-header bg-light py-2">
                     <i class="bi bi-info-circle"></i>
-                    <span class="fw-semibold ms-1">So funktioniert's</span>
-                </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item py-3">
-                            <div class="d-flex align-items-center">
-                                <span class="badge bg-success rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">1</span>
-                                <div>
-                                    <div class="fw-semibold">Gebaeude waehlen</div>
-                                    <small class="text-muted">Mit Suchfunktion</small>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="list-group-item py-3">
-                            <div class="d-flex align-items-center">
-                                <span class="badge bg-secondary rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">2</span>
-                                <div>
-                                    <div class="fw-semibold">Optional: Titel & Datum</div>
-                                    <small class="text-muted">Oder automatisch</small>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="list-group-item py-3">
-                            <div class="d-flex align-items-center">
-                                <span class="badge bg-primary rounded-circle me-3" style="width:28px;height:28px;line-height:20px;">3</span>
-                                <div>
-                                    <div class="fw-semibold">Angebot erstellen</div>
-                                    <small class="text-muted">Danach bearbeitbar</small>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-
-            {{-- Was wird uebernommen --}}
-            <div class="card shadow-sm mb-3">
-                <div class="card-header bg-success text-white py-2">
-                    <i class="bi bi-check2-circle"></i>
-                    <span class="fw-semibold ms-1">Wird uebernommen</span>
+                    <span class="fw-semibold ms-1">Schnellinfo</span>
                 </div>
                 <div class="card-body">
-                    <ul class="mb-0 ps-3">
-                        <li class="mb-2">Alle <strong>aktiven Artikel</strong> mit Preisen</li>
-                        <li class="mb-2"><strong>Rechnungsempfaenger</strong> als Kunde</li>
-                        <li class="mb-2"><strong>MwSt-Satz</strong> aus Fattura-Profil</li>
-                        <li class="mb-2"><strong>Gebaeude-Daten</strong> (Codex, Adresse)</li>
-                        <li>CUP/CIG falls vorhanden</li>
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-1"></i>
+                            Naechste Nummer: <strong>A{{ now()->year }}/{{ str_pad(\App\Models\Angebot::naechsteLaufnummer(now()->year), 4, '0', STR_PAD_LEFT) }}</strong>
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-building text-primary me-1"></i>
+                            {{ count($gebaeude) }} Gebaeude verfuegbar
+                        </li>
+                        <li>
+                            <i class="bi bi-calendar text-secondary me-1"></i>
+                            Standard-Gueltigkeit: 30 Tage
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -339,6 +335,16 @@
     padding: 10px 14px !important;
 }
 
+/* Switch Styling */
+.form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+.form-switch .form-check-input {
+    width: 3em;
+    height: 1.5em;
+}
+
 /* Mobile Optimierungen */
 @media (max-width: 767.98px) {
     .container-fluid { padding-bottom: 100px; }
@@ -386,6 +392,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var vorschauCodex = document.getElementById('vorschauCodex');
     var vorschauName = document.getElementById('vorschauName');
     var vorschauOrt = document.getElementById('vorschauOrt');
+    
+    // NEU: Aufschlag Toggle
+    var mitAufschlag = document.getElementById('mitAufschlag');
+    var aufschlagInfo = document.getElementById('aufschlagInfo');
+    var aufschlagInfoOff = document.getElementById('aufschlagInfoOff');
 
     function updateUI() {
         var gebaeudeId = gebaeudeSelect.value;
@@ -415,6 +426,19 @@ document.addEventListener('DOMContentLoaded', function() {
             vorschauCard.classList.add('d-none');
         }
     }
+    
+    // NEU: Aufschlag Toggle Handler
+    function updateAufschlagInfo() {
+        if (mitAufschlag.checked) {
+            aufschlagInfo.classList.remove('d-none');
+            aufschlagInfoOff.classList.add('d-none');
+        } else {
+            aufschlagInfo.classList.add('d-none');
+            aufschlagInfoOff.classList.remove('d-none');
+        }
+    }
+    
+    mitAufschlag.addEventListener('change', updateAufschlagInfo);
 
     // Select2 initialisieren (falls vorhanden)
     if (typeof $ !== 'undefined' && $.fn.select2) {

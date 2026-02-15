@@ -71,9 +71,13 @@ class AngebotController extends Controller
     public function createFromGebaeude(Request $request, Gebaeude $gebaeude)
     {
         try {
+            // NEU: mit_aufschlag Parameter auswerten (Standard: true)
+            $mitAufschlag = $request->boolean('mit_aufschlag', true);
+            
             $angebot = Angebot::createFromGebaeude($gebaeude, [
-                'titel'       => $request->input('titel'),
-                'gueltig_bis' => $request->input('gueltig_bis'),
+                'titel'        => $request->input('titel'),
+                'gueltig_bis'  => $request->input('gueltig_bis'),
+                'mit_aufschlag' => $mitAufschlag,  // NEU
             ]);
 
             return redirect()
