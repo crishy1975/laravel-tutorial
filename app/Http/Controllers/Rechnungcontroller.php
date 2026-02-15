@@ -10,6 +10,7 @@ use App\Models\RechnungPosition;
 use App\Models\FatturaXmlLog;
 use App\Models\RechnungLog;
 use App\Models\Unternehmensprofil;
+use App\Models\GebaeudeLog;
 use App\Enums\Zahlungsbedingung;
 use App\Enums\RechnungLogTyp;
 use App\Services\FatturaXmlGenerator;
