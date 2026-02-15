@@ -959,6 +959,20 @@ class RechnungController extends Controller
         }
     }
 
+    /**
+     * Liste gelöschter Rechnungen (Papierkorb).
+     */
+    public function trashed()
+    {
+        $rechnungen = Rechnung::onlyTrashed()
+            ->with('gebaeude')
+            ->orderByDesc('deleted_at')
+            ->paginate(25);
+
+        return view('rechnung.trashed', compact('rechnungen'));
+    }
+
+
     // ═══════════════════════════════════════════════════════════════════════════════
     // STATUS-AENDERUNGEN
     // ═══════════════════════════════════════════════════════════════════════════════
