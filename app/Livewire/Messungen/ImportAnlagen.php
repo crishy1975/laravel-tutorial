@@ -1,144 +1,114 @@
-<?php
+{{-- resources/views/livewire/messungen/import-anlagen.blade.php --}}
+<div class="container-fluid py-2 py-md-4">
 
-namespace App\Livewire\Messungen;
+    {{-- Header --}}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h4 h3-md mb-0">
+                <i class="bi bi-file-earmark-arrow-up text-success"></i>
+                Anlagen importieren
+            </h1>
+            <p class="text-muted mb-0 small d-none d-md-block">CSV-Import</p>
+        </div>
+        <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i>
+            <span class="d-none d-sm-inline">Zurück</span>
+        </a>
+    </div>
 
-use Livewire\Component;
-use Livewire\WithFileUploads;
-use Livewire\Attributes\Layout;
-use App\Models\Impianto;
-use Illuminate\Support\Facades\DB;
+    {{-- Upload-Karte --}}
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-light py-2">
+            <h6 class="mb-0"><i class="bi bi-upload"></i> CSV-Datei hochladen</h6>
+        </div>
+        <div class="card-body">
+            <form wire:submit="import">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label for="csvFile" class="form-label small mb-1">CSV-Datei auswählen</label>
+                        <input type="file" id="csvFile" wire:model="csvFile" accept=".csv,.txt"
+                               class="form-control form-control-sm">
+                        @error('csvFile')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                        {{-- Loading während Datei-Upload --}}
+                        <div wire:loading wire:target="csvFile" class="text-muted small mt-1">
+                            <span class="spinner-border spinner-border-sm"></span> Datei wird hochgeladen...
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary btn-sm"
+                                wire:loading.attr="disabled" wire:target="import">
+                            <span wire:loading.remove wire:target="import">
+                                <i class="bi bi-upload"></i> Importieren
+                            </span>
+                            <span wire:loading wire:target="import">
+                                <span class="spinner-border spinner-border-sm"></span> Importiere...
+                            </span>
+                        </button>
+                    </div>
+                    @if($importResult || count($errors ?? []) > 0)
+                        <div class="col-auto">
+                            <button type="button" wire:click="resetImport" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                            </button>
+                        </div>
+                    @endif
+                </div>
+            </form>
+        </div>
+    </div>
 
-#[Layout('layouts.app')]
-class ImportAnlagen extends Component
-{
-    use WithFileUploads;
+    {{-- Ergebnis --}}
+    @if($importResult)
+        <div class="alert alert-success py-2" role="alert">
+            <h6 class="alert-heading mb-2">
+                <i class="bi bi-check-circle"></i> Import abgeschlossen
+            </h6>
+            <div class="row g-2">
+                <div class="col-auto">
+                    <span class="badge bg-secondary">Verarbeitet: <strong>{{ $importResult['total'] }}</strong></span>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-success">Neu importiert: <strong>{{ $importResult['imported'] }}</strong></span>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-warning text-dark">Übersprungen: <strong>{{ $importResult['skipped'] }}</strong></span>
+                </div>
+                @if($importResult['errors'] > 0)
+                    <div class="col-auto">
+                        <span class="badge bg-danger">Fehler: <strong>{{ $importResult['errors'] }}</strong></span>
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
 
-    public $csvFile;
-    public $importResult = null;
-    public $isImporting = false;
-    public $errors = [];
+    {{-- Fehler --}}
+    @if(count($errors ?? []) > 0)
+        <div class="alert alert-danger py-2" role="alert">
+            <h6 class="alert-heading mb-2">
+                <i class="bi bi-exclamation-triangle"></i> Fehler beim Import
+            </h6>
+            <div style="max-height: 200px; overflow-y: auto;">
+                @foreach($errors as $error)
+                    <div class="small">{{ $error }}</div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
-    protected $rules = [
-        'csvFile' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
-    ];
-
-    protected $messages = [
-        'csvFile.required' => 'Bitte eine CSV-Datei auswählen.',
-        'csvFile.mimes' => 'Die Datei muss eine CSV oder TXT Datei sein.',
-        'csvFile.max' => 'Die Datei darf maximal 10MB groß sein.',
-    ];
-
-    /**
-     * CSV-Spalten-Mapping (Index => Feldname)
-     * Basierend auf bestehendem Import-Code
-     */
-    private const CSV_MAPPING = [
-        0  => 'Feld_a',   // Anlagen-Kodex
-        1  => 'Feld_b',   // Gemeindecode
-        2  => 'Feld_c',   // Nummer
-        7  => 'Feld_h',   // Ort IT
-        8  => 'Feld_i',   // Ort DE
-        9  => 'Feld_j',   // Straße IT
-        10 => 'Feld_k',   // Straße DE
-        11 => 'Feld_l',   // Verwalter Name
-        12 => 'Feld_m',   // Verwalter Ort
-        13 => 'Feld_n',   // Hausnummer
-        14 => 'Feld_o',   // Kontaktperson
-        15 => 'Feld_p',   // Kontakt Ort IT
-        16 => 'Feld_q',   // Kontakt Ort DE
-        17 => 'Feld_r',   // Kontakt Straße IT
-        18 => 'Feld_s',   // Kontakt Straße DE
-        19 => 'Feld_t',   // Fraktion
-        20 => 'Feld_u',   // Zusatz 1
-        21 => 'Feld_v',   // Zusatz 2
-        22 => 'Feld_w',   // Beschreibung
-        23 => 'Feld_x',   // Status
-        24 => 'Feld_y',   // Hersteller
-        25 => 'Feld_z',   // Baujahr
-        27 => 'Feld_ab',  // Leistung kW
-    ];
-
-    public function import()
-    {
-        $this->validate();
-        
-        $this->isImporting = true;
-        $this->importResult = null;
-        $this->errors = [];
-
-        $result = [
-            'total' => 0,
-            'imported' => 0,
-            'skipped' => 0,
-            'errors' => 0,
-        ];
-
-        try {
-            $path = $this->csvFile->getRealPath();
-            $handle = fopen($path, 'r');
-
-            if ($handle === false) {
-                throw new \Exception('Datei konnte nicht geöffnet werden.');
-            }
-
-            DB::beginTransaction();
-
-            while (($values = fgetcsv($handle, 0, ";")) !== false) {
-                $result['total']++;
-
-                // Mindestens Feld_a muss vorhanden sein
-                if (empty($values[0])) {
-                    $result['errors']++;
-                    $this->errors[] = "Zeile {$result['total']}: Feld_a (Kodex) ist leer.";
-                    continue;
-                }
-
-                $feldA = trim($values[0]);
-
-                // Prüfen ob bereits vorhanden
-                if (Impianto::where('Feld_a', $feldA)->exists()) {
-                    $result['skipped']++;
-                    continue;
-                }
-
-                // Daten aus CSV extrahieren
-                $data = [];
-                foreach (self::CSV_MAPPING as $index => $field) {
-                    $data[$field] = isset($values[$index]) ? trim($values[$index]) : null;
-                }
-
-                try {
-                    Impianto::create($data);
-                    $result['imported']++;
-                } catch (\Exception $e) {
-                    $result['errors']++;
-                    $this->errors[] = "Zeile {$result['total']} (Kodex: {$feldA}): " . $e->getMessage();
-                }
-            }
-
-            fclose($handle);
-            DB::commit();
-
-            $this->importResult = $result;
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->errors[] = "Import-Fehler: " . $e->getMessage();
-        }
-
-        $this->isImporting = false;
-        $this->csvFile = null;
-    }
-
-    public function resetImport()
-    {
-        $this->csvFile = null;
-        $this->importResult = null;
-        $this->errors = [];
-    }
-
-    public function render()
-    {
-        return view('livewire.messungen.import-anlagen');
-    }
-}
+    {{-- Info-Box --}}
+    <div class="card shadow-sm">
+        <div class="card-header bg-light py-2">
+            <h6 class="mb-0"><i class="bi bi-info-circle"></i> Hinweise</h6>
+        </div>
+        <div class="card-body py-2">
+            <div class="small text-muted">
+                <p class="mb-1"><i class="bi bi-dot"></i> CSV-Datei mit Semikolon (<code>;</code>) als Trennzeichen</p>
+                <p class="mb-1"><i class="bi bi-dot"></i> Nur neue Anlagen werden importiert (Kodex noch nicht vorhanden)</p>
+                <p class="mb-0"><i class="bi bi-dot"></i> Bestehende Anlagen werden übersprungen, nicht aktualisiert</p>
+            </div>
+        </div>
+    </div>
+</div>
