@@ -452,14 +452,7 @@ Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
 |
 */
 
-// In web.php – ersetze den Messungen-Block mit:
-use Livewire\Volt\Volt;
 
-Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
-    Route::get('/anlagen', \App\Livewire\Messungen\AnlagenListe::class)->name('anlagen.index');
-    Route::get('/anlagen/import', \App\Livewire\Messungen\ImportAnlagen::class)->name('anlagen.import');
-    Route::get('/anlagen/{kodex}', \App\Livewire\Messungen\AnlagenEdit::class)->name('anlagen.edit');
-});
 
 
 // ==================== Auth Routes (Breeze) ====================
