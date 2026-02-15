@@ -659,9 +659,9 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
             {{-- Rechts: Bezahlt + Löschen --}}
             <div class="d-flex gap-2">
 
-                {{-- ⭐ Button: Rechnung ist bezahlt --}}
+                {{-- ⭐ Button: Rechnung ist bezahlt (öffnet Modal) --}}
                 @if($rechnung->zahlungsbedingungen?->value !== 'bezahlt')
-                <button type="button" class="btn btn-success" id="btnMarkPaid">
+                <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalBezahlt">
                     <i class="bi bi-check-circle"></i> Rechnung ist bezahlt
                 </button>
                 @endif
@@ -674,7 +674,7 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
         <div class="d-md-none d-grid gap-2">
             
             @if($rechnung->zahlungsbedingungen?->value !== 'bezahlt')
-            <button type="button" class="btn btn-success btn-lg" id="btnMarkPaidMobile">
+            <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#modalBezahlt">
                 <i class="bi bi-check-circle"></i> Rechnung ist bezahlt
             </button>
             @endif
@@ -832,66 +832,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-</script>
-@endif
-@if($rechnung->exists && $rechnung->zahlungsbedingungen?->value !== 'bezahlt')
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Funktion für beide Buttons (Desktop + Mobile)
-        function handleMarkPaid(e) {
-            e.preventDefault();
-
-            if (!confirm('Rechnung als bezahlt markieren?')) {
-                return;
-            }
-
-            // Hidden Input für Zahlungsbedingungen setzen
-            const zahlungsbedingungenHidden = document.getElementById('zahlungsbedingungen_hidden');
-            if (zahlungsbedingungenHidden) {
-                zahlungsbedingungenHidden.value = 'bezahlt';
-            }
-
-            // Select visuell aktualisieren
-            const zahlungsbedingungenSelect = document.getElementById('zahlungsbedingungen_select');
-            if (zahlungsbedingungenSelect) {
-                zahlungsbedingungenSelect.value = 'bezahlt';
-            }
-
-            // Hidden Input für bezahlt_am setzen
-            const bezahltAmHidden = document.getElementById('bezahlt_am_hidden');
-            if (bezahltAmHidden) {
-                const heute = new Date().toISOString().split('T')[0];
-                bezahltAmHidden.value = heute;
-            }
-
-            // Display-Feld visuell aktualisieren
-            const bezahltAmDisplay = document.getElementById('bezahlt_am_display');
-            if (bezahltAmDisplay) {
-                const heute = new Date().toISOString().split('T')[0];
-                bezahltAmDisplay.value = heute;
-            }
-
-            // Hauptformular submitten
-            const mainForm = document.getElementById('rechnungForm');
-            if (mainForm) {
-                mainForm.submit();
-            } else {
-                alert('Formular nicht gefunden!');
-            }
-        }
-
-        // Desktop Button
-        const btn = document.getElementById('btnMarkPaid');
-        if (btn) {
-            btn.addEventListener('click', handleMarkPaid);
-        }
-
-        // Mobile Button
-        const btnMobile = document.getElementById('btnMarkPaidMobile');
-        if (btnMobile) {
-            btnMobile.addEventListener('click', handleMarkPaid);
-        }
-    });
 </script>
 @endif
 

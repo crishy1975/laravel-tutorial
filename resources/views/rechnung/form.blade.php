@@ -272,6 +272,11 @@
     @include('rechnung.partials._modal_loeschen')
 @endif
 
+{{-- ⭐ NEU: Bezahlt-Modal (nur wenn noch nicht bezahlt) --}}
+@if($rechnung->exists && $rechnung->zahlungsbedingungen?->value !== 'bezahlt')
+    @include('rechnung.partials._modal_bezahlt')
+@endif
+
 @endsection
 
 @push('scripts')
