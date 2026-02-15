@@ -207,6 +207,45 @@ class Rechnung extends Model
         });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ⭐ NEU: BOOTED METHOD - Soft-Delete Uniqueness Checks
+    // ─────────────────────────────────────────────────────────────────────────
+    protected static function booted()
+    {
+        // ⭐ Bei Erstellen: Prüfen ob Rechnungsnummer bereits existiert (nur aktive)
+        static::creating(function ($rechnung) {
+            $exists = static::where('jahr', $rechnung->jahr)
+                ->where('laufnummer', $rechnung->laufnummer)
+                ->whereNull('deleted_at')
+                ->exists();
+                
+            if ($exists) {
+                throw new \Exception(
+                    "Rechnungsnummer {$rechnung->jahr}/" . 
+                    str_pad($rechnung->laufnummer, 4, '0', STR_PAD_LEFT) . 
+                    " existiert bereits."
+                );
+            }
+        });
+        
+        // ⭐ Bei Wiederherstellen: Prüfen ob Nummer inzwischen vergeben wurde
+        static::restoring(function ($rechnung) {
+            $exists = static::where('jahr', $rechnung->jahr)
+                ->where('laufnummer', $rechnung->laufnummer)
+                ->whereNull('deleted_at')
+                ->where('id', '!=', $rechnung->id)
+                ->exists();
+                
+            if ($exists) {
+                throw new \Exception(
+                    "Rechnungsnummer {$rechnung->jahr}/" . 
+                    str_pad($rechnung->laufnummer, 4, '0', STR_PAD_LEFT) . 
+                    " ist bereits vergeben. Wiederherstellung nicht möglich."
+                );
+            }
+        });
+    }
+
     /**
      * ⭐ NEU: Berechnet das Zahlungsziel basierend auf Rechnungsdatum und Zahlungsbedingung
      * 
@@ -602,6 +641,75 @@ class Rechnung extends Model
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // ⭐ NEU: SOFT-DELETE HELPER METHODEN
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Prüft ob eine Rechnungsnummer bereits aktiv existiert.
+     * 
+     * @param int $jahr
+     * @param int $laufnummer
+     * @param int|null $excludeId ID ausschließen (für Updates)
+     * @return bool
+     */
+    public static function nummerExistiertAktiv(int $jahr, int $laufnummer, ?int $excludeId = null): bool
+    {
+        $query = static::where('jahr', $jahr)
+            ->where('laufnummer', $laufnummer)
+            ->whereNull('deleted_at');
+            
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        return $query->exists();
+    }
+
+    /**
+     * Scope: Nur gelöschte Rechnungen für ein Gebäude.
+     */
+    public function scopeGeloeschteFuerGebaeude($query, int $gebaeudeId)
+    {
+        return $query->onlyTrashed()
+            ->where('gebaeude_id', $gebaeudeId)
+            ->orderByDesc('deleted_at');
+    }
+
+    /**
+     * Scope: Nur aktive (nicht gelöschte) Rechnungen.
+     */
+    public function scopeAktiv($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    /**
+     * Kann diese Rechnung gelöscht werden?
+     * Nur Entwürfe (draft) können gelöscht werden.
+     * 
+     * @return bool
+     */
+    public function kannGeloeschtWerden(): bool
+    {
+        return $this->status === 'draft';
+    }
+
+    /**
+     * Kann diese Rechnung wiederhergestellt werden?
+     * Prüft ob die Nummer noch frei ist.
+     * 
+     * @return bool
+     */
+    public function kannWiederhergestelltWerden(): bool
+    {
+        if (!$this->trashed()) {
+            return false;
+        }
+        
+        return !static::nummerExistiertAktiv($this->jahr, $this->laufnummer);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // STATISCHE METHODEN
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -694,6 +802,15 @@ class Rechnung extends Model
     {
         return $this->hasMany(RechnungPosition::class)
             ->orderBy('position');
+    }
+
+    /**
+     * Log-Einträge für diese Rechnung
+     */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(RechnungLog::class)
+            ->orderByDesc('created_at');
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1103,7 +1220,7 @@ class Rechnung extends Model
      */
     public function getIstEditierbarAttribute(): bool
     {
-        return true;
+        return $this->status === 'draft';
     }
 
     // ═══════════════════════════════════════════════════════════
