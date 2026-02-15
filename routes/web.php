@@ -452,6 +452,14 @@ Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
 |
 */
 
+use App\Livewire\Messungen\AnlagenListe;
+use App\Livewire\Messungen\AnlagenEdit;
+use App\Livewire\Messungen\ImportAnlagen;
+use App\Livewire\Messungen\ImportMessungen;
+use App\Livewire\Messungen\MessungNeu;
+use App\Livewire\Messungen\MessungEdit;
+use App\Livewire\Messungen\MessungenListe;
+
 Route::middleware(['auth'])->prefix('messungen')->name('messungen.')->group(function () {
 
     // Anlagen
