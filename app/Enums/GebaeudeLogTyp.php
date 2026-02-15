@@ -284,7 +284,7 @@ enum GebaeudeLogTyp: string
             self::ANGEBOT_ERSTELLT => 'primary',
             self::FATTURA_PROFIL_GEAENDERT => 'info',
             self::RECHNUNG_GELOESCHT => 'danger',
-self::RECHNUNG_WIEDERHERGESTELLT => 'success',
+            self::RECHNUNG_WIEDERHERGESTELLT => 'success',
 
             // Reinigung
             self::REINIGUNG_DURCHGEFUEHRT => 'success',
@@ -344,6 +344,7 @@ self::RECHNUNG_WIEDERHERGESTELLT => 'success',
 
             self::PREIS_GEAENDERT, self::AUFSCHLAG_GESETZT, self::AUFSCHLAG_ENTFERNT,
             self::RECHNUNG_ERSTELLT, self::ANGEBOT_ERSTELLT, self::FATTURA_PROFIL_GEAENDERT
+            
             => 'finanzen',
 
             self::REINIGUNG_DURCHGEFUEHRT, self::REINIGUNG_GEPLANT,
