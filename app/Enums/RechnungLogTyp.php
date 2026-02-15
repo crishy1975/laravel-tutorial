@@ -93,7 +93,9 @@ enum RechnungLogTyp: string
     case RECHNUNG_ERSTELLT = 'rechnung_erstellt';
     case RECHNUNG_BEARBEITET = 'rechnung_bearbeitet';
     case RECHNUNG_KOPIERT = 'rechnung_kopiert';
-    case GUTSCHRIFT_ERSTELLT = 'gutschrift_erstellt';  // ⭐ NEU
+    case GUTSCHRIFT_ERSTELLT = 'gutschrift_erstellt';
+    case GELOESCHT = 'geloescht';                        // ⭐ NEU: Soft-Delete
+    case WIEDERHERGESTELLT = 'wiederhergestellt';        // ⭐ NEU: Restore
     
     case NOTIZ = 'notiz';
     case ERINNERUNG = 'erinnerung';
@@ -173,7 +175,9 @@ enum RechnungLogTyp: string
             self::RECHNUNG_ERSTELLT => 'Rechnung erstellt',
             self::RECHNUNG_BEARBEITET => 'Rechnung bearbeitet',
             self::RECHNUNG_KOPIERT => 'Rechnung kopiert',
-            self::GUTSCHRIFT_ERSTELLT => 'Gutschrift erstellt',  // ⭐ NEU
+            self::GUTSCHRIFT_ERSTELLT => 'Gutschrift erstellt',
+            self::GELOESCHT => 'Gelöscht',                        // ⭐ NEU
+            self::WIEDERHERGESTELLT => 'Wiederhergestellt',       // ⭐ NEU
             
             self::NOTIZ => 'Notiz',
             self::ERINNERUNG => 'Erinnerung',
@@ -240,7 +244,9 @@ enum RechnungLogTyp: string
             self::RECHNUNG_ERSTELLT => 'bi-plus-circle',
             self::RECHNUNG_BEARBEITET => 'bi-pencil-square',
             self::RECHNUNG_KOPIERT => 'bi-files',
-            self::GUTSCHRIFT_ERSTELLT => 'bi-receipt-cutoff',  // ⭐ NEU
+            self::GUTSCHRIFT_ERSTELLT => 'bi-receipt-cutoff',
+            self::GELOESCHT => 'bi-trash',                        // ⭐ NEU
+            self::WIEDERHERGESTELLT => 'bi-arrow-counterclockwise', // ⭐ NEU
             
             self::NOTIZ => 'bi-sticky',
             self::ERINNERUNG => 'bi-bell',
@@ -261,7 +267,7 @@ enum RechnungLogTyp: string
             // Erfolg (gruen)
             self::XML_AKZEPTIERT, self::XML_ZUGESTELLT, self::STATUS_BEZAHLT,
             self::ZAHLUNG_EINGEGANGEN, self::PEC_ZUGESTELLT,
-            self::RUECKRUF_ERLEDIGT => 'success',
+            self::RUECKRUF_ERLEDIGT, self::WIEDERHERGESTELLT => 'success',  // ⭐ WIEDERHERGESTELLT hinzugefügt
             
             // Info (blau)
             self::XML_ERSTELLT, self::XML_VALIDIERT, self::XML_SIGNIERT,
@@ -278,13 +284,14 @@ enum RechnungLogTyp: string
             self::ZAHLUNG_ERINNERUNG, self::STATUS_UEBERFAELLIG,
             self::ZAHLUNG_TEILWEISE, self::ERINNERUNG, self::WIEDERVORLAGE,
             self::RUECKRUF_ANGEFORDERT,
-            self::GUTSCHRIFT_ERSTELLT => 'warning',  // ⭐ NEU
+            self::GUTSCHRIFT_ERSTELLT => 'warning',
             
             // Danger (rot)
             self::XML_ABGELEHNT, self::XML_FEHLER, self::EMAIL_FEHLER,
             self::PEC_FEHLER, self::STATUS_STORNIERT, 
             self::ZAHLUNG_RUECKBUCHUNG, self::TELEFONAT_VERPASST,
-            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT => 'danger',
+            self::MAHNUNG_TELEFONISCH, self::MAHNUNG_STORNIERT,
+            self::GELOESCHT => 'danger',                          // ⭐ NEU
             
             // Secondary (grau)
             self::TELEFONAT, self::TELEFONAT_EINGEHEND, self::TELEFONAT_AUSGEHEND,
@@ -326,7 +333,7 @@ enum RechnungLogTyp: string
             self::BANK_MATCH => 'zahlung',
             
             self::RECHNUNG_ERSTELLT, self::RECHNUNG_BEARBEITET, self::RECHNUNG_KOPIERT,
-            self::GUTSCHRIFT_ERSTELLT,  // ⭐ NEU
+            self::GUTSCHRIFT_ERSTELLT, self::GELOESCHT, self::WIEDERHERGESTELLT,  // ⭐ NEU
             self::NOTIZ, self::ERINNERUNG, self::WIEDERVORLAGE,
             self::SYSTEM_AUTO, self::IMPORT, self::EXPORT => 'system',
         };

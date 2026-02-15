@@ -24,25 +24,25 @@ enum GebaeudeLogTyp: string
     case GELOESCHT = 'geloescht';
     case WIEDERHERGESTELLT = 'wiederhergestellt';
 
-        // ═══════════════════════════════════════════════════════════
-        // 🚐 TOUREN
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 🚐 TOUREN
+    // ═══════════════════════════════════════════════════════════
     case TOUR_ZUGEWIESEN = 'tour_zugewiesen';
     case TOUR_ENTFERNT = 'tour_entfernt';
     case TOUR_REIHENFOLGE = 'tour_reihenfolge';
 
-        // ═══════════════════════════════════════════════════════════
-        // 📦 ARTIKEL
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 📦 ARTIKEL
+    // ═══════════════════════════════════════════════════════════
     case ARTIKEL_HINZUGEFUEGT = 'artikel_hinzugefuegt';
     case ARTIKEL_GEAENDERT = 'artikel_geaendert';
     case ARTIKEL_ENTFERNT = 'artikel_entfernt';
     case ARTIKEL_DEAKTIVIERT = 'artikel_deaktiviert';
     case ARTIKEL_AKTIVIERT = 'artikel_aktiviert';
 
-        // ═══════════════════════════════════════════════════════════
-        // 💰 FINANZEN
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 💰 FINANZEN
+    // ═══════════════════════════════════════════════════════════
     case PREIS_GEAENDERT = 'preis_geaendert';
     case AUFSCHLAG_GESETZT = 'aufschlag_gesetzt';
     case AUFSCHLAG_ENTFERNT = 'aufschlag_entfernt';
@@ -52,17 +52,17 @@ enum GebaeudeLogTyp: string
     case RECHNUNG_GELOESCHT = 'rechnung_geloescht';
     case RECHNUNG_WIEDERHERGESTELLT = 'rechnung_wiederhergestellt';
 
-        // ═══════════════════════════════════════════════════════════
-        // 🧹 REINIGUNG
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 🧹 REINIGUNG
+    // ═══════════════════════════════════════════════════════════
     case REINIGUNG_DURCHGEFUEHRT = 'reinigung_durchgefuehrt';
     case REINIGUNG_GEPLANT = 'reinigung_geplant';
     case REINIGUNGSPLAN_GEAENDERT = 'reinigungsplan_geaendert';
     case FAELLIGKEIT_GEAENDERT = 'faelligkeit_geaendert';
 
-        // ═══════════════════════════════════════════════════════════
-        // 💬 KOMMUNIKATION
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 💬 KOMMUNIKATION
+    // ═══════════════════════════════════════════════════════════
     case NOTIZ = 'notiz';
     case TELEFONAT = 'telefonat';
     case TELEFONAT_EINGEHEND = 'telefonat_eingehend';
@@ -72,9 +72,9 @@ enum GebaeudeLogTyp: string
     case BESICHTIGUNG = 'besichtigung';
     case KUNDENKONTAKT = 'kundenkontakt';
 
-        // ═══════════════════════════════════════════════════════════
-        // ⚠️ PROBLEME
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // ⚠️ PROBLEME
+    // ═══════════════════════════════════════════════════════════
     case REKLAMATION = 'reklamation';
     case REKLAMATION_ERLEDIGT = 'reklamation_erledigt';
     case PROBLEM = 'problem';
@@ -82,22 +82,22 @@ enum GebaeudeLogTyp: string
     case MANGEL = 'mangel';
     case SCHADENSMELDUNG = 'schadensmeldung';
 
-        // ═══════════════════════════════════════════════════════════
-        // 📄 DOKUMENTE
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 📄 DOKUMENTE
+    // ═══════════════════════════════════════════════════════════
     case DOKUMENT_HOCHGELADEN = 'dokument_hochgeladen';
     case FOTO_HOCHGELADEN = 'foto_hochgeladen';
     case VERTRAG_HINZUGEFUEGT = 'vertrag_hinzugefuegt';
 
-        // ═══════════════════════════════════════════════════════════
-        // ⏰ ERINNERUNGEN
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // ⏰ ERINNERUNGEN
+    // ═══════════════════════════════════════════════════════════
     case ERINNERUNG = 'erinnerung';
     case WIEDERVORLAGE = 'wiedervorlage';
 
-        // ═══════════════════════════════════════════════════════════
-        // 🔧 SYSTEM
-        // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════
+    // 🔧 SYSTEM
+    // ═══════════════════════════════════════════════════════════
     case IMPORT = 'import';
     case MIGRATION = 'migration';
 
@@ -207,10 +207,8 @@ enum GebaeudeLogTyp: string
             self::RECHNUNG_ERSTELLT => 'bi-receipt',
             self::ANGEBOT_ERSTELLT => 'bi-file-earmark-text',
             self::FATTURA_PROFIL_GEAENDERT => 'bi-file-earmark-code',
-            self::RECHNUNG_GEAENDERT => 'bi-file-earmark-text',
             self::RECHNUNG_GELOESCHT => 'bi-trash-fill',
             self::RECHNUNG_WIEDERHERGESTELLT => 'bi-arrow-counterclockwise',
-
 
             // Reinigung
             self::REINIGUNG_DURCHGEFUEHRT => 'bi-check-circle-fill',
@@ -333,41 +331,41 @@ enum GebaeudeLogTyp: string
     {
         return match ($this) {
             self::ERSTELLT, self::GEAENDERT, self::GELOESCHT, self::WIEDERHERGESTELLT
-            => 'stammdaten',
+                => 'stammdaten',
 
             self::TOUR_ZUGEWIESEN, self::TOUR_ENTFERNT, self::TOUR_REIHENFOLGE
-            => 'touren',
+                => 'touren',
 
             self::ARTIKEL_HINZUGEFUEGT, self::ARTIKEL_GEAENDERT, self::ARTIKEL_ENTFERNT,
             self::ARTIKEL_DEAKTIVIERT, self::ARTIKEL_AKTIVIERT
-            => 'artikel',
+                => 'artikel',
 
             self::PREIS_GEAENDERT, self::AUFSCHLAG_GESETZT, self::AUFSCHLAG_ENTFERNT,
-            self::RECHNUNG_ERSTELLT, self::ANGEBOT_ERSTELLT, self::FATTURA_PROFIL_GEAENDERT
+            self::RECHNUNG_ERSTELLT, self::ANGEBOT_ERSTELLT, self::FATTURA_PROFIL_GEAENDERT,
             self::RECHNUNG_GELOESCHT, self::RECHNUNG_WIEDERHERGESTELLT
-            => 'finanzen',
+                => 'finanzen',
 
             self::REINIGUNG_DURCHGEFUEHRT, self::REINIGUNG_GEPLANT,
             self::REINIGUNGSPLAN_GEAENDERT, self::FAELLIGKEIT_GEAENDERT
-            => 'reinigung',
+                => 'reinigung',
 
             self::NOTIZ, self::TELEFONAT, self::TELEFONAT_EINGEHEND, self::TELEFONAT_AUSGEHEND,
             self::EMAIL_VERSANDT, self::EMAIL_EMPFANGEN,
             self::BESICHTIGUNG, self::KUNDENKONTAKT
-            => 'kommunikation',
+                => 'kommunikation',
 
             self::REKLAMATION, self::REKLAMATION_ERLEDIGT, self::PROBLEM,
             self::PROBLEM_BEHOBEN, self::MANGEL, self::SCHADENSMELDUNG
-            => 'probleme',
+                => 'probleme',
 
             self::DOKUMENT_HOCHGELADEN, self::FOTO_HOCHGELADEN, self::VERTRAG_HINZUGEFUEGT
-            => 'dokumente',
+                => 'dokumente',
 
             self::ERINNERUNG, self::WIEDERVORLAGE
-            => 'erinnerungen',
+                => 'erinnerungen',
 
             self::IMPORT, self::MIGRATION
-            => 'system',
+                => 'system',
         };
     }
 
