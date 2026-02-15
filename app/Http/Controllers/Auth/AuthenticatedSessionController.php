@@ -24,12 +24,8 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        // In der store() Methode am Anfang:
-        $request->validate([
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
-        ]);
-
+        // LoginRequest validiert bereits email & password
+        // UND hat Rate Limiting eingebaut (5 Versuche pro Minute)
 
         $request->authenticate();
 
@@ -49,7 +45,6 @@ class AuthenticatedSessionController extends Controller
         // Fallback
         return redirect()->intended(route('dashboard', absolute: false));
     }
-
     /**
      * Destroy an authenticated session.
      */
