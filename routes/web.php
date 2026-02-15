@@ -440,6 +440,32 @@ Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
     Route::get('/{token}/pdf', [ArbeitsberichtController::class, 'publicPdf'])->name('.pdf');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Messungen Modul Routes
+|--------------------------------------------------------------------------
+|
+| Diese Datei in routes/web.php einbinden:
+| require __DIR__.'/messungen.php';
+|
+| Oder den Inhalt direkt in routes/web.php kopieren.
+|
+*/
+
+Route::middleware(['auth'])->prefix('messungen')->name('messungen.')->group(function () {
+
+    // Anlagen
+    Route::get('/', AnlagenListe::class)->name('anlagen.index');
+    Route::get('/anlagen', AnlagenListe::class)->name('anlagen.liste');
+    Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
+    Route::get('/anlagen/{kodex}/edit', AnlagenEdit::class)->name('anlagen.edit');
+
+    // Messungen
+    Route::get('/liste', MessungenListe::class)->name('liste');
+    Route::get('/import', ImportMessungen::class)->name('import');
+    Route::get('/neu/{kodex}', MessungNeu::class)->name('neu');
+    Route::get('/{id}/edit', MessungEdit::class)->name('edit');
+});
 
 // ==================== Auth Routes (Breeze) ====================
 require __DIR__ . '/auth.php';
