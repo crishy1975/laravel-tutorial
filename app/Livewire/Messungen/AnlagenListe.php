@@ -4,8 +4,10 @@ namespace App\Livewire\Messungen;
 
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\Attributes\Layout;
 use App\Models\Impianto;
 
+#[Layout('layouts.app')]
 class AnlagenListe extends Component
 {
     use WithPagination;

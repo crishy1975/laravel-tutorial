@@ -4,9 +4,11 @@ namespace App\Livewire\Messungen;
 
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Livewire\Attributes\Layout;
 use App\Models\Impianto;
 use Illuminate\Support\Facades\DB;
 
+#[Layout('layouts.app')]
 class ImportAnlagen extends Component
 {
     use WithFileUploads;

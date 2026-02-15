@@ -3,8 +3,10 @@
 namespace App\Livewire\Messungen;
 
 use Livewire\Component;
+use Livewire\Attributes\Layout;
 use App\Models\Impianto;
 
+#[Layout('layouts.app')]
 class AnlagenEdit extends Component
 {
     public Impianto $anlage;
