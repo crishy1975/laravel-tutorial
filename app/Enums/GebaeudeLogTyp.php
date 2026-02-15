@@ -344,7 +344,7 @@ enum GebaeudeLogTyp: string
 
             self::PREIS_GEAENDERT, self::AUFSCHLAG_GESETZT, self::AUFSCHLAG_ENTFERNT,
             self::RECHNUNG_ERSTELLT, self::ANGEBOT_ERSTELLT, self::FATTURA_PROFIL_GEAENDERT
-            
+            self::RECHNUNG_GELOESCHT, self::RECHNUNG_WIEDERHERGESTELLT
             => 'finanzen',
 
             self::REINIGUNG_DURCHGEFUEHRT, self::REINIGUNG_GEPLANT,
