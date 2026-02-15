@@ -134,21 +134,17 @@
                                         </span>
                                     </div>
                                     
-                                    {{-- ⭐ WIEDERHERSTELLEN-BUTTON --}}
+                                    {{-- ⭐ WIEDERHERSTELLEN-BUTTON (als Button mit POST via JS) --}}
                                     @if($rechnungId)
-                                    <form action="{{ route('rechnung.restore', $rechnungId) }}" 
-                                          method="POST" 
-                                          class="d-inline restore-form">
-                                        @csrf
-                                        <input type="hidden" name="log_id" value="{{ $log->id }}">
-                                        <button type="submit" 
-                                                class="btn btn-sm btn-success"
-                                                title="Rechnung wiederherstellen"
-                                                onclick="return confirm('Rechnung {{ $log->metadata['rechnungsnummer'] ?? '' }} wirklich wiederherstellen?')">
-                                            <i class="bi bi-arrow-counterclockwise"></i>
-                                            <span class="d-none d-sm-inline ms-1">Wiederherstellen</span>
-                                        </button>
-                                    </form>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-success btn-restore-rechnung"
+                                            data-url="{{ route('rechnung.restore', $rechnungId) }}"
+                                            data-log-id="{{ $log->id }}"
+                                            data-nummer="{{ $log->metadata['rechnungsnummer'] ?? '' }}"
+                                            title="Rechnung wiederherstellen">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                        <span class="d-none d-sm-inline ms-1">Wiederherstellen</span>
+                                    </button>
                                     @endif
                                 </div>
                                 <div class="text-muted mt-1" style="font-size: 0.75rem;">
@@ -233,10 +229,53 @@
     }
     
     /* ⭐ Wiederherstellen-Button auf Mobile */
-    .restore-form .btn {
+    .btn-restore-rechnung {
         min-height: 38px;
     }
 }
 </style>
+
+{{-- ⭐ JavaScript für isolierte Formular-Submission --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Alle Wiederherstellen-Buttons
+    document.querySelectorAll('.btn-restore-rechnung').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const url = this.dataset.url;
+            const logId = this.dataset.logId;
+            const nummer = this.dataset.nummer;
+            
+            if (confirm('Rechnung ' + nummer + ' wirklich wiederherstellen?')) {
+                // Dynamisches Formular erstellen und absenden
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = url;
+                form.style.display = 'none';
+                
+                // CSRF Token
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = '_token';
+                csrf.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                form.appendChild(csrf);
+                
+                // Log ID
+                const logInput = document.createElement('input');
+                logInput.type = 'hidden';
+                logInput.name = 'log_id';
+                logInput.value = logId;
+                form.appendChild(logInput);
+                
+                // Formular zum Body hinzufügen und absenden
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    });
+});
+</script>
 
 @endif
