@@ -9,35 +9,53 @@ return new class extends Migration
 {
     /**
      * SoftDeletes für Rechnungen.
-     * 
-     * Die Eindeutigkeit der Rechnungsnummer wird in der Anwendungslogik
-     * im Rechnung Model geprüft (booted() Methode).
+     * Prüft ob Spalte/Indizes bereits existieren.
      */
     public function up(): void
     {
-        // 1. SoftDeletes hinzufügen
-        Schema::table('rechnungen', function (Blueprint $table) {
-            $table->softDeletes();
-        });
+        // 1. SoftDeletes nur hinzufügen wenn noch nicht vorhanden
+        if (!Schema::hasColumn('rechnungen', 'deleted_at')) {
+            Schema::table('rechnungen', function (Blueprint $table) {
+                $table->softDeletes();
+            });
+        }
 
         // 2. Index für Performance bei withTrashed-Queries
         Schema::table('rechnungen', function (Blueprint $table) {
-            $table->index('deleted_at');
+            // Prüfen ob Index bereits existiert
+            $indexExists = collect(\DB::select("SHOW INDEX FROM rechnungen WHERE Key_name = 'rechnungen_deleted_at_index'"))->isNotEmpty();
+            
+            if (!$indexExists) {
+                $table->index('deleted_at');
+            }
         });
 
         // 3. Composite Index für Rechnungsnummer-Suche
-        //    Hilft bei: WHERE jahr = X AND laufnummer = Y AND deleted_at IS NULL
         Schema::table('rechnungen', function (Blueprint $table) {
-            $table->index(['jahr', 'laufnummer', 'deleted_at'], 'idx_rechnungen_nummer_soft');
+            $indexExists = collect(\DB::select("SHOW INDEX FROM rechnungen WHERE Key_name = 'idx_rechnungen_nummer_soft'"))->isNotEmpty();
+            
+            if (!$indexExists) {
+                $table->index(['jahr', 'laufnummer', 'deleted_at'], 'idx_rechnungen_nummer_soft');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('rechnungen', function (Blueprint $table) {
-            $table->dropIndex('idx_rechnungen_nummer_soft');
-            $table->dropIndex(['deleted_at']);
-            $table->dropSoftDeletes();
+            // Index nur droppen wenn er existiert
+            $softIndexExists = collect(\DB::select("SHOW INDEX FROM rechnungen WHERE Key_name = 'idx_rechnungen_nummer_soft'"))->isNotEmpty();
+            if ($softIndexExists) {
+                $table->dropIndex('idx_rechnungen_nummer_soft');
+            }
+            
+            $deletedAtIndexExists = collect(\DB::select("SHOW INDEX FROM rechnungen WHERE Key_name = 'rechnungen_deleted_at_index'"))->isNotEmpty();
+            if ($deletedAtIndexExists) {
+                $table->dropIndex(['deleted_at']);
+            }
+            
+            // SoftDeletes Spalte NICHT entfernen da sie schon vorher existierte
+            // $table->dropSoftDeletes();
         });
     }
 };
