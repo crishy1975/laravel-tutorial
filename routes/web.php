@@ -231,6 +231,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Rechnung E-Mail Versand
     Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('rechnung.email.send');
 
+    // ══════════════════════════════════════════════════════════════════════════════
+    // RECHNUNG ROUTEN - Vollständig mit Soft-Delete
+    // ══════════════════════════════════════════════════════════════════════════════
+
     // Rechnung Log Routes
     Route::get('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'index'])->name('rechnung.logs.index');
     Route::post('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'store'])->name('rechnung.logs.store');
@@ -242,6 +246,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/rechnung/{rechnung}/logs/mitteilung', [RechnungLogController::class, 'quickMitteilung'])->name('rechnung.logs.mitteilung');
     Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard'])->name('rechnung.logs.dashboard');
     Route::post('/rechnung/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('rechnung.gutschrift');
+
+    // ⭐ NEU: Soft-Delete Routen
+    Route::get('/rechnung-papierkorb', [RechnungController::class, 'trashed'])->name('rechnung.trashed');
+    Route::post('/rechnung/{id}/restore', [RechnungController::class, 'restore'])->name('rechnung.restore')->withTrashed();
+    Route::delete('/rechnung/{id}/force-delete', [RechnungController::class, 'forceDelete'])->name('rechnung.forceDelete')->withTrashed();
 
     // ==================== Preis-Aufschläge ====================
     Route::prefix('preis-aufschlaege')->name('preis-aufschlaege.')->group(function () {
