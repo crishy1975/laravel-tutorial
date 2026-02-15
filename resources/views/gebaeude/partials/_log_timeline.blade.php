@@ -1,8 +1,8 @@
 {{-- resources/views/gebaeude/partials/_log_timeline.blade.php --}}
 {{-- Zeigt die letzten Aktivitaeten als kompakte Timeline --}}
-{{-- Einbinden: @include('gebaeude.partials._log_timeline', ['gebaeude' => $gebaeude]) --}}
+{{-- ⭐ ERWEITERT: Mit Wiederherstellen-Button für gelöschte Rechnungen --}}
 
-{{-- ⭐ Prüfung: Gebäude muss existieren und gespeichert sein --}}
+{{-- Prüfung: Gebäude muss existieren und gespeichert sein --}}
 @if(!isset($gebaeude) || !$gebaeude->id)
     <div class="alert alert-info mb-0">
         <i class="bi bi-info-circle me-2"></i>
@@ -14,15 +14,27 @@
     $logs = $gebaeude->logs()->limit(10)->get();
     $offeneErinnerungen = $gebaeude->offeneErinnerungen()->count();
     $offeneProbleme = $gebaeude->offeneProbleme()->count();
+    
+    // ⭐ NEU: Zähle wiederherstellbare Rechnungen
+    $geloeschteRechnungen = $gebaeude->logs()
+        ->where('typ', 'rechnung_geloescht')
+        ->whereJsonContains('metadata->kann_wiederhergestellt_werden', true)
+        ->count();
 @endphp
 
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-clock-history me-2"></i>
-            Aktivitaeten
+            Aktivitäten
         </h6>
         <div class="d-flex gap-2">
+            {{-- ⭐ NEU: Badge für gelöschte Rechnungen --}}
+            @if($geloeschteRechnungen > 0)
+                <span class="badge bg-danger" title="Gelöschte Rechnungen (wiederherstellbar)">
+                    <i class="bi bi-trash"></i> {{ $geloeschteRechnungen }}
+                </span>
+            @endif
             @if($offeneErinnerungen > 0)
                 <span class="badge bg-warning text-dark">
                     <i class="bi bi-bell-fill"></i> {{ $offeneErinnerungen }}
@@ -72,12 +84,22 @@
         @if($logs->isEmpty())
             <div class="p-4 text-center text-muted">
                 <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                <p class="mb-0 mt-2">Noch keine Eintraege</p>
+                <p class="mb-0 mt-2">Noch keine Einträge</p>
             </div>
         @else
             <div class="log-timeline">
                 @foreach($logs as $log)
-                <div class="log-item d-flex p-3 border-bottom @if($log->prioritaet === 'kritisch') bg-danger bg-opacity-10 @elseif($log->prioritaet === 'hoch') bg-warning bg-opacity-10 @endif">
+                @php
+                    // ⭐ Prüfen ob dies eine wiederherstellbare gelöschte Rechnung ist
+                    $istGeloeschteRechnung = $log->typ->value === 'rechnung_geloescht' 
+                        && ($log->metadata['kann_wiederhergestellt_werden'] ?? false);
+                    $rechnungId = $log->metadata['rechnung_id'] ?? null;
+                @endphp
+                <div class="log-item d-flex p-3 border-bottom 
+                    @if($log->prioritaet === 'kritisch') bg-danger bg-opacity-10 
+                    @elseif($log->prioritaet === 'hoch') bg-warning bg-opacity-10 
+                    @elseif($istGeloeschteRechnung) bg-danger bg-opacity-10 
+                    @endif">
                     {{-- Icon --}}
                     <div class="log-icon me-3">
                         <span class="badge rounded-circle bg-{{ $log->farbe }} p-2">
@@ -100,7 +122,42 @@
                             </p>
                         @endif
                         
-                        <div class="d-flex align-items-center gap-2 small">
+                        {{-- ⭐ NEU: Rechnungsdetails bei gelöschten Rechnungen --}}
+                        @if($istGeloeschteRechnung)
+                            <div class="mt-2 p-2 bg-white rounded border small">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-receipt text-danger me-1"></i>
+                                        <strong>{{ $log->metadata['rechnungsnummer'] ?? 'N/A' }}</strong>
+                                        <span class="text-muted ms-2">
+                                            {{ number_format($log->metadata['betrag'] ?? 0, 2, ',', '.') }} €
+                                        </span>
+                                    </div>
+                                    
+                                    {{-- ⭐ WIEDERHERSTELLEN-BUTTON --}}
+                                    @if($rechnungId)
+                                    <form action="{{ route('rechnung.restore', $rechnungId) }}" 
+                                          method="POST" 
+                                          class="d-inline restore-form">
+                                        @csrf
+                                        <input type="hidden" name="log_id" value="{{ $log->id }}">
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-success"
+                                                title="Rechnung wiederherstellen"
+                                                onclick="return confirm('Rechnung {{ $log->metadata['rechnungsnummer'] ?? '' }} wirklich wiederherstellen?')">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                            <span class="d-none d-sm-inline ms-1">Wiederherstellen</span>
+                                        </button>
+                                    </form>
+                                    @endif
+                                </div>
+                                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                                    Gelöscht von {{ $log->metadata['geloescht_von'] ?? 'Unbekannt' }}
+                                </div>
+                            </div>
+                        @endif
+                        
+                        <div class="d-flex align-items-center gap-2 small mt-2">
                             <span class="text-muted">
                                 <i class="bi bi-person"></i> {{ $log->benutzer_name }}
                             </span>
@@ -124,7 +181,7 @@
             @if($gebaeude->logs()->count() > 10)
             <div class="p-2 text-center border-top">
                 <a href="{{ route('gebaeude.logs.index', $gebaeude->id) }}" class="btn btn-sm btn-link">
-                    Alle {{ $gebaeude->logs()->count() }} Eintraege anzeigen
+                    Alle {{ $gebaeude->logs()->count() }} Einträge anzeigen
                     <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
@@ -143,6 +200,11 @@
     overflow: hidden;
 }
 .min-w-0 { min-width: 0; }
+
+/* ⭐ Hervorhebung für gelöschte Rechnungen */
+.log-item.bg-danger.bg-opacity-10 {
+    border-left: 3px solid var(--bs-danger) !important;
+}
 
 /* Mobile Optimierungen */
 @media (max-width: 767.98px) {
@@ -168,6 +230,11 @@
     .log-quick-actions .btn {
         min-height: 44px;
         font-size: 16px !important;
+    }
+    
+    /* ⭐ Wiederherstellen-Button auf Mobile */
+    .restore-form .btn {
+        min-height: 38px;
     }
 }
 </style>
