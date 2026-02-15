@@ -770,28 +770,96 @@ class RechnungController extends Controller
     }
 
     /**
-     * Rechnung loeschen (nur Entwuerfe).
+     * Rechnung löschen (Soft Delete mit Begründung + Gebäude-Log).
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $rechnung = Rechnung::findOrFail($id);
 
+        // ──────────────────────────────────────────────────────────────────────────
+        // 1. Prüfung: Nur Entwürfe können gelöscht werden
+        // ──────────────────────────────────────────────────────────────────────────
         if (!$rechnung->ist_editierbar) {
             return redirect()
                 ->back()
-                ->with('error', 'Nur Entwuerfe koennen geloescht werden.');
+                ->with('error', 'Nur Entwürfe können gelöscht werden. Bei versendeten Rechnungen erstellen Sie eine Gutschrift.');
         }
 
+        // ──────────────────────────────────────────────────────────────────────────
+        // 2. Validierung: Begründung ist Pflicht
+        // ──────────────────────────────────────────────────────────────────────────
+        $validated = $request->validate([
+            'loeschgrund' => 'required|string|min:10|max:1000',
+        ], [
+            'loeschgrund.required' => 'Bitte geben Sie eine Begründung für die Löschung an.',
+            'loeschgrund.min' => 'Die Begründung muss mindestens 10 Zeichen haben.',
+        ]);
+
+        $loeschgrund = trim($validated['loeschgrund']);
         $nummer = $rechnung->rechnungsnummer;
+        $rechnungId = $rechnung->id;
+        $gebaeudeId = $rechnung->gebaeude_id;
+        $betrag = $rechnung->brutto_summe;
 
-        DB::transaction(function () use ($rechnung) {
-            $rechnung->positionen()->delete();
-            $rechnung->forceDelete();
-        });
+        DB::beginTransaction();
+        try {
+            // ──────────────────────────────────────────────────────────────────────
+            // 3. LOG IM RECHNUNGS-LOG
+            // ──────────────────────────────────────────────────────────────────────
+            RechnungLog::create([
+                'rechnung_id' => $rechnung->id,
+                'typ'         => RechnungLogTyp::GELOESCHT->value,
+                'titel'       => 'Rechnung gelöscht',
+                'nachricht'   => $loeschgrund,
+                'metadata'    => [
+                    'rechnungsnummer'  => $nummer,
+                    'gebaeude_id'      => $gebaeudeId,
+                    'geb_codex'        => $rechnung->geb_codex,
+                    'geb_name'         => $rechnung->geb_name,
+                    're_name'          => $rechnung->re_name,
+                    'brutto_summe'     => $betrag,
+                    'netto_summe'      => $rechnung->netto_summe,
+                    'status'           => $rechnung->status,
+                    'rechnungsdatum'   => $rechnung->rechnungsdatum?->format('Y-m-d'),
+                    'geloescht_von'    => auth()->user()?->name ?? 'System',
+                    'geloescht_am'     => now()->format('Y-m-d H:i:s'),
+                ],
+            ]);
 
-        return redirect()
-            ->route('rechnung.index')
-            ->with('success', "Rechnung {$nummer} wurde endgueltig geloescht.");
+            // ──────────────────────────────────────────────────────────────────────
+            // 4. ⭐ LOG IM GEBÄUDE-LOG (mit Wiederherstellungs-Möglichkeit)
+            // ──────────────────────────────────────────────────────────────────────
+            if ($gebaeudeId) {
+                GebaeudeLog::rechnungGeloescht(
+                    gebaeudeId: $gebaeudeId,
+                    rechnungsnummer: $nummer,
+                    betrag: (float) $betrag,
+                    loeschgrund: $loeschgrund,
+                    rechnungId: $rechnungId
+                );
+            }
+
+            // ──────────────────────────────────────────────────────────────────────
+            // 5. SOFT DELETE
+            // ──────────────────────────────────────────────────────────────────────
+            $rechnung->delete();
+
+            DB::commit();
+
+            Log::info('Rechnung soft-deleted', [
+                'rechnung_id' => $rechnungId,
+                'nummer'      => $nummer,
+                'grund'       => $loeschgrund,
+            ]);
+
+            return redirect()
+                ->route('rechnung.index')
+                ->with('success', "Rechnung {$nummer} wurde gelöscht.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Fehler beim Löschen', ['error' => $e->getMessage()]);
+            return back()->with('error', 'Fehler: ' . $e->getMessage());
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
