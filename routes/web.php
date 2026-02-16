@@ -27,6 +27,10 @@ use App\Http\Controllers\BackupController;
 use App\Http\Controllers\TextvorschlagController;
 use App\Http\Controllers\ArbeitsberichtController;
 
+use App\Livewire\Messungen\AnlagenListe;
+use App\Livewire\Messungen\AnlagenEdit;
+use App\Livewire\Messungen\ImportAnlagen;
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🏠 HOME - Redirect basierend auf Rolle
@@ -428,6 +432,17 @@ Route::middleware(['auth', 'admin'])->group(function () {
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOption('defaultFont', 'DejaVu Sans');
         return $pdf->stream('test.pdf');
     });
+
+    use App\Livewire\Messungen\AnlagenListe;
+use App\Livewire\Messungen\AnlagenEdit;
+use App\Livewire\Messungen\ImportAnlagen;
+
+Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
+    Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
+    Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
+    Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
+});
+
 }); // Ende Admin-Gruppe
 
 
