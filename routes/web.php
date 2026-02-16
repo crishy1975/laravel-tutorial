@@ -3,30 +3,31 @@
 use Illuminate\Support\Facades\Route;
 
 /* ===== Controller Imports ===== */
-use App\Http\Controllers\ToolsController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdresseController;
-use App\Http\Controllers\GebaeudeController;
-use App\Http\Controllers\TourController;
-use App\Http\Controllers\TimelineController;
-use App\Http\Controllers\ArtikelGebaeudeController;
-use App\Http\Controllers\RechnungController;
-use App\Http\Controllers\PreisAufschlagController;
-use App\Http\Controllers\UnternehmensprofilController;
-use App\Http\Controllers\ReinigungsplanungController;
-use App\Http\Controllers\BankBuchungController;
-use App\Http\Controllers\MahnungController;
 use App\Http\Controllers\AngebotController;
-use App\Http\Controllers\GebaeudeLogController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GebaeudeDocumentController;
-use App\Http\Controllers\FaelligkeitsSimulatorController;
-use App\Http\Controllers\ErinnerungenController;
-use App\Http\Controllers\RechnungLogController;
-use App\Http\Controllers\BackupController;
-use App\Http\Controllers\TextvorschlagController;
 use App\Http\Controllers\ArbeitsberichtController;
+use App\Http\Controllers\ArtikelGebaeudeController;
+use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BankBuchungController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ErinnerungenController;
+use App\Http\Controllers\FaelligkeitsSimulatorController;
+use App\Http\Controllers\GebaeudeController;
+use App\Http\Controllers\GebaeudeDocumentController;
+use App\Http\Controllers\GebaeudeLogController;
+use App\Http\Controllers\MahnungController;
+use App\Http\Controllers\PreisAufschlagController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RechnungController;
+use App\Http\Controllers\RechnungLogController;
+use App\Http\Controllers\ReinigungsplanungController;
+use App\Http\Controllers\TextvorschlagController;
+use App\Http\Controllers\TimelineController;
+use App\Http\Controllers\ToolsController;
+use App\Http\Controllers\TourController;
+use App\Http\Controllers\UnternehmensprofilController;
 
+/* ===== Livewire Imports ===== */
 use App\Livewire\Messungen\AnlagenListe;
 use App\Livewire\Messungen\AnlagenEdit;
 use App\Livewire\Messungen\ImportAnlagen;
@@ -51,39 +52,32 @@ Route::get('/', function () {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 Route::middleware(['auth', 'mitarbeiter'])->prefix('mitarbeiter')->name('mitarbeiter.')->group(function () {
-
-    // Dashboard
     Route::get('/', \App\Livewire\Mitarbeiter\Dashboard::class)->name('dashboard');
-
-    // Lohnstundenerfassung
     Route::get('/lohnstunden', \App\Livewire\Mitarbeiter\Lohnstundenerfassung::class)->name('lohnstunden');
-
-    // ⭐ NEU: Reinigungsplanung
     Route::get('/reinigung', \App\Livewire\Mitarbeiter\Reinigungsplanung::class)->name('reinigung');
-
-    // ⭐ NEU: Gebäude erstellen
     Route::get('/gebaeude/neu', \App\Livewire\Mitarbeiter\GebaeudeErstellen::class)->name('gebaeude.neu');
-
-    // ⭐ NEU: Gebäude bearbeiten
     Route::get('/gebaeude/bearbeiten', \App\Livewire\Mitarbeiter\GebaeudeBearbeiten::class)->name('gebaeude.bearbeiten');
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔥 MESSUNGEN MODUL (Livewire) – Eigene Gruppe mit auth Middleware
+// ═══════════════════════════════════════════════════════════════════════════════
+
+Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
+    Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
+    Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
+    Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
+    // TODO: Neue Messung erfassen (Livewire-Komponente noch erstellen)
+    // Route::get('/neu/{kodex}', MessungNeu::class)->name('neu');
+});
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🔐 ADMIN BEREICH - Alle bestehenden Routen
+// 🔐 ADMIN BEREICH
 // ═══════════════════════════════════════════════════════════════════════════════
 
 Route::middleware(['auth', 'admin'])->group(function () {
-
-    // ⭐ NEU: Änderungsvorschläge-Verwaltung
-    Route::get('/aenderungsvorschlaege', \App\Livewire\Admin\AenderungsvorschlaegeVerwaltung::class)->name('admin.aenderungsvorschlaege');
-
-    // ==================== Admin Livewire Components ====================
-    Route::get('/lohnstunden', \App\Livewire\Admin\LohnstundenUebersicht::class)->name('admin.lohnstunden');
-
-    // ==================== Eingangsrechnungen ====================
-    Route::get('/eingangsrechnungen', \App\Livewire\Admin\EingangsrechnungenVerwaltung::class)->name('eingangsrechnungen.index');
 
     // ==================== Dashboard ====================
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -91,13 +85,19 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/dashboard/faelligkeit-update', [DashboardController::class, 'aktualisiereFaelligkeiten'])->name('dashboard.faelligkeit-update');
 
 
-    // ==================== Profile Routes ====================
+    // ==================== Profil ====================
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
 
-    // ==================== Tools (z. B. VIES) ====================
+    // ==================== Admin Livewire Komponenten ====================
+    Route::get('/aenderungsvorschlaege', \App\Livewire\Admin\AenderungsvorschlaegeVerwaltung::class)->name('admin.aenderungsvorschlaege');
+    Route::get('/lohnstunden', \App\Livewire\Admin\LohnstundenUebersicht::class)->name('admin.lohnstunden');
+    Route::get('/eingangsrechnungen', \App\Livewire\Admin\EingangsrechnungenVerwaltung::class)->name('eingangsrechnungen.index');
+
+
+    // ==================== Tools (VIES) ====================
     Route::post('/tools/vies-lookup', [ToolsController::class, 'viesLookup'])->name('tools.viesLookup');
 
 
@@ -117,6 +117,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // ==================== Gebäude ====================
     Route::prefix('gebaeude')->name('gebaeude.')->group(function () {
+        // CRUD
         Route::get('/',        [GebaeudeController::class, 'index'])->name('index');
         Route::get('/create',  [GebaeudeController::class, 'create'])->name('create');
         Route::post('/',       [GebaeudeController::class, 'store'])->name('store');
@@ -124,49 +125,62 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::put('/{id}',      [GebaeudeController::class, 'update'])->whereNumber('id')->name('update');
         Route::delete('/{id}',   [GebaeudeController::class, 'destroy'])->whereNumber('id')->name('destroy');
 
-        // Touren: Bulk-Attach
+        // Bulk-Operationen
         Route::post('/touren/bulk-attach', [GebaeudeController::class, 'bulkAttachTour'])->name('touren.bulkAttach');
+        Route::post('/reset-gemachte-reinigungen', [GebaeudeController::class, 'resetGemachteReinigungen'])->name('resetGemachteReinigungen');
 
-        // Artikel-Positionen
+        // Artikel-Positionen (pro Gebäude)
         Route::post('/{id}/artikel',         [ArtikelGebaeudeController::class, 'store'])->whereNumber('id')->name('artikel.store');
         Route::post('/{id}/artikel/reorder', [ArtikelGebaeudeController::class, 'reorder'])->whereNumber('id')->name('artikel.reorder');
 
-        // Reinigungen zurücksetzen
-        Route::post('/reset-gemachte-reinigungen', [GebaeudeController::class, 'resetGemachteReinigungen'])->name('resetGemachteReinigungen');
-
-        // Fälligkeit berechnen
+        // Fälligkeit
         Route::post('/{id}/faellig/recalc', [GebaeudeController::class, 'recalcFaelligkeit'])->whereNumber('id')->name('faellig.recalc');
         Route::post('/faellig/recalc-all', [GebaeudeController::class, 'recalcFaelligAll'])->name('faellig.recalcAll');
 
         // Rechnung aus Gebäude erstellen
         Route::post('/{id}/rechnung', [GebaeudeController::class, 'createRechnung'])->whereNumber('id')->name('rechnung.create');
 
-        // Gebäude-Log Routes
+        // Adresse aus Gebäude erstellen
+        Route::post('/{id}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])->whereNumber('id')->name('erstelleAdresse');
+
+        // Gebäude-Logs
         Route::get('/{gebaeude}/logs', [GebaeudeLogController::class, 'index'])->whereNumber('gebaeude')->name('logs.index');
         Route::post('/{gebaeude}/logs', [GebaeudeLogController::class, 'store'])->whereNumber('gebaeude')->name('logs.store');
         Route::post('/{gebaeude}/logs/notiz', [GebaeudeLogController::class, 'notiz'])->whereNumber('gebaeude')->name('logs.notiz');
         Route::post('/{gebaeude}/logs/telefonat', [GebaeudeLogController::class, 'telefonat'])->whereNumber('gebaeude')->name('logs.telefonat');
         Route::post('/{gebaeude}/logs/problem', [GebaeudeLogController::class, 'problem'])->whereNumber('gebaeude')->name('logs.problem');
         Route::post('/{gebaeude}/logs/erinnerung', [GebaeudeLogController::class, 'erinnerung'])->whereNumber('gebaeude')->name('logs.erinnerung');
-        Route::post('/{id}/erstelle-adresse', [GebaeudeController::class, 'erstelleAdresse'])->whereNumber('id')->name('erstelleAdresse');
     });
 
-    // Gebäude-Log Einzelaktionen
+    // Gebäude: Log-Einzelaktionen (außerhalb der Gruppe wegen anderer URL-Struktur)
     Route::delete('/gebaeude/logs/{log}', [GebaeudeLogController::class, 'destroy'])->whereNumber('log')->name('gebaeude.logs.destroy');
     Route::post('/gebaeude/logs/{log}/erledigt', [GebaeudeLogController::class, 'erledigt'])->whereNumber('log')->name('gebaeude.logs.erledigt');
-
-    // Erinnerungs-Dashboard
     Route::get('/gebaeude-erinnerungen', [GebaeudeLogController::class, 'erinnerungen'])->name('gebaeude.erinnerungen');
 
-    // Gebäude Aufschlag-Routes
+    // Gebäude: Aufschläge
     Route::post('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'setAufschlag'])->name('gebaeude.aufschlag.set');
-    Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'removeAufschlag'])->name('gebaeude.aufschlag.remove');
     Route::get('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'getAufschlag'])->name('gebaeude.aufschlag.get');
+    Route::delete('gebaeude/{gebaeude}/aufschlag', [GebaeudeController::class, 'removeAufschlag'])->name('gebaeude.aufschlag.remove');
     Route::delete('/gebaeude/bulk-destroy', [GebaeudeController::class, 'bulkDestroy'])->name('gebaeude.bulkDestroy');
 
-    // Artikel-Positionen (Einzel-ID)
+    // Artikel-Positionen: Einzel-ID (außerhalb Gebäude-Prefix)
     Route::put('/artikel-gebaeude/{id}',    [ArtikelGebaeudeController::class, 'update'])->whereNumber('id')->name('artikel.gebaeude.update');
     Route::delete('/artikel-gebaeude/{id}', [ArtikelGebaeudeController::class, 'destroy'])->whereNumber('id')->name('artikel.gebaeude.destroy');
+
+
+    // ==================== Gebäude-Dokumente ====================
+    Route::prefix('gebaeude')->name('gebaeude.dokumente.')->group(function () {
+        Route::get('/dokumente', [GebaeudeDocumentController::class, 'index'])->name('index');
+        Route::post('/{gebaeude}/dokumente', [GebaeudeDocumentController::class, 'store'])->whereNumber('gebaeude')->name('store');
+        Route::post('/{gebaeude}/dokumente/multiple', [GebaeudeDocumentController::class, 'storeMultiple'])->whereNumber('gebaeude')->name('storeMultiple');
+        Route::put('/dokumente/{dokument}', [GebaeudeDocumentController::class, 'update'])->whereNumber('dokument')->name('update');
+        Route::delete('/dokumente/{dokument}', [GebaeudeDocumentController::class, 'destroy'])->whereNumber('dokument')->name('destroy');
+        Route::get('/dokumente/{dokument}/download', [GebaeudeDocumentController::class, 'download'])->whereNumber('dokument')->name('download');
+        Route::get('/dokumente/{dokument}/preview', [GebaeudeDocumentController::class, 'preview'])->whereNumber('dokument')->name('preview');
+        Route::get('/dokumente/{dokument}/thumbnail', [GebaeudeDocumentController::class, 'thumbnail'])->whereNumber('dokument')->name('thumbnail');
+        Route::post('/dokumente/{dokument}/wichtig', [GebaeudeDocumentController::class, 'toggleWichtig'])->whereNumber('dokument')->name('toggleWichtig');
+        Route::post('/dokumente/{dokument}/archiv', [GebaeudeDocumentController::class, 'toggleArchiv'])->whereNumber('dokument')->name('toggleArchiv');
+    });
 
 
     // ==================== Timeline ====================
@@ -186,14 +200,13 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // ==================== Rechnungen ====================
     Route::prefix('rechnung')->name('rechnung.')->group(function () {
-
-        // ⭐ NEU: Integritätsprüfung (VOR den parametrisierten Routen!)
+        // Statische Routen ZUERST (vor parametrisierten!)
         Route::get('/integritaet', [RechnungController::class, 'integritaetsReport'])->name('integritaet');
         Route::post('/validate', [RechnungController::class, 'validateBeforeCreate'])->name('validate');
         Route::get('/duplikate/{gebaeudeId}', [RechnungController::class, 'duplikatePruefen'])->name('duplikate');
         Route::get('/luecken/{jahr?}', [RechnungController::class, 'lueckenPruefen'])->name('luecken');
 
-        // Standard CRUD
+        // CRUD
         Route::get('/', [RechnungController::class, 'index'])->name('index');
         Route::get('/create', [RechnungController::class, 'create'])->name('create');
         Route::post('/store', [RechnungController::class, 'store'])->name('store');
@@ -201,60 +214,58 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::put('/{id}', [RechnungController::class, 'update'])->name('update');
         Route::delete('/{id}', [RechnungController::class, 'destroy'])->name('destroy');
 
-        // PDF Routes
+        // PDF
         Route::get('/{id}/pdf', [RechnungController::class, 'generatePdf'])->name('pdf');
         Route::get('/{id}/pdf/preview', [RechnungController::class, 'previewPdf'])->name('pdf.preview');
         Route::get('/{id}/pdf/download', [RechnungController::class, 'downloadPdf'])->name('pdf.download');
 
-        // Status ändern
+        // Status
         Route::post('/{id}/status', [RechnungController::class, 'updateStatus'])->name('status.update');
 
-        // FatturaPA XML
+        // FatturaPA XML (primäre Routen)
         Route::get('/{id}/xml', [RechnungController::class, 'generateXml'])->name('xml');
         Route::get('/{id}/xml/download', [RechnungController::class, 'downloadXml'])->name('xml.download');
         Route::post('/{id}/xml/send', [RechnungController::class, 'sendXml'])->name('xml.send');
         Route::post('/{id}/mark-sent', [RechnungController::class, 'markAsSent'])->name('mark-sent');
+
+        // FatturaPA XML (erweitert pro Rechnung)
+        Route::post('/{id}/xml/generate', [RechnungController::class, 'generateXml'])->name('xml.generate');
+        Route::post('/{id}/xml/regenerate', [RechnungController::class, 'regenerateXml'])->name('xml.regenerate');
+        Route::get('/{id}/xml/preview', [RechnungController::class, 'previewXml'])->name('xml.preview');
+        Route::get('/{id}/xml/logs', [RechnungController::class, 'xmlLogs'])->name('xml.logs');
+        Route::get('/{id}/xml/debug', [RechnungController::class, 'debugXml'])->name('xml.debug');
+
+        // E-Mail Versand
+        Route::post('/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('email.send');
+
+        // Gutschrift
+        Route::post('/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('gutschrift');
     });
 
-    // FatturaPA XML Log Management
+    // FatturaPA XML Log-Verwaltung (eigener Prefix, kein rechnung/{id})
     Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
         Route::get('{logId}/download', [RechnungController::class, 'downloadXmlByLog'])->name('download');
         Route::delete('{logId}', [RechnungController::class, 'deleteXmlLog'])->name('delete');
     });
 
-    // FatturaPA Routes
-    Route::prefix('rechnung/{id}')->name('rechnung.')->group(function () {
-        Route::post('xml/generate', [RechnungController::class, 'generateXml'])->name('xml.generate');
-        Route::post('xml/regenerate', [RechnungController::class, 'regenerateXml'])->name('xml.regenerate');
-        Route::get('xml/preview', [RechnungController::class, 'previewXml'])->name('xml.preview');
-        Route::get('xml/download', [RechnungController::class, 'downloadXml'])->name('xml.download');
-        Route::get('xml/logs', [RechnungController::class, 'xmlLogs'])->name('xml.logs');
-        Route::get('xml/debug', [RechnungController::class, 'debugXml'])->name('xml.debug');
+    // Rechnung Logs
+    Route::prefix('rechnung')->name('rechnung.logs.')->group(function () {
+        Route::get('/{rechnung}/logs', [RechnungLogController::class, 'index'])->name('index');
+        Route::post('/{rechnung}/logs', [RechnungLogController::class, 'store'])->name('store');
+        Route::post('/{rechnung}/logs/telefonat', [RechnungLogController::class, 'quickTelefonat'])->name('telefonat');
+        Route::post('/{rechnung}/logs/notiz', [RechnungLogController::class, 'quickNotiz'])->name('notiz');
+        Route::post('/{rechnung}/logs/mitteilung', [RechnungLogController::class, 'quickMitteilung'])->name('mitteilung');
     });
-
-    // Rechnung E-Mail Versand
-    Route::post('/rechnung/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('rechnung.email.send');
-
-    // ══════════════════════════════════════════════════════════════════════════════
-    // RECHNUNG ROUTEN - Vollständig mit Soft-Delete
-    // ══════════════════════════════════════════════════════════════════════════════
-
-    // Rechnung Log Routes
-    Route::get('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'index'])->name('rechnung.logs.index');
-    Route::post('/rechnung/{rechnung}/logs', [RechnungLogController::class, 'store'])->name('rechnung.logs.store');
     Route::put('/rechnung/logs/{log}', [RechnungLogController::class, 'update'])->name('rechnung.logs.update');
     Route::delete('/rechnung/logs/{log}', [RechnungLogController::class, 'destroy'])->name('rechnung.logs.destroy');
     Route::post('/rechnung/logs/{log}/erledigt', [RechnungLogController::class, 'erinnerungErledigt'])->name('rechnung.logs.erledigt');
-    Route::post('/rechnung/{rechnung}/logs/telefonat', [RechnungLogController::class, 'quickTelefonat'])->name('rechnung.logs.telefonat');
-    Route::post('/rechnung/{rechnung}/logs/notiz', [RechnungLogController::class, 'quickNotiz'])->name('rechnung.logs.notiz');
-    Route::post('/rechnung/{rechnung}/logs/mitteilung', [RechnungLogController::class, 'quickMitteilung'])->name('rechnung.logs.mitteilung');
     Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard'])->name('rechnung.logs.dashboard');
-    Route::post('/rechnung/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('rechnung.gutschrift');
 
-    // ⭐ NEU: Soft-Delete Routen
+    // Rechnung Soft-Delete
     Route::get('/rechnung-papierkorb', [RechnungController::class, 'trashed'])->name('rechnung.trashed');
     Route::post('/rechnung/{id}/restore', [RechnungController::class, 'restore'])->name('rechnung.restore')->withTrashed();
     Route::delete('/rechnung/{id}/force-delete', [RechnungController::class, 'forceDelete'])->name('rechnung.forceDelete')->withTrashed();
+
 
     // ==================== Preis-Aufschläge ====================
     Route::prefix('preis-aufschlaege')->name('preis-aufschlaege.')->group(function () {
@@ -290,6 +301,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // ==================== Bank-Buchungen ====================
     Route::prefix('bank')->name('bank.')->group(function () {
+        // Statische Routen zuerst
         Route::get('/', [BankBuchungController::class, 'index'])->name('index');
         Route::get('/import', [BankBuchungController::class, 'importForm'])->name('import');
         Route::post('/import', [BankBuchungController::class, 'import'])->name('import.store');
@@ -301,6 +313,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/config', [BankBuchungController::class, 'config'])->name('config');
         Route::put('/config', [BankBuchungController::class, 'updateConfig'])->name('config.update');
         Route::post('/config/reset', [BankBuchungController::class, 'resetConfig'])->name('config.reset');
+        // Parametrisierte Routen zuletzt
         Route::get('/{buchung}', [BankBuchungController::class, 'show'])->name('show');
         Route::post('/{buchung}/match', [BankBuchungController::class, 'match'])->name('match');
         Route::delete('/{buchung}/unmatch', [BankBuchungController::class, 'unmatch'])->name('unmatch');
@@ -310,6 +323,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // ==================== Mahnungen ====================
     Route::prefix('mahnungen')->name('mahnungen.')->group(function () {
+        // Statische Routen ZUERST (vor /{mahnung} Wildcard!)
         Route::get('/', [MahnungController::class, 'index'])->name('index');
         Route::get('/historie', [MahnungController::class, 'historie'])->name('historie');
         Route::get('/mahnlauf', [MahnungController::class, 'mahnlaufVorbereiten'])->name('mahnlauf');
@@ -326,11 +340,12 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::delete('/ausschluesse/kunde/{adresse}', [MahnungController::class, 'kundeAusschlussEntfernen'])->name('kunde.ausschluss.entfernen');
         Route::post('/ausschluesse/rechnung', [MahnungController::class, 'rechnungAusschliessen'])->name('rechnung.ausschliessen');
         Route::delete('/ausschluesse/rechnung/{rechnung}', [MahnungController::class, 'rechnungAusschlussEntfernen'])->name('rechnung.ausschluss.entfernen');
+        Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
+        // Parametrisierte Routen ZULETZT
         Route::get('/{mahnung}', [MahnungController::class, 'show'])->name('show');
         Route::post('/{mahnung}/stornieren', [MahnungController::class, 'stornieren'])->name('stornieren');
         Route::post('/{mahnung}/als-post-versendet', [MahnungController::class, 'alsPostVersendet'])->name('als-post-versendet');
         Route::get('/{mahnung}/pdf', [MahnungController::class, 'downloadPdf'])->name('pdf');
-        Route::get('/api/statistiken', [MahnungController::class, 'apiStatistiken'])->name('api.statistiken');
         Route::post('/{mahnung}/versende-einzeln', [MahnungController::class, 'versendeEinzeln'])->name('versende-einzeln');
         Route::delete('/{mahnung}', [MahnungController::class, 'destroy'])->name('destroy');
     });
@@ -338,10 +353,14 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // ==================== Angebote ====================
     Route::prefix('angebote')->name('angebote.')->group(function () {
+        // Statische Routen zuerst
         Route::get('/', [AngebotController::class, 'index'])->name('index');
         Route::get('/create', [AngebotController::class, 'create'])->name('create');
         Route::get('/textvorschlaege', [AngebotController::class, 'textvorschlaege'])->name('textvorschlaege');
         Route::post('/from-gebaeude/{gebaeude}', [AngebotController::class, 'createFromGebaeude'])->name('from-gebaeude');
+        Route::put('/position/{position}', [AngebotController::class, 'updatePosition'])->name('position.update');
+        Route::delete('/position/{position}', [AngebotController::class, 'deletePosition'])->name('position.delete');
+        // Parametrisierte Routen
         Route::get('/{angebot}', [AngebotController::class, 'edit'])->name('edit');
         Route::put('/{angebot}', [AngebotController::class, 'update'])->name('update');
         Route::delete('/{angebot}', [AngebotController::class, 'destroy'])->name('destroy');
@@ -352,23 +371,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/{angebot}/zu-rechnung', [AngebotController::class, 'zuRechnung'])->name('zu-rechnung');
         Route::post('/{angebot}/kopieren', [AngebotController::class, 'kopieren'])->name('kopieren');
         Route::post('/{angebot}/position', [AngebotController::class, 'addPosition'])->name('position.add');
-        Route::put('/position/{position}', [AngebotController::class, 'updatePosition'])->name('position.update');
-        Route::delete('/position/{position}', [AngebotController::class, 'deletePosition'])->name('position.delete');
         Route::post('/{angebot}/positionen/reorder', [AngebotController::class, 'reorderPositions'])->name('position.reorder');
     });
-
-
-    // ==================== Gebäude-Dokumente ====================
-    Route::get('/gebaeude/dokumente', [GebaeudeDocumentController::class, 'index'])->name('gebaeude.dokumente.index');
-    Route::post('/gebaeude/{gebaeude}/dokumente', [GebaeudeDocumentController::class, 'store'])->whereNumber('gebaeude')->name('gebaeude.dokumente.store');
-    Route::post('/gebaeude/{gebaeude}/dokumente/multiple', [GebaeudeDocumentController::class, 'storeMultiple'])->whereNumber('gebaeude')->name('gebaeude.dokumente.storeMultiple');
-    Route::put('/gebaeude/dokumente/{dokument}', [GebaeudeDocumentController::class, 'update'])->whereNumber('dokument')->name('gebaeude.dokumente.update');
-    Route::delete('/gebaeude/dokumente/{dokument}', [GebaeudeDocumentController::class, 'destroy'])->whereNumber('dokument')->name('gebaeude.dokumente.destroy');
-    Route::get('/gebaeude/dokumente/{dokument}/download', [GebaeudeDocumentController::class, 'download'])->whereNumber('dokument')->name('gebaeude.dokumente.download');
-    Route::get('/gebaeude/dokumente/{dokument}/preview', [GebaeudeDocumentController::class, 'preview'])->whereNumber('dokument')->name('gebaeude.dokumente.preview');
-    Route::get('/gebaeude/dokumente/{dokument}/thumbnail', [GebaeudeDocumentController::class, 'thumbnail'])->whereNumber('dokument')->name('gebaeude.dokumente.thumbnail');
-    Route::post('/gebaeude/dokumente/{dokument}/wichtig', [GebaeudeDocumentController::class, 'toggleWichtig'])->whereNumber('dokument')->name('gebaeude.dokumente.toggleWichtig');
-    Route::post('/gebaeude/dokumente/{dokument}/archiv', [GebaeudeDocumentController::class, 'toggleArchiv'])->whereNumber('dokument')->name('gebaeude.dokumente.toggleArchiv');
 
 
     // ==================== Fälligkeits-Simulator ====================
@@ -402,16 +406,16 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/', [TextvorschlagController::class, 'index'])->name('index');
         Route::get('/create', [TextvorschlagController::class, 'create'])->name('create');
         Route::post('/', [TextvorschlagController::class, 'store'])->name('store');
+        Route::get('/api', [TextvorschlagController::class, 'api'])->name('api');
+        Route::post('/api/store', [TextvorschlagController::class, 'apiStore'])->name('api.store');
         Route::get('/{textvorschlag}/edit', [TextvorschlagController::class, 'edit'])->name('edit');
         Route::put('/{textvorschlag}', [TextvorschlagController::class, 'update'])->name('update');
         Route::delete('/{textvorschlag}', [TextvorschlagController::class, 'destroy'])->name('destroy');
         Route::patch('/{textvorschlag}/toggle', [TextvorschlagController::class, 'toggleAktiv'])->name('toggle');
-        Route::get('/api', [TextvorschlagController::class, 'api'])->name('api');
-        Route::post('/api/store', [TextvorschlagController::class, 'apiStore'])->name('api.store');
     });
 
 
-    // ==================== Arbeitsberichte (Admin) ====================
+    // ==================== Arbeitsberichte ====================
     Route::prefix('arbeitsberichte')->name('arbeitsbericht.')->group(function () {
         Route::get('/', [ArbeitsberichtController::class, 'index'])->name('index');
         Route::get('/gebaeude-suche', [ArbeitsberichtController::class, 'gebaeudeSearch'])->name('gebaeude.search');
@@ -433,10 +437,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
         return $pdf->stream('test.pdf');
     });
 
-
-    Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
-    Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
-    Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
 }); // Ende Admin-Gruppe
 
 
