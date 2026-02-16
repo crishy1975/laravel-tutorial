@@ -433,11 +433,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         return $pdf->stream('test.pdf');
     });
 
-    use App\Livewire\Messungen\AnlagenListe;
-use App\Livewire\Messungen\AnlagenEdit;
-use App\Livewire\Messungen\ImportAnlagen;
 
-Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
+    Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
     Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
     Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
@@ -450,24 +447,10 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
 // 🌐 ÖFFENTLICHE ROUTEN (ohne Login)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
+    Route::prefix('bericht')->name('arbeitsbericht.public')->group(function () {
     Route::get('/{token}', [ArbeitsberichtController::class, 'publicView'])->name('');
     Route::get('/{token}/pdf', [ArbeitsberichtController::class, 'publicPdf'])->name('.pdf');
 });
-
-/*
-|--------------------------------------------------------------------------
-| Messungen Modul Routes
-|--------------------------------------------------------------------------
-|
-| Diese Datei in routes/web.php einbinden:
-| require __DIR__.'/messungen.php';
-|
-| Oder den Inhalt direkt in routes/web.php kopieren.
-|
-*/
-
-
 
 
 // ==================== Auth Routes (Breeze) ====================
