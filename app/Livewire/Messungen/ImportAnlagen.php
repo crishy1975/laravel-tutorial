@@ -16,7 +16,7 @@ class ImportAnlagen extends Component
     public $csvFile;
     public $importResult = null;
     public $isImporting = false;
-    public $errors = [];
+    public $importErrors = [];  // NICHT $errors – das ist reserviert von Laravel!
 
     protected $rules = [
         'csvFile' => 'required|file|mimes:csv,txt|max:10240',
@@ -57,10 +57,10 @@ class ImportAnlagen extends Component
     public function import()
     {
         $this->validate();
-        
+
         $this->isImporting = true;
         $this->importResult = null;
-        $this->errors = [];
+        $this->importErrors = [];
 
         $result = [
             'total' => 0,
@@ -84,7 +84,7 @@ class ImportAnlagen extends Component
 
                 if (empty($values[0])) {
                     $result['errors']++;
-                    $this->errors[] = "Zeile {$result['total']}: Feld_a (Kodex) ist leer.";
+                    $this->importErrors[] = "Zeile {$result['total']}: Feld_a (Kodex) ist leer.";
                     continue;
                 }
 
@@ -105,7 +105,7 @@ class ImportAnlagen extends Component
                     $result['imported']++;
                 } catch (\Exception $e) {
                     $result['errors']++;
-                    $this->errors[] = "Zeile {$result['total']} (Kodex: {$feldA}): " . $e->getMessage();
+                    $this->importErrors[] = "Zeile {$result['total']} (Kodex: {$feldA}): " . $e->getMessage();
                 }
             }
 
@@ -116,7 +116,7 @@ class ImportAnlagen extends Component
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->errors[] = "Import-Fehler: " . $e->getMessage();
+            $this->importErrors[] = "Import-Fehler: " . $e->getMessage();
         }
 
         $this->isImporting = false;
@@ -127,7 +127,7 @@ class ImportAnlagen extends Component
     {
         $this->csvFile = null;
         $this->importResult = null;
-        $this->errors = [];
+        $this->importErrors = [];
     }
 
     public function render()
