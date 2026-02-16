@@ -139,7 +139,7 @@
                 </div>
             </div>
 
-            {{-- Desktop: Tabelle --}}
+            {{-- ========== Desktop: Tabelle ========== --}}
             <div class="table-responsive d-none d-lg-block">
                 <table class="table table-hover align-middle mb-0" id="anlagenTable">
                     <thead class="table-dark">
@@ -210,7 +210,8 @@
                                            class="btn btn-outline-primary" title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        <a href="{{ route('messungen.neu', $anlage->Feld_a) }}"
+                                        {{-- TODO: route('messungen.neu', $anlage->Feld_a) wenn Komponente erstellt --}}
+                                        <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
                                            class="btn btn-outline-success" title="Neue Messung">
                                             <i class="bi bi-plus-lg"></i>
                                         </a>
@@ -222,12 +223,13 @@
                 </table>
             </div>
 
-            {{-- Mobile: Card-Liste --}}
+            {{-- ========== Mobile: Card-Liste ========== --}}
             <div class="d-lg-none">
                 @foreach($anlagen as $anlage)
                     @php $hatMessung = $anlage->messungenHeuer()->exists(); @endphp
                     <div class="anlage-card border-bottom {{ !$hatMessung ? 'bg-danger bg-opacity-10' : '' }}">
                         <div class="p-2">
+                            {{-- Zeile 1: Kodex, Beschreibung, Messung-Badge --}}
                             <div class="d-flex align-items-start gap-2 mb-1">
                                 <div class="flex-grow-1 min-width-0">
                                     <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}" class="text-decoration-none">
@@ -243,24 +245,37 @@
                                     @endif
                                 </div>
                             </div>
+
+                            {{-- Zeile 2: Adresse --}}
                             <div class="small text-muted mb-1 ps-1">
                                 <i class="bi bi-geo-alt"></i>
-                                {{ $anlage->Feld_k }} {{ $anlage->Feld_n }}@if($anlage->Feld_k && $anlage->Feld_i),@endif
+                                {{ $anlage->Feld_k }} {{ $anlage->Feld_n }}{{ ($anlage->Feld_k && $anlage->Feld_i) ? ',' : '' }}
                                 {{ $anlage->Feld_i }}
                             </div>
+
+                            {{-- Zeile 3: Hersteller/Baujahr + Aktionen --}}
                             <div class="d-flex justify-content-between align-items-center ps-1">
                                 <div class="small text-muted">
                                     @if($anlage->Feld_y)
                                         <i class="bi bi-wrench"></i> {{ $anlage->Feld_y }}
-                                        @if($anlage->Feld_z) ({{ $anlage->Feld_z }})@endif
-                                        @if($anlage->Feld_ab) · {{ $anlage->Feld_ab }} kW@endif
+                                        @if($anlage->Feld_z)
+                                            ({{ $anlage->Feld_z }})
+                                        @endif
+                                        @if($anlage->Feld_ab)
+                                            &middot; {{ $anlage->Feld_ab }} kW
+                                        @endif
                                     @endif
                                 </div>
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
-                                       class="btn btn-outline-primary py-0 px-2"><i class="bi bi-pencil"></i></a>
-                                    <a href="{{ route('messungen.neu', $anlage->Feld_a) }}"
-                                       class="btn btn-outline-success py-0 px-2"><i class="bi bi-plus-lg"></i></a>
+                                       class="btn btn-outline-primary py-0 px-2">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {{-- TODO: route('messungen.neu', $anlage->Feld_a) wenn Komponente erstellt --}}
+                                    <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
+                                       class="btn btn-outline-success py-0 px-2">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </a>
                                 </div>
                             </div>
                         </div>
