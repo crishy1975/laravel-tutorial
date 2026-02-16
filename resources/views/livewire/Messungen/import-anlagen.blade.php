@@ -46,7 +46,7 @@
                             </span>
                         </button>
                     </div>
-                    @if($importResult || count($errors ?? []) > 0)
+                    @if($importResult || count($importErrors) > 0)
                         <div class="col-auto">
                             <button type="button" wire:click="resetImport" class="btn btn-outline-secondary btn-sm">
                                 <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
@@ -83,15 +83,15 @@
         </div>
     @endif
 
-    {{-- Fehler --}}
-    @if(count($errors ?? []) > 0)
+    {{-- Import-Fehler --}}
+    @if(count($importErrors) > 0)
         <div class="alert alert-danger py-2" role="alert">
             <h6 class="alert-heading mb-2">
                 <i class="bi bi-exclamation-triangle"></i> Fehler beim Import
             </h6>
             <div style="max-height: 200px; overflow-y: auto;">
-                @foreach($errors as $error)
-                    <div class="small">{{ $error }}</div>
+                @foreach($importErrors as $importError)
+                    <div class="small">{{ $importError }}</div>
                 @endforeach
             </div>
         </div>
