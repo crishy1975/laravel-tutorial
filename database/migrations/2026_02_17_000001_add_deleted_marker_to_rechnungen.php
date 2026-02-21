@@ -17,7 +17,7 @@ return new class extends Migration
      * 
      * Lösung: Generated Column "deleted_marker"
      * - Aktive Rechnung: deleted_marker = 0
-     * - Gelöschte Rechnung: deleted_marker = id (garantiert eindeutig)
+     * - Gelöschte Rechnung: deleted_marker = UNIX_TIMESTAMP(deleted_at)
      * 
      * Neuer Unique Index: (jahr, laufnummer, deleted_marker)
      * → Erlaubt mehrere gelöschte Rechnungen mit gleicher Nummer
@@ -39,16 +39,17 @@ return new class extends Migration
         }
 
         // ─────────────────────────────────────────────────────────────────────────────
-        // 2. Generated Column hinzufügen
+        // 2. Generated Column hinzufügen (mit UNIX_TIMESTAMP statt id)
         // ─────────────────────────────────────────────────────────────────────────────
         $columnExists = Schema::hasColumn('rechnungen', 'deleted_marker');
         
         if (!$columnExists) {
             // MySQL Generated Column (STORED für Index-Nutzung)
+            // UNIX_TIMESTAMP ist eindeutig genug für gelöschte Rechnungen
             DB::statement("
                 ALTER TABLE rechnungen 
-                ADD COLUMN deleted_marker INT GENERATED ALWAYS AS (
-                    CASE WHEN deleted_at IS NULL THEN 0 ELSE id END
+                ADD COLUMN deleted_marker BIGINT GENERATED ALWAYS AS (
+                    CASE WHEN deleted_at IS NULL THEN 0 ELSE UNIX_TIMESTAMP(deleted_at) END
                 ) STORED
             ");
             
@@ -113,7 +114,7 @@ return new class extends Migration
         });
 
         // ─────────────────────────────────────────────────────────────────────────────
-        // 4. deleted_at Index entfernen (falls gewünscht)
+        // 4. deleted_at Index entfernen
         // ─────────────────────────────────────────────────────────────────────────────
         $deletedAtIndexExists = collect(DB::select("SHOW INDEX FROM rechnungen WHERE Key_name = 'rechnungen_deleted_at_index'"))->isNotEmpty();
         
