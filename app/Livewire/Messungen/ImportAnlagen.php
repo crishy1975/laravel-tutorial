@@ -16,7 +16,7 @@ class ImportAnlagen extends Component
     public $csvFile;
     public $importResult = null;
     public $isImporting = false;
-    public $importErrors = [];  // NICHT $errors – das ist reserviert von Laravel!
+    public $importErrors = [];  // NICHT $errors – reserviert von Laravel!
 
     protected $rules = [
         'csvFile' => 'required|file|mimes:csv,txt|max:10240',
@@ -28,30 +28,35 @@ class ImportAnlagen extends Component
         'csvFile.max' => 'Die Datei darf maximal 10MB groß sein.',
     ];
 
+    /*
+    |--------------------------------------------------------------------------
+    | CSV-Spalten-Mapping: CSV-Index => Datenbank-Feld
+    |--------------------------------------------------------------------------
+    */
     private const CSV_MAPPING = [
-        0  => 'Feld_a',
-        1  => 'Feld_b',
-        2  => 'Feld_c',
-        7  => 'Feld_h',
-        8  => 'Feld_i',
-        9  => 'Feld_j',
-        10 => 'Feld_k',
-        11 => 'Feld_l',
-        12 => 'Feld_m',
-        13 => 'Feld_n',
-        14 => 'Feld_o',
-        15 => 'Feld_p',
-        16 => 'Feld_q',
-        17 => 'Feld_r',
-        18 => 'Feld_s',
-        19 => 'Feld_t',
-        20 => 'Feld_u',
-        21 => 'Feld_v',
-        22 => 'Feld_w',
-        23 => 'Feld_x',
-        24 => 'Feld_y',
-        25 => 'Feld_z',
-        27 => 'Feld_ab',
+        0  => 'Feld_a',   // Anlagen-Kodex (PK)
+        1  => 'Feld_b',   // Kaminkehrer-Kodex1
+        2  => 'Feld_c',   // Kaminkehrer-Kodex2
+        7  => 'Feld_h',   // Gemeinde Aufstellungsort (IT)
+        8  => 'Feld_i',   // Gemeinde Aufstellungsort (DE)
+        9  => 'Feld_J',   // Fraktion Aufstellungsort (IT)
+        10 => 'Feld_K',   // Fraktion Aufstellungsort (DE)
+        11 => 'Feld_l',   // Straße Aufstellungsort (IT)
+        12 => 'Feld_m',   // Straße Aufstellungsort (DE)
+        13 => 'Feld_n',   // Hausnummer Aufstellungsort
+        14 => 'Feld_o',   // Name Betreiber
+        15 => 'Feld_p',   // Gemeinde Betreiber (IT)
+        16 => 'Feld_q',   // Gemeinde Betreiber (DE)
+        17 => 'Feld_r',   // Fraktion Betreiber (IT)
+        18 => 'Feld_s',   // Fraktion Betreiber (DE)
+        19 => 'Feld_t',   // Straße Betreiber (IT)
+        20 => 'Feld_u',   // Straße Betreiber (DE)
+        21 => 'Feld_v',   // Hausnummer Betreiber
+        22 => 'Feld_w',   // Name Aufstellungsort
+        23 => 'Feld_x',   // Status
+        24 => 'Feld_y',   // Hersteller Kessel
+        25 => 'Feld_z',   // Baujahr Kessel
+        27 => 'Feld_ab',  // Leistung kW
     ];
 
     public function import()
