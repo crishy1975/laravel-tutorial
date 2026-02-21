@@ -14,10 +14,10 @@ class AnlagenListe extends Component
 
     // Filter
     public $filterKodex = '';
-    public $filterBeschreibung = '';
-    public $filterStrasse = '';
-    public $filterOrt = '';
-    public $filterHersteller = '';
+    public $filterBeschreibung = '';   // sucht in Feld_w (Name Aufstellungsort)
+    public $filterStrasse = '';        // sucht in Feld_m/Feld_l (Straße Aufstellungsort DE/IT)
+    public $filterOrt = '';            // sucht in Feld_i/Feld_h (Gemeinde Aufstellungsort DE/IT)
+    public $filterHersteller = '';     // sucht in Feld_y (Hersteller Kessel)
     public $filterGemessen = '';
     public $filterJahr;
 
@@ -73,38 +73,50 @@ class AnlagenListe extends Component
     {
         $query = Impianto::query();
 
+        // Kodex
         if ($this->filterKodex) {
             $query->where('Feld_a', 'like', "%{$this->filterKodex}%");
         }
+
+        // Name Aufstellungsort (Feld_w)
         if ($this->filterBeschreibung) {
             $query->where('Feld_w', 'like', "%{$this->filterBeschreibung}%");
         }
+
+        // Straße Aufstellungsort: DE (Feld_m) oder IT (Feld_l)
         if ($this->filterStrasse) {
             $query->where(function ($q) {
-                $q->where('Feld_k', 'like', "%{$this->filterStrasse}%")
-                  ->orWhere('Feld_j', 'like', "%{$this->filterStrasse}%");
+                $q->where('Feld_m', 'like', "%{$this->filterStrasse}%")
+                  ->orWhere('Feld_l', 'like', "%{$this->filterStrasse}%");
             });
         }
+
+        // Gemeinde Aufstellungsort: DE (Feld_i) oder IT (Feld_h)
         if ($this->filterOrt) {
             $query->where(function ($q) {
                 $q->where('Feld_i', 'like', "%{$this->filterOrt}%")
                   ->orWhere('Feld_h', 'like', "%{$this->filterOrt}%");
             });
         }
+
+        // Hersteller Kessel (Feld_y)
         if ($this->filterHersteller) {
             $query->where('Feld_y', 'like', "%{$this->filterHersteller}%");
         }
 
+        // Messung ja/nein
         if ($this->filterGemessen === '1') {
             $query->mitMessungImJahr((int) $this->filterJahr);
         } elseif ($this->filterGemessen === '0') {
             $query->ohneMessungImJahr((int) $this->filterJahr);
         }
 
+        // Sortierung
         $query->orderBy($this->sortField, $this->sortDirection);
 
-        if ($this->sortField !== 'Feld_k') {
-            $query->orderBy('Feld_k', 'asc');
+        // Sekundäre Sortierung nach Straße + Hausnummer
+        if ($this->sortField !== 'Feld_m') {
+            $query->orderBy('Feld_m', 'asc');
         }
         if ($this->sortField !== 'Feld_n') {
             $query->orderBy('Feld_n', 'asc');
@@ -116,7 +128,7 @@ class AnlagenListe extends Component
     public function getStatistikProperty()
     {
         $jahr = (int) $this->filterJahr;
-        
+
         return [
             'total' => Impianto::count(),
             'mitMessung' => Impianto::mitMessungImJahr($jahr)->count(),

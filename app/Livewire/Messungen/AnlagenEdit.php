@@ -10,13 +10,29 @@ use App\Models\Impianto;
 class AnlagenEdit extends Component
 {
     public Impianto $anlage;
-    
+
+    // Identifikation
     public $Feld_a, $Feld_b, $Feld_c;
-    public $Feld_h, $Feld_i, $Feld_j, $Feld_k;
-    public $Feld_l, $Feld_m, $Feld_n;
-    public $Feld_o, $Feld_p, $Feld_q, $Feld_r, $Feld_s, $Feld_t;
-    public $Feld_u, $Feld_v, $Feld_w;
-    public $Feld_x, $Feld_y, $Feld_z, $Feld_ab;
+
+    // Aufstellungsort
+    public $Feld_h, $Feld_i;       // Gemeinde IT/DE
+    public $Feld_J, $Feld_K;       // Fraktion IT/DE (Großbuchstabe!)
+    public $Feld_l, $Feld_m;       // Straße IT/DE
+    public $Feld_n;                 // Hausnummer
+    public $Feld_w;                 // Name Aufstellungsort
+
+    // Betreiber
+    public $Feld_o;                 // Name Betreiber
+    public $Feld_p, $Feld_q;       // Gemeinde IT/DE
+    public $Feld_r, $Feld_s;       // Fraktion IT/DE
+    public $Feld_t, $Feld_u;       // Straße IT/DE
+    public $Feld_v;                 // Hausnummer
+
+    // Kessel
+    public $Feld_x;                 // Status
+    public $Feld_y;                 // Hersteller
+    public $Feld_z;                 // Baujahr
+    public $Feld_ab;                // Leistung kW
 
     public $saved = false;
 
@@ -31,7 +47,7 @@ class AnlagenEdit extends Component
     public function mount($kodex)
     {
         $this->anlage = Impianto::where('Feld_a', $kodex)->firstOrFail();
-        
+
         foreach ($this->anlage->getFillable() as $field) {
             if (property_exists($this, $field)) {
                 $this->$field = $this->anlage->$field;
@@ -43,31 +59,15 @@ class AnlagenEdit extends Component
     {
         $this->validate();
 
-        $this->anlage->update([
-            'Feld_b' => $this->Feld_b,
-            'Feld_c' => $this->Feld_c,
-            'Feld_h' => $this->Feld_h,
-            'Feld_i' => $this->Feld_i,
-            'Feld_j' => $this->Feld_j,
-            'Feld_k' => $this->Feld_k,
-            'Feld_l' => $this->Feld_l,
-            'Feld_m' => $this->Feld_m,
-            'Feld_n' => $this->Feld_n,
-            'Feld_o' => $this->Feld_o,
-            'Feld_p' => $this->Feld_p,
-            'Feld_q' => $this->Feld_q,
-            'Feld_r' => $this->Feld_r,
-            'Feld_s' => $this->Feld_s,
-            'Feld_t' => $this->Feld_t,
-            'Feld_u' => $this->Feld_u,
-            'Feld_v' => $this->Feld_v,
-            'Feld_w' => $this->Feld_w,
-            'Feld_x' => $this->Feld_x,
-            'Feld_y' => $this->Feld_y,
-            'Feld_z' => $this->Feld_z,
-            'Feld_ab' => $this->Feld_ab,
-        ]);
+        $updateData = [];
+        foreach ($this->anlage->getFillable() as $field) {
+            if ($field === 'Feld_a') continue; // PK nicht ändern
+            if (property_exists($this, $field)) {
+                $updateData[$field] = $this->$field;
+            }
+        }
 
+        $this->anlage->update($updateData);
         $this->saved = true;
     }
 

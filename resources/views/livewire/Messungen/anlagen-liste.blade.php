@@ -76,14 +76,14 @@
                                class="form-control form-control-sm" placeholder="Kodex...">
                     </div>
                     <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Beschreibung</label>
+                        <label class="form-label small mb-1">Aufstellungsort</label>
                         <input type="text" wire:model.live.debounce.300ms="filterBeschreibung"
-                               class="form-control form-control-sm" placeholder="Beschreibung...">
+                               class="form-control form-control-sm" placeholder="Name...">
                     </div>
                     <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Ort</label>
+                        <label class="form-label small mb-1">Gemeinde</label>
                         <input type="text" wire:model.live.debounce.300ms="filterOrt"
-                               class="form-control form-control-sm" placeholder="Ort...">
+                               class="form-control form-control-sm" placeholder="Gemeinde...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Straße</label>
@@ -151,20 +151,20 @@
                                 @endif
                             </th>
                             <th wire:click="sortBy('Feld_w')">
-                                Beschreibung
+                                Aufstellungsort
                                 @if($sortField === 'Feld_w')
                                     <i class="bi bi-arrow-{{ $sortDirection === 'asc' ? 'up' : 'down' }} ms-1"></i>
                                 @endif
                             </th>
                             <th wire:click="sortBy('Feld_i')">
-                                Ort
+                                Gemeinde
                                 @if($sortField === 'Feld_i')
                                     <i class="bi bi-arrow-{{ $sortDirection === 'asc' ? 'up' : 'down' }} ms-1"></i>
                                 @endif
                             </th>
-                            <th wire:click="sortBy('Feld_k')">
+                            <th wire:click="sortBy('Feld_m')">
                                 Straße
-                                @if($sortField === 'Feld_k')
+                                @if($sortField === 'Feld_m')
                                     <i class="bi bi-arrow-{{ $sortDirection === 'asc' ? 'up' : 'down' }} ms-1"></i>
                                 @endif
                             </th>
@@ -193,7 +193,7 @@
                                        class="text-decoration-none text-dark">{{ Str::limit($anlage->Feld_w, 40) ?: '(keine Beschreibung)' }}</a>
                                 </td>
                                 <td>{{ $anlage->Feld_i }}</td>
-                                <td>{{ $anlage->Feld_k }} {{ $anlage->Feld_n }}</td>
+                                <td>{{ $anlage->Feld_m }} {{ $anlage->Feld_n }}</td>
                                 <td class="text-center">
                                     @if($hatMessung)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
@@ -210,7 +210,7 @@
                                            class="btn btn-outline-primary" title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        {{-- TODO: route('messungen.neu', $anlage->Feld_a) wenn Komponente erstellt --}}
+                                        {{-- TODO: route('messungen.neu', $anlage->Feld_a) --}}
                                         <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
                                            class="btn btn-outline-success" title="Neue Messung">
                                             <i class="bi bi-plus-lg"></i>
@@ -229,7 +229,7 @@
                     @php $hatMessung = $anlage->messungenHeuer()->exists(); @endphp
                     <div class="anlage-card border-bottom {{ !$hatMessung ? 'bg-danger bg-opacity-10' : '' }}">
                         <div class="p-2">
-                            {{-- Zeile 1: Kodex, Beschreibung, Messung-Badge --}}
+                            {{-- Zeile 1: Kodex, Aufstellungsort, Messung-Badge --}}
                             <div class="d-flex align-items-start gap-2 mb-1">
                                 <div class="flex-grow-1 min-width-0">
                                     <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}" class="text-decoration-none">
@@ -246,10 +246,10 @@
                                 </div>
                             </div>
 
-                            {{-- Zeile 2: Adresse --}}
+                            {{-- Zeile 2: Adresse Aufstellungsort --}}
                             <div class="small text-muted mb-1 ps-1">
                                 <i class="bi bi-geo-alt"></i>
-                                {{ $anlage->Feld_k }} {{ $anlage->Feld_n }}{{ ($anlage->Feld_k && $anlage->Feld_i) ? ',' : '' }}
+                                {{ $anlage->Feld_m }} {{ $anlage->Feld_n }}{{ ($anlage->Feld_m && $anlage->Feld_i) ? ',' : '' }}
                                 {{ $anlage->Feld_i }}
                             </div>
 
@@ -271,7 +271,7 @@
                                        class="btn btn-outline-primary py-0 px-2">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    {{-- TODO: route('messungen.neu', $anlage->Feld_a) wenn Komponente erstellt --}}
+                                    {{-- TODO: route('messungen.neu', $anlage->Feld_a) --}}
                                     <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
                                        class="btn btn-outline-success py-0 px-2">
                                         <i class="bi bi-plus-lg"></i>
