@@ -12,6 +12,8 @@ class AnlagenListe extends Component
 {
     use WithPagination;
 
+    protected $paginationTheme = 'bootstrap';
+
     // Filter
     public $filterKodex = '';
     public $filterBeschreibung = '';   // sucht in Feld_w (Name Aufstellungsort)
