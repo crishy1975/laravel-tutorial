@@ -983,8 +983,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {{-- ═══════════════════════════════════════════════════════════
      MODAL: Zurück auf Entwurf
+     ⭐ WICHTIG: Per @push außerhalb des Haupt-Formulars rendern!
      ═══════════════════════════════════════════════════════════ --}}
 @if($rechnung->exists && $rechnung->status !== 'draft' && $rechnung->status !== 'cancelled')
+@push('modals')
 <div class="modal fade" id="zurueckAufEntwurfModal" tabindex="-1" aria-labelledby="zurueckAufEntwurfModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -1062,8 +1064,10 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+@endpush
 
 {{-- JavaScript für Zeichenzähler im Modal --}}
+@push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const grundTextarea = document.getElementById('zurueck_grund');
@@ -1103,4 +1107,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+@endpush
 @endif
