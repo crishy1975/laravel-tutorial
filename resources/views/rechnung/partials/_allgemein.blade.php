@@ -276,6 +276,21 @@ $readonly = $rechnung->exists && !$rechnung->ist_editierbar;
                         </select>
                         @error('status') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
+
+                    {{-- ⭐ NEU: Zurück auf Entwurf Button (nur wenn nicht bereits Entwurf oder storniert) --}}
+                    @if($rechnung->status !== 'draft' && $rechnung->status !== 'cancelled')
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                        <button type="button" 
+                                class="btn btn-sm btn-outline-warning w-100" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#zurueckAufEntwurfModal"
+                                title="Status auf Entwurf zurücksetzen um die Rechnung zu bearbeiten">
+                            <i class="bi bi-arrow-counterclockwise"></i> 
+                            <span class="d-none d-lg-inline">Zurück auf Entwurf</span>
+                            <span class="d-lg-none">Entwurf</span>
+                        </button>
+                    </div>
+                    @endif
                     @endif
                     
                     {{-- ⭐ Bezahlt am --}}
@@ -965,3 +980,127 @@ document.addEventListener('DOMContentLoaded', function() {
 
 });
 </script>
+
+{{-- ═══════════════════════════════════════════════════════════
+     MODAL: Zurück auf Entwurf
+     ═══════════════════════════════════════════════════════════ --}}
+@if($rechnung->exists && $rechnung->status !== 'draft' && $rechnung->status !== 'cancelled')
+<div class="modal fade" id="zurueckAufEntwurfModal" tabindex="-1" aria-labelledby="zurueckAufEntwurfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="{{ route('rechnung.zurueckAufEntwurf', $rechnung) }}" method="POST">
+                @csrf
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="zurueckAufEntwurfModalLabel">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Zurück auf Entwurf setzen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+                </div>
+                <div class="modal-body">
+                    {{-- Warnung --}}
+                    <div class="alert alert-warning d-flex align-items-start mb-3">
+                        <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                        <div>
+                            <strong>Achtung:</strong> Sie setzen die Rechnung 
+                            <strong>{{ $rechnung->rechnungsnummer }}</strong> 
+                            (Status: <span class="badge bg-{{ $rechnung->status === 'sent' ? 'info' : ($rechnung->status === 'paid' ? 'success' : ($rechnung->status === 'overdue' ? 'danger' : 'secondary')) }}">
+                                {{ $rechnung->status === 'sent' ? 'Versendet' : ($rechnung->status === 'paid' ? 'Bezahlt' : ($rechnung->status === 'overdue' ? 'Überfällig' : ucfirst($rechnung->status))) }}
+                            </span>) 
+                            auf <strong>Entwurf</strong> zurück.
+                        </div>
+                    </div>
+
+                    {{-- Info wenn bereits versendet --}}
+                    @if($rechnung->status === 'sent' || $rechnung->status === 'paid')
+                    <div class="alert alert-info small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Hinweis:</strong> Diese Rechnung wurde bereits versendet. 
+                        Wenn Sie Änderungen vornehmen, sollten Sie den Empfänger informieren.
+                    </div>
+                    @endif
+
+                    {{-- Grund-Eingabe --}}
+                    <div class="mb-3">
+                        <label for="zurueck_grund" class="form-label fw-bold">
+                            <i class="bi bi-chat-text me-1"></i>Grund für die Zurücksetzung <span class="text-danger">*</span>
+                        </label>
+                        <textarea 
+                            name="grund" 
+                            id="zurueck_grund" 
+                            class="form-control" 
+                            rows="4" 
+                            required
+                            minlength="10"
+                            maxlength="1000"
+                            placeholder="Bitte beschreiben Sie, warum die Rechnung zurückgesetzt werden muss (z.B. Korrekturbedarf, falsche Position, Preisänderung...)"
+                        ></textarea>
+                        <div class="form-text">
+                            <span id="grundCounter">0</span>/1000 Zeichen (mind. 10)
+                        </div>
+                    </div>
+
+                    {{-- Zusammenfassung was passiert --}}
+                    <div class="small text-muted border-top pt-3">
+                        <i class="bi bi-journal-text me-1"></i>
+                        <strong>Was passiert:</strong>
+                        <ul class="mb-0 mt-1">
+                            <li>Status wird auf "Entwurf" gesetzt</li>
+                            <li>Die Rechnung wird wieder editierbar</li>
+                            <li>Der Grund wird im Verlauf protokolliert</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i>Abbrechen
+                    </button>
+                    <button type="submit" class="btn btn-warning" id="btnZurueckAufEntwurf" disabled>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Zurücksetzen
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- JavaScript für Zeichenzähler im Modal --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const grundTextarea = document.getElementById('zurueck_grund');
+    const grundCounter = document.getElementById('grundCounter');
+    const btnZurueck = document.getElementById('btnZurueckAufEntwurf');
+    
+    if (grundTextarea && grundCounter) {
+        function updateCounter() {
+            const length = grundTextarea.value.length;
+            grundCounter.textContent = length;
+            
+            // Visuelle Rückmeldung
+            if (length < 10) {
+                grundCounter.classList.add('text-danger');
+                grundCounter.classList.remove('text-success');
+            } else {
+                grundCounter.classList.remove('text-danger');
+                grundCounter.classList.add('text-success');
+            }
+            
+            // Button Status
+            if (btnZurueck) {
+                btnZurueck.disabled = length < 10;
+            }
+        }
+        
+        grundTextarea.addEventListener('input', updateCounter);
+        
+        // Reset beim Öffnen des Modals
+        const modal = document.getElementById('zurueckAufEntwurfModal');
+        if (modal) {
+            modal.addEventListener('show.bs.modal', function() {
+                grundTextarea.value = '';
+                updateCounter();
+            });
+        }
+    }
+});
+</script>
+@endif

@@ -1148,7 +1148,75 @@ class RechnungController extends Controller
         }
     }
 
-    
+    public function zurueckAufEntwurf(Request $request, Rechnung $rechnung)
+    {
+        // Validierung
+        $request->validate([
+            'grund' => 'required|string|min:10|max:1000',
+        ], [
+            'grund.required' => 'Bitte geben Sie einen Grund für die Zurücksetzung an.',
+            'grund.min' => 'Der Grund muss mindestens 10 Zeichen lang sein.',
+            'grund.max' => 'Der Grund darf maximal 1000 Zeichen lang sein.',
+        ]);
+
+        // Prüfen ob bereits Entwurf
+        if ($rechnung->status === 'draft') {
+            return back()->with('info', 'Die Rechnung ist bereits ein Entwurf.');
+        }
+
+        // Prüfen ob storniert
+        if ($rechnung->status === 'cancelled') {
+            return back()->with('error', 'Eine stornierte Rechnung kann nicht zurückgesetzt werden.');
+        }
+
+        $alterStatus = $rechnung->status;
+        $grund = $request->input('grund');
+
+        try {
+            DB::beginTransaction();
+
+            // Status auf draft setzen
+            $rechnung->update([
+                'status' => 'draft',
+            ]);
+
+            // Log-Eintrag erstellen
+            RechnungLog::create([
+                'rechnung_id' => $rechnung->id,
+                'typ' => RechnungLogTyp::STATUS_ENTWURF,
+                'titel' => 'Zurück auf Entwurf gesetzt',
+                'beschreibung' => $grund,
+                'user_id' => \Auth::id(),
+                'prioritaet' => 'hoch',
+                'metadata' => [
+                    'alter_status' => $alterStatus,
+                    'neuer_status' => 'draft',
+                    'grund' => $grund,
+                ],
+            ]);
+
+            DB::commit();
+
+            Log::info('Rechnung auf Entwurf zurückgesetzt', [
+                'rechnung_id' => $rechnung->id,
+                'rechnung_nummer' => $rechnung->rechnungsnummer,
+                'alter_status' => $alterStatus,
+                'grund' => $grund,
+                'user_id' => \Auth::id(),
+            ]);
+
+            return back()->with('success', 'Rechnung wurde auf Entwurf zurückgesetzt. Sie können die Rechnung jetzt bearbeiten.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Fehler beim Zurücksetzen auf Entwurf', [
+                'rechnung_id' => $rechnung->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Fehler beim Zurücksetzen: ' . $e->getMessage());
+        }
+    }
 
 
     // ═══════════════════════════════════════════════════════════════════════════════
