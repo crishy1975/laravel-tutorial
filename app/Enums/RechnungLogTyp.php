@@ -35,6 +35,8 @@ enum RechnungLogTyp: string
     case MAHNUNG_VERSANDT = 'mahnung_versandt';
     case MAHNUNG_TELEFONISCH = 'mahnung_telefonisch';
     case MAHNUNG_STORNIERT = 'mahnung_storniert';
+
+    case STATUS_ENTWURF = 'status_entwurf';
     
     // ═══════════════════════════════════════════════════════════
     // VERSAND
