@@ -1148,67 +1148,7 @@ class RechnungController extends Controller
         }
     }
 
-    public function revertToDraft(Request $request, int $id)
-{
-    $rechnung = Rechnung::findOrFail($id);
-
-    // Bereits Entwurf → nichts zu tun
-    if ($rechnung->status === 'draft') {
-        return back()->with('info', 'Diese Rechnung ist bereits ein Entwurf.');
-    }
-
-    // Grund ist Pflicht
-    $request->validate([
-        'grund' => ['required', 'string', 'min:5', 'max:500'],
-    ], [
-        'grund.required' => 'Bitte gib einen Grund an.',
-        'grund.min'      => 'Der Grund muss mindestens 5 Zeichen lang sein.',
-        'grund.max'      => 'Der Grund darf maximal 500 Zeichen lang sein.',
-    ]);
-
-    $alterStatus = $rechnung->status;
-
-    DB::beginTransaction();
-    try {
-        // 1. Status zurücksetzen
-        $rechnung->update(['status' => 'draft']);
-
-        // 2. Log-Eintrag mit Grund
-        RechnungLog::log(
-            rechnungId: $rechnung->id,
-            typ: RechnungLogTyp::STATUS_GEAENDERT,
-            beschreibung: 'Status zurück auf Entwurf gesetzt: ' . $request->input('grund'),
-            metadata: [
-                'alter_status'   => $alterStatus,
-                'neuer_status'   => 'draft',
-                'grund'          => $request->input('grund'),
-                'geaendert_von'  => auth()->user()?->name ?? 'System',
-                'geaendert_am'   => now()->format('Y-m-d H:i:s'),
-            ]
-        );
-
-        DB::commit();
-
-        Log::info('Rechnung auf Entwurf zurückgesetzt', [
-            'rechnung_id'  => $rechnung->id,
-            'nummer'       => $rechnung->rechnungsnummer,
-            'alter_status' => $alterStatus,
-            'user'         => auth()->user()?->name,
-        ]);
-
-        return redirect()
-            ->route('rechnung.edit', $rechnung->id)
-            ->with('success', "Rechnung {$rechnung->rechnungsnummer} wurde auf „Entwurf" zurückgesetzt.");
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Fehler beim Zurücksetzen auf Entwurf', [
-            'rechnung_id' => $id,
-            'error'       => $e->getMessage(),
-        ]);
-        return back()->with('error', 'Fehler: ' . $e->getMessage());
-    }
-}
+    
 
 
     // ═══════════════════════════════════════════════════════════════════════════════
