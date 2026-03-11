@@ -1161,12 +1161,14 @@ class RechnungController extends Controller
 
         // Prüfen ob bereits Entwurf
         if ($rechnung->status === 'draft') {
-            return back()->with('info', 'Die Rechnung ist bereits ein Entwurf.');
+            return redirect()->route('rechnung.edit', $rechnung->id)
+                ->with('info', 'Die Rechnung ist bereits ein Entwurf.');
         }
 
         // Prüfen ob storniert
         if ($rechnung->status === 'cancelled') {
-            return back()->with('error', 'Eine stornierte Rechnung kann nicht zurückgesetzt werden.');
+            return redirect()->route('rechnung.edit', $rechnung->id)
+                ->with('error', 'Eine stornierte Rechnung kann nicht zurückgesetzt werden.');
         }
 
         $alterStatus = $rechnung->status;
@@ -1205,7 +1207,9 @@ class RechnungController extends Controller
                 'user_id' => \Auth::id(),
             ]);
 
-            return back()->with('success', 'Rechnung wurde auf Entwurf zurückgesetzt. Sie können die Rechnung jetzt bearbeiten.');
+            // ⭐ WICHTIG: Expliziter Redirect zur Edit-Seite mit frischer Rechnung
+            return redirect()->route('rechnung.edit', $rechnung->id)
+                ->with('success', 'Rechnung wurde auf Entwurf zurückgesetzt. Sie können die Rechnung jetzt bearbeiten.');
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -1214,7 +1218,8 @@ class RechnungController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return back()->with('error', 'Fehler beim Zurücksetzen: ' . $e->getMessage());
+            return redirect()->route('rechnung.edit', $rechnung->id)
+                ->with('error', 'Fehler beim Zurücksetzen: ' . $e->getMessage());
         }
     }
 
