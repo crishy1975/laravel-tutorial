@@ -260,6 +260,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('/rechnung/logs/{log}', [RechnungLogController::class, 'destroy'])->name('rechnung.logs.destroy');
     Route::post('/rechnung/logs/{log}/erledigt', [RechnungLogController::class, 'erinnerungErledigt'])->name('rechnung.logs.erledigt');
     Route::get('/rechnung-logs/dashboard', [RechnungLogController::class, 'dashboard'])->name('rechnung.logs.dashboard');
+    Route::post('/rechnung/{rechnung}/zurueck-auf-entwurf', [RechnungController::class, 'zurueckAufEntwurf'])
+    ->name('rechnung.zurueckAufEntwurf');
+
 
     // Rechnung Soft-Delete
     Route::get('/rechnung-papierkorb', [RechnungController::class, 'trashed'])->name('rechnung.trashed');
