@@ -537,6 +537,9 @@ PFAD:  resources/views/layouts/app.blade.php
         @endif
     </main>
 
+    {{-- ⭐ Modals (außerhalb des Content-Bereichs für separate Formulare) --}}
+    @stack('modals')
+
     {{-- Footer --}}
     <footer>
         <small>&copy; {{ date('Y') }} Resch GmbH — UschiWeb</small>
