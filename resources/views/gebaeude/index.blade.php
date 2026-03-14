@@ -20,7 +20,7 @@
             <button type="button" class="btn btn-danger d-none d-md-inline-flex" id="open-delete-modal" style="display: none !important;">
                 <i class="bi bi-trash"></i> Ausgewählte löschen
             </button>
-            <button type="button" class="btn btn-success d-none d-md-inline-flex" id="open-bulk-modal">
+            <button type="button" class="btn btn-success d-none d-md-inline-flex" id="open-bulk-modal" style="display: none !important;">
                 <i class="bi bi-link-45deg"></i> Mit Tour verknüpfen
             </button>
             <a href="{{ route('gebaeude.create') }}" class="btn btn-primary">
@@ -577,22 +577,64 @@ document.addEventListener('DOMContentLoaded', function() {
     const countNumber = document.getElementById('count-number');
     const modalInfo = document.getElementById('modal-selection-info');
     
-    // ⭐ NEU: Delete-Button Elemente
+    // Button-Elemente
     const btnDelete = document.getElementById('open-delete-modal');
     const btnDeleteMobile = document.getElementById('open-delete-modal-mobile');
+    const btnBulk = document.getElementById('open-bulk-modal');
+    const btnBulkMobile = document.getElementById('open-bulk-modal-mobile');
+
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ FIX: Desktop/Mobile Checkbox-Sync
+    // Jedes Gebäude hat 2 Checkboxen (Desktop-Tabelle + Mobile-Card).
+    // Beim Ändern einer Checkbox müssen alle mit gleicher ID synchron bleiben.
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Synchronisiert alle Checkboxen mit demselben value
+     */
+    function syncCheckboxes(value, checked) {
+        document.querySelectorAll('.row-check[value="' + value + '"]').forEach(ch => {
+            ch.checked = checked;
+        });
+    }
+
+    /**
+     * Gibt nur EINZIGARTIGE selektierte IDs zurück (keine Duplikate)
+     */
+    function getSelectedIds() {
+        const ids = new Set();
+        allChecks().forEach(ch => {
+            if (ch.checked) {
+                ids.add(parseInt(ch.value, 10));
+            }
+        });
+        return [...ids];
+    }
+
+    /**
+     * Gibt Gesamtanzahl der EINZIGARTIGEN Gebäude-Checkboxen zurück
+     */
+    function getUniqueTotal() {
+        const ids = new Set();
+        allChecks().forEach(ch => ids.add(ch.value));
+        return ids.size;
+    }
 
     // Auswahl-Zähler aktualisieren
     function updateSelectionCount() {
-        const count = allChecks().filter(ch => ch.checked).length;
+        const count = getSelectedIds().length;
+
         if (count > 0) {
             selectionBadge.style.display = 'inline-flex';
             countNumber.textContent = count;
-            // ⭐ Delete-Button einblenden
+            // Buttons einblenden
             if (btnDelete) btnDelete.style.cssText = '';
+            if (btnBulk) btnBulk.style.cssText = '';
         } else {
             selectionBadge.style.display = 'none';
-            // ⭐ Delete-Button ausblenden
+            // Buttons ausblenden
             if (btnDelete) btnDelete.style.cssText = 'display: none !important;';
+            if (btnBulk) btnBulk.style.cssText = 'display: none !important;';
         }
         
         // Mobile Cards visuell markieren
@@ -616,16 +658,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Einzelne Checkboxen
+    // Einzelne Checkboxen — mit Sync!
     document.addEventListener('change', function(e) {
         if (e.target.classList.contains('row-check')) {
+            // ⭐ FIX: Alle Checkboxen mit gleicher Gebäude-ID synchronisieren
+            syncCheckboxes(e.target.value, e.target.checked);
+
             updateSelectionCount();
-            // Master-Checkbox Zustand aktualisieren
-            const all = allChecks();
-            const checked = all.filter(ch => ch.checked).length;
+
+            // Master-Checkbox Zustand aktualisieren (auf Basis einzigartiger IDs)
+            const uniqueSelected = getSelectedIds().length;
+            const uniqueTotal = getUniqueTotal();
             if (master) {
-                master.checked = checked === all.length && all.length > 0;
-                master.indeterminate = checked > 0 && checked < all.length;
+                master.checked = uniqueSelected === uniqueTotal && uniqueTotal > 0;
+                master.indeterminate = uniqueSelected > 0 && uniqueSelected < uniqueTotal;
             }
         }
     });
@@ -638,14 +684,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const bsModal = modalEl ? new bootstrap.Modal(modalEl) : null;
 
     function openBulkModal() {
-        const selected = allChecks().filter(ch => ch.checked).map(ch => parseInt(ch.value, 10));
+        // ⭐ FIX: Nur einzigartige IDs verwenden
+        const selected = getSelectedIds();
         
         if (selected.length === 0) {
             alert('Bitte mindestens ein Gebäude auswählen.');
             return;
         }
 
-        // IDs einfügen
+        // IDs einfügen (dedupliziert)
         const container = document.getElementById('selected-ids-container');
         container.innerHTML = '';
         selected.forEach(id => {
@@ -665,11 +712,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Modal Buttons
-    const btnOpen = document.getElementById('open-bulk-modal');
-    const btnOpenMobile = document.getElementById('open-bulk-modal-mobile');
-    
-    if (btnOpen) btnOpen.addEventListener('click', openBulkModal);
-    if (btnOpenMobile) btnOpenMobile.addEventListener('click', openBulkModal);
+    if (btnBulk) btnBulk.addEventListener('click', openBulkModal);
+    if (btnBulkMobile) btnBulkMobile.addEventListener('click', openBulkModal);
 
     // Modal Reset
     if (modalEl) {
@@ -680,15 +724,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ⭐ NEU: BULK DELETE MODAL
+    // BULK DELETE MODAL
     // ═══════════════════════════════════════════════════════════
     
     const deleteModalEl = document.getElementById('bulkDeleteModal');
     const bsDeleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
 
     function openDeleteModal() {
-        const selectedCheckboxes = allChecks().filter(ch => ch.checked);
-        const selected = selectedCheckboxes.map(ch => parseInt(ch.value, 10));
+        // ⭐ FIX: Nur einzigartige IDs verwenden
+        const selected = getSelectedIds();
         
         if (selected.length === 0) {
             alert('Bitte mindestens ein Gebäude auswählen.');
@@ -698,7 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Anzahl aktualisieren
         document.getElementById('delete-count').textContent = selected.length;
 
-        // IDs einfügen
+        // IDs einfügen (dedupliziert)
         const container = document.getElementById('delete-ids-container');
         container.innerHTML = '';
         selected.forEach(id => {
@@ -709,11 +753,14 @@ document.addEventListener('DOMContentLoaded', function() {
             container.appendChild(input);
         });
 
-        // Vorschau der ausgewählten Gebäude
+        // Vorschau — pro ID nur EINE Zeile (bevorzugt Desktop-Tabelle)
         const preview = document.getElementById('delete-preview');
         preview.innerHTML = '';
-        selectedCheckboxes.forEach(ch => {
-            // Finde die Zeile/Card und extrahiere Namen
+        const seen = new Set();
+        allChecks().filter(ch => ch.checked).forEach(ch => {
+            if (seen.has(ch.value)) return;
+            seen.add(ch.value);
+
             const row = ch.closest('tr') || ch.closest('.gebaeude-card');
             if (row) {
                 const link = row.querySelector('a[href*="gebaeude"]');
