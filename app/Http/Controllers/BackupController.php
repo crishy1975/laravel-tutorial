@@ -17,7 +17,7 @@ class BackupController extends Controller
     public function index()
     {
         $backups = Backup::orderBy('erstellt_am', 'desc')->paginate(20);
-        
+
         // Statistiken
         $stats = [
             'gesamt' => Backup::count(),
@@ -25,7 +25,7 @@ class BackupController extends Controller
             'tage_seit_download' => Backup::tageSeitDownload(),
             'speicherplatz' => Backup::where('status', '!=', 'fehlgeschlagen')->sum('groesse'),
         ];
-        
+
         return view('backup.index', compact('backups', 'stats'));
     }
 
@@ -37,7 +37,7 @@ class BackupController extends Controller
         try {
             Artisan::call('backup:create', ['--force' => true]);
             $output = Artisan::output();
-            
+
             return response()->json([
                 'ok' => true,
                 'message' => 'Backup wurde erstellt',
@@ -45,7 +45,7 @@ class BackupController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Manuelles Backup fehlgeschlagen', ['error' => $e->getMessage()]);
-            
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Backup fehlgeschlagen: ' . $e->getMessage(),
@@ -65,7 +65,7 @@ class BackupController extends Controller
         // Status aktualisieren
         $log = $backup->log ?? [];
         $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'Heruntergeladen'];
-        
+
         $backup->update([
             'status' => 'heruntergeladen',
             'heruntergeladen_am' => now(),
@@ -87,14 +87,14 @@ class BackupController extends Controller
     public function destroy(Backup $backup)
     {
         $dateiname = $backup->dateiname;
-        
+
         // Datei löschen wenn vorhanden
         if ($backup->existiert()) {
             File::delete($backup->vollpfad);
         }
-        
+
         $backup->delete();
-        
+
         Log::info("Backup gelöscht: {$dateiname}");
 
         if (request()->wantsJson()) {
@@ -124,7 +124,7 @@ class BackupController extends Controller
     {
         $heruntergeladen = Backup::where('status', 'heruntergeladen')->get();
         $geloescht = 0;
-        
+
         foreach ($heruntergeladen as $backup) {
             if ($backup->existiert()) {
                 File::delete($backup->vollpfad);
@@ -138,6 +138,93 @@ class BackupController extends Controller
         return response()->json([
             'ok' => true,
             'message' => "{$geloescht} heruntergeladene Backups vom Server gelöscht",
+        ]);
+    }
+
+    /**
+     * Mehrere Backups als ZIP herunterladen
+     */
+    public function downloadMultiple(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:backups,id',
+        ]);
+
+        $backups = Backup::whereIn('id', $request->ids)
+            ->where('status', '!=', 'fehlgeschlagen')
+            ->get();
+
+        if ($backups->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => 'Keine gültigen Backups gefunden'], 404);
+        }
+
+        // ZIP erstellen
+        $zipName = 'backups_' . now()->format('Y-m-d_His') . '.zip';
+        $zipPath = storage_path('app/temp/' . $zipName);
+
+        // Temp-Verzeichnis erstellen
+        if (!File::exists(storage_path('app/temp'))) {
+            File::makeDirectory(storage_path('app/temp'), 0755, true);
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return response()->json(['ok' => false, 'message' => 'ZIP konnte nicht erstellt werden'], 500);
+        }
+
+        foreach ($backups as $backup) {
+            if ($backup->existiert()) {
+                $zip->addFile($backup->vollpfad, $backup->dateiname);
+
+                // Status aktualisieren
+                $log = $backup->log ?? [];
+                $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'Heruntergeladen (ZIP)'];
+
+                $backup->update([
+                    'status' => 'heruntergeladen',
+                    'heruntergeladen_am' => now(),
+                    'log' => $log,
+                ]);
+            }
+        }
+
+        $zip->close();
+
+        Log::info("ZIP-Download: {$backups->count()} Backups", ['ids' => $request->ids]);
+
+        // ZIP senden und danach löschen
+        return response()->download($zipPath, $zipName, [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Mehrere Backups löschen
+     */
+    public function deleteMultiple(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:backups,id',
+        ]);
+
+        $backups = Backup::whereIn('id', $request->ids)->get();
+        $geloescht = 0;
+
+        foreach ($backups as $backup) {
+            if ($backup->existiert()) {
+                File::delete($backup->vollpfad);
+            }
+            $backup->delete();
+            $geloescht++;
+        }
+
+        Log::info("Massen-Löschung: {$geloescht} Backups gelöscht", ['ids' => $request->ids]);
+
+        return response()->json([
+            'ok' => true,
+            'message' => "{$geloescht} Backup(s) gelöscht",
         ]);
     }
 }
