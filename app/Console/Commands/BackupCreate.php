@@ -19,7 +19,7 @@ class BackupCreate extends Command
     {
         $log = [];
         $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'Backup gestartet'];
-        
+
         $this->info('🔄 Starte Datenbank-Backup...');
 
         // Prüfen ob heute schon ein Backup existiert
@@ -63,10 +63,10 @@ class BackupCreate extends Command
 
             // SQL-Export mit PHP erstellen
             $sql = $this->exportDatabase();
-            
+
             // SQL in Datei schreiben
             file_put_contents($vollpfad, $sql);
-            
+
             if (!file_exists($vollpfad) || filesize($vollpfad) === 0) {
                 throw new \Exception('Backup-Datei wurde nicht erstellt oder ist leer');
             }
@@ -77,12 +77,12 @@ class BackupCreate extends Command
             // Komprimieren mit PHP (plattformunabhängig)
             $this->info('🗜️  Komprimiere Backup...');
             $gzPfad = $vollpfad . '.gz';
-            
+
             try {
                 $content = file_get_contents($vollpfad);
                 $gzContent = gzencode($content, 9);
                 file_put_contents($gzPfad, $gzContent);
-                
+
                 if (file_exists($gzPfad) && filesize($gzPfad) > 0) {
                     // Original löschen
                     unlink($vollpfad);
@@ -114,10 +114,9 @@ class BackupCreate extends Command
             Log::info("Backup erstellt: {$dateiname}", ['groesse' => $groesse]);
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
             $log[] = ['zeit' => now()->format('H:i:s'), 'aktion' => 'FEHLER: ' . $e->getMessage()];
-            
+
             $backup->update([
                 'status' => 'fehlgeschlagen',
                 'fehler' => $e->getMessage(),
@@ -134,6 +133,9 @@ class BackupCreate extends Command
     /**
      * Datenbank mit PHP exportieren (ohne exec/mysqldump)
      */
+    /**
+     * Datenbank mit PHP exportieren (ohne exec/mysqldump)
+     */
     private function exportDatabase(): string
     {
         $sql = "-- Backup erstellt am " . now()->format('Y-m-d H:i:s') . "\n";
@@ -141,14 +143,26 @@ class BackupCreate extends Command
         $sql .= "SET FOREIGN_KEY_CHECKS=0;\n";
         $sql .= "SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\n\n";
 
-        // Alle Tabellen holen
-        $tables = DB::select('SHOW TABLES');
         $dbName = config('database.connections.mysql.database');
-        $tableKey = "Tables_in_{$dbName}";
 
-        foreach ($tables as $table) {
-            $tableName = $table->$tableKey;
-            $this->line("  → Exportiere: {$tableName}");
+        // Alle Tabellen UND Views holen mit Typ-Information
+        $tablesAndViews = DB::select("
+        SELECT TABLE_NAME, TABLE_TYPE 
+        FROM information_schema.TABLES 
+        WHERE TABLE_SCHEMA = ?
+        ORDER BY TABLE_TYPE DESC, TABLE_NAME
+    ", [$dbName]);
+
+        // Erst Tabellen exportieren
+        foreach ($tablesAndViews as $item) {
+            $tableName = $item->TABLE_NAME;
+            $isView = ($item->TABLE_TYPE === 'VIEW');
+
+            if ($isView) {
+                continue; // Views später
+            }
+
+            $this->line("  → Exportiere Tabelle: {$tableName}");
 
             // CREATE TABLE Statement
             $createTable = DB::select("SHOW CREATE TABLE `{$tableName}`");
@@ -158,17 +172,17 @@ class BackupCreate extends Command
 
             // Daten exportieren
             $rows = DB::table($tableName)->get();
-            
+
             if ($rows->count() > 0) {
                 $columns = array_keys((array) $rows->first());
                 $columnList = '`' . implode('`, `', $columns) . '`';
-                
+
                 $sql .= "-- Daten für {$tableName}\n";
-                
+
                 // Batch-Insert für bessere Performance
                 $batchSize = 100;
                 $batches = $rows->chunk($batchSize);
-                
+
                 foreach ($batches as $batch) {
                     $values = [];
                     foreach ($batch as $row) {
@@ -176,8 +190,10 @@ class BackupCreate extends Command
                         foreach ((array) $row as $value) {
                             if ($value === null) {
                                 $rowValues[] = 'NULL';
+                            } elseif (is_array($value) || is_object($value)) {
+                                $rowValues[] = "'" . addslashes(json_encode($value)) . "'";
                             } else {
-                                $rowValues[] = "'" . addslashes($value) . "'";
+                                $rowValues[] = "'" . addslashes((string) $value) . "'";
                             }
                         }
                         $values[] = '(' . implode(', ', $rowValues) . ')';
@@ -187,6 +203,21 @@ class BackupCreate extends Command
                 }
                 $sql .= "\n";
             }
+        }
+
+        // Dann Views exportieren
+        foreach ($tablesAndViews as $item) {
+            if ($item->TABLE_TYPE !== 'VIEW') {
+                continue;
+            }
+
+            $viewName = $item->TABLE_NAME;
+            $this->line("  → Exportiere View: {$viewName}");
+
+            $createView = DB::select("SHOW CREATE VIEW `{$viewName}`");
+            $sql .= "-- View: {$viewName}\n";
+            $sql .= "DROP VIEW IF EXISTS `{$viewName}`;\n";
+            $sql .= $createView[0]->{'Create View'} . ";\n\n";
         }
 
         $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
