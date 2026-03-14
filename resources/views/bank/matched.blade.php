@@ -190,7 +190,7 @@
                             <td>
                                 <div class="fw-medium">{{ $buchung->buchungsdatum->format('d.m.Y') }}</div>
                                 <small class="text-muted">
-                                    {{ cleanText($buchung->gegenkonto_name) ?: '–' }}
+                                    {!! highlightMatchingWords($buchung->gegenkonto_name ?? '', $empfaengerName) !!}
                                 </small>
                                 <div class="small text-muted mt-1" style="word-break: break-word;">
                                     {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
