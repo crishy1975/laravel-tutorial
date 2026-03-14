@@ -123,12 +123,28 @@
                 <i class="bi bi-list-ul me-2"></i>
                 Verfügbare Backups
             </h6>
-            @if($backups->where('status', 'heruntergeladen')->count() > 0)
-                <button type="button" class="btn btn-outline-danger btn-sm" id="btnCleanup" title="Alle heruntergeladenen Backups vom Server löschen">
-                    <i class="bi bi-trash me-1"></i>
-                    <span class="d-none d-sm-inline">Aufräumen</span>
-                </button>
-            @endif
+            <div class="d-flex gap-2">
+                {{-- Massenaktionen (zunächst versteckt) --}}
+                <div id="massenaktionen" class="d-none">
+                    <span class="text-muted small me-2">
+                        <span id="anzahlAusgewaehlt">0</span> ausgewählt
+                    </span>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnMassenDownload" title="Ausgewählte als ZIP herunterladen">
+                        <i class="bi bi-download me-1"></i>
+                        <span class="d-none d-sm-inline">ZIP Download</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnMassenLoeschen" title="Ausgewählte löschen">
+                        <i class="bi bi-trash me-1"></i>
+                        <span class="d-none d-sm-inline">Löschen</span>
+                    </button>
+                </div>
+                @if($backups->where('status', 'heruntergeladen')->count() > 0)
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnCleanup" title="Alle heruntergeladenen Backups vom Server löschen">
+                        <i class="bi bi-trash me-1"></i>
+                        <span class="d-none d-sm-inline">Aufräumen</span>
+                    </button>
+                @endif
+            </div>
         </div>
 
         @if($backups->isEmpty())
@@ -146,6 +162,9 @@
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="selectAll" title="Alle auswählen">
+                            </th>
                             <th>Datum</th>
                             <th>Dateiname</th>
                             <th class="text-end">Größe</th>
@@ -157,6 +176,13 @@
                     <tbody>
                         @foreach($backups as $backup)
                             <tr class="{{ $backup->status === 'fehlgeschlagen' ? 'table-danger' : '' }}">
+                                <td>
+                                    @if($backup->status !== 'fehlgeschlagen' && $backup->existiert())
+                                        <input type="checkbox" class="form-check-input backup-checkbox" 
+                                               value="{{ $backup->id }}" 
+                                               data-name="{{ $backup->dateiname }}">
+                                    @endif
+                                </td>
                                 <td class="text-nowrap">
                                     <i class="bi bi-calendar3 text-muted me-1"></i>
                                     {{ $backup->erstellt_am->format('d.m.Y H:i') }}
@@ -215,7 +241,12 @@
                 @foreach($backups as $backup)
                     <div class="border-bottom p-3 {{ $backup->status === 'fehlgeschlagen' ? 'bg-danger bg-opacity-10' : '' }}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div>
+                            <div class="d-flex align-items-center gap-2">
+                                @if($backup->status !== 'fehlgeschlagen' && $backup->existiert())
+                                    <input type="checkbox" class="form-check-input backup-checkbox" 
+                                           value="{{ $backup->id }}" 
+                                           data-name="{{ $backup->dateiname }}">
+                                @endif
                                 @if($backup->status === 'erstellt')
                                     <span class="badge bg-warning text-dark">Ausstehend</span>
                                 @elseif($backup->status === 'heruntergeladen')
@@ -269,6 +300,7 @@
                 <li><strong>Automatisch:</strong> Jeden Sonntag um 03:00 Uhr wird ein Backup erstellt</li>
                 <li><strong>Manuell:</strong> Du kannst jederzeit ein zusätzliches Backup erstellen</li>
                 <li><strong>Download:</strong> Lade Backups auf deine Festplatte herunter (Status "Gesichert")</li>
+                <li><strong>Mehrfachauswahl:</strong> Wähle mehrere Backups aus um sie als ZIP zu laden oder zu löschen</li>
                 <li><strong>Aufräumen:</strong> Bereits heruntergeladene Backups können vom Server gelöscht werden</li>
                 <li><strong>Rotation:</strong> Backups älter als 30 Tage werden automatisch gelöscht</li>
             </ul>
@@ -321,7 +353,142 @@ document.addEventListener('DOMContentLoaded', function() {
         new bootstrap.Toast(toast, { delay: 4000 }).show();
     }
 
-    // Backup erstellen
+    // === CHECKBOX-LOGIK ===
+    const selectAll = document.getElementById('selectAll');
+    const massenaktionen = document.getElementById('massenaktionen');
+    const anzahlAusgewaehlt = document.getElementById('anzahlAusgewaehlt');
+    
+    function getCheckboxes() {
+        return document.querySelectorAll('.backup-checkbox');
+    }
+    
+    function getSelectedIds() {
+        return Array.from(getCheckboxes())
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+    }
+    
+    function updateMassenaktionen() {
+        const selected = getSelectedIds();
+        const count = selected.length;
+        
+        if (count > 0) {
+            massenaktionen.classList.remove('d-none');
+            anzahlAusgewaehlt.textContent = count;
+        } else {
+            massenaktionen.classList.add('d-none');
+        }
+        
+        // "Alle auswählen" Checkbox aktualisieren
+        const checkboxes = getCheckboxes();
+        if (selectAll) {
+            selectAll.checked = checkboxes.length > 0 && count === checkboxes.length;
+            selectAll.indeterminate = count > 0 && count < checkboxes.length;
+        }
+    }
+    
+    // Alle auswählen
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            getCheckboxes().forEach(cb => cb.checked = this.checked);
+            updateMassenaktionen();
+        });
+    }
+    
+    // Einzelne Checkbox
+    document.querySelectorAll('.backup-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateMassenaktionen);
+    });
+
+    // === MASSEN-DOWNLOAD ===
+    document.getElementById('btnMassenDownload')?.addEventListener('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Erstelle ZIP...';
+        
+        // POST-Request für ZIP-Download
+        fetch('{{ route("backup.downloadMultiple") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Download fehlgeschlagen');
+            return response.blob();
+        })
+        .then(blob => {
+            // Download auslösen
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'backups_' + new Date().toISOString().slice(0, 10) + '.zip';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            
+            showToast('<i class="bi bi-check-circle me-1"></i> ' + ids.length + ' Backups heruntergeladen');
+            
+            // Checkboxen zurücksetzen
+            getCheckboxes().forEach(cb => cb.checked = false);
+            if (selectAll) selectAll.checked = false;
+            updateMassenaktionen();
+            
+            // Seite neu laden um Status zu aktualisieren
+            setTimeout(() => location.reload(), 1500);
+        })
+        .catch(err => {
+            showToast('<i class="bi bi-x-circle me-1"></i> Download fehlgeschlagen', false);
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        });
+    });
+
+    // === MASSEN-LÖSCHEN ===
+    document.getElementById('btnMassenLoeschen')?.addEventListener('click', function() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        
+        if (!confirm(`${ids.length} ausgewählte Backup(s) wirklich löschen?`)) return;
+        
+        const btn = this;
+        btn.disabled = true;
+        
+        fetch('{{ route("backup.deleteMultiple") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                showToast('<i class="bi bi-check-circle me-1"></i> ' + data.message);
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('<i class="bi bi-x-circle me-1"></i> ' + data.message, false);
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            showToast('<i class="bi bi-x-circle me-1"></i> Fehler beim Löschen', false);
+            btn.disabled = false;
+        });
+    });
+
+    // === BACKUP ERSTELLEN ===
     function createBackup(btn) {
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
@@ -360,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
         createBackup(this);
     });
 
-    // Log anzeigen
+    // === LOG ANZEIGEN ===
     document.querySelectorAll('.btn-log').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
@@ -394,7 +561,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Löschen
+    // === EINZELN LÖSCHEN ===
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
@@ -419,7 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Cleanup
+    // === CLEANUP ===
     document.getElementById('btnCleanup')?.addEventListener('click', function() {
         if (!confirm('Alle bereits heruntergeladenen Backups vom Server löschen?')) return;
         
