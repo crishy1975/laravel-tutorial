@@ -3,6 +3,44 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    /**
+     * Markiert Wörter im Text, die auch im Empfänger-Namen vorkommen.
+     * Ignoriert kurze Wörter (< 3 Zeichen) um Rauschen zu vermeiden.
+     */
+    function highlightMatchingWords(string $text, ?string $empfaenger): string {
+        if (empty($empfaenger) || empty($text)) {
+            return e($text ?: '–');
+        }
+
+        // Empfänger in Wörter zerlegen, nur >= 3 Zeichen
+        $empfaengerWords = preg_split('/[\s\-\/.,;:]+/', $empfaenger, -1, PREG_SPLIT_NO_EMPTY);
+        $empfaengerWords = array_filter($empfaengerWords, fn($w) => mb_strlen($w) >= 3);
+
+        if (empty($empfaengerWords)) {
+            return e($text);
+        }
+
+        // Regex-Pattern bauen (case-insensitive)
+        $escaped = array_map(fn($w) => preg_quote($w, '/'), $empfaengerWords);
+        $pattern = '/\b(' . implode('|', $escaped) . ')\b/iu';
+
+        // Zuerst escapen, dann Markierungen einfügen
+        // Wir splitten den Text anhand des Patterns
+        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        $result = '';
+        foreach ($parts as $part) {
+            if (preg_match($pattern, $part)) {
+                $result .= '<mark class="px-0 py-0 bg-warning bg-opacity-50 rounded-1">' . e($part) . '</mark>';
+            } else {
+                $result .= e($part);
+            }
+        }
+
+        return $result;
+    }
+@endphp
 <div class="container-fluid py-3">
 
     {{-- Kopfzeile --}}
@@ -119,6 +157,11 @@
                             $matchInfo = json_decode($buchung->match_info, true) ?? [];
                             $score = $matchInfo['score'] ?? 0;
                             $isAuto = $buchung->match_status === 'matched';
+                            $empfaengerName = $rechnung
+                                ? ($rechnung->re_name ?: ($rechnung->rechnungsempfaenger?->name ?? ''))
+                                : '';
+                            $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
+                            $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
                         @endphp
                         <tr>
                             {{-- Buchung --}}
@@ -128,15 +171,20 @@
                                     {{ $buchung->gegenkonto_name ?: '–' }}
                                 </small>
                                 <div class="small text-muted mt-1" style="white-space: pre-wrap; word-break: break-word;">
-                                    {{ $buchung->verwendungszweck ?: '–' }}
+                                    {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
                                 </div>
                             </td>
 
                             {{-- Betrag --}}
                             <td>
-                                <span class="fw-bold text-success">
+                                <span class="fw-bold {{ $betragStimmt ? 'text-success' : 'text-danger' }}">
                                     {{ number_format($buchung->betrag, 2, ',', '.') }}€
                                 </span>
+                                @if(!$betragStimmt)
+                                    <div class="small text-danger">
+                                        <i class="bi bi-exclamation-triangle"></i> Differenz: {{ number_format($buchung->betrag - $rechnungsBetrag, 2, ',', '.') }}€
+                                    </div>
+                                @endif
                             </td>
 
                             {{-- Rechnung --}}
@@ -233,14 +281,22 @@
                 $matchInfo = json_decode($buchung->match_info, true) ?? [];
                 $score = $matchInfo['score'] ?? 0;
                 $isAuto = $buchung->match_status === 'matched';
+                $empfaengerName = $rechnung
+                    ? ($rechnung->re_name ?: ($rechnung->rechnungsempfaenger?->name ?? ''))
+                    : '';
+                $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
+                $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
             @endphp
             <div class="card mb-2">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <span class="fw-bold text-success fs-5">
+                            <span class="fw-bold {{ $betragStimmt ? 'text-success' : 'text-danger' }} fs-5">
                                 {{ number_format($buchung->betrag, 2, ',', '.') }}€
                             </span>
+                            @if(!$betragStimmt)
+                                <i class="bi bi-exclamation-triangle text-danger"></i>
+                            @endif
                             <span class="badge bg-{{ $isAuto ? 'primary' : 'info' }} ms-1">
                                 {{ $isAuto ? 'Auto' : 'Manuell' }}
                             </span>
@@ -274,7 +330,7 @@
 
                     {{-- Verwendungszweck --}}
                     <div class="small text-muted mt-2 p-2 bg-light rounded" style="white-space: pre-wrap; word-break: break-word;">
-                        {{ $buchung->verwendungszweck ?: '–' }}
+                        {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
                     </div>
 
                     <div class="d-flex justify-content-end gap-1 mt-2">
