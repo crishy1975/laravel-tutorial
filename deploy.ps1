@@ -56,10 +56,11 @@ $Accounts = @{
     }
 }
 
+# Dynamische Pfade - basierend auf Skript-Standort
 $GlobalConfig = @{
-    LOCAL_PATH    = "C:\Users\Christian\Documents\entwicklung\laravel-tutorial"
+    LOCAL_PATH    = $PSScriptRoot
     WINSCP_PATH   = "C:\Program Files (x86)\WinSCP\WinSCP.com"
-    IMPORT_PATH   = "C:\Users\Christian\Documents\entwicklung\laravel-tutorial\storage\import"
+    IMPORT_PATH   = Join-Path $PSScriptRoot "storage\import"
 }
 
 # ==============================================================================

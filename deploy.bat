@@ -13,8 +13,10 @@ REM ─────────────────────────�
 REM  KONFIGURATION
 REM ─────────────────────────────────────────────────────────────────────────────
 
-REM Lokaler Pfad
-set LOCAL_PATH=C:\Users\Christian\Documents\entwicklung\laravel-tutorial
+REM Dynamischer lokaler Pfad - basierend auf Skript-Standort
+set LOCAL_PATH=%~dp0
+REM Trailing Backslash entfernen
+if "%LOCAL_PATH:~-1%"=="\" set LOCAL_PATH=%LOCAL_PATH:~0,-1%
 
 REM WinSCP Pfad (Standard-Installation)
 set WINSCP_PATH="C:\Program Files (x86)\WinSCP\WinSCP.com"
