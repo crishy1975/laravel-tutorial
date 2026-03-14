@@ -17,11 +17,10 @@
     }
 
     /**
-     * Markiert Wörter im Text, die auch im Empfänger-Namen vorkommen.
-     * Optional: IBAN wird separat in anderer Farbe markiert.
-     * Ignoriert kurze Wörter (< 3 Zeichen) um Rauschen zu vermeiden.
+     * Markiert Wörter im Text die mit Empfänger, IBAN oder Rechnungsdaten übereinstimmen.
+     * Farben: Empfänger=gelb, IBAN=blau, Rechnung=grün
      */
-    function highlightMatchingWords(string $text, ?string $empfaenger, ?string $iban = null): string {
+    function highlightMatchingWords(string $text, ?string $empfaenger, ?string $iban = null, ?array $rechnungData = null): string {
         $text = cleanText($text);
         $empfaenger = cleanText($empfaenger);
 
@@ -29,9 +28,40 @@
             return '–';
         }
 
-        // === IBAN-Markierung (zuerst, da längster Match) ===
+        // === IBAN ===
         $ibanClean = str_replace(' ', '', trim($iban ?? ''));
         $hasIban = mb_strlen($ibanClean) >= 15;
+
+        // === Rechnungsdaten (Nummer, Betrag) ===
+        $rechnungPatterns = [];
+        if (!empty($rechnungData)) {
+            // Rechnungsnummer – auch Teile davon (z.B. "2024/0258" → suche "2024/0258", "2024" und "0258")
+            if (!empty($rechnungData['nummer'])) {
+                $nr = trim($rechnungData['nummer']);
+                $rechnungPatterns[] = preg_quote($nr, '/');
+                // Teile bei / oder - splitten
+                $nrParts = preg_split('/[\/-]/', $nr, -1, PREG_SPLIT_NO_EMPTY);
+                foreach ($nrParts as $part) {
+                    $part = trim($part);
+                    if (mb_strlen($part) >= 3) {
+                        $rechnungPatterns[] = preg_quote($part, '/');
+                    }
+                }
+            }
+            // Betrag als String (z.B. "228,77" oder "228.77")
+            if (!empty($rechnungData['betrag'])) {
+                $betrag = $rechnungData['betrag'];
+                // Komma-Format: 228,77
+                $betragKomma = number_format($betrag, 2, ',', '');
+                $rechnungPatterns[] = preg_quote($betragKomma, '/');
+                // Punkt-Format: 228.77
+                $betragPunkt = number_format($betrag, 2, '.', '');
+                if ($betragPunkt !== $betragKomma) {
+                    $rechnungPatterns[] = preg_quote($betragPunkt, '/');
+                }
+            }
+        }
+        $rechnungPatterns = array_unique($rechnungPatterns);
 
         // === Empfänger-Wörter ===
         $empfaengerWords = [];
@@ -41,22 +71,30 @@
             $empfaengerWords = array_values($empfaengerWords);
         }
 
-        // Kombiniertes Pattern bauen
-        $patterns = [];
+        // Alle Patterns kombinieren (längste zuerst für korrekte Treffer)
+        $allPatterns = [];
         if ($hasIban) {
-            $patterns[] = preg_quote($ibanClean, '/');
+            $allPatterns[] = preg_quote($ibanClean, '/');
         }
-        if (!empty($empfaengerWords)) {
-            foreach ($empfaengerWords as $w) {
-                $patterns[] = preg_quote($w, '/');
-            }
+        foreach ($rechnungPatterns as $rp) {
+            $allPatterns[] = $rp;
+        }
+        foreach ($empfaengerWords as $w) {
+            $allPatterns[] = preg_quote($w, '/');
         }
 
-        if (empty($patterns)) {
+        if (empty($allPatterns)) {
             return e($text);
         }
 
-        $pattern = '/(' . implode('|', $patterns) . ')/iu';
+        // Längste Patterns zuerst → verhindert Teilmatches
+        usort($allPatterns, fn($a, $b) => mb_strlen($b) - mb_strlen($a));
+        $allPatterns = array_unique($allPatterns);
+        $pattern = '/(' . implode('|', $allPatterns) . ')/iu';
+
+        // Hilfsfunktion: Kategorie bestimmen
+        $ibanPatternStr = $hasIban ? preg_quote($ibanClean, '/') : null;
+        $rechnungLookup = array_map(fn($p) => mb_strtoupper(stripslashes($p)), $rechnungPatterns);
 
         // Splitten und Treffer markieren
         $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
@@ -64,10 +102,17 @@
         $result = '';
         foreach ($parts as $part) {
             if (preg_match($pattern, $part)) {
-                // IBAN in anderer Farbe als Empfänger-Wörter
-                if ($hasIban && mb_strtoupper(str_replace(' ', '', $part)) === mb_strtoupper($ibanClean)) {
+                $upper = mb_strtoupper(str_replace(' ', '', $part));
+                // IBAN → blau
+                if ($hasIban && $upper === mb_strtoupper($ibanClean)) {
                     $result .= '<mark class="px-0 py-0 bg-info bg-opacity-50 rounded-1">' . e($part) . '</mark>';
-                } else {
+                }
+                // Rechnung → grün
+                elseif (in_array(mb_strtoupper($part), $rechnungLookup) || in_array(mb_strtoupper(str_replace(',', '.', $part)), $rechnungLookup)) {
+                    $result .= '<mark class="px-0 py-0 bg-success bg-opacity-50 rounded-1">' . e($part) . '</mark>';
+                }
+                // Empfänger → gelb
+                else {
                     $result .= '<mark class="px-0 py-0 bg-warning bg-opacity-50 rounded-1">' . e($part) . '</mark>';
                 }
             } else {
@@ -208,16 +253,20 @@
                             $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
                             $gegenIban = cleanText($buchung->gegenkonto_iban ?? '');
                             $ibanStimmt = !empty($gegenIban) && stripos($buchung->verwendungszweck ?? '', str_replace(' ', '', $gegenIban)) !== false;
+                            $rechnungData = $rechnung ? [
+                                'nummer' => $rechnung->rechnungsnummer,
+                                'betrag' => $rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe,
+                            ] : null;
                         @endphp
                         <tr class="{{ $buchung->is_verified ? 'table-success' : '' }}" id="row-{{ $buchung->id }}">
                             {{-- Buchung --}}
                             <td>
                                 <div class="fw-medium">{{ $buchung->buchungsdatum->format('d.m.Y') }}</div>
                                 <small class="text-muted">
-                                    {!! highlightMatchingWords($buchung->gegenkonto_name ?? '', $empfaengerName, $gegenIban) !!}
+                                    {!! highlightMatchingWords($buchung->gegenkonto_name ?? '', $empfaengerName, $gegenIban, $rechnungData) !!}
                                 </small>
                                 <div class="small text-muted mt-1" style="word-break: break-word;">
-                                    {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban) !!}
+                                    {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban, $rechnungData) !!}
                                 </div>
                             </td>
 
@@ -347,6 +396,10 @@
                 $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
                 $gegenIban = cleanText($buchung->gegenkonto_iban ?? '');
                 $ibanStimmt = !empty($gegenIban) && stripos($buchung->verwendungszweck ?? '', str_replace(' ', '', $gegenIban)) !== false;
+                $rechnungData = $rechnung ? [
+                    'nummer' => $rechnung->rechnungsnummer,
+                    'betrag' => $rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe,
+                ] : null;
             @endphp
             <div class="card mb-2 {{ $buchung->is_verified ? 'border-success' : '' }}" id="card-{{ $buchung->id }}">
                 <div class="card-body py-2 px-3 {{ $buchung->is_verified ? 'bg-success bg-opacity-10' : '' }}">
@@ -398,7 +451,7 @@
 
                     {{-- Verwendungszweck --}}
                     <div class="small text-muted mt-2 p-2 bg-light rounded" style="word-break: break-word;">
-                        {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban) !!}
+                        {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban, $rechnungData) !!}
                     </div>
 
                     <div class="d-flex justify-content-end gap-1 mt-2">
