@@ -286,20 +286,30 @@ class BankBuchungController extends Controller
             $query->where('match_status', $request->typ);
         }
 
+        // Filter: Geprüft / Ungeprüft
+        if ($request->filled('verified')) {
+            if ($request->verified === 'ja') {
+                $query->whereNotNull('verified_at');
+            } elseif ($request->verified === 'nein') {
+                $query->whereNull('verified_at');
+            }
+        }
+
         $buchungen = $query->paginate(50);
 
         // Session-Results (von Auto-Match)
         $newResults = session('match_results', []);
 
         // Statistiken
+        $matchedBase = BankBuchung::whereIn('match_status', ['matched', 'manual']);
         $stats = [
-            'gesamt'   => BankBuchung::whereIn('match_status', ['matched', 'manual'])->count(),
-            'auto'     => BankBuchung::where('match_status', 'matched')->count(),
-            'manuell'  => BankBuchung::where('match_status', 'manual')->count(),
-            'heute'    => BankBuchung::whereIn('match_status', ['matched', 'manual'])
-                ->whereDate('matched_at', today())->count(),
-            'summe'    => BankBuchung::whereIn('match_status', ['matched', 'manual'])
-                ->where('typ', 'CRDT')->sum('betrag'),
+            'gesamt'     => (clone $matchedBase)->count(),
+            'auto'       => BankBuchung::where('match_status', 'matched')->count(),
+            'manuell'    => BankBuchung::where('match_status', 'manual')->count(),
+            'heute'      => (clone $matchedBase)->whereDate('matched_at', today())->count(),
+            'summe'      => (clone $matchedBase)->where('typ', 'CRDT')->sum('betrag'),
+            'verified'   => (clone $matchedBase)->whereNotNull('verified_at')->count(),
+            'unverified' => (clone $matchedBase)->whereNull('verified_at')->count(),
         ];
 
         // Rechnungen als Map für schnellen Zugriff in der View
@@ -310,7 +320,7 @@ class BankBuchungController extends Controller
             'rechnungen' => $rechnungen,
             'newResults' => $newResults,
             'stats'      => $stats,
-            'filter'     => $request->only(['zeitraum', 'typ']),
+            'filter'     => $request->only(['zeitraum', 'typ', 'verified']),
         ]);
     }
 
