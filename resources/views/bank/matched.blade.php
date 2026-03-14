@@ -13,17 +13,18 @@
             return e($text ?: '–');
         }
 
-        // Empfänger in Wörter zerlegen, nur >= 3 Zeichen
-        $empfaengerWords = preg_split('/[\s\-\/.,;:]+/', $empfaenger, -1, PREG_SPLIT_NO_EMPTY);
+        // Empfänger in Wörter zerlegen – Anführungszeichen, Klammern, Punkte etc. entfernen
+        $empfaengerWords = preg_split('/[\s\-\/.,;:\"\'\"\"()\[\]{}#*+]+/u', $empfaenger, -1, PREG_SPLIT_NO_EMPTY);
         $empfaengerWords = array_filter($empfaengerWords, fn($w) => mb_strlen($w) >= 3);
+        $empfaengerWords = array_values($empfaengerWords);
 
         if (empty($empfaengerWords)) {
             return e($text);
         }
 
-        // Regex-Pattern bauen (case-insensitive)
+        // Regex-Pattern bauen (case-insensitive, ohne \b für bessere Trefferquote)
         $escaped = array_map(fn($w) => preg_quote($w, '/'), $empfaengerWords);
-        $pattern = '/\b(' . implode('|', $escaped) . ')\b/iu';
+        $pattern = '/(' . implode('|', $escaped) . ')/iu';
 
         // Zuerst escapen, dann Markierungen einfügen
         // Wir splitten den Text anhand des Patterns
