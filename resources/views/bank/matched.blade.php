@@ -5,10 +5,25 @@
 @section('content')
 @php
     /**
+     * Bereinigt Text: Trimmt, entfernt mehrfache Leerzeichen und überflüssige Zeilenumbrüche.
+     */
+    function cleanText(?string $text): string {
+        if (empty($text)) return '';
+        // Mehrfache Leerzeichen/Tabs → ein Leerzeichen
+        $text = preg_replace('/[^\S\n]+/', ' ', $text);
+        // Mehrfache Zeilenumbrüche → maximal einer
+        $text = preg_replace('/\n{2,}/', "\n", $text);
+        return trim($text);
+    }
+
+    /**
      * Markiert Wörter im Text, die auch im Empfänger-Namen vorkommen.
      * Ignoriert kurze Wörter (< 3 Zeichen) um Rauschen zu vermeiden.
      */
     function highlightMatchingWords(string $text, ?string $empfaenger): string {
+        $text = cleanText($text);
+        $empfaenger = cleanText($empfaenger);
+
         if (empty($empfaenger) || empty($text)) {
             return e($text ?: '–');
         }
@@ -26,8 +41,7 @@
         $escaped = array_map(fn($w) => preg_quote($w, '/'), $empfaengerWords);
         $pattern = '/(' . implode('|', $escaped) . ')/iu';
 
-        // Zuerst escapen, dann Markierungen einfügen
-        // Wir splitten den Text anhand des Patterns
+        // Splitten und Treffer markieren
         $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
 
         $result = '';
@@ -176,9 +190,9 @@
                             <td>
                                 <div class="fw-medium">{{ $buchung->buchungsdatum->format('d.m.Y') }}</div>
                                 <small class="text-muted">
-                                    {{ $buchung->gegenkonto_name ?: '–' }}
+                                    {{ cleanText($buchung->gegenkonto_name) ?: '–' }}
                                 </small>
-                                <div class="small text-muted mt-1" style="white-space: pre-wrap; word-break: break-word;">
+                                <div class="small text-muted mt-1" style="word-break: break-word;">
                                     {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
                                 </div>
                             </td>
@@ -343,7 +357,7 @@
                     </div>
 
                     {{-- Verwendungszweck --}}
-                    <div class="small text-muted mt-2 p-2 bg-light rounded" style="white-space: pre-wrap; word-break: break-word;">
+                    <div class="small text-muted mt-2 p-2 bg-light rounded" style="word-break: break-word;">
                         {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
                     </div>
 
