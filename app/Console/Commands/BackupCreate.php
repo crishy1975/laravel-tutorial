@@ -136,94 +136,97 @@ class BackupCreate extends Command
     /**
      * Datenbank mit PHP exportieren (ohne exec/mysqldump)
      */
-    private function exportDatabase(): string
-    {
-        $sql = "-- Backup erstellt am " . now()->format('Y-m-d H:i:s') . "\n";
-        $sql .= "-- PHP-basierter Export\n\n";
-        $sql .= "SET FOREIGN_KEY_CHECKS=0;\n";
-        $sql .= "SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\n\n";
+/**
+ * Datenbank mit PHP exportieren (ohne exec/mysqldump)
+ */
+private function exportDatabase(): string
+{
+    $sql = "-- Backup erstellt am " . now()->format('Y-m-d H:i:s') . "\n";
+    $sql .= "-- PHP-basierter Export\n\n";
+    $sql .= "SET FOREIGN_KEY_CHECKS=0;\n";
+    $sql .= "SET SQL_MODE='NO_AUTO_VALUE_ON_ZERO';\n\n";
 
-        $dbName = config('database.connections.mysql.database');
+    $dbName = config('database.connections.mysql.database');
 
-        // Alle Tabellen UND Views holen mit Typ-Information
-        $tablesAndViews = DB::select("
+    // Alle Tabellen UND Views holen mit Typ-Information
+    $tablesAndViews = DB::select("
         SELECT TABLE_NAME, TABLE_TYPE 
         FROM information_schema.TABLES 
         WHERE TABLE_SCHEMA = ?
         ORDER BY TABLE_TYPE DESC, TABLE_NAME
     ", [$dbName]);
 
-        // Erst Tabellen exportieren
-        foreach ($tablesAndViews as $item) {
-            $tableName = $item->TABLE_NAME;
-            $isView = ($item->TABLE_TYPE === 'VIEW');
+    // Erst Tabellen exportieren
+    foreach ($tablesAndViews as $item) {
+        $tableName = $item->TABLE_NAME;
+        $isView = ($item->TABLE_TYPE === 'VIEW');
 
-            if ($isView) {
-                continue; // Views später
-            }
+        if ($isView) {
+            continue; // Views später
+        }
 
-            $this->line("  → Exportiere Tabelle: {$tableName}");
+        $this->line("  → Exportiere Tabelle: {$tableName}");
 
-            // CREATE TABLE Statement
-            $createTable = DB::select("SHOW CREATE TABLE `{$tableName}`");
-            $sql .= "-- Tabelle: {$tableName}\n";
-            $sql .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
-            $sql .= $createTable[0]->{'Create Table'} . ";\n\n";
+        // CREATE TABLE Statement
+        $createTable = DB::select("SHOW CREATE TABLE `{$tableName}`");
+        $sql .= "-- Tabelle: {$tableName}\n";
+        $sql .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
+        $sql .= $createTable[0]->{'Create Table'} . ";\n\n";
 
-            // Daten exportieren
-            $rows = DB::table($tableName)->get();
-
-            if ($rows->count() > 0) {
-                $columns = array_keys((array) $rows->first());
-                $columnList = '`' . implode('`, `', $columns) . '`';
-
-                $sql .= "-- Daten für {$tableName}\n";
-
-                // Batch-Insert für bessere Performance
-                $batchSize = 100;
-                $batches = $rows->chunk($batchSize);
-
-                foreach ($batches as $batch) {
-                    $values = [];
-                    foreach ($batch as $row) {
-                        $rowValues = [];
-                        foreach ((array) $row as $value) {
-                            if ($value === null) {
-                                $rowValues[] = 'NULL';
-                            } elseif (is_array($value) || is_object($value)) {
-                                $rowValues[] = "'" . addslashes(json_encode($value)) . "'";
-                            } else {
-                                $rowValues[] = "'" . addslashes((string) $value) . "'";
-                            }
+        // Daten exportieren
+        $rows = DB::table($tableName)->get();
+        
+        if ($rows->count() > 0) {
+            $columns = array_keys((array) $rows->first());
+            $columnList = '`' . implode('`, `', $columns) . '`';
+            
+            $sql .= "-- Daten für {$tableName}\n";
+            
+            // Batch-Insert für bessere Performance
+            $batchSize = 100;
+            $batches = $rows->chunk($batchSize);
+            
+            foreach ($batches as $batch) {
+                $values = [];
+                foreach ($batch as $row) {
+                    $rowValues = [];
+                    foreach ((array) $row as $value) {
+                        if ($value === null) {
+                            $rowValues[] = 'NULL';
+                        } elseif (is_array($value) || is_object($value)) {
+                            $rowValues[] = "'" . addslashes(json_encode($value)) . "'";
+                        } else {
+                            $rowValues[] = "'" . addslashes((string) $value) . "'";
                         }
-                        $values[] = '(' . implode(', ', $rowValues) . ')';
                     }
-                    $sql .= "INSERT INTO `{$tableName}` ({$columnList}) VALUES\n";
-                    $sql .= implode(",\n", $values) . ";\n";
+                    $values[] = '(' . implode(', ', $rowValues) . ')';
                 }
-                $sql .= "\n";
+                $sql .= "INSERT INTO `{$tableName}` ({$columnList}) VALUES\n";
+                $sql .= implode(",\n", $values) . ";\n";
             }
+            $sql .= "\n";
         }
-
-        // Dann Views exportieren
-        foreach ($tablesAndViews as $item) {
-            if ($item->TABLE_TYPE !== 'VIEW') {
-                continue;
-            }
-
-            $viewName = $item->TABLE_NAME;
-            $this->line("  → Exportiere View: {$viewName}");
-
-            $createView = DB::select("SHOW CREATE VIEW `{$viewName}`");
-            $sql .= "-- View: {$viewName}\n";
-            $sql .= "DROP VIEW IF EXISTS `{$viewName}`;\n";
-            $sql .= $createView[0]->{'Create View'} . ";\n\n";
-        }
-
-        $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
-
-        return $sql;
     }
+
+    // Dann Views exportieren
+    foreach ($tablesAndViews as $item) {
+        if ($item->TABLE_TYPE !== 'VIEW') {
+            continue;
+        }
+
+        $viewName = $item->TABLE_NAME;
+        $this->line("  → Exportiere View: {$viewName}");
+
+        $createView = DB::select("SHOW CREATE VIEW `{$viewName}`");
+        $sql .= "-- View: {$viewName}\n";
+        $sql .= "DROP VIEW IF EXISTS `{$viewName}`;\n";
+        $sql .= $createView[0]->{'Create View'} . ";\n\n";
+    }
+
+    $sql .= "SET FOREIGN_KEY_CHECKS=1;\n";
+
+    return $sql;
+}
 
     /**
      * Alte Backups löschen (älter als 30 Tage)
