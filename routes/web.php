@@ -320,7 +320,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/{buchung}/match', [BankBuchungController::class, 'match'])->name('match');
         Route::delete('/{buchung}/unmatch', [BankBuchungController::class, 'unmatch'])->name('unmatch');
         Route::post('/{buchung}/ignore', [BankBuchungController::class, 'ignore'])->name('ignore');
-        Route::post('/{buchung}/verify', [BankController::class, 'toggleVerify'])->name('bank.verify');
+        Route::post('/{buchung}/verify', [BankBuchungController::class, 'toggleVerify'])->name('bank.verify');
     });
 
 
