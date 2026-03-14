@@ -53,8 +53,8 @@ class BankBuchungController extends Controller
             $suche = $request->suche;
             $query->where(function ($q) use ($suche) {
                 $q->where('verwendungszweck', 'like', "%{$suche}%")
-                  ->orWhere('gegenkonto_name', 'like', "%{$suche}%")
-                  ->orWhere('gegenkonto_iban', 'like', "%{$suche}%");
+                    ->orWhere('gegenkonto_name', 'like', "%{$suche}%")
+                    ->orWhere('gegenkonto_iban', 'like', "%{$suche}%");
             });
         }
 
@@ -117,7 +117,6 @@ class BankBuchungController extends Controller
                 return back()
                     ->with('warning', $result['message']);
             }
-
         } catch (\Exception $e) {
             Log::error('Bank-Import Fehler', [
                 'datei' => $file->getClientOriginalName(),
@@ -141,7 +140,7 @@ class BankBuchungController extends Controller
 
         // Potenzielle Matches mit Scoring
         $potentielleMatches = collect();
-        
+
         if ($buchung->typ === 'CRDT' && $buchung->match_status === 'unmatched') {
             $potentielleMatches = $this->matchingService->findMatches($buchung, 15, $includePaid);
         }
@@ -196,7 +195,7 @@ class BankBuchungController extends Controller
                 $result['score']
             );
         }
-        
+
         if ($saveIban && $buchung->gegenkonto_iban && $rechnung->gebaeude_id) {
             $message .= ' IBAN wurde gespeichert.';
         }
@@ -210,7 +209,7 @@ class BankBuchungController extends Controller
     public function unmatch(BankBuchung $buchung)
     {
         $rechnungNr = $buchung->rechnung?->rechnungsnummer ?? '?';
-        
+
         $buchung->rechnung_id = null;
         $buchung->match_status = 'unmatched';
         $buchung->match_info = null;
@@ -298,9 +297,9 @@ class BankBuchungController extends Controller
             'auto'     => BankBuchung::where('match_status', 'matched')->count(),
             'manuell'  => BankBuchung::where('match_status', 'manual')->count(),
             'heute'    => BankBuchung::whereIn('match_status', ['matched', 'manual'])
-                            ->whereDate('matched_at', today())->count(),
+                ->whereDate('matched_at', today())->count(),
             'summe'    => BankBuchung::whereIn('match_status', ['matched', 'manual'])
-                            ->where('typ', 'CRDT')->sum('betrag'),
+                ->where('typ', 'CRDT')->sum('betrag'),
         ];
 
         // Rechnungen als Map für schnellen Zugriff in der View
@@ -375,7 +374,7 @@ class BankBuchungController extends Controller
     public function autoMatchProgress(Request $request)
     {
         $jahr = (int) $request->input('jahr', now()->year);
-        
+
         $total = BankBuchung::where('match_status', 'unmatched')
             ->where('typ', 'CRDT')
             ->count();
@@ -416,15 +415,15 @@ class BankBuchungController extends Controller
 
         foreach ($buchungen as $buchung) {
             $newLastId = $buchung->id;  // Letzte geprüfte ID
-            
+
             // ⭐ Jahr an tryAutoMatch übergeben
             $result = $this->matchingService->tryAutoMatch($buchung, $jahr);
 
             if ($result['matched'] && $result['rechnung']) {
                 $this->matchingService->executeMatch(
-                    $buchung, 
-                    $result['rechnung'], 
-                    $result['score'], 
+                    $buchung,
+                    $result['rechnung'],
+                    $result['score'],
                     $result['details']
                 );
                 $matched++;
@@ -527,7 +526,7 @@ class BankBuchungController extends Controller
     public function resetConfig()
     {
         $config = BankMatchingConfig::getConfig();
-        
+
         $config->update([
             'score_iban_match'         => 100,
             'score_cig_match'          => 80,
@@ -548,5 +547,15 @@ class BankBuchungController extends Controller
         return redirect()
             ->route('bank.config')
             ->with('success', 'Konfiguration auf Standard-Werte zurückgesetzt.');
+    }
+
+    public function toggleVerify(BankBuchung $buchung)
+    {
+        $buchung->toggleVerified();
+
+        return response()->json([
+            'verified'    => $buchung->is_verified,
+            'verified_at' => $buchung->verified_at?->format('d.m.Y H:i'),
+        ]);
     }
 }
