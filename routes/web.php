@@ -400,6 +400,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/{backup}/log', [BackupController::class, 'log'])->name('log');
         Route::delete('/{backup}', [BackupController::class, 'destroy'])->name('destroy');
         Route::post('/cleanup', [BackupController::class, 'cleanup'])->name('cleanup');
+        Route::post('/backup/download-multiple', [BackupController::class, 'downloadMultiple'])->name('backup.downloadMultiple');
+        Route::post('/backup/delete-multiple', [BackupController::class, 'deleteMultiple'])->name('backup.deleteMultiple');
     });
 
 
@@ -438,7 +440,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'portrait')->setOption('defaultFont', 'DejaVu Sans');
         return $pdf->stream('test.pdf');
     });
-
 }); // Ende Admin-Gruppe
 
 
