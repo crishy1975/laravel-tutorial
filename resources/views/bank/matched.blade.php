@@ -18,28 +18,45 @@
 
     /**
      * Markiert Wörter im Text, die auch im Empfänger-Namen vorkommen.
+     * Optional: IBAN wird separat in anderer Farbe markiert.
      * Ignoriert kurze Wörter (< 3 Zeichen) um Rauschen zu vermeiden.
      */
-    function highlightMatchingWords(string $text, ?string $empfaenger): string {
+    function highlightMatchingWords(string $text, ?string $empfaenger, ?string $iban = null): string {
         $text = cleanText($text);
         $empfaenger = cleanText($empfaenger);
 
-        if (empty($empfaenger) || empty($text)) {
-            return e($text ?: '–');
+        if (empty($text)) {
+            return '–';
         }
 
-        // Empfänger in Wörter zerlegen – Anführungszeichen, Klammern, Punkte etc. entfernen
-        $empfaengerWords = preg_split('/[\s\-\/.,;:\"\'\"\"()\[\]{}#*+]+/u', $empfaenger, -1, PREG_SPLIT_NO_EMPTY);
-        $empfaengerWords = array_filter($empfaengerWords, fn($w) => mb_strlen($w) >= 3);
-        $empfaengerWords = array_values($empfaengerWords);
+        // === IBAN-Markierung (zuerst, da längster Match) ===
+        $ibanClean = str_replace(' ', '', trim($iban ?? ''));
+        $hasIban = mb_strlen($ibanClean) >= 15;
 
-        if (empty($empfaengerWords)) {
+        // === Empfänger-Wörter ===
+        $empfaengerWords = [];
+        if (!empty($empfaenger)) {
+            $empfaengerWords = preg_split('/[\s\-\/.,;:\"\'\"\"()\[\]{}#*+]+/u', $empfaenger, -1, PREG_SPLIT_NO_EMPTY);
+            $empfaengerWords = array_filter($empfaengerWords, fn($w) => mb_strlen($w) >= 3);
+            $empfaengerWords = array_values($empfaengerWords);
+        }
+
+        // Kombiniertes Pattern bauen
+        $patterns = [];
+        if ($hasIban) {
+            $patterns[] = preg_quote($ibanClean, '/');
+        }
+        if (!empty($empfaengerWords)) {
+            foreach ($empfaengerWords as $w) {
+                $patterns[] = preg_quote($w, '/');
+            }
+        }
+
+        if (empty($patterns)) {
             return e($text);
         }
 
-        // Regex-Pattern bauen (case-insensitive, ohne \b für bessere Trefferquote)
-        $escaped = array_map(fn($w) => preg_quote($w, '/'), $empfaengerWords);
-        $pattern = '/(' . implode('|', $escaped) . ')/iu';
+        $pattern = '/(' . implode('|', $patterns) . ')/iu';
 
         // Splitten und Treffer markieren
         $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
@@ -47,7 +64,12 @@
         $result = '';
         foreach ($parts as $part) {
             if (preg_match($pattern, $part)) {
-                $result .= '<mark class="px-0 py-0 bg-warning bg-opacity-50 rounded-1">' . e($part) . '</mark>';
+                // IBAN in anderer Farbe als Empfänger-Wörter
+                if ($hasIban && mb_strtoupper(str_replace(' ', '', $part)) === mb_strtoupper($ibanClean)) {
+                    $result .= '<mark class="px-0 py-0 bg-info bg-opacity-50 rounded-1">' . e($part) . '</mark>';
+                } else {
+                    $result .= '<mark class="px-0 py-0 bg-warning bg-opacity-50 rounded-1">' . e($part) . '</mark>';
+                }
             } else {
                 $result .= e($part);
             }
@@ -192,10 +214,10 @@
                             <td>
                                 <div class="fw-medium">{{ $buchung->buchungsdatum->format('d.m.Y') }}</div>
                                 <small class="text-muted">
-                                    {!! highlightMatchingWords($buchung->gegenkonto_name ?? '', $empfaengerName) !!}
+                                    {!! highlightMatchingWords($buchung->gegenkonto_name ?? '', $empfaengerName, $gegenIban) !!}
                                 </small>
                                 <div class="small text-muted mt-1" style="word-break: break-word;">
-                                    {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
+                                    {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban) !!}
                                 </div>
                             </td>
 
@@ -376,7 +398,7 @@
 
                     {{-- Verwendungszweck --}}
                     <div class="small text-muted mt-2 p-2 bg-light rounded" style="word-break: break-word;">
-                        {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName) !!}
+                        {!! highlightMatchingWords($buchung->verwendungszweck ?? '', $empfaengerName, $gegenIban) !!}
                     </div>
 
                     <div class="d-flex justify-content-end gap-1 mt-2">
