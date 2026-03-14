@@ -400,8 +400,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/{backup}/log', [BackupController::class, 'log'])->name('log');
         Route::delete('/{backup}', [BackupController::class, 'destroy'])->name('destroy');
         Route::post('/cleanup', [BackupController::class, 'cleanup'])->name('cleanup');
-        Route::post('/backup/download-multiple', [BackupController::class, 'downloadMultiple'])->name('backup.downloadMultiple');
-        Route::post('/backup/delete-multiple', [BackupController::class, 'deleteMultiple'])->name('backup.deleteMultiple');
+
+        // Massenaktionen
+        Route::post('/download-multiple', [BackupController::class, 'downloadMultiple'])->name('downloadMultiple');
+        Route::post('/delete-multiple', [BackupController::class, 'deleteMultiple'])->name('deleteMultiple');
     });
 
 
