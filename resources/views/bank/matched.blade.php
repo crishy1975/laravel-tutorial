@@ -244,6 +244,12 @@
                             {{-- Aktionen --}}
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm">
+                                    <button type="button" 
+                                            class="btn btn-{{ $buchung->is_verified ? 'success' : 'outline-secondary' }} btn-verify"
+                                            data-id="{{ $buchung->id }}"
+                                            title="{{ $buchung->is_verified ? 'Geprüft ✓' : 'Als geprüft markieren' }}">
+                                        <i class="bi bi-{{ $buchung->is_verified ? 'check-circle-fill' : 'check-circle' }}"></i>
+                                    </button>
                                     <a href="{{ route('bank.show', $buchung->id) }}" class="btn btn-outline-primary" title="Details">
                                         <i class="bi bi-eye"></i>
                                     </a>
@@ -335,6 +341,12 @@
                     </div>
 
                     <div class="d-flex justify-content-end gap-1 mt-2">
+                        <button type="button" 
+                                class="btn btn-sm btn-{{ $buchung->is_verified ? 'success' : 'outline-secondary' }} btn-verify"
+                                data-id="{{ $buchung->id }}"
+                                title="{{ $buchung->is_verified ? 'Geprüft ✓' : 'Als geprüft markieren' }}">
+                            <i class="bi bi-{{ $buchung->is_verified ? 'check-circle-fill' : 'check-circle' }}"></i>
+                        </button>
                         <a href="{{ route('bank.show', $buchung->id) }}" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i>
                         </a>
@@ -368,4 +380,43 @@
     @endif
 
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-verify');
+        if (!btn) return;
+
+        const id = btn.dataset.id;
+        btn.disabled = true;
+
+        fetch(`/bank/${id}/verify`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+        })
+        .then(r => r.json())
+        .then(data => {
+            const icon = btn.querySelector('i');
+            if (data.verified) {
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-success');
+                btn.title = 'Geprüft ✓';
+                icon.classList.remove('bi-check-circle');
+                icon.classList.add('bi-check-circle-fill');
+            } else {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+                btn.title = 'Als geprüft markieren';
+                icon.classList.remove('bi-check-circle-fill');
+                icon.classList.add('bi-check-circle');
+            }
+        })
+        .catch(() => alert('Fehler beim Speichern'))
+        .finally(() => btn.disabled = false);
+    });
+</script>
+@endpush
 @endsection

@@ -33,6 +33,7 @@ class BankBuchung extends Model
         'match_info',
         'matched_at',
         'bemerkung',
+        'verified_at',
     ];
 
     protected $casts = [
@@ -41,6 +42,7 @@ class BankBuchung extends Model
         'valutadatum'    => 'date',
         'import_datum'   => 'datetime',
         'matched_at'     => 'datetime',
+        'verified_at'    => 'datetime',
     ];
 
     // =========================================================================
@@ -155,6 +157,23 @@ class BankBuchung extends Model
             'ignored' => '<span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Ignoriert</span>',
             default   => '<span class="badge bg-light text-dark"><i class="bi bi-question-circle"></i> Offen</span>',
         };
+    }
+
+    /**
+     * Ist die Zuordnung manuell geprüft?
+     */
+    public function getIsVerifiedAttribute(): bool
+    {
+        return $this->verified_at !== null;
+    }
+
+    /**
+     * Verified-Status umschalten
+     */
+    public function toggleVerified(): void
+    {
+        $this->verified_at = $this->is_verified ? null : now();
+        $this->save();
     }
 
     /**
