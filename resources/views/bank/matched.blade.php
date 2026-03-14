@@ -388,16 +388,21 @@
         if (!btn) return;
 
         const id = btn.dataset.id;
+        const url = '{{ route("bank.verify", ":id") }}'.replace(':id', id);
         btn.disabled = true;
 
-        fetch(`/bank/${id}/verify`, {
+        fetch(url, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
                 'Accept': 'application/json',
+                'Content-Type': 'application/json',
             },
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Status ' + r.status);
+            return r.json();
+        })
         .then(data => {
             const icon = btn.querySelector('i');
             if (data.verified) {
@@ -414,7 +419,10 @@
                 icon.classList.add('bi-check-circle');
             }
         })
-        .catch(() => alert('Fehler beim Speichern'))
+        .catch(err => {
+            console.error('Verify-Fehler:', err);
+            alert('Fehler beim Speichern: ' + err.message);
+        })
         .finally(() => btn.disabled = false);
     });
 </script>
