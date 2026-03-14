@@ -124,7 +124,14 @@
                         <option value="manual" {{ ($filter['typ'] ?? '') === 'manual' ? 'selected' : '' }}>Manuell</option>
                     </select>
                 </div>
-                @if(!empty($filter['zeitraum']) || !empty($filter['typ']))
+                <div class="col-auto">
+                    <select name="verified" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">Alle Status</option>
+                        <option value="ja" {{ ($filter['verified'] ?? '') === 'ja' ? 'selected' : '' }}>✓ Geprüft</option>
+                        <option value="nein" {{ ($filter['verified'] ?? '') === 'nein' ? 'selected' : '' }}>✗ Ungeprüft</option>
+                    </select>
+                </div>
+                @if(!empty($filter['zeitraum']) || !empty($filter['typ']) || !empty($filter['verified']))
                     <div class="col-auto">
                         <a href="{{ route('bank.matched') }}" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-x"></i> Reset
@@ -164,7 +171,7 @@
                             $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
                             $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
                         @endphp
-                        <tr>
+                        <tr class="{{ $buchung->is_verified ? 'table-success' : '' }}" id="row-{{ $buchung->id }}">
                             {{-- Buchung --}}
                             <td>
                                 <div class="fw-medium">{{ $buchung->buchungsdatum->format('d.m.Y') }}</div>
@@ -294,8 +301,8 @@
                 $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
                 $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
             @endphp
-            <div class="card mb-2">
-                <div class="card-body py-2 px-3">
+            <div class="card mb-2 {{ $buchung->is_verified ? 'border-success' : '' }}" id="card-{{ $buchung->id }}">
+                <div class="card-body py-2 px-3 {{ $buchung->is_verified ? 'bg-success bg-opacity-10' : '' }}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
                             <span class="fw-bold {{ $betragStimmt ? 'text-success' : 'text-danger' }} fs-5">
@@ -405,18 +412,30 @@
         })
         .then(data => {
             const icon = btn.querySelector('i');
+            const row = document.getElementById('row-' + id);
+            const card = document.getElementById('card-' + id);
+            const cardBody = card?.querySelector('.card-body');
+
             if (data.verified) {
                 btn.classList.remove('btn-outline-secondary');
                 btn.classList.add('btn-success');
                 btn.title = 'Geprüft ✓';
                 icon.classList.remove('bi-check-circle');
                 icon.classList.add('bi-check-circle-fill');
+                // Zeile/Karte grün markieren
+                row?.classList.add('table-success');
+                card?.classList.add('border-success');
+                cardBody?.classList.add('bg-success', 'bg-opacity-10');
             } else {
                 btn.classList.remove('btn-success');
                 btn.classList.add('btn-outline-secondary');
                 btn.title = 'Als geprüft markieren';
                 icon.classList.remove('bi-check-circle-fill');
                 icon.classList.add('bi-check-circle');
+                // Farbe entfernen
+                row?.classList.remove('table-success');
+                card?.classList.remove('border-success');
+                cardBody?.classList.remove('bg-success', 'bg-opacity-10');
             }
         })
         .catch(err => {
