@@ -184,6 +184,8 @@
                                 : '';
                             $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
                             $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
+                            $gegenIban = cleanText($buchung->gegenkonto_iban ?? '');
+                            $ibanStimmt = !empty($gegenIban) && stripos($buchung->verwendungszweck ?? '', str_replace(' ', '', $gegenIban)) !== false;
                         @endphp
                         <tr class="{{ $buchung->is_verified ? 'table-success' : '' }}" id="row-{{ $buchung->id }}">
                             {{-- Buchung --}}
@@ -234,6 +236,13 @@
                                     @endif
                                 @else
                                     <span class="text-muted">–</span>
+                                @endif
+                                @if($gegenIban)
+                                    <div class="small mt-1">
+                                        <code class="{{ $ibanStimmt ? 'text-success' : 'text-muted' }}">
+                                            <i class="bi bi-bank"></i> {{ $gegenIban }}
+                                        </code>
+                                    </div>
                                 @endif
                             </td>
 
@@ -314,6 +323,8 @@
                     : '';
                 $rechnungsBetrag = $rechnung ? ($rechnung->erwarteter_zahlbetrag ?? $rechnung->brutto_summe) : null;
                 $betragStimmt = $rechnungsBetrag === null || abs($buchung->betrag - $rechnungsBetrag) < 0.01;
+                $gegenIban = cleanText($buchung->gegenkonto_iban ?? '');
+                $ibanStimmt = !empty($gegenIban) && stripos($buchung->verwendungszweck ?? '', str_replace(' ', '', $gegenIban)) !== false;
             @endphp
             <div class="card mb-2 {{ $buchung->is_verified ? 'border-success' : '' }}" id="card-{{ $buchung->id }}">
                 <div class="card-body py-2 px-3 {{ $buchung->is_verified ? 'bg-success bg-opacity-10' : '' }}">
@@ -349,6 +360,13 @@
                             <i class="bi bi-person"></i>
                             {{ $rechnung->re_name ?: ($rechnung->rechnungsempfaenger?->name ?? '–') }}
                         </div>
+                        @if($gegenIban)
+                            <div class="small mt-1">
+                                <code class="{{ $ibanStimmt ? 'text-success' : 'text-muted' }}">
+                                    <i class="bi bi-bank"></i> {{ $gegenIban }}
+                                </code>
+                            </div>
+                        @endif
                     @endif
 
                     <div class="small text-muted mt-1">
