@@ -34,17 +34,29 @@
 
         // === Rechnungsdaten (Nummer, Betrag) ===
         $rechnungPatterns = [];
+        $rechnungContextPatterns = []; // Patterns die Kontext brauchen (Ft/FATT davor)
         if (!empty($rechnungData)) {
-            // Rechnungsnummer – auch Teile davon (z.B. "2024/0258" → suche "2024/0258", "2024" und "0258")
+            // Rechnungsnummer – auch Teile davon (z.B. "2025/0520")
             if (!empty($rechnungData['nummer'])) {
                 $nr = trim($rechnungData['nummer']);
+                // Ganze Nummer immer suchen (z.B. "2025/0520")
                 $rechnungPatterns[] = preg_quote($nr, '/');
+
                 // Teile bei / oder - splitten
                 $nrParts = preg_split('/[\/-]/', $nr, -1, PREG_SPLIT_NO_EMPTY);
                 foreach ($nrParts as $part) {
                     $part = trim($part);
-                    if (mb_strlen($part) >= 3) {
-                        $rechnungPatterns[] = preg_quote($part, '/');
+                    if (mb_strlen($part) < 3) continue;
+
+                    // Reine Jahreszahlen (2020-2030) überspringen – matchen sonst Datumsfelder
+                    if (preg_match('/^(20[2-3]\d)$/', $part)) continue;
+
+                    $rechnungPatterns[] = preg_quote($part, '/');
+
+                    // Variante ohne führende Nullen (0520 → 520) für "Ft 520" etc.
+                    $ohneNull = ltrim($part, '0');
+                    if ($ohneNull !== $part && mb_strlen($ohneNull) >= 3) {
+                        $rechnungPatterns[] = preg_quote($ohneNull, '/');
                     }
                 }
             }
