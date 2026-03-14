@@ -154,4 +154,4 @@ while ($true) {
     
     # Warten
     Start-Sleep -Seconds ([int]($Minutes * 60))
-}
+} 

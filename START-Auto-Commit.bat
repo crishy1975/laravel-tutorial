@@ -1,5 +1,5 @@
 @echo off
-title Git Auto-Commit - UschiWeb
+title Git Auto-Commit & Sync - UschiWeb
 chcp 65001 >nul 2>&1
 
 :: ============================================
@@ -11,13 +11,13 @@ chcp 65001 >nul 2>&1
 set "PROJECT_DIR=%~dp0"
 if exist "%PROJECT_DIR%.git" (
     echo [OK] Projekt gefunden: %PROJECT_DIR%
-    goto :START
+    goto :FOUND
 )
 
 :: 2) Pruefen ob git-auto-commit.ps1 im gleichen Ordner liegt
 if exist "%PROJECT_DIR%git-auto-commit.ps1" (
     echo [OK] Script gefunden in: %PROJECT_DIR%
-    goto :START
+    goto :FOUND
 )
 
 :: 3) Bekannte Pfade pruefen
@@ -30,7 +30,7 @@ for %%P in (
     if exist "%%~P\.git" (
         set "PROJECT_DIR=%%~P\"
         echo [OK] Projekt gefunden: %%~P
-        goto :START
+        goto :FOUND
     )
 )
 
@@ -57,7 +57,7 @@ if not exist "%PROJECT_DIR%.git" (
     exit /b 1
 )
 
-:START
+:FOUND
 :: In Projektordner wechseln
 cd /d "%PROJECT_DIR%"
 
@@ -72,9 +72,25 @@ if not exist "%PROJECT_DIR%git-auto-commit.ps1" (
     exit /b 1
 )
 
+:: ============================================
+:: Sync-Modus abfragen
+:: ============================================
+echo.
+echo  ============================================
+echo   Modus waehlen:
+echo  ============================================
+echo.
+echo   [1] Mit Sync   (Commit + Pull + Push)
+echo   [2] Nur lokal  (Commit ohne Push/Pull)
+echo.
+set /p "MODE=  Auswahl (1/2): "
+
+set "SYNC_FLAG="
+if "%MODE%"=="2" set "SYNC_FLAG=-NoSync"
+
 :: Script starten
 echo.
 echo  Starte Auto-Commit in: %PROJECT_DIR%
 echo.
-powershell -ExecutionPolicy Bypass -File "%PROJECT_DIR%git-auto-commit.ps1" -Minutes 1
+powershell -ExecutionPolicy Bypass -File "%PROJECT_DIR%git-auto-commit.ps1" -Minutes 1 %SYNC_FLAG%
 pause
