@@ -75,12 +75,14 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
     Route::get('/edit/{id}', MessungEdit::class)->name('edit');
     Route::get('/import', ImportMessungen::class)->name('import');
 
+    // Foto-Extraktion (Claude Vision API)
+    Route::post('/extract-from-photo', [\App\Http\Controllers\ExtractMessungController::class, 'extract'])->name('extract-from-photo');
+
     // Anlagen
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
     Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
     Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
 });
-
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
