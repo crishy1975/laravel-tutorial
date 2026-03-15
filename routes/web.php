@@ -66,13 +66,19 @@ Route::middleware(['auth', 'mitarbeiter'])->prefix('mitarbeiter')->name('mitarbe
 // ═══════════════════════════════════════════════════════════════════════════════
 
 Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(function () {
+
+    // Messungen
+    Route::get('/', MessungenListe::class)->name('index');
+    Route::get('/neu/{kodex?}', MessungEdit::class)->name('neu');
+    Route::get('/edit/{id}', MessungEdit::class)->name('edit');
+    Route::get('/import', ImportMessungen::class)->name('import');
+
+    // Anlagen
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
     Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
     Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
-
-    // Messdaten-Import (URL: /messungen/import)
-    Route::get('/import', ImportMessungen::class)->name('import');
 });
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
