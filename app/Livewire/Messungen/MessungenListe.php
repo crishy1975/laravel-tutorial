@@ -38,6 +38,8 @@ class MessungenListe extends Component
     public $anlageSearchNummer = '';
     public $anlageSearchName = '';
     public $anlageSearchResults = [];
+    public $anlageSearchPage = 1;
+    public $anlageSearchTotal = 0;
 
     protected $queryString = [
         'filterKodex' => ['except' => ''],
@@ -112,9 +114,43 @@ class MessungenListe extends Component
         $this->anlageSearchNummer = '';
         $this->anlageSearchName = '';
         $this->anlageSearchResults = [];
+        $this->anlageSearchPage = 1;
+        $this->anlageSearchTotal = 0;
     }
 
     public function searchAnlagen()
+    {
+        $this->anlageSearchPage = 1;
+        $this->loadAnlagen();
+    }
+
+    public function anlagePagePrev()
+    {
+        if ($this->anlageSearchPage > 1) {
+            $this->anlageSearchPage--;
+            $this->loadAnlagen();
+        }
+    }
+
+    public function anlagePageNext()
+    {
+        $maxPage = ceil($this->anlageSearchTotal / 10);
+        if ($this->anlageSearchPage < $maxPage) {
+            $this->anlageSearchPage++;
+            $this->loadAnlagen();
+        }
+    }
+
+    public function anlageGoToPage($page)
+    {
+        $maxPage = ceil($this->anlageSearchTotal / 10);
+        if ($page >= 1 && $page <= $maxPage) {
+            $this->anlageSearchPage = $page;
+            $this->loadAnlagen();
+        }
+    }
+
+    protected function loadAnlagen()
     {
         $query = Impianto::query();
 
@@ -153,8 +189,12 @@ class MessungenListe extends Component
 
         if (!$hasFilter) {
             $this->anlageSearchResults = [];
+            $this->anlageSearchTotal = 0;
             return;
         }
+
+        // Gesamtanzahl
+        $this->anlageSearchTotal = (clone $query)->count();
 
         // Sortierung: Gemeinde, Straße, Hausnummer (numerisch!)
         $query->orderBy('Feld_i', 'asc')
@@ -162,7 +202,9 @@ class MessungenListe extends Component
               ->orderByRaw('CAST(Feld_n AS UNSIGNED) ASC')
               ->orderBy('Feld_n', 'asc'); // Fallback für nicht-numerische
 
-        $this->anlageSearchResults = $query->limit(20)->get();
+        // Pagination: 10 pro Seite
+        $offset = ($this->anlageSearchPage - 1) * 10;
+        $this->anlageSearchResults = $query->skip($offset)->take(10)->get();
     }
 
     public function zuordnenAnlage($anlageKodex)

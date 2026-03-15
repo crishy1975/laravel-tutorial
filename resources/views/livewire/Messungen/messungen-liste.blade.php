@@ -469,8 +469,69 @@
                                 @endforeach
                             </div>
 
-                            <div class="text-muted small mt-2">
-                                {{ count($anlageSearchResults) }} Anlage(n) gefunden
+                            {{-- Pagination --}}
+                            @php
+                                $perPage = 10;
+                                $maxPage = ceil($anlageSearchTotal / $perPage);
+                                $von = (($anlageSearchPage - 1) * $perPage) + 1;
+                                $bis = min($anlageSearchPage * $perPage, $anlageSearchTotal);
+                            @endphp
+                            <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
+                                <div class="text-muted small">
+                                    {{ $von }}-{{ $bis }} von {{ $anlageSearchTotal }} Anlagen
+                                </div>
+                                @if($maxPage > 1)
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0">
+                                            {{-- Zurück --}}
+                                            <li class="page-item {{ $anlageSearchPage <= 1 ? 'disabled' : '' }}">
+                                                <button class="page-link" wire:click="anlagePagePrev" {{ $anlageSearchPage <= 1 ? 'disabled' : '' }}>
+                                                    <i class="bi bi-chevron-left"></i>
+                                                </button>
+                                            </li>
+                                            
+                                            {{-- Seiten (max 5 sichtbar) --}}
+                                            @php
+                                                $start = max(1, $anlageSearchPage - 2);
+                                                $end = min($maxPage, $start + 4);
+                                                if ($end - $start < 4) {
+                                                    $start = max(1, $end - 4);
+                                                }
+                                            @endphp
+                                            
+                                            @if($start > 1)
+                                                <li class="page-item">
+                                                    <button class="page-link" wire:click="anlageGoToPage(1)">1</button>
+                                                </li>
+                                                @if($start > 2)
+                                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                                @endif
+                                            @endif
+                                            
+                                            @for($i = $start; $i <= $end; $i++)
+                                                <li class="page-item {{ $i == $anlageSearchPage ? 'active' : '' }}">
+                                                    <button class="page-link" wire:click="anlageGoToPage({{ $i }})">{{ $i }}</button>
+                                                </li>
+                                            @endfor
+                                            
+                                            @if($end < $maxPage)
+                                                @if($end < $maxPage - 1)
+                                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                                @endif
+                                                <li class="page-item">
+                                                    <button class="page-link" wire:click="anlageGoToPage({{ $maxPage }})">{{ $maxPage }}</button>
+                                                </li>
+                                            @endif
+                                            
+                                            {{-- Weiter --}}
+                                            <li class="page-item {{ $anlageSearchPage >= $maxPage ? 'disabled' : '' }}">
+                                                <button class="page-link" wire:click="anlagePageNext" {{ $anlageSearchPage >= $maxPage ? 'disabled' : '' }}>
+                                                    <i class="bi bi-chevron-right"></i>
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                @endif
                             </div>
                         @elseif($anlageSearchName || $anlageSearchOrt || $anlageSearchStrasse || $anlageSearchNummer)
                             <div class="text-center text-muted py-3">
