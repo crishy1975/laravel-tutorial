@@ -332,7 +332,7 @@
     {{-- ========== Modal: Anlage zuordnen ========== --}}
     @if($showAnlageModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
                 <div class="modal-content">
                     <div class="modal-header bg-primary text-white py-2">
                         <h5 class="modal-title">
@@ -340,60 +340,52 @@
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="closeAnlageModal"></button>
                     </div>
-                    <div class="modal-body">
+                    <div class="modal-body p-2 p-md-3">
                         {{-- Aktuelle Messung Info --}}
                         @if($selectedMessung)
-                            <div class="alert alert-info py-2 mb-3">
-                                <div class="row small">
-                                    <div class="col-6 col-md-3">
-                                        <strong>Kodex:</strong> {{ $selectedMessung->cIM_CODICE }}
-                                    </div>
-                                    <div class="col-6 col-md-3">
-                                        <strong>Datum:</strong> {{ $selectedMessung->cMIS_DATA2 }}
-                                    </div>
-                                    <div class="col-12 col-md-6">
-                                        <strong>Name:</strong> {{ $selectedMessung->cIM_NAME ?: '(kein Name)' }}
-                                    </div>
+                            <div class="alert alert-info py-2 mb-2">
+                                <div class="d-flex flex-wrap gap-2 small">
+                                    <span><strong>Kodex:</strong> {{ $selectedMessung->cIM_CODICE }}</span>
+                                    <span><strong>Datum:</strong> {{ $selectedMessung->cMIS_DATA2 }}</span>
+                                </div>
+                                <div class="small mt-1">
+                                    <strong>Name:</strong> {{ $selectedMessung->cIM_NAME ?: '(kein Name)' }}
                                 </div>
                             </div>
                         @endif
 
                         {{-- Suchformular --}}
-                        <div class="card mb-3">
-                            <div class="card-header bg-light py-2">
-                                <h6 class="mb-0"><i class="bi bi-search"></i> Anlage suchen</h6>
+                        <div class="card mb-2">
+                            <div class="card-header bg-light py-1 px-2">
+                                <h6 class="mb-0 small"><i class="bi bi-search"></i> Anlage suchen</h6>
                             </div>
-                            <div class="card-body py-2">
+                            <div class="card-body py-2 px-2">
                                 <div class="row g-2">
                                     <div class="col-12 col-md-4">
-                                        <label class="form-label small mb-1">Aufstellungsort/Name</label>
                                         <input type="text" wire:model.live.debounce.300ms="anlageSearchName"
-                                               class="form-control form-control-sm" placeholder="z.B. Mustermann...">
+                                               class="form-control form-control-sm" placeholder="Name/Aufstellungsort">
                                     </div>
                                     <div class="col-6 col-md-3">
-                                        <label class="form-label small mb-1">Gemeinde/Ort</label>
                                         <input type="text" wire:model.live.debounce.300ms="anlageSearchOrt"
-                                               class="form-control form-control-sm" placeholder="z.B. Bozen...">
+                                               class="form-control form-control-sm" placeholder="Gemeinde">
                                     </div>
-                                    <div class="col-6 col-md-3">
-                                        <label class="form-label small mb-1">Straße</label>
+                                    <div class="col-4 col-md-3">
                                         <input type="text" wire:model.live.debounce.300ms="anlageSearchStrasse"
-                                               class="form-control form-control-sm" placeholder="z.B. Hauptstr...">
+                                               class="form-control form-control-sm" placeholder="Straße">
                                     </div>
-                                    <div class="col-6 col-md-2">
-                                        <label class="form-label small mb-1">Hausnr.</label>
+                                    <div class="col-2 col-md-2">
                                         <input type="text" wire:model.live.debounce.300ms="anlageSearchNummer"
-                                               class="form-control form-control-sm" placeholder="z.B. 15">
+                                               class="form-control form-control-sm" placeholder="Nr.">
                                     </div>
                                 </div>
-                                <div class="mt-2">
-                                    <button type="button" wire:click="searchAnlagen" class="btn btn-primary btn-sm">
+                                <div class="mt-2 d-flex gap-2">
+                                    <button type="button" wire:click="searchAnlagen" class="btn btn-primary btn-sm flex-grow-1 flex-md-grow-0">
                                         <i class="bi bi-search"></i> Suchen
                                     </button>
                                     <button type="button" wire:click="resetAnlageSearch" class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi bi-x-lg"></i> Reset
+                                        <i class="bi bi-x-lg"></i>
                                     </button>
-                                    <span wire:loading wire:target="searchAnlagen" class="ms-2">
+                                    <span wire:loading wire:target="searchAnlagen" class="ms-2 align-self-center">
                                         <span class="spinner-border spinner-border-sm"></span>
                                     </span>
                                 </div>
@@ -402,7 +394,8 @@
 
                         {{-- Suchergebnisse --}}
                         @if(count($anlageSearchResults) > 0)
-                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                            {{-- Desktop: Tabelle --}}
+                            <div class="d-none d-md-block table-responsive" style="max-height: 350px; overflow-y: auto;">
                                 <table class="table table-hover table-sm mb-0">
                                     <thead class="table-light sticky-top">
                                         <tr>
@@ -438,6 +431,44 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            {{-- Mobile: Card-Liste --}}
+                            <div class="d-md-none" style="max-height: calc(100vh - 320px); overflow-y: auto;">
+                                @foreach($anlageSearchResults as $anlage)
+                                    <div class="card mb-2 anlage-card">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1 min-width-0">
+                                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                                        <span class="badge bg-primary font-monospace">{{ $anlage->Feld_a }}</span>
+                                                        <span class="fw-bold text-truncate">{{ $anlage->Feld_w }}</span>
+                                                    </div>
+                                                    <div class="small text-muted mb-1">
+                                                        <i class="bi bi-geo-alt"></i> 
+                                                        {{ $anlage->Feld_i }}, {{ $anlage->Feld_m }} {{ $anlage->Feld_n }}
+                                                    </div>
+                                                    <div class="d-flex flex-wrap gap-2 small">
+                                                        @if($anlage->Feld_y)
+                                                            <span><i class="bi bi-fire"></i> {{ Str::limit($anlage->Feld_y, 15) }}</span>
+                                                        @endif
+                                                        @if($anlage->Feld_z)
+                                                            <span><i class="bi bi-calendar"></i> {{ $anlage->Feld_z }}</span>
+                                                        @endif
+                                                        @if($anlage->Feld_ab)
+                                                            <span><i class="bi bi-lightning"></i> {{ $anlage->Feld_ab }} kW</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
+                                                        class="btn btn-success btn-sm ms-2 flex-shrink-0">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
                             <div class="text-muted small mt-2">
                                 {{ count($anlageSearchResults) }} Anlage(n) gefunden
                             </div>
