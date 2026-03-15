@@ -385,6 +385,19 @@
                             </div>
                         @endif
 
+                        {{-- Foto-Upload für OCR --}}
+                        <div class="mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="btn btn-outline-primary btn-sm mb-0">
+                                    <i class="bi bi-camera"></i> Foto vom Messgerät
+                                    <input type="file" accept="image/*" capture="environment" 
+                                           class="d-none" id="fotoInput"
+                                           onchange="extractFromPhoto(this)">
+                                </label>
+                                <span id="fotoStatus" class="small text-muted"></span>
+                            </div>
+                        </div>
+
                         <form wire:submit="saveMessung">
                             <div class="row g-2">
                                 {{-- Linke Spalte: Grunddaten + Messwerte --}}
@@ -640,4 +653,65 @@
     @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
     @media print { .btn, #filterCollapse, .card-header[data-bs-toggle], .pagination { display: none !important; } .d-none.d-lg-block { display: block !important; } .d-lg-none { display: none !important; } }
 </style>
+
+<script>
+async function extractFromPhoto(input) {
+    if (!input.files || !input.files[0]) return;
+    
+    const file = input.files[0];
+    const status = document.getElementById('fotoStatus');
+    status.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Wird analysiert...</span>';
+    
+    // Bild zu Base64 konvertieren
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const base64 = e.target.result.split(',')[1];
+        
+        try {
+            const response = await fetch('/messungen/extract-from-photo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ image: base64 })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Felder befüllen via Livewire
+                @this.set('messung.cMIS_DATA2', data.datum || '');
+                @this.set('messung.cMIS_ORA', data.uhrzeit || '');
+                @this.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                @this.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                @this.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                @this.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                @this.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                @this.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                @this.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                @this.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
+                @this.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                
+                // Brennstoff setzen
+                if (data.brennstoff) {
+                    @this.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                }
+                
+                status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Werte übernommen!</span>';
+                setTimeout(() => { status.innerHTML = ''; }, 3000);
+            } else {
+                status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + (data.error || 'Fehler') + '</span>';
+            }
+        } catch (err) {
+            status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Verbindungsfehler</span>';
+            console.error(err);
+        }
+    };
+    reader.readAsDataURL(file);
+    
+    // Input zurücksetzen für erneuten Upload
+    input.value = '';
+}
+</script>
 @endpush
