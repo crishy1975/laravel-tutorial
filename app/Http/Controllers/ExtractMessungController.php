@@ -24,11 +24,23 @@ class ExtractMessungController extends Controller
         }
 
         try {
+            // Media-Type aus Base64-Daten erkennen
+            $mediaType = 'image/jpeg';
+            if (str_starts_with($request->image, '/9j/')) {
+                $mediaType = 'image/jpeg';
+            } elseif (str_starts_with($request->image, 'iVBOR')) {
+                $mediaType = 'image/png';
+            } elseif (str_starts_with($request->image, 'R0lG')) {
+                $mediaType = 'image/gif';
+            } elseif (str_starts_with($request->image, 'UklG')) {
+                $mediaType = 'image/webp';
+            }
+
             $response = Http::withHeaders([
                 'x-api-key' => $apiKey,
                 'anthropic-version' => '2023-06-01',
                 'Content-Type' => 'application/json',
-            ])->timeout(30)->post('https://api.anthropic.com/v1/messages', [
+            ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
                 'model' => 'claude-sonnet-4-20250514',
                 'max_tokens' => 500,
                 'messages' => [
@@ -39,7 +51,7 @@ class ExtractMessungController extends Controller
                                 'type' => 'image',
                                 'source' => [
                                     'type' => 'base64',
-                                    'media_type' => 'image/jpeg',
+                                    'media_type' => $mediaType,
                                     'data' => $request->image,
                                 ],
                             ],
