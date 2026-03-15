@@ -21,6 +21,10 @@
             </p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-building"></i>
+                <span class="d-none d-sm-inline">Anlagen</span>
+            </a>
             <a href="{{ route('messungen.import') }}" class="btn btn-success">
                 <i class="bi bi-file-earmark-arrow-up"></i>
                 <span class="d-none d-sm-inline">XML Import</span>

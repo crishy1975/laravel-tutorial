@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h1 class="h4 h3-md mb-0">
-                <i class="bi bi-gear text-primary"></i>
+                <i class="bi bi-building text-primary"></i>
                 Anlagen
             </h1>
             <p class="text-muted mb-0 small d-none d-md-block">
@@ -13,6 +13,10 @@
             </p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{{ route('messungen.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-speedometer2"></i>
+                <span class="d-none d-sm-inline">Messungen</span>
+            </a>
             <a href="{{ route('messungen.anlagen.import') }}" class="btn btn-success">
                 <i class="bi bi-file-earmark-arrow-up"></i>
                 <span class="d-none d-sm-inline">CSV Import</span>
