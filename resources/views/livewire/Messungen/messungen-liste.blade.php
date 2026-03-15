@@ -191,7 +191,15 @@
                     </thead>
                     <tbody>
                         @foreach($messungen as $messung)
-                            <tr class="{{ $messung->strEsito === '0' ? 'table-danger bg-opacity-25' : '' }}">
+                            @php
+                                $rowClass = '';
+                                if ($messung->strEsito === '0') {
+                                    $rowClass = 'table-danger'; // Negativ = rot
+                                } elseif ($messung->codeInImpianti === 0) {
+                                    $rowClass = 'table-warning'; // Ohne Anlage = gelb
+                                }
+                            @endphp
+                            <tr class="{{ $rowClass }}">
                                 <td>
                                     <a href="{{ route('messungen.edit', $messung->id) }}"
                                        class="fw-bold text-decoration-none font-monospace">{{ $messung->cIM_CODICE }}</a>
@@ -241,7 +249,15 @@
             {{-- ========== Mobile: Card-Liste ========== --}}
             <div class="d-lg-none">
                 @foreach($messungen as $messung)
-                    <div class="messung-card border-bottom {{ $messung->strEsito === '0' ? 'bg-danger bg-opacity-10' : '' }}">
+                    @php
+                        $cardClass = '';
+                        if ($messung->strEsito === '0') {
+                            $cardClass = 'bg-danger bg-opacity-10'; // Negativ = rot
+                        } elseif ($messung->codeInImpianti === 0) {
+                            $cardClass = 'bg-warning bg-opacity-25'; // Ohne Anlage = gelb
+                        }
+                    @endphp
+                    <div class="messung-card border-bottom {{ $cardClass }}">
                         <div class="p-2">
                             {{-- Zeile 1: Kodex, Name, Ergebnis --}}
                             <div class="d-flex align-items-start gap-2 mb-1">

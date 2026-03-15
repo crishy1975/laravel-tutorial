@@ -127,7 +127,12 @@ class MessungenListe extends Component
         // Sortierung
         $query->orderBy($this->sortField, $this->sortDirection);
 
-        // Sekundäre Sortierung
+        // Sekundäre Sortierung: Stadio aufwärts
+        if ($this->sortField !== 'cMIS_STADIO') {
+            $query->orderBy('cMIS_STADIO', 'asc');
+        }
+        
+        // Tertiäre Sortierung: Uhrzeit
         if ($this->sortField !== 'cMIS_ORA') {
             $query->orderBy('cMIS_ORA', 'desc');
         }
