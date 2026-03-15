@@ -228,11 +228,16 @@
                                            class="btn btn-outline-primary" title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </a>
+                                        @if($hatMessung)
+                                            <button wire:click="openMessungModalMitLetzer('{{ $anlage->Feld_a }}')"
+                                               class="btn btn-outline-info" title="Letzte Messung anzeigen">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        @endif
                                         <button wire:click="openMessungModal('{{ $anlage->Feld_a }}')"
                                            class="btn btn-outline-success" title="Neue Messung">
                                             <i class="bi bi-plus-lg"></i>
                                         </button>
-                                        </a>
                                     </div>
                                 </td>
                             </tr>
@@ -289,12 +294,16 @@
                                        class="btn btn-outline-primary py-0 px-2">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    @if($hatMessung)
+                                        <button wire:click="openMessungModalMitLetzer('{{ $anlage->Feld_a }}')"
+                                           class="btn btn-outline-info py-0 px-2">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    @endif
                                     <button wire:click="openMessungModal('{{ $anlage->Feld_a }}')"
                                        class="btn btn-outline-success py-0 px-2">
                                         <i class="bi bi-plus-lg"></i>
                                     </button>
-                                        <i class="bi bi-plus-lg"></i>
-                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -318,9 +327,13 @@
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
             <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
                 <div class="modal-content">
-                    <div class="modal-header bg-success text-white py-2">
+                    <div class="modal-header {{ $letzteMessung ? 'bg-info' : 'bg-success' }} text-white py-2">
                         <h5 class="modal-title">
-                            <i class="bi bi-plus-circle"></i> Neue Messung
+                            @if($letzteMessung)
+                                <i class="bi bi-eye"></i> Letzte Messung ({{ $letzteMessung->cMIS_DATA2 }})
+                            @else
+                                <i class="bi bi-plus-circle"></i> Neue Messung
+                            @endif
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
                     </div>

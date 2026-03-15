@@ -33,6 +33,7 @@ class AnlagenListe extends Component
     // Modal: Neue Messung
     public $showMessungModal = false;
     public $selectedAnlage = null;
+    public $letzteMessung = null;
     public $messung = [
         'cMIS_STADIO' => '1',
         'cMIS_DATA2' => '',
@@ -116,6 +117,8 @@ class AnlagenListe extends Component
             return;
         }
 
+        $this->letzteMessung = null;
+
         // Messung-Daten zurücksetzen
         $this->messung = [
             'cMIS_STADIO' => '1',
@@ -135,6 +138,48 @@ class AnlagenListe extends Component
         ];
         
         $this->grenzwerte = null;
+        $this->showMessungModal = true;
+    }
+
+    public function openMessungModalMitLetzer($anlageKodex)
+    {
+        $this->selectedAnlage = Impianto::where('Feld_a', $anlageKodex)->first();
+        
+        if (!$this->selectedAnlage) {
+            return;
+        }
+
+        // Letzte Messung dieser Anlage im aktuellen Jahr laden
+        $this->letzteMessung = Messung::where('cIM_CODICE', $anlageKodex)
+            ->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
+            ->orderBy('cMIS_DATA', 'desc')
+            ->orderBy('cMIS_ORA', 'desc')
+            ->first();
+
+        if (!$this->letzteMessung) {
+            return;
+        }
+
+        // Werte aus letzter Messung übernehmen
+        $this->messung = [
+            'cMIS_STADIO' => $this->letzteMessung->cMIS_STADIO ?? '1',
+            'cMIS_DATA2' => $this->letzteMessung->cMIS_DATA2 ?? date('d.m.Y'),
+            'cMIS_ORA' => $this->letzteMessung->cMIS_ORA ?? date('H:i'),
+            'cMIS_COMBUSTIBILE' => $this->letzteMessung->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS',
+            'cMIS_OSSIGENO' => $this->letzteMessung->cMIS_OSSIGENO ?? '',
+            'cMIS_ANIDRIDE_CARBONICA' => $this->letzteMessung->cMIS_ANIDRIDE_CARBONICA ?? '',
+            'cMIS_MONOSSSIDO' => $this->letzteMessung->cMIS_MONOSSSIDO ?? '',
+            'cMIS_BIOSSIDO_AZOTO' => $this->letzteMessung->cMIS_BIOSSIDO_AZOTO ?? '',
+            'cMIS_T_GAS_COMB' => $this->letzteMessung->cMIS_T_GAS_COMB ?? '',
+            'cMIS_T_ARIA_COMB' => $this->letzteMessung->cMIS_T_ARIA_COMB ?? '',
+            'cMIS_T_LIQ_CONV' => $this->letzteMessung->cMIS_T_LIQ_CONV ?? '',
+            'cMIS_PERD_FUMI' => $this->letzteMessung->cMIS_PERD_FUMI ?? '',
+            'cMIS_IND_OPACITA' => $this->letzteMessung->cMIS_IND_OPACITA ?? '0',
+            'cMIS_TRACCE_OLEO' => $this->letzteMessung->cMIS_TRACCE_OLEO ?? '1',
+        ];
+        
+        $this->grenzwerte = null;
+        $this->berechneGrenzwerte();
         $this->showMessungModal = true;
     }
 
