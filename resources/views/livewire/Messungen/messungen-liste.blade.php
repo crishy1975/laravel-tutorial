@@ -402,15 +402,16 @@
 
                         {{-- Suchergebnisse --}}
                         @if(count($anlageSearchResults) > 0)
-                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
                                 <table class="table table-hover table-sm mb-0">
                                     <thead class="table-light sticky-top">
                                         <tr>
                                             <th>Kodex</th>
                                             <th>Aufstellungsort</th>
-                                            <th>Gemeinde</th>
-                                            <th>Straße</th>
-                                            <th>Nr.</th>
+                                            <th>Ort / Straße</th>
+                                            <th>Kessel</th>
+                                            <th class="text-center">Bj.</th>
+                                            <th class="text-end">kW</th>
                                             <th class="text-end">Aktion</th>
                                         </tr>
                                     </thead>
@@ -418,14 +419,18 @@
                                         @foreach($anlageSearchResults as $anlage)
                                             <tr>
                                                 <td class="font-monospace fw-bold">{{ $anlage->Feld_a }}</td>
-                                                <td>{{ Str::limit($anlage->Feld_w, 25) }}</td>
-                                                <td>{{ $anlage->Feld_i }}</td>
-                                                <td>{{ $anlage->Feld_m }}</td>
-                                                <td>{{ $anlage->Feld_n }}</td>
+                                                <td>{{ Str::limit($anlage->Feld_w, 20) }}</td>
+                                                <td>
+                                                    <small class="text-muted">{{ $anlage->Feld_i }}</small><br>
+                                                    {{ Str::limit($anlage->Feld_m, 15) }} {{ $anlage->Feld_n }}
+                                                </td>
+                                                <td>{{ Str::limit($anlage->Feld_y, 15) }}</td>
+                                                <td class="text-center">{{ $anlage->Feld_z }}</td>
+                                                <td class="text-end">{{ $anlage->Feld_ab }}</td>
                                                 <td class="text-end">
                                                     <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
                                                             class="btn btn-success btn-sm py-0">
-                                                        <i class="bi bi-check-lg"></i> Zuordnen
+                                                        <i class="bi bi-check-lg"></i>
                                                     </button>
                                                 </td>
                                             </tr>
