@@ -44,9 +44,12 @@ class AnlagenListe extends Component
         'cMIS_BIOSSIDO_AZOTO' => '',
         'cMIS_T_GAS_COMB' => '',
         'cMIS_T_ARIA_COMB' => '',
+        'cMIS_T_LIQ_CONV' => '',
         'cMIS_PERD_FUMI' => '',
         'cMIS_IND_OPACITA' => '0',
         'cMIS_TRACCE_OLEO' => '1',
+        'cMIS_LAMBDA' => '',
+        'cMIS_RENDIMENTO' => '',
     ];
     public $grenzwerte = null;
 
@@ -127,9 +130,12 @@ class AnlagenListe extends Component
             'cMIS_BIOSSIDO_AZOTO' => '',
             'cMIS_T_GAS_COMB' => '',
             'cMIS_T_ARIA_COMB' => '',
+            'cMIS_T_LIQ_CONV' => '',
             'cMIS_PERD_FUMI' => '',
             'cMIS_IND_OPACITA' => '0',
             'cMIS_TRACCE_OLEO' => '1',
+            'cMIS_LAMBDA' => '',
+            'cMIS_RENDIMENTO' => '',
         ];
         
         $this->grenzwerte = null;
@@ -158,19 +164,41 @@ class AnlagenListe extends Component
             return;
         }
 
-        $brennstoffNr = self::BRENNSTOFFE[$this->messung['cMIS_COMBUSTIBILE']]['nr'] ?? 3;
-        $leistung = (float) ($this->selectedAnlage->Feld_ab ?? 0);
-        $baujahr = (int) ($this->selectedAnlage->Feld_z ?? 0);
+        $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS';
+        $leistung = (int) ($this->selectedAnlage->Feld_ab ?? 0);
+        $baujahr = (int) ($this->selectedAnlage->Feld_z ?? 2000);
+        $co = (int) ($this->messung['cMIS_MONOSSSIDO'] ?? 0);
+        $nox = (int) ($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
+        $russ = (int) ($this->messung['cMIS_IND_OPACITA'] ?? 0);
+        $oelspuren = ($this->messung['cMIS_TRACCE_OLEO'] ?? '1') === '0'; // '0' = Ja = true
 
-        $this->grenzwerte = GrenzwertService::berechne(
-            $brennstoffNr,
-            $leistung,
-            $baujahr,
-            (float) ($this->messung['cMIS_MONOSSSIDO'] ?? 0),
-            (float) ($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0),
-            (int) ($this->messung['cMIS_IND_OPACITA'] ?? 0),
-            (int) ($this->messung['cMIS_TRACCE_OLEO'] ?? 1)
-        );
+        // GrenzwertService nutzen
+        $service = new GrenzwertService();
+        $service->pruefeGrenzwerte($brennstoff, $baujahr, $leistung, $co, $nox, $russ, $oelspuren);
+        $result = $service->getResult();
+
+        // Grenzwerte-Info holen
+        $grenzwertInfo = GrenzwertService::getGrenzwerteInfo($brennstoff, $baujahr, $leistung);
+
+        // Für die Anzeige im Modal aufbereiten
+        $this->grenzwerte = [
+            'co' => [
+                'grenzwert' => $result['maxCo'],
+                'status' => $result['coUeberschritten'] ? 'rot' : ($co > $result['maxCo'] * 0.8 ? 'gelb' : 'gruen'),
+            ],
+            'nox' => [
+                'grenzwert' => $result['maxNoX'],
+                'status' => $result['noxUeberschritten'] ? 'rot' : ($nox > $result['maxNoX'] * 0.8 ? 'gelb' : 'gruen'),
+            ],
+            'russ' => [
+                'grenzwert' => $result['maxSoot'],
+                'status' => $result['russUeberschritten'] ? 'rot' : 'gruen',
+            ],
+            'oel' => [
+                'grenzwert' => 0,
+                'status' => $result['oelspurenUeberschritten'] ? 'rot' : 'gruen',
+            ],
+        ];
     }
 
     public function saveMessung()
@@ -187,60 +215,67 @@ class AnlagenListe extends Component
         ]);
 
         if (!$this->selectedAnlage) {
+            session()->flash('error', 'Keine Anlage ausgewählt.');
             return;
         }
 
-        // Datum konvertieren
-        $datumParts = explode('.', $this->messung['cMIS_DATA2']);
-        $dateDMY = '';
-        if (count($datumParts) === 3) {
-            $dateDMY = $datumParts[0] . $datumParts[1] . $datumParts[2];
-        }
-
-        // Brennstoff-Info
-        $fuelInfo = self::BRENNSTOFFE[$this->messung['cMIS_COMBUSTIBILE']] ?? self::BRENNSTOFFE['FUEL_NAT_GAS'];
-
-        // Grenzwerte berechnen für Ergebnis
-        $this->berechneGrenzwerte();
-        $esito = '1'; // Standard: positiv
-        if ($this->grenzwerte) {
-            if ($this->grenzwerte['co']['status'] === 'rot' ||
-                $this->grenzwerte['nox']['status'] === 'rot' ||
-                $this->grenzwerte['russ']['status'] === 'rot' ||
-                $this->grenzwerte['oel']['status'] === 'rot') {
-                $esito = '0'; // negativ
+        try {
+            // Datum konvertieren
+            $datumParts = explode('.', $this->messung['cMIS_DATA2'] ?? '');
+            $dateDMY = '';
+            if (count($datumParts) === 3) {
+                $dateDMY = $datumParts[0] . $datumParts[1] . $datumParts[2];
             }
+
+            // Brennstoff-Info
+            $fuelInfo = self::BRENNSTOFFE[$this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS'] ?? self::BRENNSTOFFE['FUEL_NAT_GAS'];
+
+            // Grenzwerte berechnen für Ergebnis
+            $this->berechneGrenzwerte();
+            $esito = '1'; // Standard: positiv
+            if ($this->grenzwerte) {
+                if (($this->grenzwerte['co']['status'] ?? '') === 'rot' ||
+                    ($this->grenzwerte['nox']['status'] ?? '') === 'rot' ||
+                    ($this->grenzwerte['russ']['status'] ?? '') === 'rot' ||
+                    ($this->grenzwerte['oel']['status'] ?? '') === 'rot') {
+                    $esito = '0'; // negativ
+                }
+            }
+
+            // Messung erstellen
+            Messung::create([
+                'cIM_CODICE' => $this->selectedAnlage->Feld_a,
+                'cIM_NAME' => $this->selectedAnlage->Feld_w ?? '',
+                'cMIS_TIPO' => '001',
+                'cMIS_STADIO' => $this->messung['cMIS_STADIO'] ?? '1',
+                'cMIS_DATA' => $dateDMY,
+                'cMIS_DATA2' => $this->messung['cMIS_DATA2'] ?? '',
+                'cMIS_ORA' => $this->messung['cMIS_ORA'] ?? '',
+                'strEsito' => $esito,
+                'cMIS_COMBUSTIBILE' => $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS',
+                'cMIS_COMBUSTIBILE_N' => $fuelInfo['nr'],
+                'cMIS_COMBUSTIBILE_P' => $fuelInfo['text'],
+                'cMIS_OSSIGENO' => $this->messung['cMIS_OSSIGENO'] ?? '',
+                'cMIS_ANIDRIDE_CARBONICA' => $this->messung['cMIS_ANIDRIDE_CARBONICA'] ?? '',
+                'cMIS_MONOSSSIDO' => $this->messung['cMIS_MONOSSSIDO'] ?? '',
+                'cMIS_BIOSSIDO_AZOTO' => $this->messung['cMIS_BIOSSIDO_AZOTO'] ?? '',
+                'cMIS_T_GAS_COMB' => $this->messung['cMIS_T_GAS_COMB'] ?? '',
+                'cMIS_T_ARIA_COMB' => $this->messung['cMIS_T_ARIA_COMB'] ?? '',
+                'cMIS_T_LIQ_CONV' => $this->messung['cMIS_T_LIQ_CONV'] ?? '',
+                'cMIS_PERD_FUMI' => $this->messung['cMIS_PERD_FUMI'] ?? '',
+                'cMIS_IND_OPACITA' => $this->messung['cMIS_IND_OPACITA'] ?? '0',
+                'cMIS_TRACCE_OLEO' => $this->messung['cMIS_TRACCE_OLEO'] ?? '1',
+                'boilerYear' => $this->selectedAnlage->Feld_z ?? '',
+                'boilerPower' => $this->selectedAnlage->Feld_ab ?? '',
+                'codeInImpianti' => 1,
+            ]);
+
+            $this->closeMessungModal();
+            session()->flash('success', 'Messung wurde erfolgreich gespeichert.');
+            
+        } catch (\Exception $e) {
+            session()->flash('error', 'Fehler beim Speichern: ' . $e->getMessage());
         }
-
-        // Messung erstellen
-        Messung::create([
-            'cIM_CODICE' => $this->selectedAnlage->Feld_a,
-            'cIM_NAME' => $this->selectedAnlage->Feld_w ?? '',
-            'cMIS_TIPO' => '001',
-            'cMIS_STADIO' => $this->messung['cMIS_STADIO'],
-            'cMIS_DATA' => $dateDMY,
-            'cMIS_DATA2' => $this->messung['cMIS_DATA2'],
-            'cMIS_ORA' => $this->messung['cMIS_ORA'] ?? '',
-            'strEsito' => $esito,
-            'cMIS_COMBUSTIBILE' => $this->messung['cMIS_COMBUSTIBILE'],
-            'cMIS_COMBUSTIBILE_N' => $fuelInfo['nr'],
-            'cMIS_COMBUSTIBILE_P' => $fuelInfo['text'],
-            'cMIS_OSSIGENO' => $this->messung['cMIS_OSSIGENO'] ?? '',
-            'cMIS_ANIDRIDE_CARBONICA' => $this->messung['cMIS_ANIDRIDE_CARBONICA'] ?? '',
-            'cMIS_MONOSSSIDO' => $this->messung['cMIS_MONOSSSIDO'] ?? '',
-            'cMIS_BIOSSIDO_AZOTO' => $this->messung['cMIS_BIOSSIDO_AZOTO'] ?? '',
-            'cMIS_T_GAS_COMB' => $this->messung['cMIS_T_GAS_COMB'] ?? '',
-            'cMIS_T_ARIA_COMB' => $this->messung['cMIS_T_ARIA_COMB'] ?? '',
-            'cMIS_PERD_FUMI' => $this->messung['cMIS_PERD_FUMI'] ?? '',
-            'cMIS_IND_OPACITA' => $this->messung['cMIS_IND_OPACITA'] ?? '0',
-            'cMIS_TRACCE_OLEO' => $this->messung['cMIS_TRACCE_OLEO'] ?? '1',
-            'boilerYear' => $this->selectedAnlage->Feld_z ?? '',
-            'boilerPower' => $this->selectedAnlage->Feld_ab ?? '',
-            'codeInImpianti' => 1,
-        ]);
-
-        $this->closeMessungModal();
-        session()->flash('success', 'Messung wurde erfolgreich gespeichert.');
     }
 
     // ========== Properties ==========
