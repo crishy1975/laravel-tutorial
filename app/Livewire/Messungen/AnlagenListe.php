@@ -297,8 +297,8 @@ class AnlagenListe extends Component
                 }
             }
 
-            // Messung erstellen
-            Messung::create([
+            // Daten für Speicherung
+            $data = [
                 'cIM_CODICE' => $this->selectedAnlage->Feld_a,
                 'cIM_NAME' => $this->selectedAnlage->Feld_w ?? '',
                 'cMIS_TIPO' => '001',
@@ -323,10 +323,19 @@ class AnlagenListe extends Component
                 'boilerYear' => $this->selectedAnlage->Feld_z ?? '',
                 'boilerPower' => $this->selectedAnlage->Feld_ab ?? '',
                 'codeInImpianti' => 1,
-            ]);
+            ];
+
+            // Update wenn bestehende Messung, sonst Create
+            if ($this->letzteMessung) {
+                $this->letzteMessung->update($data);
+                $message = 'Messung wurde aktualisiert.';
+            } else {
+                Messung::create($data);
+                $message = 'Messung wurde erstellt.';
+            }
 
             $this->closeMessungModal();
-            session()->flash('success', 'Messung wurde erfolgreich gespeichert.');
+            session()->flash('success', $message);
             
         } catch (\Exception $e) {
             $this->modalError = 'Fehler beim Speichern: ' . $e->getMessage();
