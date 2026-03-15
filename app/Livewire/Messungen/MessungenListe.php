@@ -156,10 +156,11 @@ class MessungenListe extends Component
             return;
         }
 
-        // Sortierung: Gemeinde, Straße, Hausnummer
+        // Sortierung: Gemeinde, Straße, Hausnummer (numerisch!)
         $query->orderBy('Feld_i', 'asc')
               ->orderBy('Feld_m', 'asc')
-              ->orderBy('Feld_n', 'asc');
+              ->orderByRaw('CAST(Feld_n AS UNSIGNED) ASC')
+              ->orderBy('Feld_n', 'asc'); // Fallback für nicht-numerische
 
         $this->anlageSearchResults = $query->limit(20)->get();
     }
