@@ -451,11 +451,6 @@ class MessungenListe extends Component
         }
     }
 
-    public function getBrensstoffeProperty()
-    {
-        return self::BRENNSTOFFE;
-    }
-
     // ========== Properties ==========
 
     public function getMessungenProperty()
@@ -546,7 +541,7 @@ class MessungenListe extends Component
 
     public function getBrennstoffeProperty()
     {
-        return Messung::BRENNSTOFFE;
+        return self::BRENNSTOFFE;
     }
 
     public function delete($id)
