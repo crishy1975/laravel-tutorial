@@ -31,6 +31,7 @@ use App\Http\Controllers\UnternehmensprofilController;
 use App\Livewire\Messungen\AnlagenListe;
 use App\Livewire\Messungen\AnlagenEdit;
 use App\Livewire\Messungen\ImportAnlagen;
+use App\Livewire\Messungen\ImportMessungen;
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -68,10 +69,9 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
     Route::get('/anlagen/import', ImportAnlagen::class)->name('anlagen.import');
     Route::get('/anlagen/{kodex}', AnlagenEdit::class)->name('anlagen.edit');
-    Route::get('/messungen/import', \App\Livewire\Messungen\ImportMessungen::class)
-    ->name('messungen.import');
-    // TODO: Neue Messung erfassen (Livewire-Komponente noch erstellen)
-    // Route::get('/neu/{kodex}', MessungNeu::class)->name('neu');
+
+    // Messdaten-Import (URL: /messungen/import)
+    Route::get('/import', ImportMessungen::class)->name('import');
 });
 
 
