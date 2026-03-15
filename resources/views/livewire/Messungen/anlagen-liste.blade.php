@@ -391,13 +391,13 @@
                                         </div>
                                     </div>
 
-                                    {{-- Messwerte - Reihenfolge wie auf Wöhler Messgerät --}}
+                                    {{-- Messwerte --}}
                                     <div class="card mb-2">
                                         <div class="card-header bg-light py-1 px-2">
                                             <h6 class="mb-0 small"><i class="bi bi-speedometer2"></i> Messwerte</h6>
                                         </div>
                                         <div class="card-body py-2 px-2">
-                                            {{-- Zeile 1: O2, CO2, Qa (Abgasverlust) --}}
+                                            {{-- Zeile 1: O2, CO2, Qa --}}
                                             <div class="row g-2">
                                                 <div class="col-4">
                                                     <label class="form-label small mb-0">O₂ %</label>
@@ -415,60 +415,50 @@
                                                            class="form-control form-control-sm" placeholder="2.7">
                                                 </div>
                                             </div>
-                                            {{-- Zeile 2: COv, COn (wir speichern COn = normiert) --}}
+                                            {{-- Zeile 2: CO, NOx --}}
                                             <div class="row g-2 mt-1">
-                                                <div class="col-4">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">CO mg/m³</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
                                                            class="form-control form-control-sm" placeholder="31">
                                                 </div>
-                                                <div class="col-4">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">NOx mg/m³</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
                                                            class="form-control form-control-sm" placeholder="82">
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label small mb-0">λ Lambda</label>
-                                                    <input type="text" wire:model="messung.cMIS_LAMBDA"
-                                                           class="form-control form-control-sm" placeholder="1.65">
                                                 </div>
                                             </div>
                                             {{-- Zeile 3: Temperaturen --}}
                                             <div class="row g-2 mt-1">
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T<sub>A</sub> Luft °C</label>
+                                                    <label class="form-label small mb-0">T Luft °C</label>
                                                     <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
                                                            class="form-control form-control-sm" placeholder="17.8">
                                                 </div>
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T<sub>F</sub> Abgas °C</label>
+                                                    <label class="form-label small mb-0">T Abgas °C</label>
                                                     <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
                                                            class="form-control form-control-sm" placeholder="60.8">
                                                 </div>
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T<sub>rg</sub> Wärmetr. °C</label>
+                                                    <label class="form-label small mb-0">T Wärmetr. °C</label>
                                                     <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
                                                            class="form-control form-control-sm" placeholder="51.2">
                                                 </div>
                                             </div>
                                             {{-- Zeile 4: Ruß, Ölspuren --}}
                                             <div class="row g-2 mt-1">
-                                                <div class="col-4">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">Rußzahl</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_IND_OPACITA"
                                                            class="form-control form-control-sm" placeholder="0">
                                                 </div>
-                                                <div class="col-4">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">Ölspuren</label>
                                                     <select wire:model.live="messung.cMIS_TRACCE_OLEO" class="form-select form-select-sm">
                                                         <option value="1">Nein</option>
                                                         <option value="0">Ja</option>
                                                     </select>
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label small mb-0">Wirkungsgrad %</label>
-                                                    <input type="text" wire:model="messung.cMIS_RENDIMENTO"
-                                                           class="form-control form-control-sm" placeholder="97.3" readonly>
                                                 </div>
                                             </div>
                                         </div>

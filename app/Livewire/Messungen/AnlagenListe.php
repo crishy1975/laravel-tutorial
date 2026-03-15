@@ -48,8 +48,6 @@ class AnlagenListe extends Component
         'cMIS_PERD_FUMI' => '',
         'cMIS_IND_OPACITA' => '0',
         'cMIS_TRACCE_OLEO' => '1',
-        'cMIS_LAMBDA' => '',
-        'cMIS_RENDIMENTO' => '',
     ];
     public $grenzwerte = null;
 
@@ -134,8 +132,6 @@ class AnlagenListe extends Component
             'cMIS_PERD_FUMI' => '',
             'cMIS_IND_OPACITA' => '0',
             'cMIS_TRACCE_OLEO' => '1',
-            'cMIS_LAMBDA' => '',
-            'cMIS_RENDIMENTO' => '',
         ];
         
         $this->grenzwerte = null;
