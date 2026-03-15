@@ -57,28 +57,34 @@ class ExtractMessungController extends Controller
                             ],
                             [
                                 'type' => 'text',
-                                'text' => 'Analysiere dieses Foto eines Wöhler Abgasmessgeräts. Extrahiere die Messwerte und gib sie als JSON zurück. Verwende GENAU diese Feldnamen:
+                                'text' => 'Analysiere dieses Foto eines Wöhler Abgasmessgeräts. Extrahiere die Messwerte und gib sie als JSON zurück.
 
+Auf dem Display findest du oben rechts Datum und Uhrzeit im Format:
+- Zeile 1: Uhrzeit (z.B. "10:58:41")
+- Zeile 2: Datum (z.B. "15.01.26")
+- Zeile 3: "WLAN pronto" oder ähnlich (IGNORIEREN!)
+
+Verwende GENAU diese Feldnamen:
 {
   "datum": "TT.MM.JJJJ",
   "uhrzeit": "HH:MM",
   "brennstoff": "FUEL_NAT_GAS oder FUEL_LIGHT_OIL oder FUEL_PROPANE",
   "o2": "Sauerstoff in %",
   "co2": "CO2 in %",
-  "qa": "Abgasverlust in %",
+  "qa": "Abgasverlust Qs in %",
   "co": "CO normiert (COn) in mg/m³",
   "nox": "NOx normiert (NOxn) in mg/m³",
   "t_luft": "Lufttemperatur TA in °C",
   "t_abgas": "Abgastemperatur TF in °C",
-  "t_waerme": "Wärmeträgertemperatur Trg in °C",
-  "russ": "Rußzahl (falls vorhanden)"
+  "russ": "Rußzahl (falls vorhanden, sonst 0)"
 }
 
 Wichtig:
+- Uhrzeit ist IMMER im Format HH:MM (z.B. "10:58"), NICHT "WLAN pronto"!
+- Datum 2-stelliges Jahr zu 4-stellig: 26 → 2026
 - Verwende COn (normiert), nicht COv
-- Verwende NOxn (normiert), nicht NOxv
-- Datum im Format TT.MM.JJJJ (z.B. 15.01.2026)
-- Nur Zahlen, keine Einheiten
+- Verwende NOxn (normiert), nicht NOxv  
+- Nur Zahlen ohne Einheiten
 - Bei "Gas naturale" oder "Erdgas" → FUEL_NAT_GAS
 - Bei "Gasolio" oder "Heizöl" → FUEL_LIGHT_OIL
 - Bei "GPL" oder "Flüssiggas" → FUEL_PROPANE
