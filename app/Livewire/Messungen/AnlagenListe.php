@@ -285,6 +285,14 @@ class AnlagenListe extends Component
                 }
             }
 
+            // Ganzzahl-Felder runden (max 3 Stellen)
+            $intFelder = ['cMIS_MONOSSSIDO', 'cMIS_BIOSSIDO_AZOTO', 'cMIS_T_GAS_COMB', 'cMIS_T_ARIA_COMB', 'cMIS_T_LIQ_CONV'];
+            foreach ($intFelder as $feld) {
+                if (isset($this->messung[$feld]) && $this->messung[$feld] !== '') {
+                    $this->messung[$feld] = (string) round((float) $this->messung[$feld]);
+                }
+            }
+
             // Grenzwerte berechnen für Ergebnis
             $this->berechneGrenzwerte();
             $esito = '1'; // Standard: positiv
