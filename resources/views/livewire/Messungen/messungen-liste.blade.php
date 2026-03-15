@@ -562,31 +562,6 @@
             </div>
         </div>
     @endif
-</div>
-
-@push('styles')
-<style>
-    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
-    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .stat-number { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
-    .stat-label { font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
-    .cursor-pointer { cursor: pointer; }
-    .min-width-0 { min-width: 0; }
-    @media (min-width: 768px) { .stat-number { font-size: 2rem; } .stat-label { font-size: 0.75rem; } }
-    .messung-card { transition: background-color 0.15s; }
-    .messung-card:active { background-color: rgba(0, 123, 255, 0.05); }
-    .transition-transform { transition: transform 0.3s; }
-    [aria-expanded="false"] .transition-transform { transform: rotate(-90deg); }
-    #messungenTable thead th { cursor: pointer; user-select: none; }
-    #messungenTable thead th:hover { background-color: rgba(255,255,255,0.1); }
-    #messungenTable tbody tr { cursor: pointer; transition: background-color 0.15s; }
-    #messungenTable tbody tr:hover { background-color: rgba(0, 123, 255, 0.05); }
-    #messungenTable tbody tr.table-danger:hover { background-color: rgba(220, 53, 69, 0.15); }
-    #messungenTable tbody tr.table-warning:hover { background-color: rgba(255, 193, 7, 0.25); }
-    @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
-</style>
-@endpush
-
 {{-- ========== Modal: Neue Messung (ohne Anlage) ========== --}}
 @if($showMessungModal)
     <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
@@ -872,3 +847,28 @@
         </div>
     </div>
 @endif
+
+</div>
+
+@push('styles')
+<style>
+    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .stat-number { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+    .stat-label { font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .cursor-pointer { cursor: pointer; }
+    .min-width-0 { min-width: 0; }
+    @media (min-width: 768px) { .stat-number { font-size: 2rem; } .stat-label { font-size: 0.75rem; } }
+    .messung-card { transition: background-color 0.15s; }
+    .messung-card:active { background-color: rgba(0, 123, 255, 0.05); }
+    .transition-transform { transition: transform 0.3s; }
+    [aria-expanded="false"] .transition-transform { transform: rotate(-90deg); }
+    #messungenTable thead th { cursor: pointer; user-select: none; }
+    #messungenTable thead th:hover { background-color: rgba(255,255,255,0.1); }
+    #messungenTable tbody tr { cursor: pointer; transition: background-color 0.15s; }
+    #messungenTable tbody tr:hover { background-color: rgba(0, 123, 255, 0.05); }
+    #messungenTable tbody tr.table-danger:hover { background-color: rgba(220, 53, 69, 0.15); }
+    #messungenTable tbody tr.table-warning:hover { background-color: rgba(255, 193, 7, 0.25); }
+    @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
+</style>
+@endpush
