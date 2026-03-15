@@ -271,6 +271,15 @@ class AnlagenListe extends Component
             // Brennstoff-Info
             $fuelInfo = self::BRENNSTOFFE[$this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS'] ?? self::BRENNSTOFFE['FUEL_NAT_GAS'];
 
+            // Komma zu Punkt konvertieren für Dezimalwerte
+            $dezimalFelder = ['cMIS_OSSIGENO', 'cMIS_ANIDRIDE_CARBONICA', 'cMIS_PERD_FUMI', 
+                              'cMIS_T_GAS_COMB', 'cMIS_T_ARIA_COMB', 'cMIS_T_LIQ_CONV'];
+            foreach ($dezimalFelder as $feld) {
+                if (isset($this->messung[$feld])) {
+                    $this->messung[$feld] = str_replace(',', '.', $this->messung[$feld]);
+                }
+            }
+
             // Grenzwerte berechnen für Ergebnis
             $this->berechneGrenzwerte();
             $esito = '1'; // Standard: positiv
