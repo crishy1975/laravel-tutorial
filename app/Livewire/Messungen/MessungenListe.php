@@ -281,8 +281,14 @@ class MessungenListe extends Component
 
     public function openMessungModal()
     {
+        // Nächsten freien Kodex vorschlagen (höchster numerischer Kodex + 1)
+        $letzterKodex = Messung::where('cIM_CODICE', 'REGEXP', '^[0-9]+$')
+            ->orderByRaw('CAST(cIM_CODICE AS UNSIGNED) DESC')
+            ->value('cIM_CODICE');
+        $neuerKodex = $letzterKodex ? (string)((int)$letzterKodex + 1) : '1';
+
         $this->messung = [
-            'cIM_CODICE' => '',
+            'cIM_CODICE' => $neuerKodex,
             'cIM_NAME' => '',
             'cMIS_STADIO' => '1',
             'cMIS_DATA2' => date('d.m.Y'),
@@ -363,11 +369,13 @@ class MessungenListe extends Component
         $this->modalError = null;
 
         $this->validate([
+            'messung.cIM_CODICE' => 'required|min:1',
             'messung.cIM_NAME' => 'required|min:2',
             'messung.cMIS_STADIO' => 'required',
             'messung.cMIS_DATA2' => 'required',
             'messung.cMIS_COMBUSTIBILE' => 'required',
         ], [
+            'messung.cIM_CODICE.required' => 'Kodex ist erforderlich.',
             'messung.cIM_NAME.required' => 'Name ist erforderlich.',
             'messung.cIM_NAME.min' => 'Name muss mindestens 2 Zeichen haben.',
             'messung.cMIS_STADIO.required' => 'Stadio ist erforderlich.',
