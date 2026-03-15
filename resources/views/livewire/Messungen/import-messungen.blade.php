@@ -67,6 +67,26 @@
                         </div>
                     @endif
                 </div>
+                
+                {{-- Import-Optionen --}}
+                <div class="row g-2 mt-2">
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" wire:model="skipOhneAnlage" id="skipOhneAnlage">
+                            <label class="form-check-label small" for="skipOhneAnlage">
+                                Nur Messungen mit existierender Anlage importieren
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" wire:model="skipInvalidKodex" id="skipInvalidKodex">
+                            <label class="form-check-label small" for="skipInvalidKodex">
+                                Ungültige Kodexe (&gt;6 Zeichen) überspringen
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </form>
         </div>
     </div>
@@ -115,8 +135,13 @@
                     </thead>
                     <tbody>
                         @foreach($preview as $row)
-                            <tr>
-                                <td class="font-monospace">{{ $row['cIM_CODICE'] }}</td>
+                            <tr class="{{ $row['codeInImpianti'] === 0 ? 'table-warning' : '' }}">
+                                <td class="font-monospace {{ strlen($row['cIM_CODICE']) > 6 ? 'text-danger fw-bold' : '' }}">
+                                    {{ $row['cIM_CODICE'] }}
+                                    @if(strlen($row['cIM_CODICE']) > 6)
+                                        <i class="bi bi-exclamation-triangle text-danger" title="Kodex > 6 Zeichen"></i>
+                                    @endif
+                                </td>
                                 <td>{{ $row['cMIS_DATA2'] ?? '-' }}</td>
                                 <td>
                                     <span class="badge bg-secondary">{{ $row['cMIS_COMBUSTIBILE_P'] }}</span>
@@ -131,7 +156,7 @@
                                     @if($row['codeInImpianti'] > 0)
                                         <i class="bi bi-check-circle text-success" title="Anlage gefunden"></i>
                                     @else
-                                        <i class="bi bi-x-circle text-danger" title="Anlage nicht in DB"></i>
+                                        <i class="bi bi-question-circle text-warning" title="Anlage nicht in DB - wird trotzdem importiert"></i>
                                     @endif
                                 </td>
                             </tr>
@@ -155,15 +180,24 @@
                 <div class="col-auto">
                     <span class="badge bg-success">Importiert: <strong>{{ $importResult['imported'] }}</strong></span>
                 </div>
-                <div class="col-auto">
-                    <span class="badge bg-warning text-dark">Übersprungen: <strong>{{ $importResult['skipped'] }}</strong></span>
-                </div>
-                @if($importResult['ohneAnlage'] > 0)
+                @if(($importResult['skippedDuplicate'] ?? 0) > 0)
                     <div class="col-auto">
-                        <span class="badge bg-info">Ohne Anlage: <strong>{{ $importResult['ohneAnlage'] }}</strong></span>
+                        <span class="badge bg-warning text-dark">Duplikate: <strong>{{ $importResult['skippedDuplicate'] }}</strong></span>
                     </div>
                 @endif
-                @if($importResult['errors'] > 0)
+                @if(($importResult['skippedOhneAnlage'] ?? 0) > 0)
+                    <div class="col-auto">
+                        <span class="badge bg-info" title="Importiert, aber Anlage existiert nicht in DB">
+                            <i class="bi bi-question-circle"></i> Ohne Anlage: <strong>{{ $importResult['skippedOhneAnlage'] }}</strong>
+                        </span>
+                    </div>
+                @endif
+                @if(($importResult['skippedInvalidKodex'] ?? 0) > 0)
+                    <div class="col-auto">
+                        <span class="badge bg-warning text-dark">Ungültiger Kodex: <strong>{{ $importResult['skippedInvalidKodex'] }}</strong></span>
+                    </div>
+                @endif
+                @if(($importResult['errors'] ?? 0) > 0)
                     <div class="col-auto">
                         <span class="badge bg-danger">Fehler: <strong>{{ $importResult['errors'] }}</strong></span>
                     </div>

@@ -22,6 +22,10 @@ class ImportMessungen extends Component
     public $preview = [];
     public $showPreview = false;
     public $instrumentInfo = null;
+    
+    // Import-Optionen
+    public $skipOhneAnlage = false; // ALLE Messungen importieren, auch ohne Anlage
+    public $skipInvalidKodex = false; // ALLE Kodexe akzeptieren
 
     protected $rules = [
         'messFile' => 'required|file|mimes:xml,txt|max:20480',
@@ -313,8 +317,10 @@ class ImportMessungen extends Component
             'total' => 0,
             'imported' => 0,
             'skipped' => 0,
+            'skippedDuplicate' => 0,
+            'skippedOhneAnlage' => 0,
+            'skippedInvalidKodex' => 0,
             'errors' => 0,
-            'ohneAnlage' => 0,
         ];
 
         try {
@@ -334,6 +340,26 @@ class ImportMessungen extends Component
                     $data['_rawTime']
                 );
 
+                // Validierung: Kodex-Länge prüfen (ursprünglich max 6 Zeichen, jetzt 16)
+                if (strlen($data['cIM_CODICE']) > 16) {
+                    if ($this->skipInvalidKodex) {
+                        $result['skippedInvalidKodex']++;
+                        continue;
+                    } else {
+                        // Kodex auf 16 Zeichen kürzen
+                        $data['cIM_CODICE'] = substr($data['cIM_CODICE'], -16);
+                    }
+                }
+
+                // Anlage nicht gefunden - zählen für Statistik
+                if ($data['codeInImpianti'] === 0) {
+                    $result['skippedOhneAnlage']++; // Nur zählen, nicht überspringen
+                    if ($this->skipOhneAnlage) {
+                        continue;
+                    }
+                    // Import erfolgt trotzdem (Foreign Key wurde entfernt)
+                }
+
                 // Duplikat-Check: Kodex + Datum + Uhrzeit + Stadio
                 $exists = Messung::where('cIM_CODICE', $data['cIM_CODICE'])
                     ->where('cMIS_DATA', $data['cMIS_DATA'])
@@ -342,13 +368,8 @@ class ImportMessungen extends Component
                     ->exists();
 
                 if ($exists) {
-                    $result['skipped']++;
+                    $result['skippedDuplicate']++;
                     continue;
-                }
-
-                // Warnung wenn Anlage nicht existiert
-                if ($data['codeInImpianti'] === 0) {
-                    $result['ohneAnlage']++;
                 }
 
                 try {
