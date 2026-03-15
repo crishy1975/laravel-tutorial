@@ -99,7 +99,8 @@ class ImportMessungen extends Component
     ): array {
         // === Anlagendaten ===
         $customerId = (string)$customer['CustomerId'];
-        $customerName = (string)($customer->Address->n ?? '');
+        // Name kann <Name> oder <n> sein, je nach XML-Version
+        $customerName = (string)($customer->Address->Name ?? $customer->Address->n ?? '');
         $fireplaceNumber = (string)$fireplace['FireplaceNumber'];
         
         // === Brennstoff ===
@@ -153,9 +154,18 @@ class ImportMessungen extends Component
         $oilDerivDb = ($oilDerivXml === 'true') ? '0' : '1';
         
         // === Anlagendaten aus impianti ===
-        $impianto = Impianto::where('Feld_a', $customerId)->first();
+        // Versuche verschiedene Formate für die Suche
+        $customerIdClean = trim($customerId);
+        $customerIdNumeric = preg_replace('/[^0-9]/', '', $customerId); // Nur Zahlen
+        $customerIdFormatted = sprintf('%06d', (int)$customerIdNumeric); // 6-stellig
+        
+        $impianto = Impianto::where('Feld_a', $customerIdClean)
+            ->orWhere('Feld_a', $customerIdNumeric)
+            ->orWhere('Feld_a', $customerIdFormatted)
+            ->first();
         $codeInImpianti = $impianto ? 1 : 0;
-        $anlageName = $impianto->Feld_w ?? $customerName;
+        // WICHTIG: Immer den Namen aus der XML-Datei verwenden, nicht aus impianti!
+        // Der customerName hilft bei der Zuordnung von Messungen ohne Anlage
         
         // Baujahr und Leistung: Zuerst aus XML (Boiler), dann aus impianti
         $boilerYear = '';
@@ -182,8 +192,8 @@ class ImportMessungen extends Component
         // === Rückgabe mit korrekter Formatierung ===
         return [
             // Pflichtfelder
-            'cIM_CODICE' => sprintf('%06d', (int)$customerId),
-            'cIM_NAME' => $anlageName,
+            'cIM_CODICE' => trim($customerId),  // Als String speichern, später konvertieren
+            'cIM_NAME' => $customerName,  // Immer aus XML, für Zuordnung
             'cMIS_TIPO' => $tipo,
             'cMIS_STADIO' => sprintf('%01d', (int)$fireplaceNumber),
             'cMIS_DATA' => $dateDMY,
