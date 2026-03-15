@@ -25,6 +25,10 @@
                 <i class="bi bi-building"></i>
                 <span class="d-none d-sm-inline">Anlagen</span>
             </a>
+            <button wire:click="openMessungModal" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i>
+                <span class="d-none d-sm-inline">Neue Messung</span>
+            </button>
             <a href="{{ route('messungen.import') }}" class="btn btn-success">
                 <i class="bi bi-file-earmark-arrow-up"></i>
                 <span class="d-none d-sm-inline">XML Import</span>
@@ -582,3 +586,289 @@
     @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
 </style>
 @endpush
+
+{{-- ========== Modal: Neue Messung (ohne Anlage) ========== --}}
+@if($showMessungModal)
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white py-2">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle"></i> Neue Messung (ohne Anlage)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
+                </div>
+                <div class="modal-body p-2 p-md-3">
+                    
+                    {{-- Modal-Fehler --}}
+                    @if($modalError)
+                        <div class="alert alert-danger py-2 mb-2">
+                            <i class="bi bi-exclamation-triangle"></i> {{ $modalError }}
+                        </div>
+                    @endif
+
+                    <form wire:submit="saveMessung">
+                        <div class="row g-3">
+                            {{-- Linke Spalte: Daten --}}
+                            <div class="col-12 col-md-8">
+                                
+                                {{-- Foto-Upload für OCR --}}
+                                <div class="mb-3" x-data="{ loading: false, status: '' }">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <label class="btn btn-primary btn-sm mb-0" :class="{ 'disabled': loading }">
+                                            <span x-show="!loading"><i class="bi bi-camera-fill me-1"></i> Foto vom Messgerät</span>
+                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Wird analysiert...</span>
+                                            <input type="file" accept="image/*" capture="environment" 
+                                                   class="d-none" x-ref="fotoInput"
+                                                   @change="
+                                                       if (!$event.target.files[0]) return;
+                                                       loading = true;
+                                                       status = '';
+                                                       const reader = new FileReader();
+                                                       reader.onload = async (e) => {
+                                                           try {
+                                                               const res = await fetch('/messungen/extract-from-photo', {
+                                                                   method: 'POST',
+                                                                   headers: {
+                                                                       'Content-Type': 'application/json',
+                                                                       'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                                                                   },
+                                                                   body: JSON.stringify({ image: e.target.result.split(',')[1] })
+                                                               });
+                                                               const data = await res.json();
+                                                               if (data.success) {
+                                                                   $wire.set('messung.cMIS_DATA2', data.datum || '');
+                                                                   $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
+                                                                   $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                                   $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                                   $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                                   $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                                   $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                                   $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                                   $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                                   $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                                   if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                                   status = 'success';
+                                                               } else {
+                                                                   status = data.error || 'Fehler';
+                                                               }
+                                                           } catch (err) {
+                                                               status = 'Verbindungsfehler';
+                                                               console.error(err);
+                                                           }
+                                                           loading = false;
+                                                           $refs.fotoInput.value = '';
+                                                       };
+                                                       reader.readAsDataURL($event.target.files[0]);
+                                                   ">
+                                        </label>
+                                        <span x-show="status === 'success'" class="badge bg-success"><i class="bi bi-check-lg"></i> Werte übernommen</span>
+                                        <span x-show="status && status !== 'success'" class="badge bg-danger" x-text="status"></span>
+                                    </div>
+                                </div>
+
+                                {{-- Kunde/Anlage --}}
+                                <div class="card mb-2">
+                                    <div class="card-header bg-light py-1 px-2">
+                                        <h6 class="mb-0 small"><i class="bi bi-person"></i> Kunde / Anlage</h6>
+                                    </div>
+                                    <div class="card-body py-2 px-2">
+                                        <div class="row g-2">
+                                            <div class="col-12">
+                                                <label class="form-label small mb-0">Name / Aufstellungsort <span class="text-danger">*</span></label>
+                                                <input type="text" wire:model="messung.cIM_NAME"
+                                                       class="form-control form-control-sm" placeholder="z.B. Mustermann GmbH" required>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">Baujahr</label>
+                                                <input type="text" wire:model.live="messung.boilerYear"
+                                                       class="form-control form-control-sm" placeholder="2010">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">Leistung kW</label>
+                                                <input type="text" wire:model.live="messung.boilerPower"
+                                                       class="form-control form-control-sm" placeholder="50">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Grunddaten --}}
+                                <div class="card mb-2">
+                                    <div class="card-header bg-light py-1 px-2">
+                                        <h6 class="mb-0 small"><i class="bi bi-info-circle"></i> Grunddaten</h6>
+                                    </div>
+                                    <div class="card-body py-2 px-2">
+                                        <div class="row g-2">
+                                            <div class="col-4 col-md-2">
+                                                <label class="form-label small mb-0">Stadio</label>
+                                                <input type="text" wire:model="messung.cMIS_STADIO"
+                                                       class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-4 col-md-3">
+                                                <label class="form-label small mb-0">Datum</label>
+                                                <input type="text" wire:model="messung.cMIS_DATA2"
+                                                       class="form-control form-control-sm" placeholder="TT.MM.JJJJ" required>
+                                            </div>
+                                            <div class="col-4 col-md-2">
+                                                <label class="form-label small mb-0">Uhrzeit</label>
+                                                <input type="text" wire:model="messung.cMIS_ORA"
+                                                       class="form-control form-control-sm" placeholder="HH:MM">
+                                            </div>
+                                            <div class="col-12 col-md-5">
+                                                <label class="form-label small mb-0">Brennstoff</label>
+                                                <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
+                                                    @foreach($brennstoffe as $key => $info)
+                                                        <option value="{{ $key }}">{{ $info['text'] }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Messwerte --}}
+                                <div class="card mb-2">
+                                    <div class="card-header bg-light py-1 px-2">
+                                        <h6 class="mb-0 small"><i class="bi bi-speedometer2"></i> Messwerte</h6>
+                                    </div>
+                                    <div class="card-body py-2 px-2">
+                                        <div class="row g-2">
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">O₂ %</label>
+                                                <input type="text" wire:model="messung.cMIS_OSSIGENO"
+                                                       class="form-control form-control-sm" placeholder="8.3">
+                                            </div>
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">CO₂ %</label>
+                                                <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
+                                                       class="form-control form-control-sm" placeholder="7.1">
+                                            </div>
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">Qa %</label>
+                                                <input type="text" wire:model="messung.cMIS_PERD_FUMI"
+                                                       class="form-control form-control-sm" placeholder="2.7">
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">CO mg/m³</label>
+                                                <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
+                                                       class="form-control form-control-sm" placeholder="31">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">NOx mg/m³</label>
+                                                <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
+                                                       class="form-control form-control-sm" placeholder="82">
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">T Luft °C</label>
+                                                <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
+                                                       class="form-control form-control-sm" placeholder="18">
+                                            </div>
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">T Abgas °C</label>
+                                                <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
+                                                       class="form-control form-control-sm" placeholder="61">
+                                            </div>
+                                            <div class="col-4">
+                                                <label class="form-label small mb-0">T Wärmetr. °C</label>
+                                                <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
+                                                       class="form-control form-control-sm" placeholder="51">
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-1">
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">Rußzahl</label>
+                                                <input type="text" wire:model.live.debounce.500ms="messung.cMIS_IND_OPACITA"
+                                                       class="form-control form-control-sm" placeholder="0">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small mb-0">Ölspuren</label>
+                                                <select wire:model.live="messung.cMIS_TRACCE_OLEO" class="form-select form-select-sm">
+                                                    <option value="1">Nein</option>
+                                                    <option value="0">Ja</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Rechte Spalte: Grenzwerte --}}
+                            <div class="col-12 col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-header bg-light py-1 px-2">
+                                        <h6 class="mb-0 small"><i class="bi bi-shield-check"></i> Grenzwerte</h6>
+                                    </div>
+                                    <div class="card-body py-2 px-2">
+                                        @if($grenzwerte)
+                                            @foreach(['co' => 'CO', 'nox' => 'NOx', 'russ' => 'Rußzahl', 'oel' => 'Ölspuren'] as $key => $label)
+                                                @php
+                                                    $g = $grenzwerte[$key] ?? [];
+                                                    $status = $g['status'] ?? 'gruen';
+                                                    $grenzwert = $g['grenzwert'] ?? '-';
+                                                    $wert = match($key) {
+                                                        'co' => $messung['cMIS_MONOSSSIDO'] ?? '-',
+                                                        'nox' => $messung['cMIS_BIOSSIDO_AZOTO'] ?? '-',
+                                                        'russ' => $messung['cMIS_IND_OPACITA'] ?? '-',
+                                                        'oel' => ($messung['cMIS_TRACCE_OLEO'] ?? '1') === '0' ? 'Ja' : 'Nein',
+                                                        default => '-'
+                                                    };
+                                                    $bgClass = match($status) {
+                                                        'rot' => 'bg-danger bg-opacity-10 border-danger',
+                                                        'gelb' => 'bg-warning bg-opacity-10 border-warning',
+                                                        default => 'bg-success bg-opacity-10 border-success'
+                                                    };
+                                                @endphp
+                                                <div class="d-flex justify-content-between align-items-center p-2 mb-1 rounded border {{ $bgClass }}">
+                                                    <div>
+                                                        <strong>{{ $label }}</strong><br>
+                                                        <small class="text-muted">
+                                                            @if($key === 'oel')
+                                                                keine erlaubt
+                                                            @else
+                                                                max. {{ $grenzwert }} {{ $key === 'russ' ? '' : 'mg/m³' }}
+                                                            @endif
+                                                        </small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="h5 mb-0">{{ $wert }}</span>
+                                                        @if($status === 'gruen')
+                                                            <span class="text-success"><i class="bi bi-check-circle-fill"></i></span>
+                                                        @elseif($status === 'gelb')
+                                                            <span class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                                                        @else
+                                                            <span class="text-danger"><i class="bi bi-x-circle-fill"></i></span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        @else
+                                            <div class="text-center text-muted py-4">
+                                                <i class="bi bi-speedometer2 fs-1 opacity-25"></i>
+                                                <p class="mb-0 small mt-2">Gib Messwerte ein um die Grenzwertprüfung zu sehen.</p>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Footer --}}
+                        <div class="modal-footer border-top mt-3 pt-2 pb-0 px-0">
+                            <button type="button" class="btn btn-secondary" wire:click="closeMessungModal">
+                                <i class="bi bi-x-lg"></i> Abbrechen
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-lg"></i> Speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
