@@ -649,7 +649,12 @@
                                     </div>
                                     <div class="card-body py-2 px-2">
                                         <div class="row g-2">
-                                            <div class="col-12">
+                                            <div class="col-4 col-md-3">
+                                                <label class="form-label small mb-0">Kodex <span class="text-danger">*</span></label>
+                                                <input type="text" wire:model="messung.cIM_CODICE"
+                                                       class="form-control form-control-sm" required>
+                                            </div>
+                                            <div class="col-8 col-md-9">
                                                 <label class="form-label small mb-0">Name / Aufstellungsort <span class="text-danger">*</span></label>
                                                 <input type="text" wire:model="messung.cIM_NAME"
                                                        class="form-control form-control-sm" placeholder="z.B. Mustermann GmbH" required>
