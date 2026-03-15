@@ -1,6 +1,64 @@
 {{-- resources/views/livewire/messungen/anlagen-liste.blade.php --}}
 <div class="container-fluid py-2 py-md-4">
 
+    {{-- Inline Script für Foto-Extraktion --}}
+    <script>
+    function extractFromPhoto(input) {
+        if (!input.files || !input.files[0]) return;
+        
+        const file = input.files[0];
+        const status = document.getElementById('fotoStatus');
+        status.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Wird analysiert...</span>';
+        
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const base64 = e.target.result.split(',')[1];
+            
+            try {
+                const response = await fetch('/messungen/extract-from-photo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: JSON.stringify({ image: base64 })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const wireEl = document.querySelector('[wire\\:id]');
+                    const wireId = wireEl.getAttribute('wire:id');
+                    const component = Livewire.find(wireId);
+                    
+                    if (data.datum) component.set('messung.cMIS_DATA2', data.datum);
+                    if (data.uhrzeit) component.set('messung.cMIS_ORA', data.uhrzeit);
+                    if (data.o2) component.set('messung.cMIS_OSSIGENO', data.o2);
+                    if (data.co2) component.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2);
+                    if (data.qa) component.set('messung.cMIS_PERD_FUMI', data.qa);
+                    if (data.co) component.set('messung.cMIS_MONOSSSIDO', data.co);
+                    if (data.nox) component.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox);
+                    if (data.t_luft) component.set('messung.cMIS_T_ARIA_COMB', data.t_luft);
+                    if (data.t_abgas) component.set('messung.cMIS_T_GAS_COMB', data.t_abgas);
+                    if (data.t_waerme) component.set('messung.cMIS_T_LIQ_CONV', data.t_waerme);
+                    if (data.russ) component.set('messung.cMIS_IND_OPACITA', data.russ);
+                    if (data.brennstoff) component.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                    
+                    status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Werte übernommen!</span>';
+                    setTimeout(() => { status.innerHTML = ''; }, 3000);
+                } else {
+                    status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + (data.error || 'Fehler') + '</span>';
+                }
+            } catch (err) {
+                status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Verbindungsfehler</span>';
+                console.error(err);
+            }
+        };
+        reader.readAsDataURL(file);
+        input.value = '';
+    }
+    </script>
+
     {{-- Flash Messages --}}
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
@@ -653,65 +711,4 @@
     @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
     @media print { .btn, #filterCollapse, .card-header[data-bs-toggle], .pagination { display: none !important; } .d-none.d-lg-block { display: block !important; } .d-lg-none { display: none !important; } }
 </style>
-
-<script>
-async function extractFromPhoto(input) {
-    if (!input.files || !input.files[0]) return;
-    
-    const file = input.files[0];
-    const status = document.getElementById('fotoStatus');
-    status.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Wird analysiert...</span>';
-    
-    // Bild zu Base64 konvertieren
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        const base64 = e.target.result.split(',')[1];
-        
-        try {
-            const response = await fetch('/messungen/extract-from-photo', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({ image: base64 })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Felder befüllen via Livewire
-                @this.set('messung.cMIS_DATA2', data.datum || '');
-                @this.set('messung.cMIS_ORA', data.uhrzeit || '');
-                @this.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                @this.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                @this.set('messung.cMIS_PERD_FUMI', data.qa || '');
-                @this.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                @this.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                @this.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                @this.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                @this.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
-                @this.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                
-                // Brennstoff setzen
-                if (data.brennstoff) {
-                    @this.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                }
-                
-                status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Werte übernommen!</span>';
-                setTimeout(() => { status.innerHTML = ''; }, 3000);
-            } else {
-                status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + (data.error || 'Fehler') + '</span>';
-            }
-        } catch (err) {
-            status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Verbindungsfehler</span>';
-            console.error(err);
-        }
-    };
-    reader.readAsDataURL(file);
-    
-    // Input zurücksetzen für erneuten Upload
-    input.value = '';
-}
-</script>
 @endpush
