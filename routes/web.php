@@ -32,6 +32,8 @@ use App\Livewire\Messungen\AnlagenListe;
 use App\Livewire\Messungen\AnlagenEdit;
 use App\Livewire\Messungen\ImportAnlagen;
 use App\Livewire\Messungen\ImportMessungen;
+use App\Livewire\Messungen\MessungenListe;
+use App\Livewire\Messungen\MessungEdit;
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
