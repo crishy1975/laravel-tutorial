@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use App\Models\Messung;
+use App\Models\Impianto;
 
 #[Layout('layouts.app')]
 class MessungenListe extends Component
@@ -27,6 +28,16 @@ class MessungenListe extends Component
     // Sortierung
     public $sortField = 'cMIS_DATA';
     public $sortDirection = 'desc';
+
+    // Modal: Anlage zuordnen
+    public $showAnlageModal = false;
+    public $selectedMessungId = null;
+    public $selectedMessung = null;
+    public $anlageSearchOrt = '';
+    public $anlageSearchStrasse = '';
+    public $anlageSearchNummer = '';
+    public $anlageSearchName = '';
+    public $anlageSearchResults = [];
 
     protected $queryString = [
         'filterKodex' => ['except' => ''],
@@ -75,6 +86,118 @@ class MessungenListe extends Component
         $this->filterJahr = date('Y');
         $this->resetPage();
     }
+
+    // ========== Modal: Anlage zuordnen ==========
+    
+    public function openAnlageModal($messungId)
+    {
+        $this->selectedMessungId = $messungId;
+        $this->selectedMessung = Messung::find($messungId);
+        $this->resetAnlageSearch();
+        $this->showAnlageModal = true;
+    }
+
+    public function closeAnlageModal()
+    {
+        $this->showAnlageModal = false;
+        $this->selectedMessungId = null;
+        $this->selectedMessung = null;
+        $this->resetAnlageSearch();
+    }
+
+    public function resetAnlageSearch()
+    {
+        $this->anlageSearchOrt = '';
+        $this->anlageSearchStrasse = '';
+        $this->anlageSearchNummer = '';
+        $this->anlageSearchName = '';
+        $this->anlageSearchResults = [];
+    }
+
+    public function searchAnlagen()
+    {
+        $query = Impianto::query();
+
+        // Mindestens ein Suchkriterium erforderlich
+        $hasFilter = false;
+
+        // Aufstellungsort/Name (Feld_w)
+        if ($this->anlageSearchName) {
+            $query->where('Feld_w', 'like', "%{$this->anlageSearchName}%");
+            $hasFilter = true;
+        }
+
+        // Gemeinde/Ort (Feld_i = DE, Feld_h = IT)
+        if ($this->anlageSearchOrt) {
+            $query->where(function ($q) {
+                $q->where('Feld_i', 'like', "%{$this->anlageSearchOrt}%")
+                  ->orWhere('Feld_h', 'like', "%{$this->anlageSearchOrt}%");
+            });
+            $hasFilter = true;
+        }
+
+        // Straße (Feld_m = DE, Feld_l = IT)
+        if ($this->anlageSearchStrasse) {
+            $query->where(function ($q) {
+                $q->where('Feld_m', 'like', "%{$this->anlageSearchStrasse}%")
+                  ->orWhere('Feld_l', 'like', "%{$this->anlageSearchStrasse}%");
+            });
+            $hasFilter = true;
+        }
+
+        // Hausnummer (Feld_n)
+        if ($this->anlageSearchNummer) {
+            $query->where('Feld_n', 'like', "%{$this->anlageSearchNummer}%");
+            $hasFilter = true;
+        }
+
+        if (!$hasFilter) {
+            $this->anlageSearchResults = [];
+            return;
+        }
+
+        // Sortierung: Gemeinde, Straße, Hausnummer
+        $query->orderBy('Feld_i', 'asc')
+              ->orderBy('Feld_m', 'asc')
+              ->orderBy('Feld_n', 'asc');
+
+        $this->anlageSearchResults = $query->limit(20)->get();
+    }
+
+    public function zuordnenAnlage($anlageKodex)
+    {
+        if (!$this->selectedMessungId) {
+            return;
+        }
+
+        $messung = Messung::find($this->selectedMessungId);
+        if (!$messung) {
+            return;
+        }
+
+        // Anlage laden für zusätzliche Infos
+        $anlage = Impianto::where('Feld_a', $anlageKodex)->first();
+
+        // Messung aktualisieren
+        $messung->cIM_CODICE = $anlageKodex;
+        $messung->codeInImpianti = 1;
+        
+        // Optional: Baujahr und Leistung von Anlage übernehmen wenn leer
+        if (empty($messung->boilerYear) && $anlage && $anlage->Feld_z) {
+            $messung->boilerYear = $anlage->Feld_z;
+        }
+        if (empty($messung->boilerPower) && $anlage && $anlage->Feld_ab) {
+            $messung->boilerPower = $anlage->Feld_ab;
+        }
+
+        $messung->save();
+
+        $this->closeAnlageModal();
+        
+        session()->flash('success', "Messung wurde der Anlage {$anlageKodex} zugeordnet.");
+    }
+
+    // ========== Properties ==========
 
     public function getMessungenProperty()
     {

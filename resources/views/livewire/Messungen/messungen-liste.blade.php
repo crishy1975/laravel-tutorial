@@ -233,6 +233,10 @@
                                            class="btn btn-outline-primary" title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </a>
+                                        <button wire:click="openAnlageModal({{ $messung->id }})"
+                                                class="btn btn-outline-warning" title="Anlage zuordnen">
+                                            <i class="bi bi-link-45deg"></i>
+                                        </button>
                                         <button wire:click="delete({{ $messung->id }})"
                                                 wire:confirm="Messung wirklich löschen?"
                                                 class="btn btn-outline-danger" title="Löschen">
@@ -298,6 +302,10 @@
                                        class="btn btn-outline-primary py-0 px-2">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    <button wire:click="openAnlageModal({{ $messung->id }})"
+                                            class="btn btn-outline-warning py-0 px-2">
+                                        <i class="bi bi-link-45deg"></i>
+                                    </button>
                                     <button wire:click="delete({{ $messung->id }})"
                                             wire:confirm="Messung wirklich löschen?"
                                             class="btn btn-outline-danger py-0 px-2">
@@ -320,6 +328,135 @@
             @endif
         </div>
     @endif
+
+    {{-- ========== Modal: Anlage zuordnen ========== --}}
+    @if($showAnlageModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white py-2">
+                        <h5 class="modal-title">
+                            <i class="bi bi-link-45deg"></i> Anlage zuordnen
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeAnlageModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        {{-- Aktuelle Messung Info --}}
+                        @if($selectedMessung)
+                            <div class="alert alert-info py-2 mb-3">
+                                <div class="row small">
+                                    <div class="col-6 col-md-3">
+                                        <strong>Kodex:</strong> {{ $selectedMessung->cIM_CODICE }}
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <strong>Datum:</strong> {{ $selectedMessung->cMIS_DATA2 }}
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <strong>Name:</strong> {{ $selectedMessung->cIM_NAME ?: '(kein Name)' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        {{-- Suchformular --}}
+                        <div class="card mb-3">
+                            <div class="card-header bg-light py-2">
+                                <h6 class="mb-0"><i class="bi bi-search"></i> Anlage suchen</h6>
+                            </div>
+                            <div class="card-body py-2">
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-4">
+                                        <label class="form-label small mb-1">Aufstellungsort/Name</label>
+                                        <input type="text" wire:model.live.debounce.300ms="anlageSearchName"
+                                               class="form-control form-control-sm" placeholder="z.B. Mustermann...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small mb-1">Gemeinde/Ort</label>
+                                        <input type="text" wire:model.live.debounce.300ms="anlageSearchOrt"
+                                               class="form-control form-control-sm" placeholder="z.B. Bozen...">
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <label class="form-label small mb-1">Straße</label>
+                                        <input type="text" wire:model.live.debounce.300ms="anlageSearchStrasse"
+                                               class="form-control form-control-sm" placeholder="z.B. Hauptstr...">
+                                    </div>
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label small mb-1">Hausnr.</label>
+                                        <input type="text" wire:model.live.debounce.300ms="anlageSearchNummer"
+                                               class="form-control form-control-sm" placeholder="z.B. 15">
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" wire:click="searchAnlagen" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-search"></i> Suchen
+                                    </button>
+                                    <button type="button" wire:click="resetAnlageSearch" class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi bi-x-lg"></i> Reset
+                                    </button>
+                                    <span wire:loading wire:target="searchAnlagen" class="ms-2">
+                                        <span class="spinner-border spinner-border-sm"></span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Suchergebnisse --}}
+                        @if(count($anlageSearchResults) > 0)
+                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-hover table-sm mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Kodex</th>
+                                            <th>Aufstellungsort</th>
+                                            <th>Gemeinde</th>
+                                            <th>Straße</th>
+                                            <th>Nr.</th>
+                                            <th class="text-end">Aktion</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($anlageSearchResults as $anlage)
+                                            <tr>
+                                                <td class="font-monospace fw-bold">{{ $anlage->Feld_a }}</td>
+                                                <td>{{ Str::limit($anlage->Feld_w, 25) }}</td>
+                                                <td>{{ $anlage->Feld_i }}</td>
+                                                <td>{{ $anlage->Feld_m }}</td>
+                                                <td>{{ $anlage->Feld_n }}</td>
+                                                <td class="text-end">
+                                                    <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
+                                                            class="btn btn-success btn-sm py-0">
+                                                        <i class="bi bi-check-lg"></i> Zuordnen
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                {{ count($anlageSearchResults) }} Anlage(n) gefunden
+                            </div>
+                        @elseif($anlageSearchName || $anlageSearchOrt || $anlageSearchStrasse || $anlageSearchNummer)
+                            <div class="text-center text-muted py-3">
+                                <i class="bi bi-inbox display-6"></i>
+                                <p class="mb-0 mt-2">Keine Anlagen gefunden.</p>
+                            </div>
+                        @else
+                            <div class="text-center text-muted py-3">
+                                <i class="bi bi-search display-6"></i>
+                                <p class="mb-0 mt-2">Gib Suchkriterien ein und klicke auf "Suchen".</p>
+                            </div>
+                        @endif
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" wire:click="closeAnlageModal" class="btn btn-secondary btn-sm">
+                            <i class="bi bi-x-lg"></i> Schließen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
 
 @push('styles')
@@ -340,6 +477,7 @@
     #messungenTable tbody tr { cursor: pointer; transition: background-color 0.15s; }
     #messungenTable tbody tr:hover { background-color: rgba(0, 123, 255, 0.05); }
     #messungenTable tbody tr.table-danger:hover { background-color: rgba(220, 53, 69, 0.15); }
+    #messungenTable tbody tr.table-warning:hover { background-color: rgba(255, 193, 7, 0.25); }
     @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
 </style>
 @endpush
