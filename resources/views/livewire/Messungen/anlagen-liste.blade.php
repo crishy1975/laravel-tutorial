@@ -1,64 +1,6 @@
 {{-- resources/views/livewire/messungen/anlagen-liste.blade.php --}}
 <div class="container-fluid py-2 py-md-4">
 
-    {{-- Inline Script für Foto-Extraktion --}}
-    <script>
-    function extractFromPhoto(input) {
-        if (!input.files || !input.files[0]) return;
-        
-        const file = input.files[0];
-        const status = document.getElementById('fotoStatus');
-        status.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split"></i> Wird analysiert...</span>';
-        
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const base64 = e.target.result.split(',')[1];
-            
-            try {
-                const response = await fetch('/messungen/extract-from-photo', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                    },
-                    body: JSON.stringify({ image: base64 })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const wireEl = document.querySelector('[wire\\:id]');
-                    const wireId = wireEl.getAttribute('wire:id');
-                    const component = Livewire.find(wireId);
-                    
-                    if (data.datum) component.set('messung.cMIS_DATA2', data.datum);
-                    if (data.uhrzeit) component.set('messung.cMIS_ORA', data.uhrzeit);
-                    if (data.o2) component.set('messung.cMIS_OSSIGENO', data.o2);
-                    if (data.co2) component.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2);
-                    if (data.qa) component.set('messung.cMIS_PERD_FUMI', data.qa);
-                    if (data.co) component.set('messung.cMIS_MONOSSSIDO', data.co);
-                    if (data.nox) component.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox);
-                    if (data.t_luft) component.set('messung.cMIS_T_ARIA_COMB', data.t_luft);
-                    if (data.t_abgas) component.set('messung.cMIS_T_GAS_COMB', data.t_abgas);
-                    if (data.t_waerme) component.set('messung.cMIS_T_LIQ_CONV', data.t_waerme);
-                    if (data.russ) component.set('messung.cMIS_IND_OPACITA', data.russ);
-                    if (data.brennstoff) component.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                    
-                    status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Werte übernommen!</span>';
-                    setTimeout(() => { status.innerHTML = ''; }, 3000);
-                } else {
-                    status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> ' + (data.error || 'Fehler') + '</span>';
-                }
-            } catch (err) {
-                status.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> Verbindungsfehler</span>';
-                console.error(err);
-            }
-        };
-        reader.readAsDataURL(file);
-        input.value = '';
-    }
-    </script>
-
     {{-- Flash Messages --}}
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
@@ -444,15 +386,59 @@
                         @endif
 
                         {{-- Foto-Upload für OCR --}}
-                        <div class="mb-2">
+                        <div class="mb-2" x-data="{ loading: false, status: '' }">
                             <div class="d-flex align-items-center gap-2">
-                                <label class="btn btn-outline-primary btn-sm mb-0">
-                                    <i class="bi bi-camera"></i> Foto vom Messgerät
+                                <label class="btn btn-outline-primary btn-sm mb-0" :class="{ 'disabled': loading }">
+                                    <span x-show="!loading"><i class="bi bi-camera"></i> Foto vom Messgerät</span>
+                                    <span x-show="loading"><i class="bi bi-hourglass-split"></i> Wird analysiert...</span>
                                     <input type="file" accept="image/*" capture="environment" 
-                                           class="d-none" id="fotoInput"
-                                           onchange="extractFromPhoto(this)">
+                                           class="d-none" x-ref="fotoInput"
+                                           @change="
+                                               if (!$event.target.files[0]) return;
+                                               loading = true;
+                                               status = '';
+                                               const reader = new FileReader();
+                                               reader.onload = async (e) => {
+                                                   try {
+                                                       const res = await fetch('/messungen/extract-from-photo', {
+                                                           method: 'POST',
+                                                           headers: {
+                                                               'Content-Type': 'application/json',
+                                                               'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                                                           },
+                                                           body: JSON.stringify({ image: e.target.result.split(',')[1] })
+                                                       });
+                                                       const data = await res.json();
+                                                       if (data.success) {
+                                                           $wire.set('messung.cMIS_DATA2', data.datum || '');
+                                                           $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
+                                                           $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                           $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                           $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                           $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                           $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                           $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                           $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                           $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
+                                                           $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                           if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                           status = '✓ Werte übernommen!';
+                                                       } else {
+                                                           status = '✗ ' + (data.error || 'Fehler');
+                                                       }
+                                                   } catch (err) {
+                                                       status = '✗ Verbindungsfehler';
+                                                       console.error(err);
+                                                   }
+                                                   loading = false;
+                                                   $refs.fotoInput.value = '';
+                                               };
+                                               reader.readAsDataURL($event.target.files[0]);
+                                           ">
                                 </label>
-                                <span id="fotoStatus" class="small text-muted"></span>
+                                <span class="small" :class="status.startsWith('✓') ? 'text-success' : 'text-danger'" x-text="status"></span>
+                            </div>
+                        </div>
                             </div>
                         </div>
 
