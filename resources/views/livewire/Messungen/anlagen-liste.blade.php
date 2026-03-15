@@ -214,10 +214,10 @@
                                            class="btn btn-outline-primary" title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </a>
-                                        {{-- TODO: route('messungen.neu', $anlage->Feld_a) --}}
-                                        <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
+                                        <button wire:click="openMessungModal('{{ $anlage->Feld_a }}')"
                                            class="btn btn-outline-success" title="Neue Messung">
                                             <i class="bi bi-plus-lg"></i>
+                                        </button>
                                         </a>
                                     </div>
                                 </td>
@@ -275,9 +275,10 @@
                                        class="btn btn-outline-primary py-0 px-2">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    {{-- TODO: route('messungen.neu', $anlage->Feld_a) --}}
-                                    <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
+                                    <button wire:click="openMessungModal('{{ $anlage->Feld_a }}')"
                                        class="btn btn-outline-success py-0 px-2">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
                                         <i class="bi bi-plus-lg"></i>
                                     </a>
                                 </div>
@@ -295,6 +296,266 @@
                     </div>
                 </div>
             @endif
+        </div>
+    @endif
+
+    {{-- ========== Modal: Neue Messung ========== --}}
+    @if($showMessungModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white py-2">
+                        <h5 class="modal-title">
+                            <i class="bi bi-plus-circle"></i> Neue Messung
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
+                    </div>
+                    <div class="modal-body p-2 p-md-3">
+                        {{-- Anlage Info --}}
+                        @if($selectedAnlage)
+                            <div class="alert alert-secondary py-2 mb-3">
+                                <div class="row small">
+                                    <div class="col-4 col-md-2">
+                                        <strong>Kodex:</strong><br>
+                                        <span class="font-monospace">{{ $selectedAnlage->Feld_a }}</span>
+                                    </div>
+                                    <div class="col-8 col-md-4">
+                                        <strong>Aufstellungsort:</strong><br>
+                                        {{ $selectedAnlage->Feld_w }}
+                                    </div>
+                                    <div class="col-6 col-md-3">
+                                        <strong>Kessel:</strong><br>
+                                        {{ $selectedAnlage->Feld_y ?? '-' }}
+                                    </div>
+                                    <div class="col-3 col-md-1">
+                                        <strong>Bj.:</strong><br>
+                                        {{ $selectedAnlage->Feld_z ?? '-' }}
+                                    </div>
+                                    <div class="col-3 col-md-2">
+                                        <strong>kW:</strong><br>
+                                        {{ $selectedAnlage->Feld_ab ?? '-' }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        <form wire:submit="saveMessung">
+                            <div class="row g-2">
+                                {{-- Linke Spalte: Grunddaten + Messwerte --}}
+                                <div class="col-12 col-md-8">
+                                    {{-- Grunddaten --}}
+                                    <div class="card mb-2">
+                                        <div class="card-header bg-light py-1 px-2">
+                                            <h6 class="mb-0 small"><i class="bi bi-info-circle"></i> Grunddaten</h6>
+                                        </div>
+                                        <div class="card-body py-2 px-2">
+                                            <div class="row g-2">
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">Stadio</label>
+                                                    <input type="text" wire:model="messung.cMIS_STADIO"
+                                                           class="form-control form-control-sm" required>
+                                                </div>
+                                                <div class="col-4 col-md-3">
+                                                    <label class="form-label small mb-0">Datum</label>
+                                                    <input type="text" wire:model="messung.cMIS_DATA2"
+                                                           class="form-control form-control-sm" placeholder="TT.MM.JJJJ" required>
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">Uhrzeit</label>
+                                                    <input type="text" wire:model="messung.cMIS_ORA"
+                                                           class="form-control form-control-sm" placeholder="HH:MM">
+                                                </div>
+                                                <div class="col-12 col-md-5">
+                                                    <label class="form-label small mb-0">Brennstoff</label>
+                                                    <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
+                                                        @foreach($brennstoffe as $key => $info)
+                                                            <option value="{{ $key }}">{{ $info['text'] }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Messwerte --}}
+                                    <div class="card mb-2">
+                                        <div class="card-header bg-light py-1 px-2">
+                                            <h6 class="mb-0 small"><i class="bi bi-speedometer2"></i> Messwerte</h6>
+                                        </div>
+                                        <div class="card-body py-2 px-2">
+                                            <div class="row g-2">
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">O₂ %</label>
+                                                    <input type="text" wire:model="messung.cMIS_OSSIGENO"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">CO₂ %</label>
+                                                    <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">CO mg/m³</label>
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">NOx mg/m³</label>
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">T Abgas °C</label>
+                                                    <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">T Luft °C</label>
+                                                    <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                            </div>
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-4 col-md-3">
+                                                    <label class="form-label small mb-0">Abgasverlust %</label>
+                                                    <input type="text" wire:model="messung.cMIS_PERD_FUMI"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-3">
+                                                    <label class="form-label small mb-0">Rußzahl</label>
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_IND_OPACITA"
+                                                           class="form-control form-control-sm">
+                                                </div>
+                                                <div class="col-4 col-md-3">
+                                                    <label class="form-label small mb-0">Ölspuren</label>
+                                                    <select wire:model.live="messung.cMIS_TRACCE_OLEO" class="form-select form-select-sm">
+                                                        <option value="1">Nein</option>
+                                                        <option value="0">Ja</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Rechte Spalte: Grenzwert-Ampel --}}
+                                <div class="col-12 col-md-4">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-light py-1 px-2">
+                                            <h6 class="mb-0 small"><i class="bi bi-stoplights"></i> Grenzwerte</h6>
+                                        </div>
+                                        <div class="card-body py-2 px-2">
+                                            @if($grenzwerte)
+                                                {{-- CO --}}
+                                                <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded
+                                                    {{ $grenzwerte['co']['status'] === 'gruen' ? 'bg-success bg-opacity-10' : '' }}
+                                                    {{ $grenzwerte['co']['status'] === 'gelb' ? 'bg-warning bg-opacity-25' : '' }}
+                                                    {{ $grenzwerte['co']['status'] === 'rot' ? 'bg-danger bg-opacity-25' : '' }}">
+                                                    <div>
+                                                        <strong>CO</strong>
+                                                        <small class="text-muted d-block">max. {{ $grenzwerte['co']['grenzwert'] }} mg/m³</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="fw-bold">{{ $messung['cMIS_MONOSSSIDO'] ?: '-' }}</span>
+                                                        @if($grenzwerte['co']['status'] === 'gruen')
+                                                            <i class="bi bi-check-circle-fill text-success ms-1"></i>
+                                                        @elseif($grenzwerte['co']['status'] === 'gelb')
+                                                            <i class="bi bi-exclamation-triangle-fill text-warning ms-1"></i>
+                                                        @else
+                                                            <i class="bi bi-x-circle-fill text-danger ms-1"></i>
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                {{-- NOx --}}
+                                                <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded
+                                                    {{ $grenzwerte['nox']['status'] === 'gruen' ? 'bg-success bg-opacity-10' : '' }}
+                                                    {{ $grenzwerte['nox']['status'] === 'gelb' ? 'bg-warning bg-opacity-25' : '' }}
+                                                    {{ $grenzwerte['nox']['status'] === 'rot' ? 'bg-danger bg-opacity-25' : '' }}">
+                                                    <div>
+                                                        <strong>NOx</strong>
+                                                        <small class="text-muted d-block">max. {{ $grenzwerte['nox']['grenzwert'] }} mg/m³</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="fw-bold">{{ $messung['cMIS_BIOSSIDO_AZOTO'] ?: '-' }}</span>
+                                                        @if($grenzwerte['nox']['status'] === 'gruen')
+                                                            <i class="bi bi-check-circle-fill text-success ms-1"></i>
+                                                        @elseif($grenzwerte['nox']['status'] === 'gelb')
+                                                            <i class="bi bi-exclamation-triangle-fill text-warning ms-1"></i>
+                                                        @else
+                                                            <i class="bi bi-x-circle-fill text-danger ms-1"></i>
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                {{-- Ruß --}}
+                                                <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded
+                                                    {{ $grenzwerte['russ']['status'] === 'gruen' ? 'bg-success bg-opacity-10' : '' }}
+                                                    {{ $grenzwerte['russ']['status'] === 'rot' ? 'bg-danger bg-opacity-25' : '' }}">
+                                                    <div>
+                                                        <strong>Rußzahl</strong>
+                                                        <small class="text-muted d-block">max. {{ $grenzwerte['russ']['grenzwert'] }}</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="fw-bold">{{ $messung['cMIS_IND_OPACITA'] ?: '-' }}</span>
+                                                        @if($grenzwerte['russ']['status'] === 'gruen')
+                                                            <i class="bi bi-check-circle-fill text-success ms-1"></i>
+                                                        @else
+                                                            <i class="bi bi-x-circle-fill text-danger ms-1"></i>
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                {{-- Ölspuren --}}
+                                                <div class="d-flex justify-content-between align-items-center p-2 rounded
+                                                    {{ $grenzwerte['oel']['status'] === 'gruen' ? 'bg-success bg-opacity-10' : '' }}
+                                                    {{ $grenzwerte['oel']['status'] === 'rot' ? 'bg-danger bg-opacity-25' : '' }}">
+                                                    <div>
+                                                        <strong>Ölspuren</strong>
+                                                        <small class="text-muted d-block">keine erlaubt</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="fw-bold">{{ $messung['cMIS_TRACCE_OLEO'] === '0' ? 'Ja' : 'Nein' }}</span>
+                                                        @if($grenzwerte['oel']['status'] === 'gruen')
+                                                            <i class="bi bi-check-circle-fill text-success ms-1"></i>
+                                                        @else
+                                                            <i class="bi bi-x-circle-fill text-danger ms-1"></i>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @else
+                                                <div class="text-center text-muted py-4">
+                                                    <i class="bi bi-speedometer2 display-6"></i>
+                                                    <p class="mb-0 mt-2 small">Gib Messwerte ein um die Grenzwertprüfung zu sehen.</p>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Validation Errors --}}
+                            @if($errors->any())
+                                <div class="alert alert-danger py-2 mt-2">
+                                    <ul class="mb-0 small">
+                                        @foreach($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+                        </form>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" wire:click="closeMessungModal" class="btn btn-secondary btn-sm">
+                            <i class="bi bi-x-lg"></i> Abbrechen
+                        </button>
+                        <button type="button" wire:click="saveMessung" class="btn btn-success btn-sm">
+                            <i class="bi bi-check-lg"></i> Speichern
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     @endif
 </div>
