@@ -424,7 +424,6 @@
                                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
                                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
                                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                                       $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
                                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
                                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
                                                                        status = 'success';
