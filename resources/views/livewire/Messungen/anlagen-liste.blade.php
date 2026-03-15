@@ -200,8 +200,12 @@
                     </thead>
                     <tbody>
                         @foreach($anlagen as $anlage)
-                            @php $hatMessung = $anlage->messungenHeuer()->exists(); @endphp
-                            <tr class="{{ !$hatMessung ? 'table-danger bg-opacity-25' : '' }}">
+                            @php 
+                                $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
+                                $hatMessung = $letzteMessung !== null;
+                                $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
+                            @endphp
+                            <tr class="{{ $istNegativ ? 'table-danger' : (!$hatMessung ? 'table-warning' : '') }}">
                                 <td>
                                     <a href="{{ route('messungen.anlagen.edit', $anlage->Feld_a) }}"
                                        class="fw-bold text-decoration-none font-monospace">{{ $anlage->Feld_a }}</a>
@@ -213,10 +217,12 @@
                                 <td>{{ $anlage->Feld_i }}</td>
                                 <td>{{ $anlage->Feld_m }} {{ $anlage->Feld_n }}</td>
                                 <td class="text-center">
-                                    @if($hatMessung)
+                                    @if($istNegativ)
+                                        <span class="badge bg-danger"><i class="bi bi-x-lg"></i></span>
+                                    @elseif($hatMessung)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                     @else
-                                        <span class="badge bg-danger"><i class="bi bi-x-lg"></i></span>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-dash"></i></span>
                                     @endif
                                 </td>
                                 <td>{{ $anlage->Feld_y }}</td>
@@ -249,8 +255,12 @@
             {{-- ========== Mobile: Card-Liste ========== --}}
             <div class="d-lg-none">
                 @foreach($anlagen as $anlage)
-                    @php $hatMessung = $anlage->messungenHeuer()->exists(); @endphp
-                    <div class="anlage-card border-bottom {{ !$hatMessung ? 'bg-danger bg-opacity-10' : '' }}">
+                    @php 
+                        $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
+                        $hatMessung = $letzteMessung !== null;
+                        $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
+                    @endphp
+                    <div class="anlage-card border-bottom {{ $istNegativ ? 'bg-danger bg-opacity-10' : (!$hatMessung ? 'bg-warning bg-opacity-10' : '') }}">
                         <div class="p-2">
                             {{-- Zeile 1: Kodex, Aufstellungsort, Messung-Badge --}}
                             <div class="d-flex align-items-start gap-2 mb-1">
@@ -261,10 +271,12 @@
                                     </a>
                                 </div>
                                 <div class="flex-shrink-0">
-                                    @if($hatMessung)
+                                    @if($istNegativ)
+                                        <span class="badge bg-danger"><i class="bi bi-x-lg"></i></span>
+                                    @elseif($hatMessung)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                     @else
-                                        <span class="badge bg-danger"><i class="bi bi-x-lg"></i></span>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-dash"></i></span>
                                     @endif
                                 </div>
                             </div>
