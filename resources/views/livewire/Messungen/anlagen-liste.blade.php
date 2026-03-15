@@ -366,6 +366,13 @@
                             </div>
                         @endif
 
+                        {{-- Modal-Fehler --}}
+                        @if($modalError)
+                            <div class="alert alert-danger py-2 mb-2">
+                                <i class="bi bi-exclamation-triangle"></i> {{ $modalError }}
+                            </div>
+                        @endif
+
                         <form wire:submit="saveMessung">
                             <div class="row g-2">
                                 {{-- Linke Spalte: Grunddaten + Messwerte --}}

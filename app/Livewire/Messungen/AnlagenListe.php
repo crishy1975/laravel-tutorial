@@ -34,6 +34,7 @@ class AnlagenListe extends Component
     public $showMessungModal = false;
     public $selectedAnlage = null;
     public $letzteMessung = null;
+    public $modalError = null;
     public $messung = [
         'cMIS_STADIO' => '1',
         'cMIS_DATA2' => '',
@@ -187,8 +188,10 @@ class AnlagenListe extends Component
     {
         $this->showMessungModal = false;
         $this->selectedAnlage = null;
+        $this->letzteMessung = null;
         $this->messung = [];
         $this->grenzwerte = null;
+        $this->modalError = null;
     }
 
     public function updatedMessung($value, $key)
@@ -244,6 +247,8 @@ class AnlagenListe extends Component
 
     public function saveMessung()
     {
+        $this->modalError = null;
+        
         // Validierung
         $this->validate([
             'messung.cMIS_STADIO' => 'required',
@@ -256,7 +261,7 @@ class AnlagenListe extends Component
         ]);
 
         if (!$this->selectedAnlage) {
-            session()->flash('error', 'Keine Anlage ausgewählt.');
+            $this->modalError = 'Keine Anlage ausgewählt.';
             return;
         }
 
@@ -324,7 +329,7 @@ class AnlagenListe extends Component
             session()->flash('success', 'Messung wurde erfolgreich gespeichert.');
             
         } catch (\Exception $e) {
-            session()->flash('error', 'Fehler beim Speichern: ' . $e->getMessage());
+            $this->modalError = 'Fehler beim Speichern: ' . $e->getMessage();
         }
     }
 
