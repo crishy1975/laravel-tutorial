@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -17,12 +16,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Schritt 1: Foreign Key mit explizitem Namen entfernen
+        // Foreign Key mit explizitem Namen entfernen
         Schema::table('messungen', function (Blueprint $table) {
             $table->dropForeign('messungen_cim_codice_foreign');
         });
         
-        // Schritt 2: Spalte erweitern (separater Schema-Aufruf)
+        // Spalte erweitern (separater Aufruf für Kompatibilität)
         Schema::table('messungen', function (Blueprint $table) {
             $table->string('cIM_CODICE', 16)->change();
         });
@@ -30,10 +29,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Spalte wieder verkleinern
         Schema::table('messungen', function (Blueprint $table) {
             $table->string('cIM_CODICE', 6)->change();
         });
         
+        // Foreign Key wiederherstellen
         Schema::table('messungen', function (Blueprint $table) {
             $table->foreign('cIM_CODICE', 'messungen_cim_codice_foreign')
                 ->references('Feld_a')
