@@ -588,54 +588,66 @@
                             <div class="col-12 col-md-8">
                                 
                                 {{-- Foto-Upload für OCR --}}
-                                <div class="mb-3" x-data="{ loading: false, status: '' }">
+                                <div class="mb-3" x-data="{ 
+                                    loading: false, 
+                                    status: '',
+                                    processImage(file) {
+                                        if (!file) return;
+                                        this.loading = true;
+                                        this.status = '';
+                                        const reader = new FileReader();
+                                        reader.onload = async (e) => {
+                                            try {
+                                                const res = await fetch('/messungen/extract-from-photo', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                                                    },
+                                                    body: JSON.stringify({ image: e.target.result.split(',')[1] })
+                                                });
+                                                const data = await res.json();
+                                                if (data.success) {
+                                                    $wire.set('messung.cMIS_DATA2', data.datum || '');
+                                                    $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
+                                                    $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                    $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                    $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                    $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                    $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                    $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                    $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                    $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                    if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                    this.status = 'success';
+                                                } else {
+                                                    this.status = data.error || 'Fehler';
+                                                }
+                                            } catch (err) {
+                                                this.status = 'Verbindungsfehler';
+                                                console.error(err);
+                                            }
+                                            this.loading = false;
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }">
                                     <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        {{-- Kamera-Button --}}
                                         <label class="btn btn-primary btn-sm mb-0" :class="{ 'disabled': loading }">
-                                            <span x-show="!loading"><i class="bi bi-camera-fill me-1"></i> Foto vom Messgerät</span>
-                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Wird analysiert...</span>
+                                            <span x-show="!loading"><i class="bi bi-camera-fill me-1"></i> Kamera</span>
+                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
                                             <input type="file" accept="image/*" capture="environment" 
-                                                   class="d-none" x-ref="fotoInput"
-                                                   @change="
-                                                       if (!$event.target.files[0]) return;
-                                                       loading = true;
-                                                       status = '';
-                                                       const reader = new FileReader();
-                                                       reader.onload = async (e) => {
-                                                           try {
-                                                               const res = await fetch('/messungen/extract-from-photo', {
-                                                                   method: 'POST',
-                                                                   headers: {
-                                                                       'Content-Type': 'application/json',
-                                                                       'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
-                                                                   },
-                                                                   body: JSON.stringify({ image: e.target.result.split(',')[1] })
-                                                               });
-                                                               const data = await res.json();
-                                                               if (data.success) {
-                                                                   $wire.set('messung.cMIS_DATA2', data.datum || '');
-                                                                   $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
-                                                                   $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                                                                   $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                                                                   $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
-                                                                   $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                                                                   $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                                                                   $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                                                                   $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                                   $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                                                                   if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                                                                   status = 'success';
-                                                               } else {
-                                                                   status = data.error || 'Fehler';
-                                                               }
-                                                           } catch (err) {
-                                                               status = 'Verbindungsfehler';
-                                                               console.error(err);
-                                                           }
-                                                           loading = false;
-                                                           $refs.fotoInput.value = '';
-                                                       };
-                                                       reader.readAsDataURL($event.target.files[0]);
-                                                   ">
+                                                   class="d-none" x-ref="kameraInput"
+                                                   @change="processImage($event.target.files[0]); $refs.kameraInput.value = '';">
+                                        </label>
+                                        {{-- Galerie-Button --}}
+                                        <label class="btn btn-outline-primary btn-sm mb-0" :class="{ 'disabled': loading }">
+                                            <span x-show="!loading"><i class="bi bi-images me-1"></i> Galerie</span>
+                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
+                                            <input type="file" accept="image/*" 
+                                                   class="d-none" x-ref="galerieInput"
+                                                   @change="processImage($event.target.files[0]); $refs.galerieInput.value = '';">
                                         </label>
                                         <span x-show="status === 'success'" class="badge bg-success"><i class="bi bi-check-lg"></i> Werte übernommen</span>
                                         <span x-show="status && status !== 'success'" class="badge bg-danger" x-text="status"></span>
