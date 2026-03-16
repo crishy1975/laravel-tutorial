@@ -7,6 +7,8 @@
     Synchronisiert mit dem Remote-Repository (pull & push).
     Läuft bis du Ctrl+C drückst oder das Fenster schließt.
     
+    SICHERHEIT: Ignoriert automatisch sensible Dateien wie .env, .history, etc.
+    
 .USAGE
     .\git-auto-commit.ps1                    # Standard: alle 1 Minute, mit Sync
     .\git-auto-commit.ps1 -Minutes 5         # Alle 5 Minuten
@@ -22,6 +24,49 @@ param(
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectRoot
 
+# ============================================
+# SICHERHEIT: Dateien/Ordner die NIE committed werden
+# ============================================
+$ExcludePatterns = @(
+    ".history",
+    ".env",
+    ".env.*",
+    "*.log",
+    "node_modules",
+    "vendor",
+    ".idea",
+    ".vscode/settings.json",
+    "storage/logs",
+    "*.key",
+    "*.pem",
+    "*secret*",
+    "*password*",
+    "credentials*"
+)
+
+# Sicherstellen dass .gitignore die wichtigsten Einträge hat
+function Ensure-GitIgnore {
+    $gitignorePath = Join-Path $ProjectRoot ".gitignore"
+    $requiredEntries = @(".history/", ".env", "*.log")
+    
+    if (Test-Path $gitignorePath) {
+        $content = Get-Content $gitignorePath -Raw
+        $modified = $false
+        
+        foreach ($entry in $requiredEntries) {
+            if ($content -notmatch [regex]::Escape($entry)) {
+                Add-Content $gitignorePath "`n$entry"
+                $modified = $true
+                Write-Host "  [SICHERHEIT] '$entry' zu .gitignore hinzugefuegt" -ForegroundColor Yellow
+            }
+        }
+        
+        if ($modified) {
+            git add .gitignore 2>$null
+        }
+    }
+}
+
 # Git-Check
 if (-not (Test-Path ".git")) {
     Write-Host "FEHLER: Kein Git-Repository!" -ForegroundColor Red
@@ -29,6 +74,9 @@ if (-not (Test-Path ".git")) {
     pause
     exit 1
 }
+
+# .gitignore prüfen
+Ensure-GitIgnore
 
 # Remote-Check
 $hasRemote = $false
@@ -78,6 +126,8 @@ Write-Host "  Projekt:   $ProjectRoot" -ForegroundColor Gray
 Write-Host "  Sync:      " -NoNewline -ForegroundColor White
 Write-Host "$syncLabel" -ForegroundColor $syncColor
 Write-Host ""
+Write-Host "  Ausgeschlossen: .history, .env, *.log, etc." -ForegroundColor DarkYellow
+Write-Host ""
 Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 Write-Host "  Ctrl+C oder Fenster schliessen zum Beenden" -ForegroundColor Yellow
 Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
@@ -111,40 +161,68 @@ while ($true) {
     }
     
     # === COMMIT: Lokale Aenderungen committen ===
+    # WICHTIG: Wir verwenden "git add ." statt "git add -A" 
+    # und verlassen uns auf .gitignore
     $changes = git status --porcelain 2>$null
     
     if ($changes) {
-        $fileCount = ($changes | Measure-Object).Count
-        $timestamp = Get-Date -Format "dd.MM.yyyy HH:mm"
-        
-        # Stage & Commit
-        git add -A 2>$null
-        $result = git commit -m "Auto-Backup $timestamp" 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
-            $commits++
-            Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
-            Write-Host "[COMMIT]" -NoNewline -ForegroundColor Green
-            Write-Host " #$commits ($fileCount Dateien)" -ForegroundColor White
-            
-            # === PUSH: Zum Remote hochladen ===
-            if ($hasRemote -and -not $NoSync) {
-                $pushResult = git push $remoteName $branchName 2>&1
-                
-                if ($LASTEXITCODE -eq 0) {
-                    $pushes++
-                    Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
-                    Write-Host "[PUSH]" -NoNewline -ForegroundColor Blue
-                    Write-Host " Hochgeladen (#$pushes)" -ForegroundColor White
-                }
-                else {
-                    Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
-                    Write-Host "[FEHLER]" -NoNewline -ForegroundColor Red
-                    Write-Host " Push fehlgeschlagen!" -ForegroundColor Yellow
-                    $pushError = $pushResult -join " "
-                    Write-Host "           $pushError" -ForegroundColor DarkGray
+        # Prüfen ob nur ignorierte Dateien geändert wurden
+        $validChanges = $changes | Where-Object {
+            $line = $_
+            $dominated = $false
+            foreach ($pattern in $ExcludePatterns) {
+                if ($line -match [regex]::Escape($pattern)) {
+                    $dominated = $true
+                    break
                 }
             }
+            -not $dominated
+        }
+        
+        if ($validChanges) {
+            $fileCount = ($validChanges | Measure-Object).Count
+            $timestamp = Get-Date -Format "dd.MM.yyyy HH:mm"
+            
+            # Stage nur nicht-ignorierte Dateien (git add . respektiert .gitignore)
+            git add . 2>$null
+            
+            # Prüfen ob tatsächlich was staged wurde
+            $staged = git diff --cached --name-only 2>$null
+            
+            if ($staged) {
+                $result = git commit -m "Auto-Backup $timestamp" 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    $commits++
+                    Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
+                    Write-Host "[COMMIT]" -NoNewline -ForegroundColor Green
+                    Write-Host " #$commits ($fileCount Dateien)" -ForegroundColor White
+                    
+                    # === PUSH: Zum Remote hochladen ===
+                    if ($hasRemote -and -not $NoSync) {
+                        $pushResult = git push $remoteName $branchName 2>&1
+                        
+                        if ($LASTEXITCODE -eq 0) {
+                            $pushes++
+                            Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
+                            Write-Host "[PUSH]" -NoNewline -ForegroundColor Blue
+                            Write-Host " Hochgeladen (#$pushes)" -ForegroundColor White
+                        }
+                        else {
+                            Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
+                            Write-Host "[FEHLER]" -NoNewline -ForegroundColor Red
+                            Write-Host " Push fehlgeschlagen!" -ForegroundColor Yellow
+                            $pushError = $pushResult -join " "
+                            Write-Host "           $pushError" -ForegroundColor DarkGray
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            # Nur ignorierte Dateien geändert
+            Write-Host "  [$now] " -NoNewline -ForegroundColor DarkGray
+            Write-Host "- Nur ignorierte Dateien geaendert" -ForegroundColor DarkGray
         }
     }
     else {
@@ -154,4 +232,4 @@ while ($true) {
     
     # Warten
     Start-Sleep -Seconds ([int]($Minutes * 60))
-} 
+}
