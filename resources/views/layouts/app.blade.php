@@ -356,6 +356,14 @@ PFAD:  resources/views/layouts/app.blade.php
                         </a>
                     </li>
 
+                    {{-- Messung --}}
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->is('messung*') ? 'active' : '' }}" 
+                           href="{{ route('messung.index') }}">
+                            <i class="bi bi-rulers"></i> <span class="nav-text-hide-lg">Messung</span>
+                        </a>
+                    </li>
+
                     {{-- Angebote --}}
                     <li class="nav-item dropdown">
                         @php
