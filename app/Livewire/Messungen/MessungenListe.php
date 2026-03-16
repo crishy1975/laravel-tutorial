@@ -538,14 +538,17 @@ class MessungenListe extends Component
         $positiv = (clone $query)->positiv()->count();
         $negativ = (clone $query)->negativ()->count();
         $ohneAnlage = (clone $query)->where('codeInImpianti', 0)->count();
-        $mitMessung = $total - $ohneAnlage;
+        $mitAnlage = $total - $ohneAnlage;
 
         return [
             'total' => $total,
             'positiv' => $positiv,
             'negativ' => $negativ,
             'ohneAnlage' => $ohneAnlage,
-            'mitMessung' => $mitMessung,
+            'mitAnlage' => $mitAnlage,
+            // Aliase für Kompatibilität
+            'mitMessung' => $mitAnlage,
+            'ohneMessung' => $ohneAnlage,
         ];
     }
 
