@@ -26,6 +26,29 @@ param(
 #  KONFIGURATION - ALLE KONTEN
 # ==============================================================================
 
+# ──────────────────────────────────────────────────────────────────────────
+#  PASSWOERTER AUS EXTERNER DATEI LADEN (deploy-passwords.env)
+#  Datei muss im selben Ordner liegen und in .gitignore stehen!
+# ──────────────────────────────────────────────────────────────────────────
+$PasswordFile = Join-Path $PSScriptRoot "deploy-passwords.env"
+if (-not (Test-Path $PasswordFile)) {
+    Write-Host "[FEHLER] Passwort-Datei nicht gefunden: $PasswordFile" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Erstelle die Datei 'deploy-passwords.env' mit folgendem Inhalt:" -ForegroundColor Yellow
+    Write-Host '  set PW_u192633638=DEIN_PASSWORT' -ForegroundColor Gray
+    Write-Host '  set PW_u854179217=DEIN_PASSWORT' -ForegroundColor Gray
+    Write-Host ""
+    Read-Host "Druecke Enter zum Beenden"
+    exit 1
+}
+
+$Passwords = @{}
+Get-Content $PasswordFile | ForEach-Object {
+    if ($_ -match '^\s*set\s+PW_(\S+?)=(.+)$') {
+        $Passwords[$Matches[1]] = $Matches[2].Trim()
+    }
+}
+
 $Accounts = @{
     1 = @{
         Name          = "Resch GmbH"
@@ -181,7 +204,8 @@ function Upload-LaravelProject {
     # WinSCP Script erstellen
     $WinSCPScript = "option batch abort`n"
     $WinSCPScript += "option confirm off`n"
-    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
+    $pw = $Passwords[$AccountConfig.SFTP_USER]
+    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER):$pw@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
     $WinSCPScript += "`n"
     
     # Wartungsmodus aktivieren
@@ -288,7 +312,8 @@ function Upload-ImportFiles {
     # WinSCP Script erstellen
     $WinSCPScript = "option batch abort`n"
     $WinSCPScript += "option confirm off`n"
-    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
+    $pw = $Passwords[$AccountConfig.SFTP_USER]
+    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER):$pw@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
     $WinSCPScript += "`n"
     
     $WinSCPScript += "# Import-Ordner erstellen`n"
@@ -352,19 +377,29 @@ function Run-Migration {
         return $true
     }
     
-    Write-Host "  Starte Migration per SSH (Passwort eingeben)..." -ForegroundColor Yellow
+    Write-Host "  Starte Migration per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
     $remotePath = $AccountConfig.REMOTE_PATH
+    $pw = $Passwords[$AccountConfig.SFTP_USER]
     
-    # Einzeiliger Befehl
-    $cmd = @"
-cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Optimize ===' && php artisan optimize:clear && php artisan optimize && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='
-"@
+    # WinSCP Script fuer SSH-Befehle
+    $WinSCPScript = "option batch abort`n"
+    $WinSCPScript += "option confirm off`n"
+    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER):$pw@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
+    $WinSCPScript += "`n"
+    $WinSCPScript += "call cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Optimize ===' && php artisan optimize:clear && php artisan optimize && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='`n"
+    $WinSCPScript += "`nclose`nexit`n"
     
-    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
+    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_migration.txt"
+    $WinSCPScript | Out-File -FilePath $WinSCPScriptPath -Encoding ASCII
     
-    if ($LASTEXITCODE -ne 0) {
+    $WinSCPLog = Join-Path $env:TEMP "winscp_migration.log"
+    $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`"" -NoNewWindow -Wait -PassThru
+    
+    Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
+    
+    if ($process.ExitCode -ne 0) {
         Show-Warning "Migration evtl. fehlgeschlagen"
         return $false
     }
@@ -397,19 +432,29 @@ function Run-XmlImport {
         return $true
     }
     
-    Write-Host "  Starte Import per SSH (Passwort eingeben)..." -ForegroundColor Yellow
+    Write-Host "  Starte Import per SSH..." -ForegroundColor Yellow
     Write-Host ""
     
     $remotePath = $AccountConfig.REMOTE_PATH
+    $pw = $Passwords[$AccountConfig.SFTP_USER]
     
-    # Einzeiliger Befehl - Ausgabe ist sichtbar!
-    $cmd = @"
-cd $remotePath && echo '=== 1. ADRESSEN ===' && ([ -f storage/import/Adresse.xml ] && php artisan import:access storage/import/Adresse.xml --adressen || echo 'Nicht gefunden') && echo '' && echo '=== 2. GEBAEUDE ===' && ([ -f storage/import/Gebaeude.xml ] && php artisan import:access storage/import/Gebaeude.xml --gebaeude || echo 'Nicht gefunden') && echo '' && echo '=== 3. TIMELINE ===' && ([ -f storage/import/DatumAusfuehrung.xml ] && php artisan import:timeline storage/import/DatumAusfuehrung.xml || echo 'Nicht gefunden') && echo '' && echo '=== 4. RECHNUNGEN ===' && ([ -f storage/import/FatturaPA.xml ] && php artisan import:rechnungen storage/import/FatturaPA.xml || echo 'Nicht gefunden') && echo '' && echo '=== 5. ARTIKEL ===' && ([ -f storage/import/Artikel.xml ] && php artisan import:access storage/import/Artikel.xml --positionen || echo 'Nicht gefunden') && echo '' && echo '=== IMPORT FERTIG ==='
-"@
+    # WinSCP Script fuer SSH-Befehle
+    $WinSCPScript = "option batch abort`n"
+    $WinSCPScript += "option confirm off`n"
+    $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER):$pw@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
+    $WinSCPScript += "`n"
+    $WinSCPScript += "call cd $remotePath && echo '=== 1. ADRESSEN ===' && ([ -f storage/import/Adresse.xml ] && php artisan import:access storage/import/Adresse.xml --adressen || echo 'Nicht gefunden') && echo '' && echo '=== 2. GEBAEUDE ===' && ([ -f storage/import/Gebaeude.xml ] && php artisan import:access storage/import/Gebaeude.xml --gebaeude || echo 'Nicht gefunden') && echo '' && echo '=== 3. TIMELINE ===' && ([ -f storage/import/DatumAusfuehrung.xml ] && php artisan import:timeline storage/import/DatumAusfuehrung.xml || echo 'Nicht gefunden') && echo '' && echo '=== 4. RECHNUNGEN ===' && ([ -f storage/import/FatturaPA.xml ] && php artisan import:rechnungen storage/import/FatturaPA.xml || echo 'Nicht gefunden') && echo '' && echo '=== 5. ARTIKEL ===' && ([ -f storage/import/Artikel.xml ] && php artisan import:access storage/import/Artikel.xml --positionen || echo 'Nicht gefunden') && echo '' && echo '=== IMPORT FERTIG ==='`n"
+    $WinSCPScript += "`nclose`nexit`n"
     
-    ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" $cmd
+    $WinSCPScriptPath = Join-Path $env:TEMP "deploy_xmlimport.txt"
+    $WinSCPScript | Out-File -FilePath $WinSCPScriptPath -Encoding ASCII
     
-    if ($LASTEXITCODE -ne 0) {
+    $WinSCPLog = Join-Path $env:TEMP "winscp_xmlimport.log"
+    $process = Start-Process -FilePath $GlobalConfig.WINSCP_PATH -ArgumentList "/script=`"$WinSCPScriptPath`" /log=`"$WinSCPLog`"" -NoNewWindow -Wait -PassThru
+    
+    Remove-Item $WinSCPScriptPath -Force -ErrorAction SilentlyContinue
+    
+    if ($process.ExitCode -ne 0) {
         Show-Warning "Import evtl. fehlgeschlagen"
         return $false
     }
@@ -484,18 +529,11 @@ function Deploy-ToAccount {
         Show-Info "Import-Upload uebersprungen"
     }
     
-    # SCHRITT 3: Migration starten?
+    # SCHRITT 3: Migration (wird immer durchgefuehrt)
     Write-Host ""
-    if (Confirm-Step "  Datenbank-Migration starten?") {
-        $result = Run-Migration -AccountConfig $AccountConfig
-        if (-not $result) {
-            Show-Warning "Migration evtl. fehlgeschlagen, fahre trotzdem fort..."
-        }
-    } else {
-        Show-Info "Migration uebersprungen"
-        # Trotzdem Wartungsmodus beenden
-        Write-Host "  Beende Wartungsmodus..." -ForegroundColor Yellow
-        ssh -p $AccountConfig.SFTP_PORT "$($AccountConfig.SFTP_USER)@$($AccountConfig.SFTP_HOST)" "cd $($AccountConfig.REMOTE_PATH) && php artisan up" 2>$null
+    $result = Run-Migration -AccountConfig $AccountConfig
+    if (-not $result) {
+        Show-Warning "Migration evtl. fehlgeschlagen, fahre trotzdem fort..."
     }
     
     # SCHRITT 4: XML-Import starten?
