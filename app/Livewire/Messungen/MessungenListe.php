@@ -42,8 +42,9 @@ class MessungenListe extends Component
     public $anlageSearchPage = 1;
     public $anlageSearchTotal = 0;
 
-    // Modal: Neue Messung (ohne Anlage)
+    // Modal: Neue/Bearbeiten Messung
     public $showMessungModal = false;
+    public $editMessungId = null;
     public $modalError = null;
     public $messung = [
         'cIM_CODICE' => '',
@@ -277,7 +278,7 @@ class MessungenListe extends Component
         session()->flash('success', "Messung wurde der Anlage {$anlageKodex} zugeordnet.");
     }
 
-    // ========== Modal: Neue Messung (ohne Anlage) ==========
+    // ========== Modal: Neue/Bearbeiten Messung ==========
 
     public function openMessungModal()
     {
@@ -287,6 +288,7 @@ class MessungenListe extends Component
             ->value('cIM_CODICE');
         $neuerKodex = $letzterKodex ? (string)((int)$letzterKodex + 1) : '1';
 
+        $this->editMessungId = null;
         $this->messung = [
             'cIM_CODICE' => $neuerKodex,
             'cIM_NAME' => '',
@@ -312,9 +314,41 @@ class MessungenListe extends Component
         $this->showMessungModal = true;
     }
 
+    public function editMessung($id)
+    {
+        $m = Messung::findOrFail($id);
+        
+        $this->editMessungId = $id;
+        $this->messung = [
+            'cIM_CODICE' => $m->cIM_CODICE ?? '',
+            'cIM_NAME' => $m->cIM_NAME ?? '',
+            'cMIS_STADIO' => $m->cMIS_STADIO ?? '1',
+            'cMIS_DATA2' => $m->cMIS_DATA2 ?? '',
+            'cMIS_ORA' => $m->cMIS_ORA ?? '',
+            'cMIS_COMBUSTIBILE' => $m->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS',
+            'boilerYear' => $m->boilerYear ?? '',
+            'boilerPower' => $m->boilerPower ?? '',
+            'cMIS_OSSIGENO' => $m->cMIS_OSSIGENO ?? '',
+            'cMIS_ANIDRIDE_CARBONICA' => $m->cMIS_ANIDRIDE_CARBONICA ?? '',
+            'cMIS_MONOSSSIDO' => $m->cMIS_MONOSSSIDO ?? '',
+            'cMIS_BIOSSIDO_AZOTO' => $m->cMIS_BIOSSIDO_AZOTO ?? '',
+            'cMIS_T_GAS_COMB' => $m->cMIS_T_GAS_COMB ?? '',
+            'cMIS_T_ARIA_COMB' => $m->cMIS_T_ARIA_COMB ?? '',
+            'cMIS_T_LIQ_CONV' => $m->cMIS_T_LIQ_CONV ?? '',
+            'cMIS_PERD_FUMI' => $m->cMIS_PERD_FUMI ?? '',
+            'cMIS_IND_OPACITA' => $m->cMIS_IND_OPACITA ?? '0',
+            'cMIS_TRACCE_OLEO' => $m->cMIS_TRACCE_OLEO ?? '1',
+        ];
+        
+        $this->berechneGrenzwerte();
+        $this->modalError = null;
+        $this->showMessungModal = true;
+    }
+
     public function closeMessungModal()
     {
         $this->showMessungModal = false;
+        $this->editMessungId = null;
         $this->messung = [];
         $this->grenzwerte = null;
         $this->modalError = null;
@@ -423,8 +457,8 @@ class MessungenListe extends Component
                 }
             }
 
-            // Messung erstellen (ohne Anlage = codeInImpianti = 0)
-            Messung::create([
+            // Daten vorbereiten
+            $data = [
                 'cIM_CODICE' => $this->messung['cIM_CODICE'] ?? '',
                 'cIM_NAME' => $this->messung['cIM_NAME'] ?? '',
                 'cMIS_TIPO' => '001',
@@ -448,11 +482,21 @@ class MessungenListe extends Component
                 'cMIS_TRACCE_OLEO' => $this->messung['cMIS_TRACCE_OLEO'] ?? '1',
                 'boilerYear' => $this->messung['boilerYear'] ?? '',
                 'boilerPower' => $this->messung['boilerPower'] ?? '',
-                'codeInImpianti' => 0,
-            ]);
+            ];
 
-            $this->closeMessungModal();
-            session()->flash('success', 'Messung wurde erstellt.');
+            if ($this->editMessungId) {
+                // UPDATE bestehende Messung
+                $messung = Messung::findOrFail($this->editMessungId);
+                $messung->update($data);
+                $this->closeMessungModal();
+                session()->flash('success', 'Messung wurde aktualisiert.');
+            } else {
+                // INSERT neue Messung (ohne Anlage = codeInImpianti = 0)
+                $data['codeInImpianti'] = 0;
+                Messung::create($data);
+                $this->closeMessungModal();
+                session()->flash('success', 'Messung wurde erstellt.');
+            }
 
         } catch (\Exception $e) {
             $this->modalError = 'Fehler beim Speichern: ' . $e->getMessage();
