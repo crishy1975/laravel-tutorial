@@ -222,6 +222,10 @@
                                     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                 </td>
                                 <td class="text-center text-nowrap">
+                                    <button wire:click="editMessung(<?php echo e($m->id); ?>)"
+                                            class="btn btn-sm btn-outline-secondary" title="Bearbeiten">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($m->codeInImpianti == 0): ?>
                                         <button wire:click="openAnlageModal(<?php echo e($m->id); ?>)"
                                                 class="btn btn-sm btn-outline-primary" title="Anlage zuordnen">
@@ -378,9 +382,13 @@
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
             <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
                 <div class="modal-content">
-                    <div class="modal-header bg-primary text-white py-2">
+                    <div class="modal-header <?php echo e($editMessungId ? 'bg-info' : 'bg-primary'); ?> text-white py-2">
                         <h5 class="modal-title">
-                            <i class="bi bi-plus-circle"></i> Neue Messung (ohne Anlage)
+                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($editMessungId): ?>
+                                <i class="bi bi-pencil"></i> Messung bearbeiten
+                            <?php else: ?>
+                                <i class="bi bi-plus-circle"></i> Neue Messung
+                            <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
                     </div>
