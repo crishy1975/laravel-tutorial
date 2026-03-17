@@ -10,7 +10,7 @@ ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/christianresch.esy.es/public_
 
 php artisan optimize:clear
 
-ssh -p 65002 u854179217@212.1.209.26
+ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/reschc.space/public_html && php artisan config:clear && php artisan cache:clear"
 
 
 
