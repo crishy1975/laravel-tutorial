@@ -216,6 +216,10 @@
                                     @endif
                                 </td>
                                 <td class="text-center text-nowrap">
+                                    <button wire:click="editMessung({{ $m->id }})"
+                                            class="btn btn-sm btn-outline-secondary" title="Bearbeiten">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     @if($m->codeInImpianti == 0)
                                         <button wire:click="openAnlageModal({{ $m->id }})"
                                                 class="btn btn-sm btn-outline-primary" title="Anlage zuordnen">
@@ -363,14 +367,18 @@
         </div>
     @endif
 
-    {{-- ========== Modal: Neue Messung (ohne Anlage) ========== --}}
+    {{-- ========== Modal: Neue/Bearbeiten Messung ========== --}}
     @if($showMessungModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
             <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
                 <div class="modal-content">
-                    <div class="modal-header bg-primary text-white py-2">
+                    <div class="modal-header {{ $editMessungId ? 'bg-info' : 'bg-primary' }} text-white py-2">
                         <h5 class="modal-title">
-                            <i class="bi bi-plus-circle"></i> Neue Messung (ohne Anlage)
+                            @if($editMessungId)
+                                <i class="bi bi-pencil"></i> Messung bearbeiten
+                            @else
+                                <i class="bi bi-plus-circle"></i> Neue Messung
+                            @endif
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
                     </div>
