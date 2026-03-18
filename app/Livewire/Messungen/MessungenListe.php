@@ -95,14 +95,38 @@ class MessungenListe extends Component
         $this->filterJahr = date('Y');
     }
 
-    public function updatingFilterKodex()     { $this->resetPage(); }
-    public function updatingFilterName()      { $this->resetPage(); }
-    public function updatingFilterDatumVon()  { $this->resetPage(); }
-    public function updatingFilterDatumBis()  { $this->resetPage(); }
-    public function updatingFilterErgebnis()  { $this->resetPage(); }
-    public function updatingFilterBrennstoff(){ $this->resetPage(); }
-    public function updatingFilterOhneAnlage(){ $this->resetPage(); }
-    public function updatingFilterJahr()      { $this->resetPage(); }
+    public function updatingFilterKodex()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterName()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterDatumVon()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterDatumBis()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterErgebnis()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterBrennstoff()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterOhneAnlage()
+    {
+        $this->resetPage();
+    }
+    public function updatingFilterJahr()
+    {
+        $this->resetPage();
+    }
 
     public function sortBy($field)
     {
@@ -128,7 +152,7 @@ class MessungenListe extends Component
     }
 
     // ========== Modal: Anlage zuordnen ==========
-    
+
     public function openAnlageModal($messungId)
     {
         $this->selectedMessungId = $messungId;
@@ -205,7 +229,7 @@ class MessungenListe extends Component
         if ($this->anlageSearchOrt) {
             $query->where(function ($q) {
                 $q->where('Feld_i', 'like', "%{$this->anlageSearchOrt}%")
-                  ->orWhere('Feld_h', 'like', "%{$this->anlageSearchOrt}%");
+                    ->orWhere('Feld_h', 'like', "%{$this->anlageSearchOrt}%");
             });
             $hasFilter = true;
         }
@@ -214,7 +238,7 @@ class MessungenListe extends Component
         if ($this->anlageSearchStrasse) {
             $query->where(function ($q) {
                 $q->where('Feld_m', 'like', "%{$this->anlageSearchStrasse}%")
-                  ->orWhere('Feld_l', 'like', "%{$this->anlageSearchStrasse}%");
+                    ->orWhere('Feld_l', 'like', "%{$this->anlageSearchStrasse}%");
             });
             $hasFilter = true;
         }
@@ -236,9 +260,9 @@ class MessungenListe extends Component
 
         // Sortierung: Gemeinde, Straße, Hausnummer (numerisch!)
         $query->orderBy('Feld_i', 'asc')
-              ->orderBy('Feld_m', 'asc')
-              ->orderByRaw('CAST(Feld_n AS UNSIGNED) ASC')
-              ->orderBy('Feld_n', 'asc'); // Fallback für nicht-numerische
+            ->orderBy('Feld_m', 'asc')
+            ->orderByRaw('CAST(Feld_n AS UNSIGNED) ASC')
+            ->orderBy('Feld_n', 'asc'); // Fallback für nicht-numerische
 
         // Pagination: 10 pro Seite
         $offset = ($this->anlageSearchPage - 1) * 10;
@@ -262,7 +286,7 @@ class MessungenListe extends Component
         // Messung aktualisieren
         $messung->cIM_CODICE = $anlageKodex;
         $messung->codeInImpianti = 1;
-        
+
         // Optional: Baujahr und Leistung von Anlage übernehmen wenn leer
         if (empty($messung->boilerYear) && $anlage && $anlage->Feld_z) {
             $messung->boilerYear = $anlage->Feld_z;
@@ -274,7 +298,7 @@ class MessungenListe extends Component
         $messung->save();
 
         $this->closeAnlageModal();
-        
+
         session()->flash('success', "Messung wurde der Anlage {$anlageKodex} zugeordnet.");
     }
 
@@ -317,7 +341,7 @@ class MessungenListe extends Component
     public function editMessung($id)
     {
         $m = Messung::findOrFail($id);
-        
+
         $this->editMessungId = $id;
         $this->messung = [
             'cIM_CODICE' => $m->cIM_CODICE ?? '',
@@ -339,7 +363,7 @@ class MessungenListe extends Component
             'cMIS_IND_OPACITA' => $m->cMIS_IND_OPACITA ?? '0',
             'cMIS_TRACCE_OLEO' => $m->cMIS_TRACCE_OLEO ?? '1',
         ];
-        
+
         $this->berechneGrenzwerte();
         $this->modalError = null;
         $this->showMessungModal = true;
@@ -357,8 +381,15 @@ class MessungenListe extends Component
     public function updatedMessung($value, $key)
     {
         // Grenzwerte neu berechnen wenn relevante Felder geändert werden
-        $relevantKeys = ['cMIS_MONOSSSIDO', 'cMIS_BIOSSIDO_AZOTO', 'cMIS_IND_OPACITA', 
-                         'cMIS_TRACCE_OLEO', 'cMIS_COMBUSTIBILE', 'boilerYear', 'boilerPower'];
+        $relevantKeys = [
+            'cMIS_MONOSSSIDO',
+            'cMIS_BIOSSIDO_AZOTO',
+            'cMIS_IND_OPACITA',
+            'cMIS_TRACCE_OLEO',
+            'cMIS_COMBUSTIBILE',
+            'boilerYear',
+            'boilerPower'
+        ];
         if (in_array($key, $relevantKeys)) {
             $this->berechneGrenzwerte();
         }
@@ -429,8 +460,14 @@ class MessungenListe extends Component
             $fuelInfo = self::BRENNSTOFFE[$this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS'] ?? self::BRENNSTOFFE['FUEL_NAT_GAS'];
 
             // Komma zu Punkt konvertieren
-            $dezimalFelder = ['cMIS_OSSIGENO', 'cMIS_ANIDRIDE_CARBONICA', 'cMIS_PERD_FUMI', 
-                              'cMIS_T_GAS_COMB', 'cMIS_T_ARIA_COMB', 'cMIS_T_LIQ_CONV'];
+            $dezimalFelder = [
+                'cMIS_OSSIGENO',
+                'cMIS_ANIDRIDE_CARBONICA',
+                'cMIS_PERD_FUMI',
+                'cMIS_T_GAS_COMB',
+                'cMIS_T_ARIA_COMB',
+                'cMIS_T_LIQ_CONV'
+            ];
             foreach ($dezimalFelder as $feld) {
                 if (isset($this->messung[$feld])) {
                     $this->messung[$feld] = str_replace(',', '.', $this->messung[$feld]);
@@ -452,7 +489,8 @@ class MessungenListe extends Component
                 if (($this->grenzwerte['co']['status'] ?? '') === 'rot' ||
                     ($this->grenzwerte['nox']['status'] ?? '') === 'rot' ||
                     ($this->grenzwerte['russ']['status'] ?? '') === 'rot' ||
-                    ($this->grenzwerte['oel']['status'] ?? '') === 'rot') {
+                    ($this->grenzwerte['oel']['status'] ?? '') === 'rot'
+                ) {
                     $esito = '0';
                 }
             }
@@ -497,7 +535,6 @@ class MessungenListe extends Component
                 $this->closeMessungModal();
                 session()->flash('success', 'Messung wurde erstellt.');
             }
-
         } catch (\Exception $e) {
             $this->modalError = 'Fehler beim Speichern: ' . $e->getMessage();
         }
@@ -554,16 +591,16 @@ class MessungenListe extends Component
         }
 
         // Sortierung
-        $query->orderBy($this->sortField, $this->sortDirection);
+        // Datum korrekt sortieren (cMIS_DATA ist im Format ddmmyyyy)
+        if ($this->sortField === 'cMIS_DATA') {
+            $query->orderByRaw("STR_TO_DATE(cMIS_DATA, '%d%m%Y') {$this->sortDirection}");
+        } else {
+            $query->orderBy($this->sortField, $this->sortDirection);
+        }
 
         // Sekundäre Sortierung: Stadio aufwärts
         if ($this->sortField !== 'cMIS_STADIO') {
             $query->orderBy('cMIS_STADIO', 'asc');
-        }
-        
-        // Tertiäre Sortierung: Uhrzeit
-        if ($this->sortField !== 'cMIS_ORA') {
-            $query->orderBy('cMIS_ORA', 'desc');
         }
 
         return $query->paginate(25);
@@ -605,7 +642,7 @@ class MessungenListe extends Component
     {
         $messung = Messung::findOrFail($id);
         $messung->delete();
-        
+
         session()->flash('success', 'Messung wurde gelöscht.');
     }
 
