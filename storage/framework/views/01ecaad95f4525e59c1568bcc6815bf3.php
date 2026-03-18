@@ -418,6 +418,8 @@
                                             <th>Kodex</th>
                                             <th>Aufstellungsort</th>
                                             <th>Adresse</th>
+                                            <th class="text-center">Kessel BJ</th>
+                                            <th class="text-center">Leistung</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -430,6 +432,14 @@
                                                     <?php echo e($anlage->Feld_m); ?> <?php echo e($anlage->Feld_n); ?>,
                                                     <?php echo e($anlage->Feld_i); ?>
 
+                                                </td>
+                                                <td class="text-center"><?php echo e($anlage->Feld_z ?: '─'); ?></td>
+                                                <td class="text-center text-nowrap">
+                                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlage->Feld_ab): ?>
+                                                        <?php echo e($anlage->Feld_ab); ?> kW
+                                                    <?php else: ?>
+                                                        ─
+                                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                                 </td>
                                                 <td class="text-end">
                                                     <button wire:click="zuordnenAnlage('<?php echo e($anlage->Feld_a); ?>')"
@@ -453,6 +463,12 @@
                                                 <small class="text-muted d-block"><?php echo e($anlage->Feld_a); ?></small>
                                                 <small class="text-muted d-block text-truncate">
                                                     <?php echo e($anlage->Feld_m); ?> <?php echo e($anlage->Feld_n); ?>, <?php echo e($anlage->Feld_i); ?>
+
+                                                </small>
+                                                <small class="d-block">
+                                                    <span class="text-muted">BJ:</span> <?php echo e($anlage->Feld_z ?: '─'); ?>
+
+                                                    <span class="text-muted ms-2">kW:</span> <?php echo e($anlage->Feld_ab ?: '─'); ?>
 
                                                 </small>
                                             </div>
