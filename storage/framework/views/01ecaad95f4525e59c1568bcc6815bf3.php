@@ -551,6 +551,91 @@
                     <div class="modal-body p-2 p-md-3">
                         <form wire:submit.prevent="saveMessung">
                             <div class="row g-2 g-md-3">
+
+                                
+                                <div class="col-12" x-data="{ 
+                                    loading: false, 
+                                    status: '',
+                                    processImage(file, source) {
+                                        if (!file) return;
+                                        this.loading = true;
+                                        this.status = '';
+                                        const reader = new FileReader();
+                                        reader.onload = async (e) => {
+                                            try {
+                                                const res = await fetch('/messungen/extract-from-photo', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                                                    },
+                                                    body: JSON.stringify({ image: e.target.result.split(',')[1], source: source || 'auto' })
+                                                });
+                                                const data = await res.json();
+                                                if (data.success) {
+                                                    if (data.typ === 'protokoll') {
+                                                        // Protokoll-Felder mappen
+                                                        if (data.kodex) $wire.set('messung.cIM_CODICE', data.kodex);
+                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                        $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
+                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                        $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
+                                                    } else {
+                                                        // Display-Felder mappen
+                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                        if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
+                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                        $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                    }
+                                                    this.status = 'success';
+                                                } else {
+                                                    this.status = data.error || 'Fehler';
+                                                }
+                                            } catch (err) {
+                                                this.status = 'Verbindungsfehler';
+                                                console.error(err);
+                                            }
+                                            this.loading = false;
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        
+                                        <label class="btn btn-primary btn-sm mb-0" :class="{ 'disabled': loading }">
+                                            <span x-show="!loading"><i class="bi bi-camera-fill me-1"></i> Kamera</span>
+                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
+                                            <input type="file" accept="image/*" capture="environment" 
+                                                   class="d-none" x-ref="kameraInput"
+                                                   @change="processImage($event.target.files[0], 'auto'); $refs.kameraInput.value = '';">
+                                        </label>
+                                        
+                                        <label class="btn btn-outline-primary btn-sm mb-0" :class="{ 'disabled': loading }">
+                                            <span x-show="!loading"><i class="bi bi-images me-1"></i> Galerie</span>
+                                            <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
+                                            <input type="file" accept="image/*" 
+                                                   class="d-none" x-ref="galerieInput"
+                                                   @change="processImage($event.target.files[0], 'auto'); $refs.galerieInput.value = '';">
+                                        </label>
+                                        <span x-show="status === 'success'" class="badge bg-success"><i class="bi bi-check-lg"></i> Werte übernommen</span>
+                                        <span x-show="status && status !== 'success'" class="badge bg-danger" x-text="status"></span>
+                                    </div>
+                                </div>
+
                                 
                                 <div class="col-12 col-lg-4">
                                     <div class="card h-100">
