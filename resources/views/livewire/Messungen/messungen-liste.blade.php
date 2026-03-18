@@ -535,8 +535,8 @@
                                                     <label class="form-label small mb-0">Brennstoff</label>
                                                     <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
                                                         <option value="">Wählen...</option>
-                                                        @foreach($brennstoffListe as $key => $val)
-                                                            <option value="{{ $key }}">{{ $val }}</option>
+                                                        @foreach($brennstoffe as $key => $info)
+                                                            <option value="{{ $key }}">{{ $info['text'] }}</option>
                                                         @endforeach
                                                     </select>
                                                 </div>
