@@ -266,7 +266,22 @@ class MessungenListe extends Component
 
         // Pagination: 10 pro Seite
         $offset = ($this->anlageSearchPage - 1) * 10;
-        $this->anlageSearchResults = $query->skip($offset)->take(10)->get();
+        $anlagen = $query->skip($offset)->take(10)->get();
+
+        // Prüfen welche Anlagen bereits Messungen haben
+        $kodexListe = $anlagen->pluck('Feld_a')->toArray();
+        $zugeordneteKodex = Messung::whereIn('cIM_CODICE', $kodexListe)
+            ->where('codeInImpianti', '>', 0)
+            ->pluck('cIM_CODICE')
+            ->unique()
+            ->toArray();
+
+        // Flag setzen für jede Anlage
+        foreach ($anlagen as $anlage) {
+            $anlage->hatMessung = in_array($anlage->Feld_a, $zugeordneteKodex);
+        }
+
+        $this->anlageSearchResults = $anlagen;
     }
 
     public function zuordnenAnlage($anlageKodex)
@@ -364,8 +379,9 @@ class MessungenListe extends Component
             'cMIS_TRACCE_OLEO' => $m->cMIS_TRACCE_OLEO ?? '1',
         ];
 
-        $this->berechneGrenzwerte();
+        $this->grenzwerte = null;
         $this->modalError = null;
+        $this->berechneGrenzwerte();
         $this->showMessungModal = true;
     }
 
@@ -373,23 +389,43 @@ class MessungenListe extends Component
     {
         $this->showMessungModal = false;
         $this->editMessungId = null;
-        $this->messung = [];
+        $this->messung = [
+            'cIM_CODICE' => '',
+            'cIM_NAME' => '',
+            'cMIS_STADIO' => '1',
+            'cMIS_DATA2' => '',
+            'cMIS_ORA' => '',
+            'cMIS_COMBUSTIBILE' => 'FUEL_NAT_GAS',
+            'boilerYear' => '',
+            'boilerPower' => '',
+            'cMIS_OSSIGENO' => '',
+            'cMIS_ANIDRIDE_CARBONICA' => '',
+            'cMIS_MONOSSSIDO' => '',
+            'cMIS_BIOSSIDO_AZOTO' => '',
+            'cMIS_T_GAS_COMB' => '',
+            'cMIS_T_ARIA_COMB' => '',
+            'cMIS_T_LIQ_CONV' => '',
+            'cMIS_PERD_FUMI' => '',
+            'cMIS_IND_OPACITA' => '0',
+            'cMIS_TRACCE_OLEO' => '1',
+        ];
         $this->grenzwerte = null;
         $this->modalError = null;
     }
 
     public function updatedMessung($value, $key)
     {
-        // Grenzwerte neu berechnen wenn relevante Felder geändert werden
+        // Bei Änderungen an relevanten Messwerten: Grenzwerte neu berechnen
         $relevantKeys = [
+            'cMIS_COMBUSTIBILE',
             'cMIS_MONOSSSIDO',
             'cMIS_BIOSSIDO_AZOTO',
             'cMIS_IND_OPACITA',
             'cMIS_TRACCE_OLEO',
-            'cMIS_COMBUSTIBILE',
             'boilerYear',
-            'boilerPower'
+            'boilerPower',
         ];
+
         if (in_array($key, $relevantKeys)) {
             $this->berechneGrenzwerte();
         }
@@ -397,22 +433,41 @@ class MessungenListe extends Component
 
     public function berechneGrenzwerte()
     {
-        $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS';
-        $leistung = (float) ($this->messung['boilerPower'] ?? 0);
-        $baujahr = (int) ($this->messung['boilerYear'] ?? 2000);
-        $co = (int) ($this->messung['cMIS_MONOSSSIDO'] ?? 0);
-        $nox = (int) ($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
-        $russ = (int) ($this->messung['cMIS_IND_OPACITA'] ?? 0);
-        $oelspuren = ($this->messung['cMIS_TRACCE_OLEO'] ?? '1') === '0';
+        // Nur wenn relevante Daten vorhanden
+        $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? '';
+        if (!$brennstoff) {
+            $this->grenzwerte = null;
+            return;
+        }
 
-        $service = new GrenzwertService();
-        $service->pruefeGrenzwerte($brennstoff, $baujahr, $leistung, $co, $nox, $russ, $oelspuren);
-        $result = $service->getResult();
+        $fuelInfo = self::BRENNSTOFFE[$brennstoff] ?? null;
+        if (!$fuelInfo) {
+            $this->grenzwerte = null;
+            return;
+        }
+
+        $baujahr = (int)($this->messung['boilerYear'] ?? 0);
+        $leistung = (float)($this->messung['boilerPower'] ?? 0);
+        $co = (float)($this->messung['cMIS_MONOSSSIDO'] ?? 0);
+        $nox = (float)($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
+        $russ = (float)($this->messung['cMIS_IND_OPACITA'] ?? 0);
+        $oel = ($this->messung['cMIS_TRACCE_OLEO'] ?? '1') === '0';
+
+        // GrenzwertService verwenden
+        $result = GrenzwertService::berechne(
+            $fuelInfo['nr'],
+            $baujahr,
+            $leistung,
+            $co,
+            $nox,
+            $russ,
+            $oel
+        );
 
         $this->grenzwerte = [
             'co' => [
-                'grenzwert' => $result['maxCo'],
-                'status' => $result['coUeberschritten'] ? 'rot' : ($co > $result['maxCo'] * 0.8 ? 'gelb' : 'gruen'),
+                'grenzwert' => $result['maxCO'],
+                'status' => $result['coUeberschritten'] ? 'rot' : ($co > $result['maxCO'] * 0.8 ? 'gelb' : 'gruen'),
             ],
             'nox' => [
                 'grenzwert' => $result['maxNoX'],
