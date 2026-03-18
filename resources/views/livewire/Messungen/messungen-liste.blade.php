@@ -555,7 +555,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
                                                     <input type="time" wire:model="messung.cMIS_ORA"
-                                                           class="form-control form-control-sm">
+                                                           class="form-control form-control-sm" step="1">
                                                 </div>
                                             </div>
                                             <div class="row g-2 mt-1">
