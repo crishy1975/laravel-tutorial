@@ -418,8 +418,9 @@
                                             <th>Kodex</th>
                                             <th>Aufstellungsort</th>
                                             <th>Adresse</th>
-                                            <th class="text-center">Kessel BJ</th>
-                                            <th class="text-center">Leistung</th>
+                                            <th>Hersteller</th>
+                                            <th class="text-center">BJ</th>
+                                            <th class="text-center">kW</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -433,14 +434,9 @@
                                                     <?php echo e($anlage->Feld_i); ?>
 
                                                 </td>
+                                                <td><?php echo e($anlage->Feld_y ?: '─'); ?></td>
                                                 <td class="text-center"><?php echo e($anlage->Feld_z ?: '─'); ?></td>
-                                                <td class="text-center text-nowrap">
-                                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlage->Feld_ab): ?>
-                                                        <?php echo e($anlage->Feld_ab); ?> kW
-                                                    <?php else: ?>
-                                                        ─
-                                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-                                                </td>
+                                                <td class="text-center"><?php echo e($anlage->Feld_ab ?: '─'); ?></td>
                                                 <td class="text-end">
                                                     <button wire:click="zuordnenAnlage('<?php echo e($anlage->Feld_a); ?>')"
                                                             class="btn btn-sm btn-success">
@@ -466,9 +462,11 @@
 
                                                 </small>
                                                 <small class="d-block">
-                                                    <span class="text-muted">BJ:</span> <?php echo e($anlage->Feld_z ?: '─'); ?>
+                                                    <?php echo e($anlage->Feld_y ?: '─'); ?>
 
-                                                    <span class="text-muted ms-2">kW:</span> <?php echo e($anlage->Feld_ab ?: '─'); ?>
+                                                    <span class="text-muted ms-2">BJ:</span> <?php echo e($anlage->Feld_z ?: '─'); ?>
+
+                                                    <span class="text-muted ms-1">kW:</span> <?php echo e($anlage->Feld_ab ?: '─'); ?>
 
                                                 </small>
                                             </div>

@@ -405,8 +405,9 @@
                                             <th>Kodex</th>
                                             <th>Aufstellungsort</th>
                                             <th>Adresse</th>
-                                            <th class="text-center">Kessel BJ</th>
-                                            <th class="text-center">Leistung</th>
+                                            <th>Hersteller</th>
+                                            <th class="text-center">BJ</th>
+                                            <th class="text-center">kW</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -419,14 +420,9 @@
                                                     {{ $anlage->Feld_m }} {{ $anlage->Feld_n }},
                                                     {{ $anlage->Feld_i }}
                                                 </td>
+                                                <td>{{ $anlage->Feld_y ?: '─' }}</td>
                                                 <td class="text-center">{{ $anlage->Feld_z ?: '─' }}</td>
-                                                <td class="text-center text-nowrap">
-                                                    @if($anlage->Feld_ab)
-                                                        {{ $anlage->Feld_ab }} kW
-                                                    @else
-                                                        ─
-                                                    @endif
-                                                </td>
+                                                <td class="text-center">{{ $anlage->Feld_ab ?: '─' }}</td>
                                                 <td class="text-end">
                                                     <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
                                                             class="btn btn-sm btn-success">
@@ -451,8 +447,9 @@
                                                     {{ $anlage->Feld_m }} {{ $anlage->Feld_n }}, {{ $anlage->Feld_i }}
                                                 </small>
                                                 <small class="d-block">
-                                                    <span class="text-muted">BJ:</span> {{ $anlage->Feld_z ?: '─' }}
-                                                    <span class="text-muted ms-2">kW:</span> {{ $anlage->Feld_ab ?: '─' }}
+                                                    {{ $anlage->Feld_y ?: '─' }}
+                                                    <span class="text-muted ms-2">BJ:</span> {{ $anlage->Feld_z ?: '─' }}
+                                                    <span class="text-muted ms-1">kW:</span> {{ $anlage->Feld_ab ?: '─' }}
                                                 </small>
                                             </div>
                                             <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
