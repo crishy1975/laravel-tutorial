@@ -130,8 +130,8 @@
                         <label class="form-label small mb-1">Brennstoff</label>
                         <select wire:model.live="filterBrennstoff" class="form-select form-select-sm">
                             <option value="">Alle</option>
-                            @foreach($brennstoffe as $b)
-                                <option value="{{ $b }}">{{ $b }}</option>
+                            @foreach($brennstoffe as $key => $info)
+                                <option value="{{ $key }}">{{ $info['text'] }}</option>
                             @endforeach
                         </select>
                     </div>
