@@ -74,6 +74,7 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
     Route::get('/neu/{kodex?}', MessungEdit::class)->name('neu');
     Route::get('/edit/{id}', MessungEdit::class)->name('edit');
     Route::get('/import', ImportMessungen::class)->name('import');
+    Route::get('/protokoll/{id}', [\App\Http\Controllers\ProtokollController::class, 'generate'])->name('protokoll');
 
     // Foto-Extraktion (Claude Vision API)
     Route::post('/extract-from-photo', [\App\Http\Controllers\ExtractMessungController::class, 'extract'])->name('extract-from-photo');
