@@ -5,21 +5,27 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Messung;
 use App\Models\Impianto;
+use setasign\Fpdi\Fpdi;
 
 class ProtokollController extends Controller
 {
     /**
-     * Brennstoff-Mapping: interner Key → PDF Dropdown-Wert
+     * Brennstoff-Texte für das Protokoll
      */
-    private const BRENNSTOFF_MAP = [
-        'FUEL_LIGHT_OIL' => 'H',  // Heizöl
-        'FUEL_HEAVY_OIL' => 'H',  // Heizöl
-        'FUEL_NAT_GAS'   => 'E',  // Erdgas
-        'FUEL_PROPANE'    => 'F',  // Flüssiggas
-        'FUEL_BUTANE'     => 'F',  // Flüssiggas
-        'FUEL_PELLETS'    => 'P',  // Pellets
-        'FUEL_WOOD'       => 'H',  // Holz (mapped to H in dropdown)
+    private const BRENNSTOFF_TEXT = [
+        'FUEL_LIGHT_OIL' => 'Heizöl/Gasolio',
+        'FUEL_HEAVY_OIL' => 'Heizöl/Gasolio',
+        'FUEL_NAT_GAS'   => 'Erdgas/Metano',
+        'FUEL_PROPANE'    => 'Flüssiggas/GPL',
+        'FUEL_BUTANE'     => 'Flüssiggas/GPL',
+        'FUEL_PELLETS'    => 'Pellet',
+        'FUEL_WOOD'       => 'Holz/Legna',
     ];
+
+    /**
+     * PDF-Seitenhöhe (A4 in Points)
+     */
+    private const PAGE_HEIGHT = 841.89;
 
     /**
      * Generiert ein PDF-Protokoll für eine Messung
@@ -27,195 +33,175 @@ class ProtokollController extends Controller
     public function generate($messungId)
     {
         $messung = Messung::findOrFail($messungId);
-        
-        // Anlage laden wenn zugeordnet
+
         $anlage = null;
         if ($messung->codeInImpianti > 0 && $messung->cIM_CODICE) {
             $anlage = Impianto::where('Feld_a', $messung->cIM_CODICE)->first();
         }
 
-        // Feld-Werte zusammenbauen
-        $fields = $this->buildFieldValues($messung, $anlage);
-
-        // JSON-Datei schreiben
-        $tempDir = sys_get_temp_dir();
-        $fieldValuesPath = $tempDir . '/protokoll_fields_' . $messungId . '.json';
-        $outputPath = $tempDir . '/protokoll_' . $messungId . '.pdf';
         $vorlagePath = resource_path('pdf/vorlage.pdf');
-
         if (!file_exists($vorlagePath)) {
             abort(404, 'PDF-Vorlage nicht gefunden. Bitte vorlage.pdf in resources/pdf/ ablegen.');
         }
 
-        file_put_contents($fieldValuesPath, json_encode($fields, JSON_UNESCAPED_UNICODE));
+        // PDF erstellen mit FPDI
+        $pdf = new Fpdi();
+        $pdf->SetAutoPageBreak(false);
+        $pdf->AddPage();
 
-        // Python-Script ausführen
-        $scriptPath = base_path('scripts/fill_pdf.py');
-        
-        // Script erstellen falls nicht vorhanden
-        if (!file_exists($scriptPath)) {
-            $this->createFillScript($scriptPath);
-        }
+        // Vorlage als Hintergrund importieren
+        $templateId = $pdf->setSourceFile($vorlagePath);
+        $tplId = $pdf->importPage(1);
+        $pdf->useTemplate($tplId, 0, 0, 210, 297); // A4 in mm
 
-        $command = sprintf(
-            'python3 %s %s %s %s 2>&1',
-            escapeshellarg($scriptPath),
-            escapeshellarg($vorlagePath),
-            escapeshellarg($fieldValuesPath),
-            escapeshellarg($outputPath)
-        );
+        // Schrift setzen
+        $pdf->SetFont('Helvetica', '', 10);
+        $pdf->SetTextColor(0, 0, 0);
 
-        $output = shell_exec($command);
+        // Felder befüllen
+        $this->fillFields($pdf, $messung, $anlage);
 
-        // Temporäre JSON-Datei aufräumen
-        @unlink($fieldValuesPath);
-
-        if (!file_exists($outputPath)) {
-            abort(500, 'PDF konnte nicht generiert werden: ' . $output);
-        }
-
-        // Dateiname: Kodex_Datum.pdf
+        // Dateiname
         $kodex = $messung->cIM_CODICE ?: 'ohne';
         $datum = str_replace('.', '', $messung->cMIS_DATA2 ?: date('dmY'));
         $filename = "Protokoll_{$kodex}_{$datum}.pdf";
 
-        return response()->download($outputPath, $filename, [
-            'Content-Type' => 'application/pdf',
-        ])->deleteFileAfterSend(true);
+        return response($pdf->Output('S'))
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 
     /**
-     * Baut die Feld-Werte für das PDF-Formular
+     * Befüllt alle Felder im PDF
      */
-    private function buildFieldValues(Messung $messung, ?Impianto $anlage): array
+    private function fillFields(Fpdi $pdf, Messung $messung, ?Impianto $anlage): void
     {
-        $fields = [];
-
         // === Betreiber / Aufstellungsort ===
         if ($anlage) {
-            // Name (Betreiber)
             $betreiberName = trim(($anlage->Feld_c ?? '') . ' ' . ($anlage->Feld_d ?? ''));
             if (empty(trim($betreiberName))) {
                 $betreiberName = $anlage->Feld_w ?? $messung->cIM_NAME ?? '';
             }
-            $fields[] = ['field_id' => 'Name', 'page' => 1, 'value' => $betreiberName];
 
-            // Aufstellungsort
-            $fields[] = ['field_id' => 'Aufstellungsort', 'page' => 1, 'value' => $anlage->Feld_w ?? ''];
-
-            // Adresse Aufstellungsort
-            $strasse = $anlage->Feld_l ?: ($anlage->Feld_m ?? '');
-            $fields[] = ['field_id' => 'StrasseAuf', 'page' => 1, 'value' => $strasse];
-            $fields[] = ['field_id' => 'NrAuf', 'page' => 1, 'value' => $anlage->Feld_n ?? ''];
-
-            // Gemeinde Aufstellungsort
-            $gemeinde = $anlage->Feld_h ?: ($anlage->Feld_i ?? '');
-            $fields[] = ['field_id' => 'GemeindeAuf', 'page' => 1, 'value' => $gemeinde];
-
-            // Technische Daten
-            $fields[] = ['field_id' => 'AnlagenCODE', 'page' => 1, 'value' => $anlage->Feld_a ?? ''];
-            $fields[] = ['field_id' => 'Status der Anlage', 'page' => 1, 'value' => '1'];
-            $fields[] = ['field_id' => 'Kessel Hersteller', 'page' => 1, 'value' => $anlage->Feld_y ?? ''];
-            $fields[] = ['field_id' => 'Baujahr', 'page' => 1, 'value' => $anlage->Feld_z ?? ''];
-            $fields[] = ['field_id' => 'Leistung in kw', 'page' => 1, 'value' => $anlage->Feld_ab ?? ''];
+            $this->writeField($pdf, 'Name', $betreiberName);
+            $this->writeField($pdf, 'Aufstellungsort', $anlage->Feld_w ?? '');
+            $this->writeField($pdf, 'StrasseAuf', $anlage->Feld_l ?: ($anlage->Feld_m ?? ''));
+            $this->writeField($pdf, 'NrAuf', $anlage->Feld_n ?? '');
+            $this->writeField($pdf, 'GemeindeAuf', $anlage->Feld_h ?: ($anlage->Feld_i ?? ''));
+            $this->writeField($pdf, 'AnlagenCODE', $anlage->Feld_a ?? '', 12, 'B');
+            $this->writeField($pdf, 'Status der Anlage', '1');
+            $this->writeField($pdf, 'Kessel Hersteller', $anlage->Feld_y ?? '');
+            $this->writeField($pdf, 'Baujahr', $anlage->Feld_z ?? '');
+            $this->writeField($pdf, 'Leistung in kw', $anlage->Feld_ab ?? '');
         } else {
-            // Ohne Anlage: nur Messung-Daten
-            $fields[] = ['field_id' => 'Name', 'page' => 1, 'value' => $messung->cIM_NAME ?? ''];
-            $fields[] = ['field_id' => 'Aufstellungsort', 'page' => 1, 'value' => $messung->cIM_NAME ?? ''];
-            $fields[] = ['field_id' => 'AnlagenCODE', 'page' => 1, 'value' => $messung->cIM_CODICE ?? ''];
-            $fields[] = ['field_id' => 'Kessel Hersteller', 'page' => 1, 'value' => ''];
-            $fields[] = ['field_id' => 'Baujahr', 'page' => 1, 'value' => $messung->boilerYear ?? ''];
-            $fields[] = ['field_id' => 'Leistung in kw', 'page' => 1, 'value' => $messung->boilerPower ?? ''];
+            $this->writeField($pdf, 'Name', $messung->cIM_NAME ?? '');
+            $this->writeField($pdf, 'Aufstellungsort', $messung->cIM_NAME ?? '');
+            $this->writeField($pdf, 'AnlagenCODE', $messung->cIM_CODICE ?? '', 12, 'B');
+            $this->writeField($pdf, 'Baujahr', $messung->boilerYear ?? '');
+            $this->writeField($pdf, 'Leistung in kw', $messung->boilerPower ?? '');
         }
 
         // === Brennstoff ===
         $brennstoffKey = $messung->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS';
-        $brennstoffPdf = self::BRENNSTOFF_MAP[$brennstoffKey] ?? 'E';
-        $fields[] = ['field_id' => 'DropdownBrennstoff', 'page' => 1, 'value' => $brennstoffPdf];
+        $brennstoffText = self::BRENNSTOFF_TEXT[$brennstoffKey] ?? 'Erdgas/Metano';
+        $this->writeField($pdf, 'DropdownBrennstoff', $brennstoffText);
 
         // === Messergebnisse ===
-        $fields[] = ['field_id' => 'Tag der Messung', 'page' => 1, 'value' => $messung->cMIS_DATA2 ?? ''];
+        $this->writeField($pdf, 'Tag der Messung', $messung->cMIS_DATA2 ?? '');
 
-        // Ergebnis: J = Ja (positiv), N = Nein (negativ)
-        $ergebnis = ($messung->strEsito === '1') ? 'J' : 'N';
-        $fields[] = ['field_id' => 'DropdownOK', 'page' => 1, 'value' => $ergebnis];
+        // Ergebnis
+        $ergebnisText = ($messung->strEsito === '1') ? 'ja/si' : 'nein/no';
+        $this->writeField($pdf, 'DropdownOK', $ergebnisText);
 
         // Rußzahl
-        $fields[] = ['field_id' => 'Russzahl', 'page' => 1, 'value' => $messung->cMIS_IND_OPACITA ?? '0'];
+        $this->writeField($pdf, 'Russzahl', $messung->cMIS_IND_OPACITA ?? '0');
 
-        // Ölderivate: J = Ja (hat Spuren), N = Nein (keine Spuren)
-        // cMIS_TRACCE_OLEO: 0 = Ja (Spuren), 1 = Nein (keine Spuren)
-        $oelderivate = ($messung->cMIS_TRACCE_OLEO === '0') ? 'J' : 'N';
-        $fields[] = ['field_id' => "Dropdown\u00d6D", 'page' => 1, 'value' => $oelderivate];
+        // Ölderivate (cMIS_TRACCE_OLEO: 0=Ja/Spuren, 1=Nein/keine)
+        $oelText = ($messung->cMIS_TRACCE_OLEO === '0') ? 'ja/si' : 'nein/no';
+        $this->writeField($pdf, 'DropdownOeD', $oelText);
 
         // Temperaturen
-        $fields[] = ['field_id' => 'WT', 'page' => 1, 'value' => $messung->cMIS_T_LIQ_CONV ?? ''];
-        $fields[] = ['field_id' => 'Abgastemperatur', 'page' => 1, 'value' => $messung->cMIS_T_GAS_COMB ?? ''];
-        $fields[] = ['field_id' => 'VT', 'page' => 1, 'value' => $messung->cMIS_T_ARIA_COMB ?? ''];
+        $this->writeField($pdf, 'WT', $messung->cMIS_T_LIQ_CONV ?? '');
+        $this->writeField($pdf, 'Abgastemperatur', $messung->cMIS_T_GAS_COMB ?? '');
+        $this->writeField($pdf, 'VT', $messung->cMIS_T_ARIA_COMB ?? '');
 
         // Messwerte
-        $fields[] = ['field_id' => 'O2', 'page' => 1, 'value' => $messung->cMIS_OSSIGENO ?? ''];
-        $fields[] = ['field_id' => 'CO2', 'page' => 1, 'value' => $messung->cMIS_ANIDRIDE_CARBONICA ?? ''];
-        $fields[] = ['field_id' => 'NOx', 'page' => 1, 'value' => $messung->cMIS_BIOSSIDO_AZOTO ?? ''];
-        $fields[] = ['field_id' => 'CO', 'page' => 1, 'value' => $messung->cMIS_MONOSSSIDO ?? ''];
-
-        return $fields;
+        $this->writeField($pdf, 'O2', $messung->cMIS_OSSIGENO ?? '');
+        $this->writeField($pdf, 'CO2', $messung->cMIS_ANIDRIDE_CARBONICA ?? '');
+        $this->writeField($pdf, 'NOx', $messung->cMIS_BIOSSIDO_AZOTO ?? '');
+        $this->writeField($pdf, 'CO', $messung->cMIS_MONOSSSIDO ?? '');
     }
 
     /**
-     * Erstellt das Python-Script zum Befüllen der PDF-Formularfelder
+     * Schreibt einen Wert an die Position eines Formularfeldes
+     * Koordinaten sind aus der field_info.json (PDF-Koordinaten, y=0 unten)
      */
-    private function createFillScript(string $path): void
+    private function writeField(Fpdi $pdf, string $fieldId, string $value, float $fontSize = 10, string $style = ''): void
     {
-        $dir = dirname($path);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        if ($value === '' || $value === null) {
+            return;
         }
 
-        $script = <<<'PYTHON'
-#!/usr/bin/env python3
-"""Befüllt PDF-Formularfelder aus einer JSON-Datei."""
-import sys
-import json
-from pypdf import PdfReader, PdfWriter
+        $field = $this->getFieldPosition($fieldId);
+        if (!$field) {
+            return;
+        }
 
-def fill_pdf(input_pdf, field_values_json, output_pdf):
-    with open(field_values_json, 'r', encoding='utf-8') as f:
-        fields = json.load(f)
-    
-    reader = PdfReader(input_pdf)
-    writer = PdfWriter()
-    
-    # Alle Seiten kopieren
-    for page in reader.pages:
-        writer.add_page(page)
-    
-    # Felder nach Seite gruppieren
-    fields_by_page = {}
-    for field in fields:
-        page = field.get('page', 1) - 1  # 0-basiert
-        if page not in fields_by_page:
-            fields_by_page[page] = {}
-        fields_by_page[page][field['field_id']] = field['value']
-    
-    # Formularfelder befüllen
-    for page_num, page_fields in fields_by_page.items():
-        writer.update_page_form_field_values(
-            writer.pages[page_num],
-            page_fields
-        )
-    
-    with open(output_pdf, 'wb') as f:
-        writer.write(f)
+        // PDF-Koordinaten (y=0 unten) zu FPDF-Koordinaten (y=0 oben) konvertieren
+        // rect = [left, bottom, right, top] in PDF points (1pt = 1/72 inch)
+        // FPDF arbeitet in mm (1mm = 2.835pt)
+        $ptToMm = 25.4 / 72; // 0.3528 mm pro point
 
-if __name__ == '__main__':
-    if len(sys.argv) != 4:
-        print(f"Usage: {sys.argv[0]} <input.pdf> <fields.json> <output.pdf>")
-        sys.exit(1)
-    fill_pdf(sys.argv[1], sys.argv[2], sys.argv[3])
-PYTHON;
+        $x = $field['rect'][0] * $ptToMm;
+        $y = (self::PAGE_HEIGHT - $field['rect'][3]) * $ptToMm; // top in PDF coords
+        $w = ($field['rect'][2] - $field['rect'][0]) * $ptToMm;
+        $h = ($field['rect'][3] - $field['rect'][1]) * $ptToMm;
 
-        file_put_contents($path, $script);
-        chmod($path, 0755);
+        $pdf->SetFont('Helvetica', $style, $fontSize);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($w, $h, utf8_decode($value), 0, 0, 'L');
+    }
+
+    /**
+     * Gibt die Feld-Position aus der Konfiguration zurück
+     */
+    private function getFieldPosition(string $fieldId): ?array
+    {
+        // Feld-Positionen (aus field_info.json extrahiert)
+        // rect = [left, bottom, right, top] in PDF points
+        $fields = [
+            'Name'              => ['rect' => [51.02, 734.20, 266.46, 748.38]],
+            'Aufstellungsort'   => ['rect' => [340.16, 734.20, 571.10, 748.38]],
+            'StrasseAuf'        => ['rect' => [314.65, 707.27, 464.65, 721.45]],
+            'NrAuf'             => ['rect' => [531.06, 707.27, 578.27, 721.45]],
+            'StrasseBet'        => ['rect' => [102.05, 694.52, 229.61, 708.69]],
+            'NrBet'             => ['rect' => [257.95, 694.52, 308.98, 708.69]],
+            'FraltionBet'       => ['rect' => [102.05, 673.26, 252.05, 687.43]],
+            'FraktionAuf'       => ['rect' => [396.85, 673.26, 572.60, 687.43]],
+            'GemeindeBet'       => ['rect' => [102.05, 649.16, 252.05, 663.34]],
+            'GemeindeAuf'       => ['rect' => [396.85, 649.16, 572.60, 663.34]],
+            'SteuernummerBet'   => ['rect' => [22.91, 623.65, 172.91, 637.83]],
+            'AnlagenCODE'       => ['rect' => [500.19, 603.81, 576.98, 617.98]],
+            'Text1'             => ['rect' => [150.24, 587.48, 447.87, 603.81]],
+            'Status der Anlage' => ['rect' => [109.13, 568.38, 138.90, 582.55]],
+            'Kessel Hersteller' => ['rect' => [107.72, 544.28, 286.30, 558.46]],
+            'Baujahr'           => ['rect' => [333.07, 544.28, 399.69, 558.46]],
+            'Leistung in kw'    => ['rect' => [531.46, 544.28, 572.60, 558.46]],
+            'DropdownBrennstoff'=> ['rect' => [130.39, 507.27, 331.65, 527.27]],
+            'Tag der Messung'   => ['rect' => [494.65, 463.49, 561.26, 477.67]],
+            'DropdownOK'        => ['rect' => [288.00, 429.40, 360.00, 449.40]],
+            'Russzahl'          => ['rect' => [189.81, 395.88, 240.94, 410.05]],
+            'DropdownOeD'       => ['rect' => [493.23, 395.38, 572.60, 415.38]],
+            'WT'                => ['rect' => [189.81, 372.79, 240.94, 386.96]],
+            'Abgastemperatur'   => ['rect' => [493.23, 372.79, 547.09, 386.96]],
+            'VT'                => ['rect' => [189.81, 350.11, 240.94, 364.28]],
+            'O2'                => ['rect' => [493.23, 350.11, 547.09, 364.28]],
+            'CO2'               => ['rect' => [189.92, 326.01, 241.05, 340.19]],
+            'NOx'               => ['rect' => [493.23, 326.01, 547.09, 340.19]],
+            'CO'                => ['rect' => [189.81, 302.34, 240.94, 316.51]],
+            'Mitteilungen'      => ['rect' => [308.98, 162.86, 569.76, 246.64]],
+        ];
+
+        return $fields[$fieldId] ?? null;
     }
 }
