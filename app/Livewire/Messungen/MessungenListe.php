@@ -631,6 +631,7 @@ class MessungenListe extends Component
         // Datum korrekt sortieren (cMIS_DATA ist im Format ddmmyyyy)
         if ($this->sortField === 'cMIS_DATA') {
             $query->orderByRaw("STR_TO_DATE(cMIS_DATA, '%d%m%Y') {$this->sortDirection}");
+            $query->orderBy('cMIS_ORA', $this->sortDirection);
         } else {
             $query->orderBy($this->sortField, $this->sortDirection);
         }
