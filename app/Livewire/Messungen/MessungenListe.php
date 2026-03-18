@@ -269,16 +269,17 @@ class MessungenListe extends Component
         $anlagen = $query->skip($offset)->take(10)->get();
 
         // Prüfen welche Anlagen bereits Messungen haben
-        $kodexListe = $anlagen->pluck('Feld_a')->toArray();
+        $kodexListe = $anlagen->pluck('Feld_a')->map(fn($k) => trim($k))->toArray();
         $zugeordneteKodex = Messung::whereIn('cIM_CODICE', $kodexListe)
             ->where('codeInImpianti', '>', 0)
             ->pluck('cIM_CODICE')
+            ->map(fn($k) => trim($k))
             ->unique()
             ->toArray();
 
         // Flag setzen für jede Anlage
         foreach ($anlagen as $anlage) {
-            $anlage->hatMessung = in_array($anlage->Feld_a, $zugeordneteKodex);
+            $anlage->hatMessung = in_array(trim($anlage->Feld_a), $zugeordneteKodex);
         }
 
         $this->anlageSearchResults = $anlagen;
