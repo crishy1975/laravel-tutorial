@@ -102,7 +102,7 @@
                 <div class="row g-2">
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Jahr</label>
-                        <select wire:model.live="filterJahr" class="form-select form-select-sm">
+                        <select wire:model="filterJahr" class="form-select form-select-sm">
                             @for($y = date('Y'); $y >= 2020; $y--)
                                 <option value="{{ $y }}">{{ $y }}</option>
                             @endfor
@@ -110,17 +110,17 @@
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Kodex</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterKodex"
+                        <input type="text" wire:model="filterKodex"
                                class="form-control form-control-sm" placeholder="Kodex...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Name</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterName"
+                        <input type="text" wire:model="filterName"
                                class="form-control form-control-sm" placeholder="Name...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Ergebnis</label>
-                        <select wire:model.live="filterErgebnis" class="form-select form-select-sm">
+                        <select wire:model="filterErgebnis" class="form-select form-select-sm">
                             <option value="">Alle</option>
                             <option value="1">✓ Positiv</option>
                             <option value="0">✗ Negativ</option>
@@ -128,7 +128,7 @@
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Brennstoff</label>
-                        <select wire:model.live="filterBrennstoff" class="form-select form-select-sm">
+                        <select wire:model="filterBrennstoff" class="form-select form-select-sm">
                             <option value="">Alle</option>
                             @foreach($brennstoffe as $key => $info)
                                 <option value="{{ $key }}">{{ $info['text'] }}</option>
@@ -137,20 +137,23 @@
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Anlage</label>
-                        <select wire:model.live="filterOhneAnlage" class="form-select form-select-sm">
+                        <select wire:model="filterOhneAnlage" class="form-select form-select-sm">
                             <option value="">Alle</option>
                             <option value="0">Mit Anlage</option>
                             <option value="1">Ohne Anlage</option>
                         </select>
                     </div>
                 </div>
-                @if($activeFilters > 0)
-                    <div class="mt-2">
+                <div class="mt-2 d-flex gap-2">
+                    <button wire:click="$refresh" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search"></i> Filtern
+                    </button>
+                    @if($activeFilters > 0)
                         <button wire:click="resetFilters" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-x-lg"></i> Filter zurücksetzen
+                            <i class="bi bi-x-lg"></i> Zurücksetzen
                         </button>
-                    </div>
-                @endif
+                    @endif
+                </div>
             </div>
         </div>
     </div>
