@@ -426,8 +426,14 @@
                                     </thead>
                                     <tbody>
                                         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $anlageSearchResults; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $anlage): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                            <tr>
-                                                <td class="text-nowrap"><?php echo e($anlage->Feld_a); ?></td>
+                                            <tr class="<?php echo e($anlage->hatMessung ? 'table-success' : ''); ?>">
+                                                <td class="text-nowrap">
+                                                    <?php echo e($anlage->Feld_a); ?>
+
+                                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlage->hatMessung): ?>
+                                                        <i class="bi bi-check-circle-fill text-success" title="Hat Messungen"></i>
+                                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                                </td>
                                                 <td><?php echo e($anlage->Feld_w); ?></td>
                                                 <td class="small">
                                                     <?php echo e($anlage->Feld_m); ?> <?php echo e($anlage->Feld_n); ?>,
@@ -452,10 +458,16 @@
                             
                             <div class="d-md-none" style="max-height: 300px; overflow-y: auto;">
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $anlageSearchResults; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $anlage): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                    <div class="card mb-2">
-                                        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                                    <div class="card mb-2 <?php echo e($anlage->hatMessung ? 'border-success' : ''); ?>">
+                                        <div class="card-body p-2 d-flex justify-content-between align-items-center <?php echo e($anlage->hatMessung ? 'bg-success bg-opacity-10' : ''); ?>">
                                             <div class="min-width-0 flex-grow-1">
-                                                <div class="fw-bold text-truncate"><?php echo e($anlage->Feld_w); ?></div>
+                                                <div class="fw-bold text-truncate">
+                                                    <?php echo e($anlage->Feld_w); ?>
+
+                                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlage->hatMessung): ?>
+                                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                                </div>
                                                 <small class="text-muted d-block"><?php echo e($anlage->Feld_a); ?></small>
                                                 <small class="text-muted d-block text-truncate">
                                                     <?php echo e($anlage->Feld_m); ?> <?php echo e($anlage->Feld_n); ?>, <?php echo e($anlage->Feld_i); ?>
