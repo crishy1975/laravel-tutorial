@@ -413,8 +413,13 @@
                                     </thead>
                                     <tbody>
                                         @foreach($anlageSearchResults as $anlage)
-                                            <tr>
-                                                <td class="text-nowrap">{{ $anlage->Feld_a }}</td>
+                                            <tr class="{{ $anlage->hatMessung ? 'table-success' : '' }}">
+                                                <td class="text-nowrap">
+                                                    {{ $anlage->Feld_a }}
+                                                    @if($anlage->hatMessung)
+                                                        <i class="bi bi-check-circle-fill text-success" title="Hat Messungen"></i>
+                                                    @endif
+                                                </td>
                                                 <td>{{ $anlage->Feld_w }}</td>
                                                 <td class="small">
                                                     {{ $anlage->Feld_m }} {{ $anlage->Feld_n }},
@@ -438,10 +443,15 @@
                             {{-- Mobile: Cards für Suchergebnisse --}}
                             <div class="d-md-none" style="max-height: 300px; overflow-y: auto;">
                                 @foreach($anlageSearchResults as $anlage)
-                                    <div class="card mb-2">
-                                        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                                    <div class="card mb-2 {{ $anlage->hatMessung ? 'border-success' : '' }}">
+                                        <div class="card-body p-2 d-flex justify-content-between align-items-center {{ $anlage->hatMessung ? 'bg-success bg-opacity-10' : '' }}">
                                             <div class="min-width-0 flex-grow-1">
-                                                <div class="fw-bold text-truncate">{{ $anlage->Feld_w }}</div>
+                                                <div class="fw-bold text-truncate">
+                                                    {{ $anlage->Feld_w }}
+                                                    @if($anlage->hatMessung)
+                                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                                    @endif
+                                                </div>
                                                 <small class="text-muted d-block">{{ $anlage->Feld_a }}</small>
                                                 <small class="text-muted d-block text-truncate">
                                                     {{ $anlage->Feld_m }} {{ $anlage->Feld_n }}, {{ $anlage->Feld_i }}
