@@ -224,6 +224,12 @@
                                             class="btn btn-sm btn-outline-secondary" title="Bearbeiten">
                                         <i class="bi bi-pencil"></i>
                                     </button>
+                                    @if($m->codeInImpianti > 0)
+                                        <a href="{{ route('messungen.protokoll', $m->id) }}" target="_blank"
+                                           class="btn btn-sm btn-outline-info" title="Protokoll drucken">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                    @endif
                                     @if($m->codeInImpianti == 0)
                                         <button wire:click="openAnlageModal({{ $m->id }})"
                                                 class="btn btn-sm btn-outline-primary" title="Anlage zuordnen">
@@ -316,6 +322,12 @@
                                 class="btn btn-sm btn-outline-secondary flex-grow-1">
                             <i class="bi bi-pencil"></i> Bearbeiten
                         </button>
+                        @if($m->codeInImpianti > 0)
+                            <a href="{{ route('messungen.protokoll', $m->id) }}" target="_blank"
+                               class="btn btn-sm btn-outline-info">
+                                <i class="bi bi-printer"></i>
+                            </a>
+                        @endif
                         @if($m->codeInImpianti == 0)
                             <button wire:click="openAnlageModal({{ $m->id }})"
                                     class="btn btn-sm btn-outline-primary flex-grow-1">
