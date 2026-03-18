@@ -15,76 +15,77 @@
         </div>
     @endif
 
-    {{-- Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    {{-- Header - Mobile optimiert --}}
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
-            <h1 class="h4 h3-md mb-0">
+            <h1 class="h5 h4-md mb-0">
                 <i class="bi bi-speedometer2 text-primary"></i>
                 Messungen
             </h1>
-            <p class="text-muted mb-0 small d-none d-md-block">
-                {{ $statistik['total'] }} Messungen in {{ $filterJahr }}
+            <p class="text-muted mb-0 small">
+                {{ $statistik['total'] }} in {{ $filterJahr }}
             </p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary">
+        <div class="d-flex gap-1 gap-sm-2 flex-wrap">
+            <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-building"></i>
                 <span class="d-none d-sm-inline">Anlagen</span>
             </a>
-            <button wire:click="openMessungModal" class="btn btn-primary">
+            <button wire:click="openMessungModal" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-lg"></i>
                 <span class="d-none d-sm-inline">Neue Messung</span>
             </button>
-            <a href="{{ route('messungen.import') }}" class="btn btn-success">
+            <a href="{{ route('messungen.import') }}" class="btn btn-success btn-sm">
                 <i class="bi bi-file-earmark-arrow-up"></i>
-                <span class="d-none d-sm-inline">XML Import</span>
+                <span class="d-none d-sm-inline">XML</span>
             </a>
         </div>
     </div>
 
-    {{-- Statistik-Karten --}}
+    {{-- Statistik-Karten - kompakter auf Mobile --}}
     <div class="row g-2 mb-3">
-        <div class="col-6 col-md-3">
+        <div class="col-3">
             <div class="card border-primary h-100 stat-card">
-                <div class="card-body text-center py-2">
+                <div class="card-body text-center py-2 px-1">
                     <div class="stat-number text-primary">{{ $statistik['total'] }}</div>
                     <div class="stat-label">Gesamt</div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-3">
             <div class="card border-success h-100 stat-card cursor-pointer"
                  wire:click="$set('filterErgebnis', '1')" role="button">
-                <div class="card-body text-center py-2">
+                <div class="card-body text-center py-2 px-1">
                     <div class="stat-number text-success">{{ $statistik['positiv'] }}</div>
                     <div class="stat-label">Positiv</div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-3">
             <div class="card border-danger h-100 stat-card cursor-pointer"
                  wire:click="$set('filterErgebnis', '0')" role="button">
-                <div class="card-body text-center py-2">
+                <div class="card-body text-center py-2 px-1">
                     <div class="stat-number text-danger">{{ $statistik['negativ'] }}</div>
                     <div class="stat-label">Negativ</div>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-3">
             <div class="card border-warning h-100 stat-card cursor-pointer"
                  wire:click="$set('filterOhneAnlage', '1')" role="button">
-                <div class="card-body text-center py-2">
+                <div class="card-body text-center py-2 px-1">
                     <div class="stat-number text-warning">{{ $statistik['ohneAnlage'] }}</div>
-                    <div class="stat-label">Ohne Anlage</div>
+                    <div class="stat-label d-none d-sm-block">Ohne Anlage</div>
+                    <div class="stat-label d-sm-none">o. Anl.</div>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Filter-Karte --}}
+    {{-- Filter-Karte - collapsed auf Mobile --}}
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center"
-             data-bs-toggle="collapse" data-bs-target="#filterCollapse" role="button" aria-expanded="true">
+             data-bs-toggle="collapse" data-bs-target="#filterCollapse" role="button" aria-expanded="false">
             <h6 class="mb-0">
                 <i class="bi bi-funnel"></i> Filter
                 @php
@@ -94,9 +95,9 @@
                     <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
                 @endif
             </h6>
-            <i class="bi bi-chevron-down d-md-none transition-transform"></i>
+            <i class="bi bi-chevron-down transition-transform"></i>
         </div>
-        <div class="collapse show" id="filterCollapse">
+        <div class="collapse" id="filterCollapse">
             <div class="card-body py-2">
                 <div class="row g-2">
                     <div class="col-6 col-md-2">
@@ -129,8 +130,8 @@
                         <label class="form-label small mb-1">Brennstoff</label>
                         <select wire:model.live="filterBrennstoff" class="form-select form-select-sm">
                             <option value="">Alle</option>
-                            @foreach($brennstoffe as $key => $info)
-                                <option value="{{ $key }}">{{ $info['text'] }}</option>
+                            @foreach($brennstoffe as $b)
+                                <option value="{{ $b }}">{{ $b }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -154,8 +155,8 @@
         </div>
     </div>
 
-    {{-- Messungen Tabelle --}}
-    <div class="card shadow-sm">
+    {{-- ========== DESKTOP: Tabellen-Ansicht (ab md) ========== --}}
+    <div class="card shadow-sm d-none d-md-block">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover table-striped mb-0" id="messungenTable">
@@ -179,10 +180,10 @@
                                     <i class="bi bi-chevron-{{ $sortDirection === 'asc' ? 'up' : 'down' }}"></i>
                                 @endif
                             </th>
-                            <th class="text-center d-none d-md-table-cell">Stadio</th>
-                            <th class="text-center d-none d-md-table-cell">Brennstoff</th>
+                            <th class="text-center">Stadio</th>
+                            <th class="text-center">Brennstoff</th>
                             <th class="text-center">Ergebnis</th>
-                            <th class="text-center" style="width: 80px;">Aktion</th>
+                            <th class="text-center" style="width: 100px;">Aktion</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -202,8 +203,8 @@
                                     {{ $m->cMIS_DATA2 }}
                                     <small class="text-muted">{{ $m->cMIS_ORA }}</small>
                                 </td>
-                                <td class="text-center d-none d-md-table-cell">{{ $m->cMIS_STADIO }}</td>
-                                <td class="text-center d-none d-md-table-cell">
+                                <td class="text-center">{{ $m->cMIS_STADIO }}</td>
+                                <td class="text-center">
                                     <small>{{ $m->cMIS_COMBUSTIBILE_P }}</small>
                                 </td>
                                 <td class="text-center">
@@ -252,6 +253,97 @@
         @endif
     </div>
 
+    {{-- ========== MOBILE: Card-Ansicht (nur xs/sm) ========== --}}
+    <div class="d-md-none">
+        {{-- Sortierung für Mobile --}}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <small class="text-muted">{{ $messungen->total() }} Ergebnisse</small>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-sort-down"></i> Sortieren
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item {{ $sortField === 'cMIS_DATA' ? 'active' : '' }}" href="#" wire:click.prevent="sortBy('cMIS_DATA')">Datum</a></li>
+                    <li><a class="dropdown-item {{ $sortField === 'cIM_NAME' ? 'active' : '' }}" href="#" wire:click.prevent="sortBy('cIM_NAME')">Name</a></li>
+                    <li><a class="dropdown-item {{ $sortField === 'cIM_CODICE' ? 'active' : '' }}" href="#" wire:click.prevent="sortBy('cIM_CODICE')">Kodex</a></li>
+                </ul>
+            </div>
+        </div>
+
+        {{-- Mobile Cards --}}
+        @forelse($messungen as $m)
+            <div class="card mb-2 {{ $m->strEsito === '0' ? 'border-danger' : '' }}">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <div class="flex-grow-1 min-width-0">
+                            <h6 class="mb-0 text-truncate">{{ $m->cIM_NAME }}</h6>
+                            <small class="text-muted">
+                                @if($m->codeInImpianti == 0)
+                                    <span class="text-warning"><i class="bi bi-exclamation-circle"></i> Ohne Anlage</span>
+                                @else
+                                    {{ $m->cIM_CODICE }}
+                                @endif
+                            </small>
+                        </div>
+                        <div class="ms-2">
+                            @if($m->strEsito === '1')
+                                <span class="badge bg-success fs-6">✓</span>
+                            @elseif($m->strEsito === '0')
+                                <span class="badge bg-danger fs-6">✗</span>
+                            @else
+                                <span class="badge bg-secondary fs-6">─</span>
+                            @endif
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center text-muted small mb-2">
+                        <span>
+                            <i class="bi bi-calendar"></i> {{ $m->cMIS_DATA2 }} {{ $m->cMIS_ORA }}
+                        </span>
+                        <span>
+                            <i class="bi bi-fire"></i> {{ $m->cMIS_COMBUSTIBILE_P ?: '─' }}
+                        </span>
+                        <span>
+                            St. {{ $m->cMIS_STADIO ?: '─' }}
+                        </span>
+                    </div>
+                    
+                    <div class="d-flex gap-1">
+                        <button wire:click="editMessung({{ $m->id }})"
+                                class="btn btn-sm btn-outline-secondary flex-grow-1">
+                            <i class="bi bi-pencil"></i> Bearbeiten
+                        </button>
+                        @if($m->codeInImpianti == 0)
+                            <button wire:click="openAnlageModal({{ $m->id }})"
+                                    class="btn btn-sm btn-outline-primary flex-grow-1">
+                                <i class="bi bi-link"></i> Zuordnen
+                            </button>
+                        @endif
+                        <button wire:click="delete({{ $m->id }})"
+                                wire:confirm="Messung wirklich löschen?"
+                                class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        @empty
+            <div class="card">
+                <div class="card-body text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                    Keine Messungen gefunden
+                </div>
+            </div>
+        @endforelse
+
+        {{-- Mobile Pagination --}}
+        @if($messungen->hasPages())
+            <div class="d-flex justify-content-center mt-3">
+                {{ $messungen->links('pagination::simple-bootstrap-5') }}
+            </div>
+        @endif
+    </div>
+
     {{-- ========== Modal: Anlage zuordnen ========== --}}
     @if($showAnlageModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
@@ -295,9 +387,9 @@
                             </div>
                         </div>
 
-                        {{-- Suchergebnisse --}}
+                        {{-- Desktop: Tabelle für Suchergebnisse --}}
                         @if(count($anlageSearchResults) > 0)
-                            <div class="table-responsive" style="max-height: 300px;">
+                            <div class="table-responsive d-none d-md-block" style="max-height: 300px;">
                                 <table class="table table-sm table-hover mb-0">
                                     <thead class="table-light sticky-top">
                                         <tr>
@@ -327,6 +419,28 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            {{-- Mobile: Cards für Suchergebnisse --}}
+                            <div class="d-md-none" style="max-height: 300px; overflow-y: auto;">
+                                @foreach($anlageSearchResults as $anlage)
+                                    <div class="card mb-2">
+                                        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                                            <div class="min-width-0 flex-grow-1">
+                                                <div class="fw-bold text-truncate">{{ $anlage->Feld_w }}</div>
+                                                <small class="text-muted d-block">{{ $anlage->Feld_a }}</small>
+                                                <small class="text-muted d-block text-truncate">
+                                                    {{ $anlage->Feld_m }} {{ $anlage->Feld_n }}, {{ $anlage->Feld_i }}
+                                                </small>
+                                            </div>
+                                            <button wire:click="zuordnenAnlage('{{ $anlage->Feld_a }}')"
+                                                    class="btn btn-success btn-sm ms-2">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
                             @if($anlageSearchTotal > 10)
                                 <div class="d-flex justify-content-between align-items-center mt-2 small">
                                     <span>{{ $anlageSearchTotal }} Ergebnisse</span>
@@ -353,13 +467,13 @@
                         @else
                             <div class="text-center text-muted py-4">
                                 <i class="bi bi-building fs-1 d-block mb-2 opacity-25"></i>
-                                Gib einen Suchbegriff ein
+                                Suchbegriff eingeben
                             </div>
                         @endif
                     </div>
                     <div class="modal-footer py-2">
                         <button type="button" class="btn btn-secondary" wire:click="closeAnlageModal">
-                            <i class="bi bi-x-lg"></i> Schließen
+                            Abbrechen
                         </button>
                     </div>
                 </div>
@@ -367,215 +481,114 @@
         </div>
     @endif
 
-    {{-- ========== Modal: Neue/Bearbeiten Messung ========== --}}
+    {{-- ========== Modal: Messung erstellen/bearbeiten ========== --}}
     @if($showMessungModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
-            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
                 <div class="modal-content">
-                    <div class="modal-header {{ $editMessungId ? 'bg-info' : 'bg-primary' }} text-white py-2">
+                    <div class="modal-header bg-primary text-white py-2">
                         <h5 class="modal-title">
-                            @if($editMessungId)
-                                <i class="bi bi-pencil"></i> Messung bearbeiten
-                            @else
-                                <i class="bi bi-plus-circle"></i> Neue Messung
-                            @endif
+                            <i class="bi bi-speedometer2"></i>
+                            {{ $editMessungId ? 'Messung bearbeiten' : 'Neue Messung' }}
                         </h5>
                         <button type="button" class="btn-close btn-close-white" wire:click="closeMessungModal"></button>
                     </div>
                     <div class="modal-body p-2 p-md-3">
-                        
-                        {{-- Modal-Fehler --}}
-                        @if($modalError)
-                            <div class="alert alert-danger py-2 mb-2">
-                                <i class="bi bi-exclamation-triangle"></i> {{ $modalError }}
-                            </div>
-                        @endif
-
-                        <form wire:submit="saveMessung">
-                            <div class="row g-3">
-                                {{-- Linke Spalte: Daten --}}
-                                <div class="col-12 col-md-8">
-                                    
-                                    {{-- Foto-Upload für OCR --}}
-                                    <div class="mb-3" x-data="{ 
-                                        loading: false, 
-                                        status: '',
-                                        processImage(file) {
-                                            if (!file) return;
-                                            this.loading = true;
-                                            this.status = '';
-                                            const reader = new FileReader();
-                                            reader.onload = async (e) => {
-                                                try {
-                                                    const res = await fetch('/messungen/extract-from-photo', {
-                                                        method: 'POST',
-                                                        headers: {
-                                                            'Content-Type': 'application/json',
-                                                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
-                                                        },
-                                                        body: JSON.stringify({ image: e.target.result.split(',')[1] })
-                                                    });
-                                                    const data = await res.json();
-                                                    if (data.success) {
-                                                        $wire.set('messung.cMIS_DATA2', data.datum || '');
-                                                        $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
-                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                                                        $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
-                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                                                        this.status = 'success';
-                                                    } else {
-                                                        this.status = data.error || 'Fehler';
-                                                    }
-                                                } catch (err) {
-                                                    this.status = 'Verbindungsfehler';
-                                                    console.error(err);
-                                                }
-                                                this.loading = false;
-                                            };
-                                            reader.readAsDataURL(file);
-                                        }
-                                    }">
-                                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            {{-- Kamera-Button --}}
-                                            <label class="btn btn-primary btn-sm mb-0" :class="{ 'disabled': loading }">
-                                                <span x-show="!loading"><i class="bi bi-camera-fill me-1"></i> Kamera</span>
-                                                <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
-                                                <input type="file" accept="image/*" capture="environment" 
-                                                       class="d-none" x-ref="kameraInput"
-                                                       @change="processImage($event.target.files[0]); $refs.kameraInput.value = '';">
-                                            </label>
-                                            {{-- Galerie-Button --}}
-                                            <label class="btn btn-outline-primary btn-sm mb-0" :class="{ 'disabled': loading }">
-                                                <span x-show="!loading"><i class="bi bi-images me-1"></i> Galerie</span>
-                                                <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
-                                                <input type="file" accept="image/*" 
-                                                       class="d-none" x-ref="galerieInput"
-                                                       @change="processImage($event.target.files[0]); $refs.galerieInput.value = '';">
-                                            </label>
-                                            <span x-show="status === 'success'" class="badge bg-success"><i class="bi bi-check-lg"></i> Werte übernommen</span>
-                                            <span x-show="status && status !== 'success'" class="badge bg-danger" x-text="status"></span>
-                                        </div>
-                                    </div>
-
-                                    {{-- Kunde/Anlage --}}
-                                    <div class="card mb-2">
+                        <form wire:submit.prevent="saveMessung">
+                            <div class="row g-2 g-md-3">
+                                {{-- Linke Spalte: Stammdaten --}}
+                                <div class="col-12 col-lg-4">
+                                    <div class="card h-100">
                                         <div class="card-header bg-light py-1 px-2">
-                                            <h6 class="mb-0 small"><i class="bi bi-person"></i> Kunde / Anlage</h6>
+                                            <h6 class="mb-0 small"><i class="bi bi-building"></i> Stammdaten</h6>
                                         </div>
                                         <div class="card-body py-2 px-2">
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-0">Kodex Anlage</label>
+                                                <input type="text" wire:model.live.debounce.500ms="messung.cMIS_COD_IMPIANTO"
+                                                       class="form-control form-control-sm" placeholder="z.B. 02100000001">
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small mb-0">Aufstellungsort</label>
+                                                <input type="text" wire:model="messung.cIM_NAME"
+                                                       class="form-control form-control-sm" placeholder="Name">
+                                            </div>
                                             <div class="row g-2">
-                                                <div class="col-4 col-md-3">
-                                                    <label class="form-label small mb-0">Kodex <span class="text-danger">*</span></label>
-                                                    <input type="text" wire:model="messung.cIM_CODICE"
-                                                           class="form-control form-control-sm" required>
-                                                </div>
-                                                <div class="col-8 col-md-9">
-                                                    <label class="form-label small mb-0">Name / Aufstellungsort <span class="text-danger">*</span></label>
-                                                    <input type="text" wire:model="messung.cIM_NAME"
-                                                           class="form-control form-control-sm" placeholder="z.B. Mustermann GmbH" required>
+                                                <div class="col-6">
+                                                    <label class="form-label small mb-0">Datum</label>
+                                                    <input type="date" wire:model="messung.cMIS_DATA"
+                                                           class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-6">
-                                                    <label class="form-label small mb-0">Baujahr</label>
-                                                    <input type="text" wire:model.live="messung.boilerYear"
-                                                           class="form-control form-control-sm" placeholder="2010">
-                                                </div>
-                                                <div class="col-6">
-                                                    <label class="form-label small mb-0">Leistung kW</label>
-                                                    <input type="text" wire:model.live="messung.boilerPower"
-                                                           class="form-control form-control-sm" placeholder="50">
+                                                    <label class="form-label small mb-0">Uhrzeit</label>
+                                                    <input type="time" wire:model="messung.cMIS_ORA"
+                                                           class="form-control form-control-sm">
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Grunddaten --}}
-                                    <div class="card mb-2">
-                                        <div class="card-header bg-light py-1 px-2">
-                                            <h6 class="mb-0 small"><i class="bi bi-info-circle"></i> Grunddaten</h6>
-                                        </div>
-                                        <div class="card-body py-2 px-2">
-                                            <div class="row g-2">
-                                                <div class="col-4 col-md-2">
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">Stadio</label>
                                                     <input type="text" wire:model="messung.cMIS_STADIO"
-                                                           class="form-control form-control-sm" required>
+                                                           class="form-control form-control-sm" placeholder="z.B. 1">
                                                 </div>
-                                                <div class="col-4 col-md-3">
-                                                    <label class="form-label small mb-0">Datum</label>
-                                                    <input type="text" wire:model="messung.cMIS_DATA2"
-                                                           class="form-control form-control-sm" placeholder="TT.MM.JJJJ" required>
-                                                </div>
-                                                <div class="col-4 col-md-2">
-                                                    <label class="form-label small mb-0">Uhrzeit</label>
-                                                    <input type="text" wire:model="messung.cMIS_ORA"
-                                                           class="form-control form-control-sm" placeholder="HH:MM">
-                                                </div>
-                                                <div class="col-12 col-md-5">
+                                                <div class="col-6">
                                                     <label class="form-label small mb-0">Brennstoff</label>
                                                     <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
-                                                        @foreach($brennstoffe as $key => $info)
-                                                            <option value="{{ $key }}">{{ $info['text'] }}</option>
+                                                        <option value="">Wählen...</option>
+                                                        @foreach($brennstoffListe as $key => $val)
+                                                            <option value="{{ $key }}">{{ $val }}</option>
                                                         @endforeach
                                                     </select>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+                                </div>
 
-                                    {{-- Messwerte --}}
-                                    <div class="card mb-2">
+                                {{-- Mittlere Spalte: Messwerte --}}
+                                <div class="col-12 col-lg-4">
+                                    <div class="card h-100">
                                         <div class="card-header bg-light py-1 px-2">
-                                            <h6 class="mb-0 small"><i class="bi bi-speedometer2"></i> Messwerte</h6>
+                                            <h6 class="mb-0 small"><i class="bi bi-graph-up"></i> Messwerte</h6>
                                         </div>
                                         <div class="card-body py-2 px-2">
                                             <div class="row g-2">
-                                                <div class="col-4">
-                                                    <label class="form-label small mb-0">O₂ %</label>
-                                                    <input type="text" wire:model="messung.cMIS_OSSIGENO"
-                                                           class="form-control form-control-sm" placeholder="8.3">
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label small mb-0">CO₂ %</label>
-                                                    <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
-                                                           class="form-control form-control-sm" placeholder="7.1">
-                                                </div>
-                                                <div class="col-4">
-                                                    <label class="form-label small mb-0">Qa %</label>
-                                                    <input type="text" wire:model="messung.cMIS_PERD_FUMI"
-                                                           class="form-control form-control-sm" placeholder="2.7">
-                                                </div>
-                                            </div>
-                                            <div class="row g-2 mt-1">
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">CO mg/m³</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
-                                                           class="form-control form-control-sm" placeholder="31">
+                                                           class="form-control form-control-sm" placeholder="0">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">NOx mg/m³</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
-                                                           class="form-control form-control-sm" placeholder="82">
+                                                           class="form-control form-control-sm" placeholder="0">
+                                                </div>
+                                            </div>
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-6">
+                                                    <label class="form-label small mb-0">O2 %</label>
+                                                    <input type="text" wire:model="messung.cMIS_OSSIGENO"
+                                                           class="form-control form-control-sm" placeholder="3.0">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small mb-0">CO2 %</label>
+                                                    <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
+                                                           class="form-control form-control-sm" placeholder="12.0">
                                                 </div>
                                             </div>
                                             <div class="row g-2 mt-1">
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T Luft °C</label>
+                                                    <label class="form-label small mb-0">T Luft</label>
                                                     <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
                                                            class="form-control form-control-sm" placeholder="18">
                                                 </div>
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T Abgas °C</label>
+                                                    <label class="form-label small mb-0">T Abgas</label>
                                                     <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
                                                            class="form-control form-control-sm" placeholder="61">
                                                 </div>
                                                 <div class="col-4">
-                                                    <label class="form-label small mb-0">T Wärmetr. °C</label>
+                                                    <label class="form-label small mb-0">T Wärm.</label>
                                                     <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
                                                            class="form-control form-control-sm" placeholder="51">
                                                 </div>
@@ -599,7 +612,7 @@
                                 </div>
 
                                 {{-- Rechte Spalte: Grenzwerte --}}
-                                <div class="col-12 col-md-4">
+                                <div class="col-12 col-lg-4">
                                     <div class="card h-100">
                                         <div class="card-header bg-light py-1 px-2">
                                             <h6 class="mb-0 small"><i class="bi bi-shield-check"></i> Grenzwerte</h6>
@@ -678,19 +691,43 @@
 
 @push('styles')
 <style>
+    /* Statistik-Cards */
     .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
     .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .stat-number { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
-    .stat-label { font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-number { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+    .stat-label { font-size: 0.65rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.3px; }
     .cursor-pointer { cursor: pointer; }
-    @media (min-width: 768px) { .stat-number { font-size: 2rem; } .stat-label { font-size: 0.75rem; } }
+    
+    @media (min-width: 576px) {
+        .stat-number { font-size: 1.5rem; }
+        .stat-label { font-size: 0.7rem; }
+    }
+    @media (min-width: 768px) {
+        .stat-number { font-size: 2rem; }
+        .stat-label { font-size: 0.75rem; letter-spacing: 0.5px; }
+    }
+    
+    /* Filter Toggle */
     .transition-transform { transition: transform 0.3s; }
     [aria-expanded="false"] .transition-transform { transform: rotate(-90deg); }
+    
+    /* Desktop Tabelle */
     #messungenTable thead th { cursor: pointer; user-select: none; }
     #messungenTable thead th:hover { background-color: rgba(255,255,255,0.1); }
     #messungenTable tbody tr { cursor: pointer; transition: background-color 0.15s; }
     #messungenTable tbody tr:hover { background-color: rgba(0, 123, 255, 0.05); }
     #messungenTable tbody tr.table-danger:hover { background-color: rgba(220, 53, 69, 0.15); }
-    @media (max-width: 575.98px) { .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; } .card-body { padding: 0.5rem; } .form-label { font-size: 0.75rem; } .stat-number { font-size: 1.25rem; } }
+    
+    /* Mobile Optimierungen */
+    @media (max-width: 575.98px) {
+        .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .card-body { padding: 0.5rem; }
+        .form-label { font-size: 0.75rem; }
+        .min-width-0 { min-width: 0; }
+    }
+    
+    /* Mobile Cards */
+    .card.mb-2 .card-body { background: #fff; }
+    .card.border-danger .card-body { background: rgba(220, 53, 69, 0.05); }
 </style>
 @endpush
