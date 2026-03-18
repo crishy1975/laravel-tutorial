@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Messung;
 use App\Models\Impianto;
+use setasign\Fpdi\Fpdi;
 
 class ProtokollController extends Controller
 {
@@ -34,8 +34,7 @@ class ProtokollController extends Controller
             abort(404, 'PDF-Vorlage nicht gefunden. Bitte vorlage.pdf in resources/pdf/ ablegen.');
         }
 
-        // FPDI Klasse dynamisch laden (unterstützt verschiedene Package-Versionen)
-        $pdf = $this->createFpdi();
+        $pdf = new Fpdi();
         $pdf->SetAutoPageBreak(false);
         $pdf->AddPage();
 
@@ -57,24 +56,7 @@ class ProtokollController extends Controller
             ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 
-    /**
-     * Erstellt die richtige FPDI-Instanz je nach installiertem Package
-     */
-    private function createFpdi()
-    {
-        // setasign/fpdi (standalone, nutzt FPDF intern)
-        if (class_exists(\setasign\Fpdi\Fpdi::class)) {
-            return new \setasign\Fpdi\Fpdi();
-        }
-        // setasign/fpdi mit TCPDF
-        if (class_exists(\setasign\Fpdi\Tcpdf\Fpdi::class)) {
-            return new \setasign\Fpdi\Tcpdf\Fpdi();
-        }
-        
-        throw new \RuntimeException('FPDI nicht installiert. Bitte "composer require setasign/fpdi-fpdf" ausführen.');
-    }
-
-    private function fillFields($pdf, Messung $messung, ?Impianto $anlage): void
+    private function fillFields(Fpdi $pdf, Messung $messung, ?Impianto $anlage): void
     {
         if ($anlage) {
             $betreiberName = trim(($anlage->Feld_c ?? '') . ' ' . ($anlage->Feld_d ?? ''));
@@ -118,10 +100,7 @@ class ProtokollController extends Controller
         $this->w($pdf, 'CO', $messung->cMIS_MONOSSSIDO ?? '');
     }
 
-    /**
-     * Schreibt einen Wert an die Feld-Position
-     */
-    private function w($pdf, string $fieldId, string $value, float $fontSize = 10, string $style = ''): void
+    private function w(Fpdi $pdf, string $fieldId, string $value, float $fontSize = 10, string $style = ''): void
     {
         if ($value === '' || $value === null) {
             return;
@@ -141,14 +120,10 @@ class ProtokollController extends Controller
         $pdf->SetFont('Helvetica', $style, $fontSize);
         $pdf->SetXY($x, $y);
 
-        // iconv für FPDF (erwartet ISO-8859-1)
         $text = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $value) ?: $value;
         $pdf->Cell($w, $h, $text, 0, 0, 'L');
     }
 
-    /**
-     * Feld-Positionen [left, bottom, right, top] in PDF points
-     */
     private function getRect(string $fieldId): ?array
     {
         $fields = [
