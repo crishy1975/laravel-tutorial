@@ -377,27 +377,36 @@
                         <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
 
                         
-                        <div class="row g-2 mb-3">
+                        <div class="row g-2 mb-2">
                             <div class="col-6 col-md-3">
                                 <label class="form-label small mb-1">Aufstellungsort</label>
-                                <input type="text" wire:model.live.debounce.300ms="anlageSearchName"
+                                <input type="text" wire:model="anlageSearchName"
+                                       wire:keydown.enter="searchAnlagen"
                                        class="form-control form-control-sm" placeholder="Name...">
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="form-label small mb-1">Gemeinde</label>
-                                <input type="text" wire:model.live.debounce.300ms="anlageSearchOrt"
+                                <input type="text" wire:model="anlageSearchOrt"
+                                       wire:keydown.enter="searchAnlagen"
                                        class="form-control form-control-sm" placeholder="Ort...">
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="form-label small mb-1">Straße</label>
-                                <input type="text" wire:model.live.debounce.300ms="anlageSearchStrasse"
+                                <input type="text" wire:model="anlageSearchStrasse"
+                                       wire:keydown.enter="searchAnlagen"
                                        class="form-control form-control-sm" placeholder="Straße...">
                             </div>
                             <div class="col-6 col-md-3">
                                 <label class="form-label small mb-1">Hausnr.</label>
-                                <input type="text" wire:model.live.debounce.300ms="anlageSearchNummer"
+                                <input type="text" wire:model="anlageSearchNummer"
+                                       wire:keydown.enter="searchAnlagen"
                                        class="form-control form-control-sm" placeholder="Nr...">
                             </div>
+                        </div>
+                        <div class="mb-3">
+                            <button type="button" wire:click="searchAnlagen" class="btn btn-primary btn-sm">
+                                <i class="bi bi-search"></i> Suchen
+                            </button>
                         </div>
 
                         
