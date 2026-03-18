@@ -191,7 +191,7 @@
                     </thead>
                     <tbody>
                         @forelse($messungen as $m)
-                            <tr class="{{ $m->strEsito === '0' ? 'table-danger' : '' }}">
+                            <tr class="{{ $m->strEsito === '0' ? 'table-danger' : ($m->codeInImpianti == 0 ? 'table-warning' : '') }}">
                                 <td class="text-nowrap">
                                     @if($m->codeInImpianti == 0)
                                         <span class="text-muted">{{ $m->cIM_CODICE ?: '─' }}</span>
@@ -275,7 +275,7 @@
 
         {{-- Mobile Cards --}}
         @forelse($messungen as $m)
-            <div class="card mb-2 {{ $m->strEsito === '0' ? 'border-danger' : '' }}">
+            <div class="card mb-2 {{ $m->strEsito === '0' ? 'border-danger' : ($m->codeInImpianti == 0 ? 'border-warning' : '') }}">
                 <div class="card-body p-2">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div class="flex-grow-1 min-width-0">
@@ -775,6 +775,7 @@
     #messungenTable tbody tr { cursor: pointer; transition: background-color 0.15s; }
     #messungenTable tbody tr:hover { background-color: rgba(0, 123, 255, 0.05); }
     #messungenTable tbody tr.table-danger:hover { background-color: rgba(220, 53, 69, 0.15); }
+    #messungenTable tbody tr.table-warning:hover { background-color: rgba(255, 193, 7, 0.2); }
     
     /* Mobile Optimierungen */
     @media (max-width: 575.98px) {
@@ -787,5 +788,6 @@
     /* Mobile Cards */
     .card.mb-2 .card-body { background: #fff; }
     .card.border-danger .card-body { background: rgba(220, 53, 69, 0.05); }
+    .card.border-warning .card-body { background: rgba(255, 193, 7, 0.08); }
 </style>
 @endpush
