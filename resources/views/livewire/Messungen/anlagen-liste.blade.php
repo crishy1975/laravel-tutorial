@@ -394,7 +394,7 @@
                                     <div class="mb-3" x-data="{ 
                                         loading: false, 
                                         status: '',
-                                        processImage(file) {
+                                        processImage(file, source) {
                                             if (!file) return;
                                             this.loading = true;
                                             this.status = '';
@@ -407,21 +407,37 @@
                                                             'Content-Type': 'application/json',
                                                             'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
                                                         },
-                                                        body: JSON.stringify({ image: e.target.result.split(',')[1] })
+                                                        body: JSON.stringify({ image: e.target.result.split(',')[1], source: source || 'auto' })
                                                     });
                                                     const data = await res.json();
                                                     if (data.success) {
-                                                        $wire.set('messung.cMIS_DATA2', data.datum || '');
-                                                        $wire.set('messung.cMIS_ORA', data.uhrzeit || '');
-                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                                                        $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
-                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                        if (data.typ === 'protokoll') {
+                                                            // Protokoll-Felder mappen
+                                                            if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                            if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                            $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                            $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                            $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                            $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                            $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                            $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                            $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
+                                                            $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                            $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
+                                                        } else {
+                                                            // Display-Felder mappen
+                                                            if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                            if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
+                                                            if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                            $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                            $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                            $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                            $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                            $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                            $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                            $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                            $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                        }
                                                         this.status = 'success';
                                                     } else {
                                                         this.status = data.error || 'Fehler';
@@ -442,7 +458,7 @@
                                                 <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
                                                 <input type="file" accept="image/*" capture="environment" 
                                                        class="d-none" x-ref="kameraInput"
-                                                       @change="processImage($event.target.files[0]); $refs.kameraInput.value = '';">
+                                                       @change="processImage($event.target.files[0], 'auto'); $refs.kameraInput.value = '';">
                                             </label>
                                             {{-- Galerie-Button --}}
                                             <label class="btn btn-outline-primary btn-sm mb-0" :class="{ 'disabled': loading }">
@@ -450,7 +466,7 @@
                                                 <span x-show="loading"><i class="bi bi-hourglass-split me-1"></i> Analysiert...</span>
                                                 <input type="file" accept="image/*" 
                                                        class="d-none" x-ref="galerieInput"
-                                                       @change="processImage($event.target.files[0]); $refs.galerieInput.value = '';">
+                                                       @change="processImage($event.target.files[0], 'auto'); $refs.galerieInput.value = '';">
                                             </label>
                                             <span x-show="status === 'success'" class="badge bg-success"><i class="bi bi-check-lg"></i> Werte übernommen</span>
                                             <span x-show="status && status !== 'success'" class="badge bg-danger" x-text="status"></span>
@@ -472,7 +488,7 @@
                                                 <div class="col-4 col-md-3">
                                                     <label class="form-label small mb-0">Datum</label>
                                                     <input type="text" wire:model="messung.cMIS_DATA2"
-                                                           class="form-control form-control-sm" placeholder="TT.MM.JJJJ" required>
+                                                           class="form-control form-control-sm" required>
                                                 </div>
                                                 <div class="col-4 col-md-2">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
@@ -502,7 +518,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Rußzahl-Mittelwert</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_IND_OPACITA"
-                                                           class="form-control form-control-sm" placeholder="0">
+                                                           class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Ölderivate?</label>
@@ -518,7 +534,7 @@
                                                     <label class="form-label small mb-0">T Wärmeträger</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
-                                                               class="form-control" placeholder="61">
+                                                               class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
                                                 </div>
@@ -526,7 +542,7 @@
                                                     <label class="form-label small mb-0">T Abgas</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
-                                                               class="form-control" placeholder="57">
+                                                               class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
                                                 </div>
@@ -537,7 +553,7 @@
                                                     <label class="form-label small mb-0">T Verbrennungsluft</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
-                                                               class="form-control" placeholder="20">
+                                                               class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
                                                 </div>
@@ -545,7 +561,7 @@
                                                     <label class="form-label small mb-0">O₂</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_OSSIGENO"
-                                                               class="form-control" placeholder="7">
+                                                               class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
                                                 </div>
@@ -556,7 +572,7 @@
                                                     <label class="form-label small mb-0">CO₂</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
-                                                               class="form-control" placeholder="7.8">
+                                                               class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
                                                 </div>
@@ -564,7 +580,7 @@
                                                     <label class="form-label small mb-0">NOx</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
-                                                               class="form-control" placeholder="62">
+                                                               class="form-control">
                                                         <span class="input-group-text">mg/m³</span>
                                                     </div>
                                                 </div>
@@ -575,7 +591,7 @@
                                                     <label class="form-label small mb-0">CO</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
-                                                               class="form-control" placeholder="75">
+                                                               class="form-control">
                                                         <span class="input-group-text">mg/m³</span>
                                                     </div>
                                                 </div>
@@ -583,7 +599,7 @@
                                                     <label class="form-label small mb-0">Qa</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model="messung.cMIS_PERD_FUMI"
-                                                               class="form-control" placeholder="2.7">
+                                                               class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
                                                 </div>

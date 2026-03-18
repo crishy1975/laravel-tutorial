@@ -646,18 +646,18 @@
                                             <div class="mb-2">
                                                 <label class="form-label small mb-0">Kodex Anlage</label>
                                                 <input type="text" wire:model.live.debounce.500ms="messung.cIM_CODICE"
-                                                       class="form-control form-control-sm" placeholder="z.B. 02100000001">
+                                                       class="form-control form-control-sm">
                                             </div>
                                             <div class="mb-2">
                                                 <label class="form-label small mb-0">Aufstellungsort</label>
                                                 <input type="text" wire:model="messung.cIM_NAME"
-                                                       class="form-control form-control-sm" placeholder="Name">
+                                                       class="form-control form-control-sm">
                                             </div>
                                             <div class="row g-2">
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Datum</label>
                                                     <input type="text" wire:model="messung.cMIS_DATA2"
-                                                           class="form-control form-control-sm" placeholder="tt.mm.jjjj">
+                                                           class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
@@ -669,7 +669,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Stadio</label>
                                                     <input type="text" wire:model="messung.cMIS_STADIO"
-                                                           class="form-control form-control-sm" placeholder="z.B. 1">
+                                                           class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Brennstoff</label>
@@ -700,14 +700,14 @@
                                                         <label class="form-label small mb-0">Rußzahl-Mittelwert</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model.live.debounce.500ms="messung.cMIS_IND_OPACITA"
-                                                                   class="form-control" placeholder="0">
+                                                                   class="form-control">
                                                         </div>
                                                     </div>
                                                     <div class="mb-2">
                                                         <label class="form-label small mb-0">T Wärmeträger</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
-                                                                   class="form-control" placeholder="70">
+                                                                   class="form-control">
                                                             <span class="input-group-text">°C</span>
                                                         </div>
                                                     </div>
@@ -715,7 +715,7 @@
                                                         <label class="form-label small mb-0">T Verbrennungsluft</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
-                                                                   class="form-control" placeholder="33">
+                                                                   class="form-control">
                                                             <span class="input-group-text">°C</span>
                                                         </div>
                                                     </div>
@@ -723,7 +723,7 @@
                                                         <label class="form-label small mb-0">CO₂</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
-                                                                   class="form-control" placeholder="11.4">
+                                                                   class="form-control">
                                                             <span class="input-group-text">%</span>
                                                         </div>
                                                     </div>
@@ -731,7 +731,7 @@
                                                         <label class="form-label small mb-0">CO</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model.live.debounce.500ms="messung.cMIS_MONOSSSIDO"
-                                                                   class="form-control" placeholder="268">
+                                                                   class="form-control">
                                                             <span class="input-group-text">mg/m³</span>
                                                         </div>
                                                     </div>
@@ -750,7 +750,7 @@
                                                         <label class="form-label small mb-0">T Abgas</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
-                                                                   class="form-control" placeholder="143">
+                                                                   class="form-control">
                                                             <span class="input-group-text">°C</span>
                                                         </div>
                                                     </div>
@@ -758,7 +758,7 @@
                                                         <label class="form-label small mb-0">O₂</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model="messung.cMIS_OSSIGENO"
-                                                                   class="form-control" placeholder="9.2">
+                                                                   class="form-control">
                                                             <span class="input-group-text">%</span>
                                                         </div>
                                                     </div>
@@ -766,7 +766,7 @@
                                                         <label class="form-label small mb-0">NOx</label>
                                                         <div class="input-group input-group-sm">
                                                             <input type="text" wire:model.live.debounce.500ms="messung.cMIS_BIOSSIDO_AZOTO"
-                                                                   class="form-control" placeholder="237">
+                                                                   class="form-control">
                                                             <span class="input-group-text">mg/m³</span>
                                                         </div>
                                                     </div>
