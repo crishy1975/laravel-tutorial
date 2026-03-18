@@ -58,7 +58,7 @@ Antworte NUR mit dem JSON, kein anderer Text.';
     {
         return 'Analysiere dieses Foto eines handgeschriebenen Messprotokolls (Bescheinigung / Attestazione). Extrahiere den Anlagen-CODE und die Messergebnisse als JSON.
 
-Das Formular ist zweisprachig (Deutsch/Italienisch).
+Das Formular ist zweisprachig (Deutsch/Italienisch) und hat ein FESTES LAYOUT.
 
 SUCHE NACH:
 
@@ -66,18 +66,47 @@ SUCHE NACH:
 
 2. BRENNSTOFF/COMBUSTIBILE: Eine Zeile mit Kästchen: Heizöl/Gasolio, Erdgas/Metano, Flüssiggas/GPL, Holz/Legna, Pellets/Pellet, Sonstiges/Altro. Eines ist angekreuzt.
 
-3. MESSERGEBNISSE / RISULTATI DELLA MISURA:
-- Tag der Messung / Data della misura (TT.MM.JJ)
-- Messergebnis entspricht Verordnung? Ja oder Nein angekreuzt
-- Rußzahl-Mittelwert / Opacità-valore medio (links)
-- Ölderivate? / Sostanze oleose? Ja oder Nein angekreuzt (rechts)
-- Wärmeträgertemperatur / Temperatura termoconvettore (links, °C)
-- Abgastemperatur / Temperatura gas di combustione (rechts, °C)
-- Verbrennungslufttemperatur / Temperatura aria di combustione (links, °C)
-- Sauerstoffgehalt / Ossigeno (rechts, %)
-- Kohlendioxidgehalt / Anidride carbonica (links, %)
-- Stickoxid / Ossidi di azoto (rechts, mg/m³)
-- Kohlenmonoxid / Monossido di carbonio (links, mg/m³)
+3. MESSERGEBNISSE - ACHTUNG: Das Layout ist IMMER gleich aufgebaut!
+
+Die Felder stehen in ZWEI SPALTEN nebeneinander, in GENAU dieser Reihenfolge von oben nach unten:
+
+LINKE SPALTE (von oben nach unten):     RECHTE SPALTE (von oben nach unten):
+─────────────────────────────────────    ─────────────────────────────────────
+Rußzahl-Mittelwert                       Ölderivate? (Ja/Nein Checkbox)
+Opacità-valore medio                     Sostanze oleose?
+
+Wärmeträgertemperatur        °C          Abgastemperatur              °C
+Temperatura termoconvettore              Temperatura gas di combustione
+
+Verbrennungslufttemperatur   °C          Sauerstoffgehalt             %
+Temperatura aria di combustione          Ossigeno
+
+Kohlendioxidgehalt           %           Stickoxid                    mg/m³
+Anidride carbonica                       Ossidi di azoto
+
+Kohlenmonoxid                mg/m³
+Monossido di carbonio
+
+DARÜBER steht:
+- Tag der Messung / Data della misura (TT.MM.JJ) - rechts
+- Messergebnis entspricht Verordnung? Ja/Si oder Nein/No angekreuzt
+
+PLAUSIBILITÄTSPRÜFUNG - typische Wertebereiche:
+- Rußzahl: 0-3 (meist 0 oder 1)
+- Wärmeträgertemperatur (t_waerme): 30-80 °C (Vorlauftemperatur Heizung, NIEDRIG)
+- Abgastemperatur (t_abgas): 50-250 °C (IMMER HÖHER als Wärmeträger und Luft!)
+- Verbrennungslufttemperatur (t_luft): 5-35 °C (Raumtemperatur, NIEDRIGSTER Temperaturwert)
+- O2: 3-12 % (einstellig oder niedrig zweistellig, HAT IMMER DEZIMALSTELLE)
+- CO2: 5-14 % (HAT IMMER DEZIMALSTELLE)
+- NOx: 10-300 mg/m³ (GANZZAHL)
+- CO: 10-500 mg/m³ (GANZZAHL)
+
+VERWECHSLUNGSGEFAHR:
+- t_waerme steht LINKS, t_abgas steht RECHTS - nicht vertauschen!
+- t_abgas ist IMMER GRÖSSER als t_waerme
+- t_luft ist IMMER der KLEINSTE Temperaturwert
+- Verwechsle nicht 1 und 7, nicht 0 und 6, nicht 2 und 7 bei Handschrift
+- Bei Dezimalzahlen: Komma (,) im Handgeschriebenen ist ein Dezimaltrennzeichen
 
 Verwende GENAU diese Feldnamen:
 {
@@ -88,22 +117,23 @@ Verwende GENAU diese Feldnamen:
   "ergebnis": "1 wenn Ja, 0 wenn Nein",
   "russ": "Rußzahl-Mittelwert",
   "oelderivate": "0 wenn Nein/No, 1 wenn Ja/Si",
-  "t_waerme": "Wärmeträgertemperatur",
-  "t_abgas": "Abgastemperatur",
-  "t_luft": "Verbrennungslufttemperatur",
-  "o2": "Sauerstoffgehalt",
-  "co2": "Kohlendioxidgehalt",
-  "nox": "Stickoxid",
-  "co": "Kohlenmonoxid"
+  "t_waerme": "Wärmeträgertemperatur (LINKS, 30-80°C)",
+  "t_abgas": "Abgastemperatur (RECHTS, 50-250°C, höher als t_waerme!)",
+  "t_luft": "Verbrennungslufttemperatur (LINKS, 5-35°C, niedrigster Wert!)",
+  "o2": "Sauerstoffgehalt (RECHTS, 3-12%, hat Dezimalstelle)",
+  "co2": "Kohlendioxidgehalt (LINKS, 5-14%, hat Dezimalstelle)",
+  "nox": "Stickoxid (RECHTS, 10-300, ganzzahlig)",
+  "co": "Kohlenmonoxid (LINKS, 10-500, ganzzahlig)"
 }
 
 Wichtig:
-- Die Werte sind HANDGESCHRIEBEN, lies sie sorgfältig!
+- Die Werte sind HANDGESCHRIEBEN - lies JEDEN Wert einzeln und sorgfältig!
+- Prüfe ob die gelesenen Werte in die Plausibilitätsbereiche passen
+- Wenn ein Wert unplausibel erscheint, schaue nochmal genau hin
 - Datum 2-stelliges Jahr zu 4-stellig: 25 → 2025, 26 → 2026
-- Nur Zahlen ohne Einheiten
-- Dezimaltrennzeichen als Punkt (nicht Komma): 8,3 → "8.3", 6,2 → "6.2"
-- Brennstoff-Mapping: Erdgas/Metano → FUEL_NAT_GAS, Heizöl/Gasolio → FUEL_LIGHT_OIL, Flüssiggas/GPL → FUEL_PROPANE, Pellets → FUEL_PELLETS, Holz/Legna → FUEL_WOOD
-- Ölderivate: Schaue ob Ja/Si oder Nein/No angekreuzt/durchgestrichen ist
+- Nur Zahlen ohne Einheiten im JSON
+- Dezimaltrennzeichen als Punkt: 8,3 → "8.3", 6,2 → "6.2"
+- Brennstoff: Erdgas/Metano → FUEL_NAT_GAS, Heizöl/Gasolio → FUEL_LIGHT_OIL, Flüssiggas/GPL → FUEL_PROPANE, Pellets → FUEL_PELLETS, Holz/Legna → FUEL_WOOD
 - Wenn CODE leer ist, gib leeren String zurück
 
 Antworte NUR mit dem JSON, kein anderer Text.';
