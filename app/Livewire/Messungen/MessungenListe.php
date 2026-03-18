@@ -434,41 +434,22 @@ class MessungenListe extends Component
 
     public function berechneGrenzwerte()
     {
-        // Nur wenn relevante Daten vorhanden
-        $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? '';
-        if (!$brennstoff) {
-            $this->grenzwerte = null;
-            return;
-        }
+        $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS';
+        $leistung = (float) ($this->messung['boilerPower'] ?? 0);
+        $baujahr = (int) ($this->messung['boilerYear'] ?? 2000);
+        $co = (int) ($this->messung['cMIS_MONOSSSIDO'] ?? 0);
+        $nox = (int) ($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
+        $russ = (int) ($this->messung['cMIS_IND_OPACITA'] ?? 0);
+        $oelspuren = ($this->messung['cMIS_TRACCE_OLEO'] ?? '1') === '0';
 
-        $fuelInfo = self::BRENNSTOFFE[$brennstoff] ?? null;
-        if (!$fuelInfo) {
-            $this->grenzwerte = null;
-            return;
-        }
-
-        $baujahr = (int)($this->messung['boilerYear'] ?? 0);
-        $leistung = (float)($this->messung['boilerPower'] ?? 0);
-        $co = (float)($this->messung['cMIS_MONOSSSIDO'] ?? 0);
-        $nox = (float)($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
-        $russ = (float)($this->messung['cMIS_IND_OPACITA'] ?? 0);
-        $oel = ($this->messung['cMIS_TRACCE_OLEO'] ?? '1') === '0';
-
-        // GrenzwertService verwenden
-        $result = GrenzwertService::berechne(
-            $fuelInfo['nr'],
-            $baujahr,
-            $leistung,
-            $co,
-            $nox,
-            $russ,
-            $oel
-        );
+        $service = new GrenzwertService();
+        $service->pruefeGrenzwerte($brennstoff, $baujahr, $leistung, $co, $nox, $russ, $oelspuren);
+        $result = $service->getResult();
 
         $this->grenzwerte = [
             'co' => [
-                'grenzwert' => $result['maxCO'],
-                'status' => $result['coUeberschritten'] ? 'rot' : ($co > $result['maxCO'] * 0.8 ? 'gelb' : 'gruen'),
+                'grenzwert' => $result['maxCo'],
+                'status' => $result['coUeberschritten'] ? 'rot' : ($co > $result['maxCo'] * 0.8 ? 'gelb' : 'gruen'),
             ],
             'nox' => [
                 'grenzwert' => $result['maxNoX'],
