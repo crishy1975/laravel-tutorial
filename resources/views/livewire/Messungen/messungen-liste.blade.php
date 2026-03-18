@@ -505,7 +505,7 @@
                                         <div class="card-body py-2 px-2">
                                             <div class="mb-2">
                                                 <label class="form-label small mb-0">Kodex Anlage</label>
-                                                <input type="text" wire:model.live.debounce.500ms="messung.cMIS_COD_IMPIANTO"
+                                                <input type="text" wire:model.live.debounce.500ms="messung.cIM_CODICE"
                                                        class="form-control form-control-sm" placeholder="z.B. 02100000001">
                                             </div>
                                             <div class="mb-2">
@@ -516,8 +516,8 @@
                                             <div class="row g-2">
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Datum</label>
-                                                    <input type="date" wire:model="messung.cMIS_DATA"
-                                                           class="form-control form-control-sm">
+                                                    <input type="text" wire:model="messung.cMIS_DATA2"
+                                                           class="form-control form-control-sm" placeholder="tt.mm.jjjj">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
