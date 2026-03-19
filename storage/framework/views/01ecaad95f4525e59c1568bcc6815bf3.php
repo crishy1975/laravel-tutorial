@@ -911,4 +911,39 @@
     .card.border-warning .card-body { background: rgba(255, 193, 7, 0.08); }
 </style>
 <?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+    // Scroll-Position speichern und wiederherstellen
+    (function() {
+        const key = 'scroll_messungen';
+
+        // Beim Laden: Scroll-Position wiederherstellen
+        document.addEventListener('livewire:navigated', restoreScroll);
+        document.addEventListener('DOMContentLoaded', restoreScroll);
+
+        function restoreScroll() {
+            const saved = sessionStorage.getItem(key);
+            if (saved) {
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, parseInt(saved));
+                });
+            }
+        }
+
+        // Beim Wegnavigieren: Scroll-Position speichern
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a[href]');
+            if (link && !link.hasAttribute('wire:click')) {
+                sessionStorage.setItem(key, window.scrollY);
+            }
+        });
+
+        // Bei Livewire-Updates (Pagination, Filter): Scroll-Position speichern
+        document.addEventListener('livewire:morph', function() {
+            sessionStorage.setItem(key, window.scrollY);
+        });
+    })();
+</script>
+<?php $__env->stopPush(); ?>
 <?php /**PATH I:\Dokumente\entwicklung\laravel-tutorial\resources\views/livewire/messungen/messungen-liste.blade.php ENDPATH**/ ?>
