@@ -65,7 +65,7 @@ class ProtokollController extends Controller
             }
 
             $this->w($pdf, 'Name', $betreiberName);
-            $this->w($pdf, 'Aufstellungsort', $anlage->Feld_w ?? '');
+            $this->w($pdf, 'Aufstellungsort', $anlage->Feld_w ?? '', 9);
             $this->w($pdf, 'StrasseAuf', $anlage->Feld_l ?: ($anlage->Feld_m ?? ''));
             $this->w($pdf, 'NrAuf', $anlage->Feld_n ?? '');
             $this->w($pdf, 'GemeindeAuf', $anlage->Feld_h ?: ($anlage->Feld_i ?? ''));
@@ -121,14 +121,21 @@ class ProtokollController extends Controller
         $pdf->SetXY($x, $y);
 
         $text = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $value) ?: $value;
-        $pdf->Cell($w, $h, $text, 0, 0, 'L');
+
+        // Mehrzeilige Felder (Höhe > 18pt)
+        if (($rect[3] - $rect[1]) > 18) {
+            $lineH = $fontSize * 0.4; // Zeilenhöhe in mm
+            $pdf->MultiCell($w, $lineH, $text, 0, 'L');
+        } else {
+            $pdf->Cell($w, $h, $text, 0, 0, 'L');
+        }
     }
 
     private function getRect(string $fieldId): ?array
     {
         $fields = [
             'Name'              => [51.02, 734.20, 266.46, 748.38],
-            'Aufstellungsort'   => [340.16, 734.20, 571.10, 748.38],
+            'Aufstellungsort'   => [340.16, 718.00, 571.10, 752.00],
             'StrasseAuf'        => [314.65, 707.27, 464.65, 721.45],
             'NrAuf'             => [531.06, 707.27, 578.27, 721.45],
             'StrasseBet'        => [102.05, 694.52, 229.61, 708.69],
