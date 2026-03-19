@@ -59,16 +59,20 @@ class ProtokollController extends Controller
     private function fillFields(Fpdi $pdf, Messung $messung, ?Impianto $anlage): void
     {
         if ($anlage) {
-            $betreiberName = trim(($anlage->Feld_c ?? '') . ' ' . ($anlage->Feld_d ?? ''));
-            if (empty(trim($betreiberName))) {
-                $betreiberName = $anlage->Feld_w ?? $messung->cIM_NAME ?? '';
-            }
+            // === LINKE SEITE: Betreiber (Verwalter) ===
+            $this->w($pdf, 'Name', $anlage->Feld_o ?? '');
+            $this->w($pdf, 'StrasseBet', $anlage->Feld_t ?: ($anlage->Feld_u ?? ''));
+            $this->w($pdf, 'NrBet', $anlage->Feld_v ?? '');
+            $this->w($pdf, 'FraltionBet', $anlage->Feld_r ?: ($anlage->Feld_s ?? ''));
+            $this->w($pdf, 'GemeindeBet', $anlage->Feld_p ?: ($anlage->Feld_q ?? ''));
 
-            $this->w($pdf, 'Name', $betreiberName);
+            // === RECHTE SEITE: Aufstellungsort ===
             $this->w($pdf, 'Aufstellungsort', $anlage->Feld_w ?? '', 9);
             $this->w($pdf, 'StrasseAuf', $anlage->Feld_l ?: ($anlage->Feld_m ?? ''));
             $this->w($pdf, 'NrAuf', $anlage->Feld_n ?? '');
             $this->w($pdf, 'GemeindeAuf', $anlage->Feld_h ?: ($anlage->Feld_i ?? ''));
+
+            // === TECHNISCHE DATEN ===
             $this->w($pdf, 'AnlagenCODE', $anlage->Feld_a ?? '', 12, 'B');
             $this->w($pdf, 'Status der Anlage', '1');
             $this->w($pdf, 'Kessel Hersteller', $anlage->Feld_y ?? '');
