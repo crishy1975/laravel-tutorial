@@ -778,4 +778,35 @@
     @media print { .btn, #filterCollapse, .card-header[data-bs-toggle], .pagination { display: none !important; } .d-none.d-lg-block { display: block !important; } .d-lg-none { display: none !important; } }
 </style>
 <?php $__env->stopPush(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+<script>
+    (function() {
+        const key = 'scroll_anlagen';
+
+        document.addEventListener('livewire:navigated', restoreScroll);
+        document.addEventListener('DOMContentLoaded', restoreScroll);
+
+        function restoreScroll() {
+            const saved = sessionStorage.getItem(key);
+            if (saved) {
+                requestAnimationFrame(() => {
+                    window.scrollTo(0, parseInt(saved));
+                });
+            }
+        }
+
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a[href]');
+            if (link && !link.hasAttribute('wire:click')) {
+                sessionStorage.setItem(key, window.scrollY);
+            }
+        });
+
+        document.addEventListener('livewire:morph', function() {
+            sessionStorage.setItem(key, window.scrollY);
+        });
+    })();
+</script>
+<?php $__env->stopPush(); ?>
 <?php /**PATH I:\Dokumente\entwicklung\laravel-tutorial\resources\views/livewire/messungen/anlagen-liste.blade.php ENDPATH**/ ?>
