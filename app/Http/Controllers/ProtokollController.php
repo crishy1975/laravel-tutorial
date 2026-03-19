@@ -60,7 +60,7 @@ class ProtokollController extends Controller
     {
         if ($anlage) {
             // === LINKE SEITE: Betreiber (Verwalter) ===
-            $this->w($pdf, 'Name', $anlage->Feld_o ?? '');
+            $this->w($pdf, 'Name', $anlage->Feld_o ?? '', 9);
             $this->w($pdf, 'StrasseBet', $anlage->Feld_t ?: ($anlage->Feld_u ?? ''));
             $this->w($pdf, 'NrBet', $anlage->Feld_v ?? '');
             $this->w($pdf, 'FraltionBet', $anlage->Feld_r ?: ($anlage->Feld_s ?? ''));
@@ -138,7 +138,7 @@ class ProtokollController extends Controller
     private function getRect(string $fieldId): ?array
     {
         $fields = [
-            'Name'              => [51.02, 734.20, 266.46, 748.38],
+            'Name'              => [51.02, 718.00, 266.46, 752.00],
             'Aufstellungsort'   => [340.16, 718.00, 571.10, 752.00],
             'StrasseAuf'        => [314.65, 707.27, 464.65, 721.45],
             'NrAuf'             => [531.06, 707.27, 578.27, 721.45],
