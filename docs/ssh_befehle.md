@@ -14,7 +14,10 @@ ssh -p 65002 u854179217@212.1.209.26 "cd ~/domains/reschc.space/public_html && p
 
 
 
+Martin
 
-ssh -p 65002 -t u854179217@212.1.209.26 "cd ~/domains/christianresch.esy.es/public_html/martin && bash"
+ssh -p 65002 -t u854179217@212.1.209.26 
+
+cd ~/domains/christianresch.esy.es/public_html/martin
 
 ssh -t -p 65002 u192633ml && bash -i"
