@@ -235,6 +235,10 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         @if($hatMessung)
+                                            <a href="{{ route('messungen.protokoll', $letzteMessung->id) }}" target="_blank"
+                                               class="btn btn-outline-info" title="Protokoll drucken">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
                                             <button wire:click="openMessungModalMitLetzer('{{ $anlage->Feld_a }}')"
                                                class="btn btn-outline-info" title="Letzte Messung anzeigen">
                                                 <i class="bi bi-eye"></i>
@@ -307,6 +311,10 @@
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     @if($hatMessung)
+                                        <a href="{{ route('messungen.protokoll', $letzteMessung->id) }}" target="_blank"
+                                           class="btn btn-outline-info py-0 px-2">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
                                         <button wire:click="openMessungModalMitLetzer('{{ $anlage->Feld_a }}')"
                                            class="btn btn-outline-info py-0 px-2">
                                             <i class="bi bi-eye"></i>

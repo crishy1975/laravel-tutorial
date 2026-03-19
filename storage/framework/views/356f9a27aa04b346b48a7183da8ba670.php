@@ -238,6 +238,10 @@
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung): ?>
+                                            <a href="<?php echo e(route('messungen.protokoll', $letzteMessung->id)); ?>" target="_blank"
+                                               class="btn btn-outline-info" title="Protokoll drucken">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
                                             <button wire:click="openMessungModalMitLetzer('<?php echo e($anlage->Feld_a); ?>')"
                                                class="btn btn-outline-info" title="Letzte Messung anzeigen">
                                                 <i class="bi bi-eye"></i>
@@ -313,6 +317,10 @@
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung): ?>
+                                        <a href="<?php echo e(route('messungen.protokoll', $letzteMessung->id)); ?>" target="_blank"
+                                           class="btn btn-outline-info py-0 px-2">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
                                         <button wire:click="openMessungModalMitLetzer('<?php echo e($anlage->Feld_a); ?>')"
                                            class="btn btn-outline-info py-0 px-2">
                                             <i class="bi bi-eye"></i>
