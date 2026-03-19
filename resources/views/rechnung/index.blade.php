@@ -285,6 +285,9 @@
                 <table class="table table-hover align-middle mb-0 table-sm">
                     <thead class="table-dark">
                         <tr>
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" class="form-check-input" id="selectAllDesktop" title="Alle auswählen">
+                            </th>
                             <th>Nummer ↓</th>
                             <th>Typ</th>
                             <th>Datum</th>
@@ -298,6 +301,11 @@
                     <tbody>
                         @foreach($rechnungen as $rechnung)
                         <tr>
+                            <td class="text-center">
+                                @if($rechnung->hat_xml)
+                                <input type="checkbox" class="form-check-input xml-checkbox" value="{{ $rechnung->id }}" data-nummer="{{ $rechnung->rechnungsnummer }}">
+                                @endif
+                            </td>
                             <td>
                                 <span class="fw-semibold font-monospace">
                                     {{ $rechnung->rechnungsnummer }}
@@ -425,9 +433,12 @@
 
                 <div class="card mb-2 {{ $rechnung->typ_rechnung === 'gutschrift' ? 'border-danger' : '' }} {{ $rechnung->istUeberfaellig() ? 'border-warning border-2' : '' }}">
                     <div class="card-body py-2 px-3">
-                        {{-- Zeile 1: Nummer, Typ, Status, Buttons --}}
+                        {{-- Zeile 1: Checkbox, Nummer, Typ, Status, Buttons --}}
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div class="d-flex align-items-center gap-2">
+                                @if($rechnung->hat_xml)
+                                <input type="checkbox" class="form-check-input xml-checkbox" value="{{ $rechnung->id }}" data-nummer="{{ $rechnung->rechnungsnummer }}">
+                                @endif
                                 <span class="fw-bold font-monospace">{{ $rechnung->rechnungsnummer }}</span>
                                 @if($rechnung->typ_rechnung === 'gutschrift')
                                     <span class="badge bg-danger">GS</span>
@@ -498,6 +509,26 @@
         </div>
 
     @endif
+
+    {{-- ══════════════════════════════════════════════════════════════════════════ --}}
+    {{-- FLOATING AKTIONSLEISTE FÜR BULK-XML-DOWNLOAD --}}
+    {{-- ══════════════════════════════════════════════════════════════════════════ --}}
+    <div id="bulkActionBar" class="position-fixed bottom-0 start-50 translate-middle-x mb-3 d-none" style="z-index: 1050;">
+        <div class="card shadow-lg border-primary">
+            <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
+                <span class="badge bg-primary fs-6" id="selectedCount">0</span>
+                <span class="text-nowrap">Rechnungen ausgewählt</span>
+                <button type="button" class="btn btn-success btn-sm" id="btnBulkXmlDownload" title="Ausgewählte XMLs herunterladen">
+                    <i class="bi bi-file-earmark-code"></i>
+                    <span class="d-none d-sm-inline ms-1">XML herunterladen</span>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearSelection" title="Auswahl aufheben">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -771,6 +802,104 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 5. Scroll-Position bei Verlassen speichern
     window.addEventListener('beforeunload', saveFilterToCookie);
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // BULK XML DOWNLOAD - Mehrfachauswahl
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const selectAllDesktop = document.getElementById('selectAllDesktop');
+    const bulkActionBar = document.getElementById('bulkActionBar');
+    const selectedCountEl = document.getElementById('selectedCount');
+    const btnBulkXmlDownload = document.getElementById('btnBulkXmlDownload');
+    const btnClearSelection = document.getElementById('btnClearSelection');
+
+    function getSelectedCheckboxes() {
+        return document.querySelectorAll('.xml-checkbox:checked');
+    }
+
+    function updateBulkActionBar() {
+        const checked = getSelectedCheckboxes();
+        const count = checked.length;
+
+        if (selectedCountEl) selectedCountEl.textContent = count;
+
+        if (bulkActionBar) {
+            if (count > 0) {
+                bulkActionBar.classList.remove('d-none');
+            } else {
+                bulkActionBar.classList.add('d-none');
+            }
+        }
+
+        // "Alle auswählen"-Checkbox synchronisieren
+        if (selectAllDesktop) {
+            const allCheckboxes = document.querySelectorAll('.card.d-none.d-md-block .xml-checkbox');
+            if (allCheckboxes.length > 0) {
+                const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+                selectAllDesktop.checked = allChecked;
+                selectAllDesktop.indeterminate = someChecked && !allChecked;
+            }
+        }
+    }
+
+    // Alle Checkboxen: Change-Event
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('xml-checkbox')) {
+            updateBulkActionBar();
+        }
+    });
+
+    // "Alle auswählen" Desktop
+    if (selectAllDesktop) {
+        selectAllDesktop.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.card.d-none.d-md-block .xml-checkbox');
+            checkboxes.forEach(function(cb) {
+                cb.checked = selectAllDesktop.checked;
+            });
+            updateBulkActionBar();
+        });
+    }
+
+    // Auswahl aufheben
+    if (btnClearSelection) {
+        btnClearSelection.addEventListener('click', function() {
+            document.querySelectorAll('.xml-checkbox').forEach(function(cb) {
+                cb.checked = false;
+            });
+            if (selectAllDesktop) {
+                selectAllDesktop.checked = false;
+                selectAllDesktop.indeterminate = false;
+            }
+            updateBulkActionBar();
+        });
+    }
+
+    // Bulk XML Download - einzelne Dateien herunterladen
+    if (btnBulkXmlDownload) {
+        btnBulkXmlDownload.addEventListener('click', function() {
+            const checked = getSelectedCheckboxes();
+            if (checked.length === 0) return;
+
+            const ids = Array.from(checked).map(function(cb) { return cb.value; });
+
+            // Route-Template mit Platzhalter (Blade generiert die korrekte URL)
+            const routeTemplate = "{{ route('rechnung.xml.download', ['rechnung' => '__ID__']) }}";
+
+            // Einzelne XML-Dateien nacheinander herunterladen
+            // Kleiner Delay zwischen Downloads, damit der Browser nicht blockiert
+            ids.forEach(function(id, index) {
+                setTimeout(function() {
+                    const url = routeTemplate.replace('__ID__', id);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }, index * 300);
+            });
+        });
+    }
 });
 </script>
 @endpush
