@@ -61,6 +61,7 @@ class AnlagenListe extends Component
         'filterHersteller' => ['except' => ''],
         'filterGemessen' => ['except' => ''],
         'filterJahr' => ['except' => ''],
+        'page' => ['except' => 1],
     ];
 
     // Brennstoff-Mapping
