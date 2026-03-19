@@ -102,6 +102,49 @@ class ProtokollController extends Controller
         $this->w($pdf, 'CO2', $messung->cMIS_ANIDRIDE_CARBONICA ?? '');
         $this->w($pdf, 'NOx', $messung->cMIS_BIOSSIDO_AZOTO ?? '');
         $this->w($pdf, 'CO', $messung->cMIS_MONOSSSIDO ?? '');
+
+        // === Stempel und Unterschrift ===
+        $this->writeStempel($pdf);
+    }
+
+    /**
+     * Schreibt den Firmenstempel in den Stempel-Bereich
+     */
+    private function writeStempel(Fpdi $pdf): void
+    {
+        $ptToMm = 25.4 / 72;
+
+        // Stempel-Bereich: links unten im PDF (ca. x=60, y=162-246 in PDF-Pts)
+        $startX = 60 * $ptToMm;  // ca. 21mm
+        $startY = (self::PAGE_HEIGHT - 246) * $ptToMm; // ca. 210mm von oben
+
+        // Unterschrift-Bild einfügen (falls vorhanden)
+        $unterschriftPath = resource_path('pdf/unterschrift.png');
+        if (file_exists($unterschriftPath)) {
+            $pdf->Image($unterschriftPath, $startX + 5, $startY + 1, 35, 0, 'PNG');
+        }
+
+        // Firmenname
+        $y = $startY + 14;
+        $pdf->SetFont('Helvetica', 'B', 9);
+        $pdf->SetXY($startX, $y);
+        $pdf->Cell(80, 4, @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', 'Christian Resch OHG-SNC') ?: 'Christian Resch OHG-SNC', 0, 0, 'C');
+
+        // Adresse
+        $y += 4;
+        $pdf->SetFont('Helvetica', '', 7);
+        $pdf->SetXY($startX, $y);
+        $pdf->Cell(80, 3.5, @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', 'Galvanistr. 6 - 39100 Bozen') ?: 'Galvanistr. 6 - 39100 Bozen', 0, 0, 'C');
+
+        // Telefon
+        $y += 3.5;
+        $pdf->SetXY($startX, $y);
+        $pdf->Cell(80, 3.5, 'Tel. 338 4693481', 0, 0, 'C');
+
+        // Email
+        $y += 3.5;
+        $pdf->SetXY($startX, $y);
+        $pdf->Cell(80, 3.5, 'info@resch.bz', 0, 0, 'C');
     }
 
     private function w(Fpdi $pdf, string $fieldId, string $value, float $fontSize = 10, string $style = ''): void
