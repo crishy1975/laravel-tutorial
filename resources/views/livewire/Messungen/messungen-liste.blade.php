@@ -82,10 +82,9 @@
         </div>
     </div>
 
-    {{-- Filter-Karte - collapsed auf Mobile --}}
+    {{-- Filter-Karte - immer offen --}}
     <div class="card shadow-sm mb-3">
-        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center"
-             data-bs-toggle="collapse" data-bs-target="#filterCollapse" role="button" aria-expanded="false">
+        <div class="card-header bg-light py-2">
             <h6 class="mb-0">
                 <i class="bi bi-funnel"></i> Filter
                 @php
@@ -95,65 +94,62 @@
                     <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
                 @endif
             </h6>
-            <i class="bi bi-chevron-down transition-transform"></i>
         </div>
-        <div class="collapse" id="filterCollapse">
-            <div class="card-body py-2">
-                <div class="row g-2">
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Jahr</label>
-                        <select wire:model="filterJahr" class="form-select form-select-sm">
-                            @for($y = date('Y'); $y >= 2020; $y--)
-                                <option value="{{ $y }}">{{ $y }}</option>
-                            @endfor
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Kodex</label>
-                        <input type="text" wire:model="filterKodex"
-                               class="form-control form-control-sm" placeholder="Kodex...">
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Name</label>
-                        <input type="text" wire:model="filterName"
-                               class="form-control form-control-sm" placeholder="Name...">
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Ergebnis</label>
-                        <select wire:model="filterErgebnis" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            <option value="1">✓ Positiv</option>
-                            <option value="0">✗ Negativ</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Brennstoff</label>
-                        <select wire:model="filterBrennstoff" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            @foreach($brennstoffe as $key => $info)
-                                <option value="{{ $key }}">{{ $info['text'] }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Anlage</label>
-                        <select wire:model="filterOhneAnlage" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            <option value="0">Mit Anlage</option>
-                            <option value="1">Ohne Anlage</option>
-                        </select>
-                    </div>
+        <div class="card-body py-2">
+            <div class="row g-2">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Jahr</label>
+                    <select wire:model="filterJahr" class="form-select form-select-sm">
+                        @for($y = date('Y'); $y >= 2020; $y--)
+                            <option value="{{ $y }}">{{ $y }}</option>
+                        @endfor
+                    </select>
                 </div>
-                <div class="mt-2 d-flex gap-2">
-                    <button wire:click="$refresh" class="btn btn-sm btn-primary">
-                        <i class="bi bi-search"></i> Filtern
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Kodex</label>
+                    <input type="text" wire:model="filterKodex"
+                           class="form-control form-control-sm" placeholder="Kodex...">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Name</label>
+                    <input type="text" wire:model="filterName"
+                           class="form-control form-control-sm" placeholder="Name...">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Ergebnis</label>
+                    <select wire:model="filterErgebnis" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        <option value="1">✓ Positiv</option>
+                        <option value="0">✗ Negativ</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Brennstoff</label>
+                    <select wire:model="filterBrennstoff" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        @foreach($brennstoffe as $key => $info)
+                            <option value="{{ $key }}">{{ $info['text'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Anlage</label>
+                    <select wire:model="filterOhneAnlage" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        <option value="0">Mit Anlage</option>
+                        <option value="1">Ohne Anlage</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-2 d-flex gap-2">
+                <button wire:click="applyFilters" class="btn btn-sm btn-primary">
+                    <i class="bi bi-search"></i> Filtern
+                </button>
+                @if($activeFilters > 0)
+                    <button wire:click="resetFilters" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i> Zurücksetzen
                     </button>
-                    @if($activeFilters > 0)
-                        <button wire:click="resetFilters" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-x-lg"></i> Zurücksetzen
-                        </button>
-                    @endif
-                </div>
+                @endif
             </div>
         </div>
     </div>

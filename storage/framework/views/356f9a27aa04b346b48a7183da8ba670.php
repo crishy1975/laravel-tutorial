@@ -92,27 +92,27 @@
                 <div class="row g-2">
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Kodex</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterKodex"
+                        <input type="text" wire:model="filterKodex"
                                class="form-control form-control-sm" placeholder="Kodex...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Aufstellungsort</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterBeschreibung"
+                        <input type="text" wire:model="filterBeschreibung"
                                class="form-control form-control-sm" placeholder="Name...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Gemeinde</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterOrt"
+                        <input type="text" wire:model="filterOrt"
                                class="form-control form-control-sm" placeholder="Gemeinde...">
                     </div>
                     <div class="col-6 col-md-2">
                         <label class="form-label small mb-1">Straße</label>
-                        <input type="text" wire:model.live.debounce.300ms="filterStrasse"
+                        <input type="text" wire:model="filterStrasse"
                                class="form-control form-control-sm" placeholder="Straße...">
                     </div>
                     <div class="col-4 col-md-1">
                         <label class="form-label small mb-1">Messung</label>
-                        <select wire:model.live="filterGemessen" class="form-select form-select-sm">
+                        <select wire:model="filterGemessen" class="form-select form-select-sm">
                             <option value="">Alle</option>
                             <option value="1">Ja</option>
                             <option value="0">Nein</option>
@@ -120,10 +120,14 @@
                     </div>
                     <div class="col-4 col-md-1">
                         <label class="form-label small mb-1">Jahr</label>
-                        <input type="number" wire:model.live="filterJahr"
+                        <input type="number" wire:model="filterJahr"
                                class="form-control form-control-sm" min="2020" max="2030">
                     </div>
                     <div class="col-4 col-md-2 d-flex align-items-end gap-1">
+                        <button wire:click="applyFilters" class="btn btn-primary btn-sm" title="Filtern">
+                            <i class="bi bi-search"></i>
+                            <span class="d-none d-md-inline">Filtern</span>
+                        </button>
                         <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($activeFilters > 0): ?>
                             <button wire:click="resetFilters" class="btn btn-outline-secondary btn-sm" title="Filter zurücksetzen">
                                 <i class="bi bi-x-lg"></i>

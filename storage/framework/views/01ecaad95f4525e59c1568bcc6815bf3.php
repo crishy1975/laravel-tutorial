@@ -87,8 +87,7 @@
 
     
     <div class="card shadow-sm mb-3">
-        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center"
-             data-bs-toggle="collapse" data-bs-target="#filterCollapse" role="button" aria-expanded="false">
+        <div class="card-header bg-light py-2">
             <h6 class="mb-0">
                 <i class="bi bi-funnel"></i> Filter
                 <?php
@@ -98,65 +97,62 @@
                     <span class="badge bg-primary ms-1"><?php echo e($activeFilters); ?></span>
                 <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             </h6>
-            <i class="bi bi-chevron-down transition-transform"></i>
         </div>
-        <div class="collapse" id="filterCollapse">
-            <div class="card-body py-2">
-                <div class="row g-2">
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Jahr</label>
-                        <select wire:model="filterJahr" class="form-select form-select-sm">
-                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php for($y = date('Y'); $y >= 2020; $y--): ?>
-                                <option value="<?php echo e($y); ?>"><?php echo e($y); ?></option>
-                            <?php endfor; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Kodex</label>
-                        <input type="text" wire:model="filterKodex"
-                               class="form-control form-control-sm" placeholder="Kodex...">
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Name</label>
-                        <input type="text" wire:model="filterName"
-                               class="form-control form-control-sm" placeholder="Name...">
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Ergebnis</label>
-                        <select wire:model="filterErgebnis" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            <option value="1">✓ Positiv</option>
-                            <option value="0">✗ Negativ</option>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Brennstoff</label>
-                        <select wire:model="filterBrennstoff" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $brennstoffe; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $info): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <option value="<?php echo e($key); ?>"><?php echo e($info['text']); ?></option>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-                        </select>
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <label class="form-label small mb-1">Anlage</label>
-                        <select wire:model="filterOhneAnlage" class="form-select form-select-sm">
-                            <option value="">Alle</option>
-                            <option value="0">Mit Anlage</option>
-                            <option value="1">Ohne Anlage</option>
-                        </select>
-                    </div>
+        <div class="card-body py-2">
+            <div class="row g-2">
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Jahr</label>
+                    <select wire:model="filterJahr" class="form-select form-select-sm">
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php for($y = date('Y'); $y >= 2020; $y--): ?>
+                            <option value="<?php echo e($y); ?>"><?php echo e($y); ?></option>
+                        <?php endfor; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                    </select>
                 </div>
-                <div class="mt-2 d-flex gap-2">
-                    <button wire:click="$refresh" class="btn btn-sm btn-primary">
-                        <i class="bi bi-search"></i> Filtern
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Kodex</label>
+                    <input type="text" wire:model="filterKodex"
+                           class="form-control form-control-sm" placeholder="Kodex...">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Name</label>
+                    <input type="text" wire:model="filterName"
+                           class="form-control form-control-sm" placeholder="Name...">
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Ergebnis</label>
+                    <select wire:model="filterErgebnis" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        <option value="1">✓ Positiv</option>
+                        <option value="0">✗ Negativ</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Brennstoff</label>
+                    <select wire:model="filterBrennstoff" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php $__currentLoopData = $brennstoffe; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $key => $info): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($key); ?>"><?php echo e($info['text']); ?></option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small mb-1">Anlage</label>
+                    <select wire:model="filterOhneAnlage" class="form-select form-select-sm">
+                        <option value="">Alle</option>
+                        <option value="0">Mit Anlage</option>
+                        <option value="1">Ohne Anlage</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-2 d-flex gap-2">
+                <button wire:click="applyFilters" class="btn btn-sm btn-primary">
+                    <i class="bi bi-search"></i> Filtern
+                </button>
+                <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($activeFilters > 0): ?>
+                    <button wire:click="resetFilters" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i> Zurücksetzen
                     </button>
-                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($activeFilters > 0): ?>
-                        <button wire:click="resetFilters" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-x-lg"></i> Zurücksetzen
-                        </button>
-                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
-                </div>
+                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             </div>
         </div>
     </div>
