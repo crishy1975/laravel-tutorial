@@ -88,46 +88,65 @@ class MessungenListe extends Component
         'filterBrennstoff' => ['except' => ''],
         'filterOhneAnlage' => ['except' => ''],
         'filterJahr' => ['except' => ''],
-        'page' => ['except' => 1],
     ];
 
     public function mount()
     {
-        $this->filterJahr = date('Y');
+        // Filter aus Session wiederherstellen (nur wenn keine URL-Parameter)
+        if (!request()->hasAny(['filterKodex', 'filterName', 'filterErgebnis', 'filterBrennstoff', 'filterOhneAnlage', 'filterJahr', 'page'])) {
+            $saved = session('messungen_filter', []);
+            if (!empty($saved)) {
+                $this->filterKodex = $saved['filterKodex'] ?? '';
+                $this->filterName = $saved['filterName'] ?? '';
+                $this->filterDatumVon = $saved['filterDatumVon'] ?? '';
+                $this->filterDatumBis = $saved['filterDatumBis'] ?? '';
+                $this->filterErgebnis = $saved['filterErgebnis'] ?? '';
+                $this->filterBrennstoff = $saved['filterBrennstoff'] ?? '';
+                $this->filterOhneAnlage = $saved['filterOhneAnlage'] ?? '';
+                $this->filterJahr = $saved['filterJahr'] ?? date('Y');
+                $this->sortField = $saved['sortField'] ?? 'cMIS_DATA';
+                $this->sortDirection = $saved['sortDirection'] ?? 'desc';
+            } else {
+                $this->filterJahr = date('Y');
+            }
+        } else {
+            $this->filterJahr = $this->filterJahr ?: date('Y');
+        }
     }
 
-    public function updatingFilterKodex()
+    /**
+     * Filter in Session speichern
+     */
+    private function saveToSession(): void
+    {
+        session(['messungen_filter' => [
+            'filterKodex' => $this->filterKodex,
+            'filterName' => $this->filterName,
+            'filterDatumVon' => $this->filterDatumVon,
+            'filterDatumBis' => $this->filterDatumBis,
+            'filterErgebnis' => $this->filterErgebnis,
+            'filterBrennstoff' => $this->filterBrennstoff,
+            'filterOhneAnlage' => $this->filterOhneAnlage,
+            'filterJahr' => $this->filterJahr,
+            'sortField' => $this->sortField,
+            'sortDirection' => $this->sortDirection,
+        ]]);
+    }
+
+    public function applyFilters()
     {
         $this->resetPage();
+        $this->saveToSession();
     }
-    public function updatingFilterName()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterDatumVon()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterDatumBis()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterErgebnis()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterBrennstoff()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterOhneAnlage()
-    {
-        $this->resetPage();
-    }
-    public function updatingFilterJahr()
-    {
-        $this->resetPage();
-    }
+
+    public function updatingFilterKodex()    { }
+    public function updatingFilterName()     { }
+    public function updatingFilterDatumVon() { }
+    public function updatingFilterDatumBis() { }
+    public function updatingFilterErgebnis() { }
+    public function updatingFilterBrennstoff() { }
+    public function updatingFilterOhneAnlage() { }
+    public function updatingFilterJahr()     { }
 
     public function sortBy($field)
     {
@@ -137,6 +156,7 @@ class MessungenListe extends Component
             $this->sortField = $field;
             $this->sortDirection = 'asc';
         }
+        $this->saveToSession();
     }
 
     public function resetFilters()
@@ -150,6 +170,7 @@ class MessungenListe extends Component
         $this->filterOhneAnlage = '';
         $this->filterJahr = date('Y');
         $this->resetPage();
+        $this->saveToSession();
     }
 
     // ========== Modal: Anlage zuordnen ==========

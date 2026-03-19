@@ -61,7 +61,6 @@ class AnlagenListe extends Component
         'filterHersteller' => ['except' => ''],
         'filterGemessen' => ['except' => ''],
         'filterJahr' => ['except' => ''],
-        'page' => ['except' => 1],
     ];
 
     // Brennstoff-Mapping
@@ -77,15 +76,53 @@ class AnlagenListe extends Component
 
     public function mount()
     {
-        $this->filterJahr = date('Y');
+        if (!request()->hasAny(['filterKodex', 'filterBeschreibung', 'filterStrasse', 'filterOrt', 'filterHersteller', 'filterGemessen', 'filterJahr'])) {
+            $saved = session('anlagen_filter', []);
+            if (!empty($saved)) {
+                $this->filterKodex = $saved['filterKodex'] ?? '';
+                $this->filterBeschreibung = $saved['filterBeschreibung'] ?? '';
+                $this->filterStrasse = $saved['filterStrasse'] ?? '';
+                $this->filterOrt = $saved['filterOrt'] ?? '';
+                $this->filterHersteller = $saved['filterHersteller'] ?? '';
+                $this->filterGemessen = $saved['filterGemessen'] ?? '';
+                $this->filterJahr = $saved['filterJahr'] ?? date('Y');
+                $this->sortField = $saved['sortField'] ?? 'Feld_i';
+                $this->sortDirection = $saved['sortDirection'] ?? 'asc';
+            } else {
+                $this->filterJahr = date('Y');
+            }
+        } else {
+            $this->filterJahr = $this->filterJahr ?: date('Y');
+        }
     }
 
-    public function updatingFilterKodex()       { $this->resetPage(); }
-    public function updatingFilterBeschreibung() { $this->resetPage(); }
-    public function updatingFilterStrasse()      { $this->resetPage(); }
-    public function updatingFilterOrt()          { $this->resetPage(); }
-    public function updatingFilterHersteller()   { $this->resetPage(); }
-    public function updatingFilterGemessen()     { $this->resetPage(); }
+    private function saveToSession(): void
+    {
+        session(['anlagen_filter' => [
+            'filterKodex' => $this->filterKodex,
+            'filterBeschreibung' => $this->filterBeschreibung,
+            'filterStrasse' => $this->filterStrasse,
+            'filterOrt' => $this->filterOrt,
+            'filterHersteller' => $this->filterHersteller,
+            'filterGemessen' => $this->filterGemessen,
+            'filterJahr' => $this->filterJahr,
+            'sortField' => $this->sortField,
+            'sortDirection' => $this->sortDirection,
+        ]]);
+    }
+
+    public function applyFilters()
+    {
+        $this->resetPage();
+        $this->saveToSession();
+    }
+
+    public function updatingFilterKodex()       { }
+    public function updatingFilterBeschreibung() { }
+    public function updatingFilterStrasse()      { }
+    public function updatingFilterOrt()          { }
+    public function updatingFilterHersteller()   { }
+    public function updatingFilterGemessen()     { }
 
     public function sortBy($field)
     {
@@ -95,6 +132,7 @@ class AnlagenListe extends Component
             $this->sortField = $field;
             $this->sortDirection = 'asc';
         }
+        $this->saveToSession();
     }
 
     public function resetFilters()
@@ -107,6 +145,7 @@ class AnlagenListe extends Component
         $this->filterGemessen = '';
         $this->filterJahr = date('Y');
         $this->resetPage();
+        $this->saveToSession();
     }
 
     // ========== Modal: Neue Messung ==========
