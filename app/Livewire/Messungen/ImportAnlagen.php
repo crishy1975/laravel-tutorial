@@ -74,9 +74,27 @@ class ImportAnlagen extends Component
             'errors' => 0,
         ];
 
+        $tempPath = null;
+
         try {
             $path = $this->csvFile->getRealPath();
-            $handle = fopen($path, 'r');
+
+            // CSV-Inhalt lesen und Encoding zu UTF-8 konvertieren
+            $content = file_get_contents($path);
+            $encoding = mb_detect_encoding($content, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+
+            if ($encoding && $encoding !== 'UTF-8') {
+                $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+            }
+
+            // BOM entfernen falls vorhanden
+            $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+
+            // Konvertierten Inhalt in temp-Datei schreiben
+            $tempPath = tempnam(sys_get_temp_dir(), 'csv_');
+            file_put_contents($tempPath, $content);
+
+            $handle = fopen($tempPath, 'r');
 
             if ($handle === false) {
                 throw new \Exception('Datei konnte nicht geöffnet werden.');
@@ -122,6 +140,11 @@ class ImportAnlagen extends Component
         } catch (\Exception $e) {
             DB::rollBack();
             $this->importErrors[] = "Import-Fehler: " . $e->getMessage();
+        } finally {
+            // Temp-Datei aufräumen
+            if ($tempPath && file_exists($tempPath)) {
+                @unlink($tempPath);
+            }
         }
 
         $this->isImporting = false;
