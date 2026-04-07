@@ -883,8 +883,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const ids = Array.from(checked).map(function(cb) { return cb.value; });
 
             // Route-Template mit Platzhalter (Blade generiert die korrekte URL)
-            const routeTemplate = "{{ route('rechnung.xml.download', ['rechnung' => '__ID__']) }}";
-
+            const routeTemplate = "/rechnung/__ID__/xml/download";
+            
             // Einzelne XML-Dateien nacheinander herunterladen
             // Kleiner Delay zwischen Downloads, damit der Browser nicht blockiert
             ids.forEach(function(id, index) {
