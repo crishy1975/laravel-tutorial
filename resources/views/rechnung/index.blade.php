@@ -592,7 +592,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ═══════════════════════════════════════════════════════════════════════════════
     function hasUrlFilterParams() {
         const urlParams = new URLSearchParams(window.location.search);
-        // Prüfe ob irgendein Filter-Parameter vorhanden ist
         return urlParams.has('nummer') || 
                urlParams.has('codex') || 
                urlParams.has('suche') || 
@@ -623,9 +622,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bei Seitenaufruf ohne Parameter: Aus Cookie wiederherstellen
     // ═══════════════════════════════════════════════════════════════════════════════
     function restoreFromCookieIfNeeded() {
-        // Nur wiederherstellen wenn KEINE URL-Parameter vorhanden
         if (hasUrlFilterParams()) {
-            // URL hat Parameter -> speichere aktuelle Position
             saveFilterToCookie();
             return;
         }
@@ -633,7 +630,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const filterData = getCookie(COOKIE_NAME);
         if (!filterData) return;
 
-        // Prüfen ob es gespeicherte Filter gibt
         const hasFilter = filterData.nummer || 
                          filterData.codex || 
                          filterData.suche || 
@@ -642,7 +638,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!hasFilter) return;
 
-        // URL mit gespeicherten Filtern aufbauen
         const params = new URLSearchParams();
 
         if (filterData.nummer) params.append('nummer', filterData.nummer);
@@ -653,7 +648,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (filterData.status_filter) params.append('status_filter', filterData.status_filter);
         if (filterData.page && filterData.page !== '1') params.append('page', filterData.page);
 
-        // Redirect zur gespeicherten Position
         if (params.toString()) {
             window.location.href = baseIndexUrl + '?' + params.toString();
         }
@@ -666,7 +660,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const filterData = getCookie(COOKIE_NAME);
         if (!filterData) return;
 
-        // Felder mit Cookie-Werten befüllen (überschreibt Server-Werte nur wenn leer)
         if (nummerInput && !nummerInput.value && filterData.nummer) {
             nummerInput.value = filterData.nummer;
         }
@@ -706,7 +699,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (datumVon) params.append('datum_von', datumVon);
         if (datumBis) params.append('datum_bis', datumBis);
         if (status) params.append('status_filter', status);
-        // Bei neuem Filter: Page auf 1 zurücksetzen (nicht mitgeben)
 
         const targetUrl = params.toString()
             ? baseIndexUrl + '?' + params.toString()
@@ -719,10 +711,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Filter zurücksetzen
     // ═══════════════════════════════════════════════════════════════════════════════
     function resetFilter() {
-        // Cookie löschen
         deleteCookie(COOKIE_NAME);
-        
-        // Zur Index-Seite ohne Parameter
         window.location.href = baseIndexUrl;
     }
 
@@ -758,7 +747,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ═══════════════════════════════════════════════════════════════════════════════
     document.querySelectorAll('.pagination a').forEach(function(link) {
         link.addEventListener('click', function() {
-            // Kurz verzögert speichern, damit die URL noch aktuell ist
             setTimeout(saveFilterToCookie, 100);
         });
     });
@@ -777,7 +765,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const filterData = getCookie(COOKIE_NAME);
         if (!filterData || !filterData.scrollY) return;
         
-        // Scroll-Position wiederherstellen (kurz verzögert für DOM-Rendering)
         setTimeout(function() {
             window.scrollTo(0, filterData.scrollY);
         }, 100);
@@ -786,21 +773,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // ═══════════════════════════════════════════════════════════════════════════════
     // Initialisierung
     // ═══════════════════════════════════════════════════════════════════════════════
-    // 1. Prüfen ob Redirect aus Cookie nötig
     restoreFromCookieIfNeeded();
-    
-    // 2. Cookie in Felder laden (falls kein Redirect)
     loadFilterFromCookie();
     
-    // 3. Aktuelle Position speichern
     if (hasUrlFilterParams()) {
         saveFilterToCookie();
     }
     
-    // 4. Scroll-Position wiederherstellen
     restoreScrollPosition();
-    
-    // 5. Scroll-Position bei Verlassen speichern
     window.addEventListener('beforeunload', saveFilterToCookie);
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -874,7 +854,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Bulk XML Download - einzelne Dateien herunterladen
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // Bulk XML Download - als ZIP herunterladen
+    // ═══════════════════════════════════════════════════════════════════════════════
     if (btnBulkXmlDownload) {
         btnBulkXmlDownload.addEventListener('click', function() {
             const checked = getSelectedCheckboxes();
@@ -882,22 +864,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const ids = Array.from(checked).map(function(cb) { return cb.value; });
 
-            // Route-Template mit Platzhalter (Blade generiert die korrekte URL)
-            const routeTemplate = "/rechnung/__ID__/xml/download";
-            
-            // Einzelne XML-Dateien nacheinander herunterladen
-            // Kleiner Delay zwischen Downloads, damit der Browser nicht blockiert
-            ids.forEach(function(id, index) {
-                setTimeout(function() {
-                    const url = routeTemplate.replace('__ID__', id);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }, index * 300);
+            // Wenn nur eine Rechnung: direkt Einzel-Download
+            if (ids.length === 1) {
+                window.location.href = "/rechnung/" + ids[0] + "/xml/download";
+                return;
+            }
+
+            // Mehrere: POST-Request für ZIP-Download
+            btnBulkXmlDownload.disabled = true;
+            btnBulkXmlDownload.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ZIP wird erstellt...';
+
+            // Dynamisches Formular für POST-Download
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ route('rechnung.bulk-xml-download') }}";
+            form.style.display = 'none';
+
+            // CSRF Token
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = '_token';
+            csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            form.appendChild(csrfInput);
+
+            // IDs als Array
+            ids.forEach(function(id) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'ids[]';
+                input.value = id;
+                form.appendChild(input);
             });
+
+            document.body.appendChild(form);
+            form.submit();
+
+            // Button nach kurzer Verzögerung wieder aktivieren
+            setTimeout(function() {
+                btnBulkXmlDownload.disabled = false;
+                btnBulkXmlDownload.innerHTML = '<i class="bi bi-file-earmark-code"></i><span class="d-none d-sm-inline ms-1">XML herunterladen</span>';
+                document.body.removeChild(form);
+            }, 3000);
         });
     }
 });
