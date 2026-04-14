@@ -1604,88 +1604,88 @@ class RechnungController extends Controller
     }
 
 
-/**
- * Bulk-Download: Mehrere XML-Dateien als ZIP herunterladen.
- * 
- * Route: POST /rechnung/bulk-xml-download
- */
-public function bulkDownloadXml(Request $request)
-{
-    $request->validate([
-        'ids'   => 'required|array|min:1',
-        'ids.*' => 'integer|exists:rechnungen,id',
-    ]);
+    /**
+     * Bulk-Download: Mehrere XML-Dateien als ZIP herunterladen.
+     * 
+     * Route: POST /rechnung/bulk-xml-download
+     */
+    public function bulkDownloadXml(Request $request)
+    {
+        $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:rechnungen,id',
+        ]);
 
-    $ids = $request->input('ids');
+        $ids = $request->input('ids');
 
-    // Alle neuesten erfolgreichen XML-Logs für die gewählten Rechnungen laden
-    $logs = FatturaXmlLog::whereIn('rechnung_id', $ids)
-        ->whereIn('status', [
-            FatturaXmlLog::STATUS_GENERATED,
-            FatturaXmlLog::STATUS_SIGNED,
-            FatturaXmlLog::STATUS_SENT,
-            FatturaXmlLog::STATUS_DELIVERED,
-            FatturaXmlLog::STATUS_ACCEPTED,
-        ])
-        ->orderByDesc('created_at')
-        ->get()
-        ->unique('rechnung_id'); // Nur neuestes pro Rechnung
+        // Alle neuesten erfolgreichen XML-Logs für die gewählten Rechnungen laden
+        $logs = FatturaXmlLog::whereIn('rechnung_id', $ids)
+            ->whereIn('status', [
+                FatturaXmlLog::STATUS_GENERATED,
+                FatturaXmlLog::STATUS_SIGNED,
+                FatturaXmlLog::STATUS_SENT,
+                FatturaXmlLog::STATUS_DELIVERED,
+                FatturaXmlLog::STATUS_ACCEPTED,
+            ])
+            ->orderByDesc('created_at')
+            ->get()
+            ->unique('rechnung_id'); // Nur neuestes pro Rechnung
 
-    if ($logs->isEmpty()) {
-        return back()->with('error', 'Keine XML-Dateien für die ausgewählten Rechnungen gefunden.');
-    }
-
-    // Bei nur einer Rechnung: direkt als XML herunterladen (kein ZIP nötig)
-    if ($logs->count() === 1) {
-        return $logs->first()->downloadXml();
-    }
-
-    // ZIP erstellen
-    $zipFilename = 'FatturaPA_' . now()->format('Y-m-d_His') . '.zip';
-    $zipPath = storage_path('app/temp/' . $zipFilename);
-
-    // Temp-Ordner sicherstellen
-    if (!is_dir(storage_path('app/temp'))) {
-        mkdir(storage_path('app/temp'), 0755, true);
-    }
-
-    $zip = new \ZipArchive();
-    if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-        return back()->with('error', 'ZIP-Datei konnte nicht erstellt werden.');
-    }
-
-    $addedCount = 0;
-    $skipped = [];
-
-    foreach ($logs as $log) {
-        if ($log->xmlExists()) {
-            $xmlContent = Storage::get($log->xml_file_path);
-            $filename = $log->xml_filename ?? ($log->progressivo_invio . '.xml');
-            $zip->addFromString($filename, $xmlContent);
-            $addedCount++;
-        } else {
-            $skipped[] = $log->rechnung_id;
+        if ($logs->isEmpty()) {
+            return back()->with('error', 'Keine XML-Dateien für die ausgewählten Rechnungen gefunden.');
         }
+
+        // Bei nur einer Rechnung: direkt als XML herunterladen (kein ZIP nötig)
+        if ($logs->count() === 1) {
+            return $logs->first()->downloadXml();
+        }
+
+        // ZIP erstellen
+        $zipFilename = 'FatturaPA_' . now()->format('Y-m-d_His') . '.zip';
+        $zipPath = storage_path('app/temp/' . $zipFilename);
+
+        // Temp-Ordner sicherstellen
+        if (!is_dir(storage_path('app/temp'))) {
+            mkdir(storage_path('app/temp'), 0755, true);
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return back()->with('error', 'ZIP-Datei konnte nicht erstellt werden.');
+        }
+
+        $addedCount = 0;
+        $skipped = [];
+
+        foreach ($logs as $log) {
+            if ($log->xmlExists()) {
+                $xmlContent = Storage::get($log->xml_file_path);
+                $filename = $log->xml_filename ?? ($log->progressivo_invio . '.xml');
+                $zip->addFromString($filename, $xmlContent);
+                $addedCount++;
+            } else {
+                $skipped[] = $log->rechnung_id;
+            }
+        }
+
+        $zip->close();
+
+        if ($addedCount === 0) {
+            @unlink($zipPath);
+            return back()->with('error', 'Keine XML-Dateien gefunden. Möglicherweise wurden die Dateien gelöscht.');
+        }
+
+        Log::info('Bulk XML Download', [
+            'anzahl_angefragt' => count($ids),
+            'anzahl_im_zip'    => $addedCount,
+            'uebersprungen'    => $skipped,
+        ]);
+
+        // ZIP herunterladen und danach löschen
+        return response()->download($zipPath, $zipFilename, [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
     }
-
-    $zip->close();
-
-    if ($addedCount === 0) {
-        @unlink($zipPath);
-        return back()->with('error', 'Keine XML-Dateien gefunden. Möglicherweise wurden die Dateien gelöscht.');
-    }
-
-    Log::info('Bulk XML Download', [
-        'anzahl_angefragt' => count($ids),
-        'anzahl_im_zip'    => $addedCount,
-        'uebersprungen'    => $skipped,
-    ]);
-
-    // ZIP herunterladen und danach löschen
-    return response()->download($zipPath, $zipFilename, [
-        'Content-Type' => 'application/zip',
-    ])->deleteFileAfterSend(true);
-}
 
     /**
      * Laedt XML-Datei direkt ueber Log-ID herunter.
