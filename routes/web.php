@@ -218,6 +218,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/validate', [RechnungController::class, 'validateBeforeCreate'])->name('validate');
         Route::get('/duplikate/{gebaeudeId}', [RechnungController::class, 'duplikatePruefen'])->name('duplikate');
         Route::get('/luecken/{jahr?}', [RechnungController::class, 'lueckenPruefen'])->name('luecken');
+        Route::post('/bulk-xml-download', [RechnungController::class, 'bulkDownloadXml'])->name('bulk-xml-download');
 
         // CRUD
         Route::get('/', [RechnungController::class, 'index'])->name('index');
