@@ -874,41 +874,61 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Mehrere: POST-Request für ZIP-Download
+            // Mehrere: fetch + Blob für ZIP-Download
             btnBulkXmlDownload.disabled = true;
             btnBulkXmlDownload.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ZIP wird erstellt...';
 
-            // Dynamisches Formular für POST-Download
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = "<?php echo e(route('rechnung.bulk-xml-download')); ?>";
-            form.style.display = 'none';
+            var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-            // CSRF Token
-            var csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = '_token';
-            csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-            form.appendChild(csrfInput);
+            fetch("<?php echo e(route('rechnung.bulk-xml-download')); ?>", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/octet-stream'
+                },
+                body: JSON.stringify({ ids: ids })
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.text().then(function(text) {
+                        throw new Error('Server-Fehler (' + response.status + '): ' + text.substring(0, 200));
+                    });
+                }
 
-            // IDs als Array
-            ids.forEach(function(id) {
-                var input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'ids[]';
-                input.value = id;
-                form.appendChild(input);
-            });
+                // Dateiname aus Content-Disposition Header lesen
+                var disposition = response.headers.get('Content-Disposition');
+                var filename = 'FatturaPA.zip';
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    var matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                    if (matches && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
 
-            document.body.appendChild(form);
-            form.submit();
-
-            // Button nach kurzer Verzögerung wieder aktivieren
-            setTimeout(function() {
+                return response.blob().then(function(blob) {
+                    return { blob: blob, filename: filename };
+                });
+            })
+            .then(function(result) {
+                // Blob-URL erstellen und Download auslösen
+                var url = window.URL.createObjectURL(result.blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = result.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(function(error) {
+                console.error('Bulk XML Download Fehler:', error);
+                alert('Fehler beim Herunterladen: ' + error.message);
+            })
+            .finally(function() {
                 btnBulkXmlDownload.disabled = false;
                 btnBulkXmlDownload.innerHTML = '<i class="bi bi-file-earmark-code"></i><span class="d-none d-sm-inline ms-1">XML herunterladen</span>';
-                document.body.removeChild(form);
-            }, 3000);
+            });
         });
     }
 });

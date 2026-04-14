@@ -1632,7 +1632,9 @@ class RechnungController extends Controller
             ->unique('rechnung_id'); // Nur neuestes pro Rechnung
 
         if ($logs->isEmpty()) {
-            return back()->with('error', 'Keine XML-Dateien für die ausgewählten Rechnungen gefunden.');
+            return response()->json([
+                'error' => 'Keine XML-Dateien für die ausgewählten Rechnungen gefunden.'
+            ], 404);
         }
 
         // Bei nur einer Rechnung: direkt als XML herunterladen (kein ZIP nötig)
@@ -1651,7 +1653,9 @@ class RechnungController extends Controller
 
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            return back()->with('error', 'ZIP-Datei konnte nicht erstellt werden.');
+            return response()->json([
+                'error' => 'ZIP-Datei konnte nicht erstellt werden.'
+            ], 500);
         }
 
         $addedCount = 0;
@@ -1672,7 +1676,9 @@ class RechnungController extends Controller
 
         if ($addedCount === 0) {
             @unlink($zipPath);
-            return back()->with('error', 'Keine XML-Dateien gefunden. Möglicherweise wurden die Dateien gelöscht.');
+            return response()->json([
+                'error' => 'Keine XML-Dateien gefunden. Möglicherweise wurden die Dateien gelöscht.'
+            ], 404);
         }
 
         Log::info('Bulk XML Download', [
