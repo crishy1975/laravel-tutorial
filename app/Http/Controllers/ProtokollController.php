@@ -103,8 +103,45 @@ class ProtokollController extends Controller
         $this->w($pdf, 'NOx', $messung->cMIS_BIOSSIDO_AZOTO ?? '');
         $this->w($pdf, 'CO', $messung->cMIS_MONOSSSIDO ?? '');
 
+        // === Mitteilungen: Stufen-Vermerk (nur wenn Stufe > 1) ===
+        $this->writeMitteilungen($pdf, $messung);
+
         // === Stempel und Unterschrift ===
         $this->writeStempel($pdf);
+    }
+
+    /**
+     * Schreibt den Stufen-Vermerk ins Mitteilungen-Feld.
+     * Nur bei Stufe > 1, zweisprachig (z.B. "Stufe 2 / Stadio 2")
+     */
+    private function writeMitteilungen(Fpdi $pdf, Messung $messung): void
+    {
+        $stufe = (int) ($messung->cMIS_STADIO ?? 0);
+
+        if ($stufe <= 1) {
+            return;
+        }
+
+        $rect = $this->getRect('Mitteilungen');
+        if (!$rect) {
+            return;
+        }
+
+        $ptToMm = 25.4 / 72;
+        $x = $rect[0] * $ptToMm;
+        $y = (self::PAGE_HEIGHT - $rect[3]) * $ptToMm;
+        $w = ($rect[2] - $rect[0]) * $ptToMm;
+
+        // Kleiner Innenabstand, damit der Text nicht am Rand klebt
+        $x += 2;
+        $y += 2;
+
+        $text = "Stufe {$stufe} / Stadio {$stufe}";
+        $text = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $text) ?: $text;
+
+        $pdf->SetFont('Helvetica', 'B', 10);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($w - 4, 5, $text, 0, 0, 'L');
     }
 
     /**
