@@ -5,6 +5,7 @@ namespace App\Livewire\Messungen;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use App\Models\Impianto;
+use Illuminate\Support\Facades\Log;
 
 #[Layout('layouts.app')]
 class AnlagenEdit extends Component
@@ -50,7 +51,9 @@ class AnlagenEdit extends Component
 
         foreach ($this->anlage->getFillable() as $field) {
             if (property_exists($this, $field)) {
-                $this->$field = $this->anlage->$field;
+                // FIX: null → '' damit Livewire nicht mit null-Werten
+                // Probleme bei wire:model bekommt
+                $this->$field = $this->anlage->$field ?? '';
             }
         }
     }
@@ -58,17 +61,78 @@ class AnlagenEdit extends Component
     public function save()
     {
         $this->validate();
+        $this->saved = false;
 
-        $updateData = [];
-        foreach ($this->anlage->getFillable() as $field) {
-            if ($field === 'Feld_a') continue; // PK nicht ändern
-            if (property_exists($this, $field)) {
-                $updateData[$field] = $this->$field;
+        try {
+            // FIX: Bei jedem Save frisch aus DB laden um
+            // Livewire-Serialisierungs-Probleme zu vermeiden
+            $anlage = Impianto::where('Feld_a', $this->Feld_a)->firstOrFail();
+
+            $updateData = [];
+            foreach ($anlage->getFillable() as $field) {
+                if ($field === 'Feld_a') continue; // PK nicht ändern
+                if (property_exists($this, $field)) {
+                    // FIX: leer-String zu null konvertieren falls DB-Spalte nullable
+                    // (verhindert Probleme mit STRICT_TRANS_TABLES bei Hostinger)
+                    $value = $this->$field;
+                    $updateData[$field] = ($value === '') ? null : $value;
+                }
             }
-        }
 
-        $this->anlage->update($updateData);
-        $this->saved = true;
+            // Debug-Log: Was wird tatsächlich geschrieben?
+            Log::info('Anlage vor update()', [
+                'kodex' => $this->Feld_a,
+                'update_data_keys' => array_keys($updateData),
+            ]);
+
+            $updated = $anlage->update($updateData);
+
+            if (!$updated) {
+                Log::error('Anlage::update() gab false zurück', [
+                    'kodex' => $this->Feld_a,
+                    'dirty' => $anlage->getDirty(),
+                ]);
+                session()->flash('error', 'Speichern fehlgeschlagen (update() returned false).');
+                return;
+            }
+
+            // Nach erfolgreichem Update: frisch laden zur Verifikation
+            $check = Impianto::where('Feld_a', $this->Feld_a)->first();
+            if (!$check) {
+                Log::error('Anlage nach update() nicht auffindbar', [
+                    'kodex' => $this->Feld_a,
+                ]);
+                session()->flash('error', 'Anlage wurde nicht persistiert.');
+                return;
+            }
+
+            // Lokale Referenz aktualisieren damit die Seite konsistent bleibt
+            $this->anlage = $check;
+
+            Log::info('Anlage erfolgreich aktualisiert', [
+                'kodex' => $this->Feld_a,
+            ]);
+
+            $this->saved = true;
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::error('DB-Fehler beim Anlage speichern', [
+                'kodex' => $this->Feld_a,
+                'sql_state' => $e->getCode(),
+                'message' => $e->getMessage(),
+            ]);
+            session()->flash('error', 'Datenbankfehler: ' . $e->getMessage());
+            return;
+
+        } catch (\Exception $e) {
+            Log::error('Unerwarteter Fehler beim Anlage speichern', [
+                'kodex' => $this->Feld_a,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            session()->flash('error', 'Fehler: ' . $e->getMessage());
+            return;
+        }
     }
 
     public function render()
