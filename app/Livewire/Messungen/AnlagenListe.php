@@ -24,7 +24,11 @@ class AnlagenListe extends Component
     public $filterOrt = '';            // sucht in Feld_i/Feld_h (Gemeinde Aufstellungsort DE/IT)
     public $filterHersteller = '';     // sucht in Feld_y (Hersteller Kessel)
     public $filterGemessen = '';
+    public $filterExportStatus = '';   // '' | '1' (exportiert) | '0' (nicht exportiert)
     public $filterJahr;
+
+    // Event-Listener (Modal-Refresh nach Export)
+    protected $listeners = ['messungen-exported' => 'refreshAfterExport'];
 
     // Sortierung
     public $sortField = 'Feld_i';
@@ -60,6 +64,7 @@ class AnlagenListe extends Component
         'filterOrt' => ['except' => ''],
         'filterHersteller' => ['except' => ''],
         'filterGemessen' => ['except' => ''],
+        'filterExportStatus' => ['except' => ''],
         'filterJahr' => ['except' => ''],
     ];
 
@@ -76,7 +81,7 @@ class AnlagenListe extends Component
 
     public function mount()
     {
-        if (!request()->hasAny(['filterKodex', 'filterBeschreibung', 'filterStrasse', 'filterOrt', 'filterHersteller', 'filterGemessen', 'filterJahr'])) {
+        if (!request()->hasAny(['filterKodex', 'filterBeschreibung', 'filterStrasse', 'filterOrt', 'filterHersteller', 'filterGemessen', 'filterExportStatus', 'filterJahr'])) {
             $saved = session('anlagen_filter', []);
             if (!empty($saved)) {
                 $this->filterKodex = $saved['filterKodex'] ?? '';
@@ -85,6 +90,7 @@ class AnlagenListe extends Component
                 $this->filterOrt = $saved['filterOrt'] ?? '';
                 $this->filterHersteller = $saved['filterHersteller'] ?? '';
                 $this->filterGemessen = $saved['filterGemessen'] ?? '';
+                $this->filterExportStatus = $saved['filterExportStatus'] ?? '';
                 $this->filterJahr = $saved['filterJahr'] ?? date('Y');
                 $this->sortField = $saved['sortField'] ?? 'Feld_i';
                 $this->sortDirection = $saved['sortDirection'] ?? 'asc';
@@ -105,6 +111,7 @@ class AnlagenListe extends Component
             'filterOrt' => $this->filterOrt,
             'filterHersteller' => $this->filterHersteller,
             'filterGemessen' => $this->filterGemessen,
+            'filterExportStatus' => $this->filterExportStatus,
             'filterJahr' => $this->filterJahr,
             'sortField' => $this->sortField,
             'sortDirection' => $this->sortDirection,
@@ -123,6 +130,7 @@ class AnlagenListe extends Component
     public function updatingFilterOrt()          { }
     public function updatingFilterHersteller()   { }
     public function updatingFilterGemessen()     { }
+    public function updatingFilterExportStatus() { }
 
     public function sortBy($field)
     {
@@ -143,9 +151,28 @@ class AnlagenListe extends Component
         $this->filterOrt = '';
         $this->filterHersteller = '';
         $this->filterGemessen = '';
+        $this->filterExportStatus = '';
         $this->filterJahr = date('Y');
         $this->resetPage();
         $this->saveToSession();
+    }
+
+    // ========== Amt-Export ==========
+
+    /**
+     * Öffnet das Amt-Export-Modal (via Event).
+     */
+    public function openAmtExport()
+    {
+        $this->dispatch('open-amt-export-modal', jahr: (int) $this->filterJahr);
+    }
+
+    /**
+     * Wird nach erfolgreichem Export aufgerufen (vom AmtExport-Component).
+     */
+    public function refreshAfterExport()
+    {
+        $this->resetPage();
     }
 
     // ========== Modal: Neue Messung ==========
@@ -432,6 +459,19 @@ class AnlagenListe extends Component
             $query->mitMessungImJahr((int) $this->filterJahr);
         } elseif ($this->filterGemessen === '0') {
             $query->ohneMessungImJahr((int) $this->filterJahr);
+        }
+
+        // Export-Status: wirkt über Messungen im filterJahr
+        if ($this->filterExportStatus === '1') {
+            $query->whereHas('messungen', function ($q) {
+                $q->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
+                  ->whereNotNull('exported_at');
+            });
+        } elseif ($this->filterExportStatus === '0') {
+            $query->whereHas('messungen', function ($q) {
+                $q->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
+                  ->whereNull('exported_at');
+            });
         }
 
         // Sortierung

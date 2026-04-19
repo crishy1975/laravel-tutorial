@@ -34,6 +34,7 @@ use App\Livewire\Messungen\ImportAnlagen;
 use App\Livewire\Messungen\ImportMessungen;
 use App\Livewire\Messungen\MessungenListe;
 use App\Livewire\Messungen\MessungEdit;
+use App\Livewire\Messungen\AmtImport;
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -78,6 +79,10 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
 
     // Foto-Extraktion (Claude Vision API)
     Route::post('/extract-from-photo', [\App\Http\Controllers\ExtractMessungController::class, 'extract'])->name('extract-from-photo');
+
+     // Amt-Import (Fix-Width-Datei)
+    Route::get('/amt-import', \App\Livewire\Messungen\AmtImport::class)->name('amt-import');
+
 
     // Anlagen
     Route::get('/anlagen', AnlagenListe::class)->name('anlagen.index');
