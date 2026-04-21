@@ -20,6 +20,9 @@ class AmtExport extends Component
     public ?string $vonDatum = null;
     public ?string $bisDatum = null;
 
+    // Explizite Auswahl (überschreibt Filter, wenn gesetzt)
+    public array $messungIds = [];
+
     // E-Mail
     public string $empfaenger = '';
     public string $zusatzNachricht = '';
@@ -35,9 +38,10 @@ class AmtExport extends Component
         $this->empfaenger = session('amt_export_empfaenger', config('messungen.amt_email_default', ''));
     }
 
-    public function open(?int $jahr = null): void
+    public function open(?int $jahr = null, ?array $messungIds = null): void
     {
         $this->jahr = $jahr ?? (int) date('Y');
+        $this->messungIds = $messungIds ?? [];
         $this->errorMessage = null;
         $this->validationReport = null;
         $this->previewText = null;
@@ -221,6 +225,15 @@ class AmtExport extends Component
     protected function getMessungenQuery()
     {
         $q = Messung::query();
+
+        // Wenn eine explizite ID-Liste übergeben wurde: nur diese Messungen.
+        // Filter werden dann ignoriert (Auswahl hat Vorrang).
+        if (!empty($this->messungIds)) {
+            $q->whereIn('id', $this->messungIds);
+            // Nur Messungen mit existierender Anlage
+            $q->where('codeInImpianti', '>', 0);
+            return $q->orderBy('cIM_CODICE')->orderBy('cMIS_DATA')->orderBy('cMIS_STADIO');
+        }
 
         // Jahr-Filter (wirkt nur wenn keine vonDatum/bisDatum gesetzt)
         if (!$this->vonDatum && !$this->bisDatum && $this->jahr) {

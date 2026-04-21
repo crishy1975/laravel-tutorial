@@ -37,9 +37,16 @@
                 <i class="bi bi-file-earmark-arrow-up"></i>
                 <span class="d-none d-sm-inline">CSV Import</span>
             </a>
-            <button type="button" class="btn btn-primary" wire:click="openAmtExport">
+            <button type="button" class="btn btn-primary position-relative" wire:click="openAmtExport"
+                    <?php if(count($selectedAnlagen) === 0): ?> title="Zuerst Anlagen ankreuzen" <?php endif; ?>>
                 <i class="bi bi-envelope-arrow-up"></i>
                 <span class="d-none d-sm-inline">Amt-Export</span>
+                <?php if(count($selectedAnlagen) > 0): ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning text-dark">
+                        <?php echo e(count($selectedAnlagen)); ?>
+
+                    </span>
+                <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
             </button>
             <a href="<?php echo e(route('messungen.amt-import')); ?>" class="btn btn-outline-primary">
                 <i class="bi bi-envelope-arrow-down"></i>
@@ -157,6 +164,29 @@
     </div>
 
     
+    <?php if(count($selectedAnlagen) > 0): ?>
+        <div class="alert alert-primary d-flex align-items-center justify-content-between py-2 mb-3 sticky-top"
+             style="top: 10px; z-index: 100;">
+            <div>
+                <i class="bi bi-check2-square me-2"></i>
+                <strong><?php echo e(count($selectedAnlagen)); ?></strong> Anlage(n) ausgewählt
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" wire:click="selectAllFiltered">
+                    <i class="bi bi-check-all"></i> Alle gefilterten auswählen
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" wire:click="clearSelection">
+                    <i class="bi bi-x-lg"></i> Auswahl leeren
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" wire:click="openAmtExport">
+                    <i class="bi bi-envelope-arrow-up"></i>
+                    Amt-Export starten (<?php echo e(count($selectedAnlagen)); ?>)
+                </button>
+            </div>
+        </div>
+    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+
+    
     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlagen->isEmpty()): ?>
         <div class="card">
             <div class="card-body text-center py-5">
@@ -185,6 +215,11 @@
                 <table class="table table-hover align-middle mb-0" id="anlagenTable">
                     <thead class="table-dark">
                         <tr>
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" class="form-check-input"
+                                       wire:model.live="selectAllOnPage"
+                                       title="Alle auf dieser Seite auswählen">
+                            </th>
                             <th style="width: 90px;" wire:click="sortBy('Feld_a')">
                                 Kodex
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($sortField === 'Feld_a'): ?>
@@ -210,6 +245,7 @@
                                 <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                             </th>
                             <th style="width: 80px;" class="text-center">Messung</th>
+                            <th style="width: 70px;" class="text-center">Export</th>
                             <th wire:click="sortBy('Feld_y')">
                                 Hersteller
                                 <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($sortField === 'Feld_y'): ?>
@@ -227,8 +263,21 @@
                                 $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
                                 $hatMessung = $letzteMessung !== null;
                                 $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
+                                $istExportiert = $hatMessung && $letzteMessung->exported_at !== null;
+                                $kodexStr = (string) $anlage->Feld_a;
                             ?>
                             <tr class="<?php echo e($istNegativ ? 'table-danger' : (!$hatMessung ? 'table-warning' : '')); ?>">
+                                <td class="text-center">
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung): ?>
+                                        <input type="checkbox" class="form-check-input"
+                                               value="<?php echo e($kodexStr); ?>"
+                                               wire:model.live="selectedAnlagen"
+                                               wire:key="check-<?php echo e($kodexStr); ?>">
+                                    <?php else: ?>
+                                        <input type="checkbox" class="form-check-input" disabled
+                                               title="Keine Messung im Jahr <?php echo e($filterJahr); ?>">
+                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                </td>
                                 <td>
                                     <a href="<?php echo e(route('messungen.anlagen.edit', $anlage->Feld_a)); ?>"
                                        class="fw-bold text-decoration-none font-monospace"><?php echo e($anlage->Feld_a); ?></a>
@@ -246,6 +295,20 @@
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                     <?php else: ?>
                                         <span class="badge bg-warning text-dark"><i class="bi bi-dash"></i></span>
+                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                </td>
+                                <td class="text-center">
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung && $istExportiert): ?>
+                                        <span class="badge bg-success"
+                                              title="Exportiert am <?php echo e(\Carbon\Carbon::parse($letzteMessung->exported_at)->format('d.m.Y H:i')); ?><?php echo e($letzteMessung->exported_to_email ? ' an ' . $letzteMessung->exported_to_email : ''); ?>">
+                                            <i class="bi bi-envelope-check"></i>
+                                        </span>
+                                    <?php elseif($hatMessung): ?>
+                                        <span class="badge bg-secondary" title="Noch nicht exportiert">
+                                            <i class="bi bi-envelope"></i>
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted small">—</span>
                                     <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                 </td>
                                 <td><?php echo e($anlage->Feld_y); ?></td>
@@ -286,18 +349,39 @@
                         $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
                         $hatMessung = $letzteMessung !== null;
                         $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
+                        $istExportiert = $hatMessung && $letzteMessung->exported_at !== null;
+                        $kodexStr = (string) $anlage->Feld_a;
                     ?>
                     <div class="anlage-card border-bottom <?php echo e($istNegativ ? 'bg-danger bg-opacity-10' : (!$hatMessung ? 'bg-warning bg-opacity-10' : '')); ?>">
                         <div class="p-2">
                             
                             <div class="d-flex align-items-start gap-2 mb-1">
+                                <div class="flex-shrink-0 pt-1">
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung): ?>
+                                        <input type="checkbox" class="form-check-input"
+                                               value="<?php echo e($kodexStr); ?>"
+                                               wire:model.live="selectedAnlagen"
+                                               wire:key="mcheck-<?php echo e($kodexStr); ?>">
+                                    <?php else: ?>
+                                        <input type="checkbox" class="form-check-input" disabled>
+                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                                </div>
                                 <div class="flex-grow-1 min-width-0">
                                     <a href="<?php echo e(route('messungen.anlagen.edit', $anlage->Feld_a)); ?>" class="text-decoration-none">
                                         <span class="fw-bold text-primary font-monospace"><?php echo e($anlage->Feld_a); ?></span>
                                         <span class="text-dark"><?php echo e(Str::limit($anlage->Feld_w ?: '(keine Beschreibung)', 30)); ?></span>
                                     </a>
                                 </div>
-                                <div class="flex-shrink-0">
+                                <div class="flex-shrink-0 d-flex gap-1">
+                                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($hatMessung && $istExportiert): ?>
+                                        <span class="badge bg-success" title="Exportiert">
+                                            <i class="bi bi-envelope-check"></i>
+                                        </span>
+                                    <?php elseif($hatMessung): ?>
+                                        <span class="badge bg-secondary" title="Nicht exportiert">
+                                            <i class="bi bi-envelope"></i>
+                                        </span>
+                                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($istNegativ): ?>
                                         <span class="badge bg-danger"><i class="bi bi-x-lg"></i></span>
                                     <?php elseif($hatMessung): ?>
@@ -309,7 +393,7 @@
                             </div>
 
                             
-                            <div class="small text-muted mb-1 ps-1">
+                            <div class="small text-muted mb-1 ps-4">
                                 <i class="bi bi-geo-alt"></i>
                                 <?php echo e($anlage->Feld_m); ?> <?php echo e($anlage->Feld_n); ?><?php echo e(($anlage->Feld_m && $anlage->Feld_i) ? ',' : ''); ?>
 
@@ -318,7 +402,7 @@
                             </div>
 
                             
-                            <div class="d-flex justify-content-between align-items-center ps-1">
+                            <div class="d-flex justify-content-between align-items-center ps-4">
                                 <div class="small text-muted">
                                     <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if($anlage->Feld_y): ?>
                                         <i class="bi bi-wrench"></i> <?php echo e($anlage->Feld_y); ?>
@@ -803,7 +887,10 @@ if (isset($__slots)) unset($__slots);
     document.addEventListener('livewire:init', () => {
         Livewire.on('open-amt-export-modal', (event) => {
             const payload = Array.isArray(event) ? event[0] : event;
-            Livewire.dispatchTo('messungen.amt-export', 'open', { jahr: payload?.jahr ?? null });
+            Livewire.dispatchTo('messungen.amt-export', 'open', {
+                jahr: payload?.jahr ?? null,
+                messungIds: payload?.messungIds ?? [],
+            });
         });
     });
 </script>

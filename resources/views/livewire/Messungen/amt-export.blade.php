@@ -24,38 +24,49 @@
                         </div>
                     </div>
 
-                    {{-- Filter --}}
-                    <div class="card mb-3">
-                        <div class="card-header py-2"><strong>Filter</strong></div>
-                        <div class="card-body">
-                            <div class="row g-2 align-items-end">
-                                <div class="col-md-2">
-                                    <label class="form-label small mb-1">Jahr</label>
-                                    <input type="number" class="form-control form-control-sm"
-                                           wire:model.live.debounce.400ms="jahr" min="2000" max="2099">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small mb-1">Von (optional)</label>
-                                    <input type="date" class="form-control form-control-sm"
-                                           wire:model.live.debounce.400ms="vonDatum">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label small mb-1">Bis (optional)</label>
-                                    <input type="date" class="form-control form-control-sm"
-                                           wire:model.live.debounce.400ms="bisDatum">
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-check mt-2">
-                                        <input class="form-check-input" type="checkbox" id="nurNichtExportiert"
-                                               wire:model.live="nurNichtExportiert">
-                                        <label class="form-check-label" for="nurNichtExportiert">
-                                            Nur noch nicht exportierte
-                                        </label>
+                    {{-- Modus: Auswahl oder Filter --}}
+                    @if(!empty($messungIds))
+                        <div class="alert alert-success d-flex align-items-center py-2 mb-3">
+                            <i class="bi bi-check2-square me-2 fs-4"></i>
+                            <div>
+                                <strong>{{ count($messungIds) }} Messung(en) aus Anlagen-Auswahl</strong>
+                                — die Filter unten sind deaktiviert.
+                            </div>
+                        </div>
+                    @else
+                        {{-- Filter --}}
+                        <div class="card mb-3">
+                            <div class="card-header py-2"><strong>Filter</strong></div>
+                            <div class="card-body">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-2">
+                                        <label class="form-label small mb-1">Jahr</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               wire:model.live.debounce.400ms="jahr" min="2000" max="2099">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Von (optional)</label>
+                                        <input type="date" class="form-control form-control-sm"
+                                               wire:model.live.debounce.400ms="vonDatum">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Bis (optional)</label>
+                                        <input type="date" class="form-control form-control-sm"
+                                               wire:model.live.debounce.400ms="bisDatum">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="nurNichtExportiert"
+                                                   wire:model.live="nurNichtExportiert">
+                                            <label class="form-check-label" for="nurNichtExportiert">
+                                                Nur noch nicht exportierte
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    @endif
 
                     {{-- Fehler --}}
                     @if($errorMessage)
