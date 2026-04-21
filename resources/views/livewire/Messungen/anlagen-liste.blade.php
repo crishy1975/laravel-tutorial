@@ -35,6 +35,14 @@
                 <i class="bi bi-file-earmark-arrow-up"></i>
                 <span class="d-none d-sm-inline">CSV Import</span>
             </a>
+            <button type="button" class="btn btn-primary" wire:click="openAmtExport">
+                <i class="bi bi-envelope-arrow-up"></i>
+                <span class="d-none d-sm-inline">Amt-Export</span>
+            </button>
+            <a href="{{ route('messungen.amt-import') }}" class="btn btn-outline-primary">
+                <i class="bi bi-envelope-arrow-down"></i>
+                <span class="d-none d-sm-inline">Amt-Import</span>
+            </a>
         </div>
     </div>
 
@@ -77,7 +85,7 @@
             <h6 class="mb-0">
                 <i class="bi bi-funnel"></i> Filter
                 @php
-                    $activeFilters = collect([$filterKodex, $filterBeschreibung, $filterOrt, $filterStrasse, $filterHersteller, $filterGemessen])->filter()->count();
+                    $activeFilters = collect([$filterKodex, $filterBeschreibung, $filterOrt, $filterStrasse, $filterHersteller, $filterGemessen, $filterExportStatus])->filter()->count();
                 @endphp
                 @if($activeFilters > 0)
                     <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
@@ -114,6 +122,14 @@
                             <option value="">Alle</option>
                             <option value="1">Ja</option>
                             <option value="0">Nein</option>
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-1">
+                        <label class="form-label small mb-1">Export</label>
+                        <select wire:model="filterExportStatus" class="form-select form-select-sm">
+                            <option value="">Alle</option>
+                            <option value="1">Exportiert</option>
+                            <option value="0">Nicht exp.</option>
                         </select>
                     </div>
                     <div class="col-4 col-md-1">
@@ -740,7 +756,21 @@
             </div>
         </div>
     @endif
+
+    {{-- Amt-Export-Modal (Livewire-Component) --}}
+    <livewire:messungen.amt-export />
 </div>
+
+@push('scripts')
+<script>
+    document.addEventListener('livewire:init', () => {
+        Livewire.on('open-amt-export-modal', (event) => {
+            const payload = Array.isArray(event) ? event[0] : event;
+            Livewire.dispatchTo('messungen.amt-export', 'open', { jahr: payload?.jahr ?? null });
+        });
+    });
+</script>
+@endpush
 
 @push('styles')
 <style>
