@@ -14,6 +14,9 @@ class AmtExport extends Component
 {
     public bool $show = false;
 
+    // Event-Listener: Event-Name → Methode
+    protected $listeners = ['open-amt-export-modal' => 'open'];
+
     // Filter
     public ?int $jahr = null;
     public bool $nurNichtExportiert = true;
