@@ -27,6 +27,10 @@ class AnlagenListe extends Component
     public $filterExportStatus = '';   // '' | '1' (exportiert) | '0' (nicht exportiert)
     public $filterJahr;
 
+    // Multi-Select für Amt-Export
+    public array $selectedAnlagen = [];   // Array von Kodex-Werten (Feld_a)
+    public bool $selectAllOnPage = false; // "Alle auf dieser Seite"-Toggle
+
     // Event-Listener (Modal-Refresh nach Export)
     protected $listeners = ['messungen-exported' => 'refreshAfterExport'];
 
@@ -161,10 +165,111 @@ class AnlagenListe extends Component
 
     /**
      * Öffnet das Amt-Export-Modal (via Event).
+     * Wenn Anlagen ausgewählt sind, werden deren letzte Messungen im Jahr ermittelt
+     * und als explizite ID-Liste ans Modal übergeben.
      */
     public function openAmtExport()
     {
-        $this->dispatch('open-amt-export-modal', jahr: (int) $this->filterJahr);
+        if (empty($this->selectedAnlagen)) {
+            session()->flash('error', 'Bitte mindestens eine Anlage auswählen.');
+            return;
+        }
+
+        // Letzte Messung pro ausgewählter Anlage im filterJahr ermitteln
+        $messungIds = $this->getLetzteMessungIdsForSelectedAnlagen();
+
+        if (empty($messungIds)) {
+            session()->flash('error', 'Die ausgewählten Anlagen haben keine Messungen im Jahr ' . $this->filterJahr . '.');
+            return;
+        }
+
+        $this->dispatch('open-amt-export-modal',
+            jahr: (int) $this->filterJahr,
+            messungIds: $messungIds
+        );
+    }
+
+    /**
+     * Ermittelt pro ausgewählter Anlage die ID der letzten Messung im filterJahr.
+     * Eine Messung pro Anlage (letzte nach Datum + Uhrzeit).
+     *
+     * @return array<int, int>
+     */
+    protected function getLetzteMessungIdsForSelectedAnlagen(): array
+    {
+        if (empty($this->selectedAnlagen)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($this->selectedAnlagen as $kodex) {
+            $msg = Messung::where('cIM_CODICE', $kodex)
+                ->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
+                ->orderByRaw("STR_TO_DATE(cMIS_DATA, '%d%m%Y') DESC")
+                ->orderBy('cMIS_ORA', 'desc')
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($msg) {
+                $ids[] = (int) $msg->id;
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * Toggle: alle Anlagen auf der aktuellen Seite auswählen/abwählen.
+     */
+    public function updatedSelectAllOnPage($value)
+    {
+        $pageKodexe = collect($this->anlagen->items())->pluck('Feld_a')->map(fn($k) => (string) $k)->all();
+
+        if ($value) {
+            // hinzufügen
+            $this->selectedAnlagen = array_values(array_unique(array_merge($this->selectedAnlagen, $pageKodexe)));
+        } else {
+            // entfernen
+            $this->selectedAnlagen = array_values(array_diff($this->selectedAnlagen, $pageKodexe));
+        }
+    }
+
+    /**
+     * Synct den "Alle auswählen"-Header-Toggle beim Seitenwechsel.
+     */
+    public function updatedPage()
+    {
+        $this->syncSelectAllOnPage();
+    }
+
+    protected function syncSelectAllOnPage(): void
+    {
+        $pageKodexe = collect($this->anlagen->items())->pluck('Feld_a')->map(fn($k) => (string) $k)->all();
+        if (empty($pageKodexe)) {
+            $this->selectAllOnPage = false;
+            return;
+        }
+        $this->selectAllOnPage = count(array_diff($pageKodexe, $this->selectedAnlagen)) === 0;
+    }
+
+    /**
+     * Auswahl leeren.
+     */
+    public function clearSelection(): void
+    {
+        $this->selectedAnlagen = [];
+        $this->selectAllOnPage = false;
+    }
+
+    /**
+     * Alle Anlagen (über alle Seiten) auswählen, die aktuell gefiltert sind.
+     */
+    public function selectAllFiltered(): void
+    {
+        $allKodexe = $this->getFilteredQuery()
+            ->pluck('Feld_a')
+            ->map(fn($k) => (string) $k)
+            ->all();
+        $this->selectedAnlagen = array_values(array_unique($allKodexe));
     }
 
     /**
@@ -172,6 +277,8 @@ class AnlagenListe extends Component
      */
     public function refreshAfterExport()
     {
+        $this->selectedAnlagen = [];
+        $this->selectAllOnPage = false;
         $this->resetPage();
     }
 
@@ -419,7 +526,11 @@ class AnlagenListe extends Component
 
     // ========== Properties ==========
 
-    public function getAnlagenProperty()
+    /**
+     * Baut die gefilterte Anlagen-Query (ohne Sortierung/Paginierung).
+     * Wird von getAnlagenProperty() und selectAllFiltered() genutzt.
+     */
+    protected function getFilteredQuery()
     {
         $query = Impianto::query();
 
@@ -474,6 +585,13 @@ class AnlagenListe extends Component
             });
         }
 
+        return $query;
+    }
+
+    public function getAnlagenProperty()
+    {
+        $query = $this->getFilteredQuery();
+
         // Sortierung
         $query->orderBy($this->sortField, $this->sortDirection);
 
@@ -485,7 +603,14 @@ class AnlagenListe extends Component
             $query->orderBy('Feld_n', 'asc');
         }
 
-        return $query->paginate(25);
+        $anlagen = $query->paginate(25);
+
+        // Auswahl-Toggle auf aktuelle Seite synchronisieren
+        $pageKodexe = collect($anlagen->items())->pluck('Feld_a')->map(fn($k) => (string) $k)->all();
+        $this->selectAllOnPage = !empty($pageKodexe)
+            && count(array_diff($pageKodexe, $this->selectedAnlagen)) === 0;
+
+        return $anlagen;
     }
 
     public function getStatistikProperty()
