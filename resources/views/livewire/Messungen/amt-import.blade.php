@@ -120,17 +120,18 @@
                         @foreach($parseResult['rows'] as $row)
                             @php
                                 $hasError = !empty($row['errors']);
-                                $rowClass = $hasError ? 'table-danger' : ($row['existing'] ? 'table-warning' : '');
-                                $d = $row['data'];
+                                $rowClass = $hasError ? 'table-danger' : (!empty($row['existing']) ? 'table-warning' : '');
+                                $d        = $row['data'] ?? null;
+                                $lineKey  = (string) $row['line_no'];
                             @endphp
-                            <tr class="{{ $rowClass }}">
+                            <tr class="{{ $rowClass }}" wire:key="row-{{ $lineKey }}">
                                 <td class="small">{{ $row['line_no'] }}</td>
                                 <td><code>{{ $d['cIM_CODICE'] ?? '—' }}</code></td>
-                                <td class="small">{{ $d['cMIS_DATA2'] ?? $d['cMIS_DATA'] ?? '—' }}</td>
+                                <td class="small">{{ $d['cMIS_DATA2'] ?? ($d['cMIS_DATA'] ?? '—') }}</td>
                                 <td class="text-center">{{ $d['cMIS_STADIO'] ?? '—' }}</td>
                                 <td class="small">{{ $d['cMIS_COMBUSTIBILE_P'] ?? '—' }}</td>
-                                <td>{{ $d ? (int)$d['cMIS_MONOSSSIDO'] : '—' }}</td>
-                                <td>{{ $d ? (int)$d['cMIS_BIOSSIDO_AZOTO'] : '—' }}</td>
+                                <td>{{ isset($d['cMIS_MONOSSSIDO']) ? (int) $d['cMIS_MONOSSSIDO'] : '—' }}</td>
+                                <td>{{ isset($d['cMIS_BIOSSIDO_AZOTO']) ? (int) $d['cMIS_BIOSSIDO_AZOTO'] : '—' }}</td>
                                 <td class="text-center">
                                     @if(($d['strEsito'] ?? null) === '1')
                                         <span class="badge bg-success">OK</span>
@@ -147,7 +148,7 @@
                                             <i class="bi bi-exclamation-triangle"></i>
                                             {{ count($row['errors']) }} Fehler
                                         </span>
-                                    @elseif($row['existing'])
+                                    @elseif(!empty($row['existing']))
                                         <span class="badge bg-warning text-dark">vorhanden</span>
                                     @else
                                         <span class="badge bg-primary">neu</span>
@@ -156,9 +157,9 @@
                                 <td>
                                     @if($hasError)
                                         <span class="small text-muted">überspringen</span>
-                                    @elseif($row['existing'])
+                                    @elseif(!empty($row['existing']))
                                         <select class="form-select form-select-sm"
-                                                wire:model="actions.{{ $row['line_no'] }}">
+                                                wire:model="actions.{{ $lineKey }}">
                                             <option value="skip">überspringen</option>
                                             <option value="update">überschreiben</option>
                                         </select>
@@ -168,7 +169,7 @@
                                 </td>
                             </tr>
                             @if($hasError)
-                                <tr class="{{ $rowClass }}">
+                                <tr class="{{ $rowClass }}" wire:key="err-{{ $lineKey }}">
                                     <td colspan="10" class="small text-danger ps-4">
                                         <ul class="mb-0">
                                             @foreach($row['errors'] as $err)
@@ -186,15 +187,28 @@
 
         {{-- Commit --}}
         @if(!$commitStats)
-            <div class="d-flex justify-content-between">
-                <button class="btn btn-secondary" wire:click="reset2">
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-secondary"
+                        wire:click="reset2"
+                        wire:loading.attr="disabled">
                     <i class="bi bi-x-circle"></i> Abbrechen
                 </button>
-                <button class="btn btn-primary" wire:click="commit"
-                        @if($stats['ok'] === 0) disabled @endif>
-                    <i class="bi bi-database-down"></i>
-                    Import ausführen ({{ $stats['ok'] }} gültige Zeilen)
-                </button>
+
+                <div class="d-flex align-items-center gap-2">
+                    {{-- Loading-Indikator: zeigt an, dass der Klick angekommen ist --}}
+                    <span wire:loading wire:target="commit" class="text-muted small">
+                        <i class="bi bi-hourglass-split"></i> Import läuft …
+                    </span>
+
+                    <button type="button" class="btn btn-primary"
+                            wire:click="commit"
+                            wire:loading.attr="disabled"
+                            wire:target="commit"
+                            @if($stats['ok'] === 0) disabled @endif>
+                        <i class="bi bi-database-down"></i>
+                        Import ausführen ({{ $stats['ok'] }} gültige Zeilen)
+                    </button>
+                </div>
             </div>
         @else
             <div class="alert alert-success">
@@ -214,7 +228,7 @@
                     </ul>
                 @endif
             </div>
-            <button class="btn btn-secondary" wire:click="reset2">
+            <button type="button" class="btn btn-secondary" wire:click="reset2">
                 <i class="bi bi-arrow-clockwise"></i> Weitere Datei importieren
             </button>
         @endif

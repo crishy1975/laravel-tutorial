@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
 use App\Services\AmtImportService;
+use Illuminate\Support\Facades\Log;
 
 #[Layout('layouts.app')]
 class AmtImport extends Component
@@ -18,7 +19,9 @@ class AmtImport extends Component
     public ?string $errorMessage = null;
     public ?string $kontrolleurId = null;
 
-    // Aktionen pro Zeile: key = line_no, value = 'skip'|'update'|'insert'
+    // Aktionen pro Zeile: key = line_no (als STRING), value = 'skip'|'update'|'insert'
+    // WICHTIG: Keys werden bewusst als String gespeichert, damit Livewire-Hydration
+    // konsistent funktioniert (HTML liefert keys immer als String zurück).
     public array $actions = [];
 
     // Default-Aktion für Duplikate
@@ -46,6 +49,7 @@ class AmtImport extends Component
         $this->errorMessage = null;
         $this->parseResult = null;
         $this->commitStats = null;
+        $this->actions = [];
 
         if (!$this->datei) {
             $this->errorMessage = 'Keine Datei ausgewählt.';
@@ -65,18 +69,28 @@ class AmtImport extends Component
             $this->kontrolleurId = $result['kontrolleur_id'];
             $this->parseResult = $result;
 
-            // Default-Aktionen setzen
-            $this->actions = [];
+            // Default-Aktionen setzen — Keys BEWUSST als String!
             foreach ($result['rows'] as $row) {
+                $key = (string) $row['line_no'];
                 if (!empty($row['errors'])) {
-                    $this->actions[$row['line_no']] = 'skip';
-                } elseif ($row['existing']) {
-                    $this->actions[$row['line_no']] = $this->defaultAction;
+                    $this->actions[$key] = 'skip';
+                } elseif (!empty($row['existing'])) {
+                    $this->actions[$key] = $this->defaultAction;
                 } else {
-                    $this->actions[$row['line_no']] = 'insert';
+                    $this->actions[$key] = 'insert';
                 }
             }
+
+            Log::info('AmtImport::analyze() OK', [
+                'rows'    => count($result['rows']),
+                'actions' => count($this->actions),
+            ]);
         } catch (\Throwable $e) {
+            Log::error('AmtImport::analyze() FAILED', [
+                'msg'  => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
             $this->errorMessage = 'Parse-Fehler: ' . $e->getMessage();
         }
     }
@@ -86,29 +100,43 @@ class AmtImport extends Component
         if (!$this->parseResult) return;
         foreach ($this->parseResult['rows'] as $row) {
             if (!empty($row['errors'])) continue;
-            if ($row['existing']) {
-                $this->actions[$row['line_no']] = $this->defaultAction;
+            if (!empty($row['existing'])) {
+                $this->actions[(string) $row['line_no']] = $this->defaultAction;
             }
         }
     }
 
     public function commit(): void
     {
+        // LOGGING: Erster Aufruf muss im Log auftauchen.
+        // Falls NICHT -> der Klick kommt gar nicht am Server an (DOM/JS-Problem).
+        Log::info('AmtImport::commit() START', [
+            'has_parseResult' => !is_null($this->parseResult),
+            'row_count'       => count($this->parseResult['rows'] ?? []),
+            'actions_count'   => count($this->actions),
+            'actions_sample'  => array_slice($this->actions, 0, 3, true),
+        ]);
+
+        $this->errorMessage = null;
+
         if (!$this->parseResult) {
             $this->errorMessage = 'Keine Daten zum Import.';
             return;
         }
 
         try {
-            // Actions in rows mergen
+            // Actions in rows mergen — Keys als String lesen!
             $rows = [];
             foreach ($this->parseResult['rows'] as $row) {
-                $row['action'] = $this->actions[$row['line_no']] ?? 'skip';
+                $key = (string) $row['line_no'];
+                $row['action'] = $this->actions[$key] ?? 'skip';
                 $rows[] = $row;
             }
 
             $svc = app(AmtImportService::class);
             $this->commitStats = $svc->commit($rows, $this->defaultAction);
+
+            Log::info('AmtImport::commit() DONE', $this->commitStats);
 
             session()->flash('success', sprintf(
                 'Import abgeschlossen: %d neu, %d aktualisiert, %d übersprungen.',
@@ -117,6 +145,12 @@ class AmtImport extends Component
                 $this->commitStats['skipped']
             ));
         } catch (\Throwable $e) {
+            Log::error('AmtImport::commit() FAILED', [
+                'msg'   => $e->getMessage(),
+                'file'  => $e->getFile(),
+                'line'  => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             $this->errorMessage = 'Import-Fehler: ' . $e->getMessage();
         }
     }
@@ -139,18 +173,19 @@ class AmtImport extends Component
         $rows = $this->parseResult['rows'];
         $ok = 0; $errors = 0; $new = 0; $existing = 0;
         foreach ($rows as $r) {
-            if (!empty($r['errors'])) $errors++;
-            else {
+            if (!empty($r['errors'])) {
+                $errors++;
+            } else {
                 $ok++;
-                if ($r['existing']) $existing++;
+                if (!empty($r['existing'])) $existing++;
                 else $new++;
             }
         }
         return [
-            'total' => count($rows),
-            'ok' => $ok,
-            'errors' => $errors,
-            'new' => $new,
+            'total'    => count($rows),
+            'ok'       => $ok,
+            'errors'   => $errors,
+            'new'      => $new,
             'existing' => $existing,
         ];
     }
