@@ -186,7 +186,7 @@ class AnlagenListe extends Component
         $this->dispatch('open-amt-export-modal',
             jahr: (int) $this->filterJahr,
             messungIds: $messungIds
-        );
+        )->to('messungen.amt-export');
     }
 
     /**
