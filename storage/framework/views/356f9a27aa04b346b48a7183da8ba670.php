@@ -884,15 +884,8 @@ if (isset($__slots)) unset($__slots);
 
 <?php $__env->startPush('scripts'); ?>
 <script>
-    document.addEventListener('livewire:init', () => {
-        Livewire.on('open-amt-export-modal', (event) => {
-            const payload = Array.isArray(event) ? event[0] : event;
-            Livewire.dispatchTo('messungen.amt-export', 'open', {
-                jahr: payload?.jahr ?? null,
-                messungIds: payload?.messungIds ?? [],
-            });
-        });
-    });
+    // Keine Event-Bridge nötig: $this->dispatch(...)->to('messungen.amt-export')
+    // läuft direkt server-seitig.
 </script>
 <?php $__env->stopPush(); ?>
 
