@@ -259,7 +259,12 @@
                                 $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
                                 $hatMessung = $letzteMessung !== null;
                                 $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
-                                $istExportiert = $hatMessung && $letzteMessung->exported_at !== null;
+                                // Export-Status: irgendeine Messung im Jahr wurde ans Amt geschickt (konsistent zum Filter)
+                                $letzteExportierteMessung = $anlage->messungenHeuer()
+                                    ->whereNotNull('exported_at')
+                                    ->orderBy('exported_at', 'desc')
+                                    ->first();
+                                $istExportiert = $letzteExportierteMessung !== null;
                                 $kodexStr = (string) $anlage->Feld_a;
                             @endphp
                             <tr class="{{ $istNegativ ? 'table-danger' : (!$hatMessung ? 'table-warning' : '') }}">
@@ -296,7 +301,7 @@
                                 <td class="text-center">
                                     @if($hatMessung && $istExportiert)
                                         <span class="badge bg-success"
-                                              title="Exportiert am {{ \Carbon\Carbon::parse($letzteMessung->exported_at)->format('d.m.Y H:i') }}{{ $letzteMessung->exported_to_email ? ' an ' . $letzteMessung->exported_to_email : '' }}">
+                                              title="Exportiert am {{ \Carbon\Carbon::parse($letzteExportierteMessung->exported_at)->format('d.m.Y H:i') }}{{ $letzteExportierteMessung->exported_to_email ? ' an ' . $letzteExportierteMessung->exported_to_email : '' }}">
                                             <i class="bi bi-envelope-check"></i>
                                         </span>
                                     @elseif($hatMessung)
@@ -345,7 +350,10 @@
                         $letzteMessung = $anlage->messungenHeuer()->orderBy('cMIS_DATA', 'desc')->orderBy('cMIS_ORA', 'desc')->first();
                         $hatMessung = $letzteMessung !== null;
                         $istNegativ = $hatMessung && $letzteMessung->strEsito === '0';
-                        $istExportiert = $hatMessung && $letzteMessung->exported_at !== null;
+                        // Export-Status: irgendeine Messung im Jahr wurde ans Amt geschickt (konsistent zum Filter)
+                        $istExportiert = $anlage->messungenHeuer()
+                            ->whereNotNull('exported_at')
+                            ->exists();
                         $kodexStr = (string) $anlage->Feld_a;
                     @endphp
                     <div class="anlage-card border-bottom {{ $istNegativ ? 'bg-danger bg-opacity-10' : (!$hatMessung ? 'bg-warning bg-opacity-10' : '') }}">
