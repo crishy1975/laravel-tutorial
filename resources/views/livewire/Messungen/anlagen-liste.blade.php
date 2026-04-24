@@ -517,6 +517,23 @@
                             </div>
                         @endif
 
+                        {{-- Live-Validierung (Pflichtfelder + Bereichs-Checks) --}}
+                        @if(!empty($formErrors))
+                            <div class="alert alert-warning py-2 mb-2" role="alert">
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-exclamation-triangle fs-5"></i>
+                                    <div class="flex-grow-1 small">
+                                        <strong>Speichern nicht möglich.</strong> Folgende Felder sind unvollständig oder außerhalb des gültigen Bereichs:
+                                        <ul class="mb-0 mt-1 ps-3">
+                                            @foreach($formErrors as $feldKey => $fehler)
+                                                <li><strong>{{ $feldKey }}</strong>: {{ $fehler }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         <form wire:submit="saveMessung">
                             <div class="row g-3">
                                 {{-- Linke Spalte: Grunddaten + Messwerte --}}
@@ -634,17 +651,17 @@
                                             <div class="row g-2">
                                                 <div class="col-4 col-md-2">
                                                     <label class="form-label small mb-0">Stadio</label>
-                                                    <input type="text" wire:model="messung.cMIS_STADIO"
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
                                                            class="form-control form-control-sm" required>
                                                 </div>
                                                 <div class="col-4 col-md-3">
                                                     <label class="form-label small mb-0">Datum</label>
-                                                    <input type="text" wire:model="messung.cMIS_DATA2"
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
                                                            class="form-control form-control-sm" required>
                                                 </div>
                                                 <div class="col-4 col-md-2">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
-                                                    <input type="time" wire:model="messung.cMIS_ORA"
+                                                    <input type="time" wire:model.live.debounce.500ms="messung.cMIS_ORA"
                                                            class="form-control form-control-sm" step="1">
                                                 </div>
                                                 <div class="col-12 col-md-5">
@@ -685,7 +702,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">T Wärmeträger</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_T_LIQ_CONV"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_T_LIQ_CONV"
                                                                class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
@@ -693,7 +710,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">T Abgas</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_T_GAS_COMB"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_T_GAS_COMB"
                                                                class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
@@ -704,7 +721,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">T Verbrennungsluft</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_T_ARIA_COMB"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_T_ARIA_COMB"
                                                                class="form-control">
                                                         <span class="input-group-text">°C</span>
                                                     </div>
@@ -712,7 +729,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">O₂</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_OSSIGENO"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_OSSIGENO"
                                                                class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
@@ -723,7 +740,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">CO₂</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_ANIDRIDE_CARBONICA"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_ANIDRIDE_CARBONICA"
                                                                class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
@@ -750,7 +767,7 @@
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Qa</label>
                                                     <div class="input-group input-group-sm">
-                                                        <input type="text" wire:model="messung.cMIS_PERD_FUMI"
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_PERD_FUMI"
                                                                class="form-control">
                                                         <span class="input-group-text">%</span>
                                                     </div>
@@ -872,7 +889,9 @@
                         <button type="button" wire:click="closeMessungModal" class="btn btn-secondary btn-sm">
                             <i class="bi bi-x-lg"></i> Abbrechen
                         </button>
-                        <button type="button" wire:click="saveMessung" class="btn btn-success btn-sm">
+                        <button type="button" wire:click="saveMessung" class="btn btn-success btn-sm"
+                                @disabled(!empty($formErrors))
+                                title="{{ !empty($formErrors) ? 'Bitte zuerst alle Fehler korrigieren' : 'Speichern' }}">
                             <i class="bi bi-check-lg"></i> Speichern
                         </button>
                     </div>

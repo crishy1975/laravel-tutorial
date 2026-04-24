@@ -531,6 +531,13 @@ class MessungenListe extends Component
             'messung.cMIS_COMBUSTIBILE.required' => 'Brennstoff ist erforderlich.',
         ]);
 
+        // Amt-Validierung: alle Messfelder müssen vollständig und im Bereich sein
+        $formErrors = app(\App\Services\AmtExportService::class)->validateForForm($this->messung);
+        if (!empty($formErrors)) {
+            $this->modalError = 'Daten unvollständig oder außerhalb der Bereiche. Speichern nicht möglich.';
+            return;
+        }
+
         try {
             // Datum konvertieren
             $datumParts = explode('.', $this->messung['cMIS_DATA2'] ?? '');
@@ -723,6 +730,18 @@ class MessungenListe extends Component
         return self::BRENNSTOFFE;
     }
 
+    /**
+     * Live-Validierung der Eingaben im Messung-Modal.
+     * Leeres Array = alles OK → Speichern-Button aktiv.
+     */
+    public function getFormErrorsProperty(): array
+    {
+        if (!$this->showMessungModal || empty($this->messung)) {
+            return [];
+        }
+        return app(\App\Services\AmtExportService::class)->validateForForm($this->messung);
+    }
+
     public function delete($id)
     {
         $messung = Messung::findOrFail($id);
@@ -737,6 +756,7 @@ class MessungenListe extends Component
             'messungen' => $this->messungen,
             'statistik' => $this->statistik,
             'brennstoffe' => $this->brennstoffe,
+            'formErrors' => $this->formErrors,
         ]);
     }
 }
