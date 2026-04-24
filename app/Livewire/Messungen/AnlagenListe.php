@@ -593,14 +593,20 @@ class AnlagenListe extends Component
 
         // Export-Status: wirkt über Messungen im filterJahr
         if ($this->filterExportStatus === '1') {
+            // Exportiert: mindestens eine Messung im Jahr wurde ans Amt geschickt
             $query->whereHas('messungen', function ($q) {
                 $q->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
                   ->whereNotNull('exported_at');
             });
         } elseif ($this->filterExportStatus === '0') {
+            // Nicht exportiert: KEINE Messung im Jahr wurde ans Amt geschickt
+            // (Anlage muss aber eine Messung im Jahr haben — sonst wäre sie
+            // trivial "nicht exportiert" und würde die Liste überfluten)
             $query->whereHas('messungen', function ($q) {
+                $q->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr]);
+            })->whereDoesntHave('messungen', function ($q) {
                 $q->whereRaw("RIGHT(cMIS_DATA, 4) = ?", [$this->filterJahr])
-                  ->whereNull('exported_at');
+                  ->whereNotNull('exported_at');
             });
         }
 
