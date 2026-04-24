@@ -264,6 +264,163 @@ class AmtExportService
     }
 
     /**
+     * Validiert Messdaten aus einem Formular (Array) für Live-Validierung in Modals.
+     * 
+     * Alle Messfelder sind Pflicht. Leere Felder = Fehler.
+     * Bereiche sind identisch zur Export-Validierung, aber keine Mutation.
+     *
+     * Rückgabe: ['feldname' => 'Fehlermeldung', ...] — leer = alles OK.
+     * Feldnamen entsprechen den Schlüsseln in $this->messung (z.B. 'cMIS_OSSIGENO').
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, string>
+     */
+    public function validateForForm(array $data): array
+    {
+        $errors = [];
+
+        // Hilfsfunktion: ist der Wert "leer"? (null, leerer String, nur Whitespace)
+        $isEmpty = function ($v): bool {
+            return $v === null || trim((string) $v) === '';
+        };
+
+        // Datum: Pflicht, Format TT.MM.JJJJ
+        $datum = trim((string) ($data['cMIS_DATA2'] ?? ''));
+        if ($datum === '') {
+            $errors['cMIS_DATA2'] = 'Datum ist Pflicht.';
+        } elseif (!preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $datum, $m)) {
+            $errors['cMIS_DATA2'] = 'Datum muss TT.MM.JJJJ sein.';
+        } elseif (!checkdate((int) $m[2], (int) $m[1], (int) $m[3])) {
+            $errors['cMIS_DATA2'] = 'Datum existiert nicht.';
+        }
+
+        // Stadio: Pflicht, 0-9
+        if ($isEmpty($data['cMIS_STADIO'] ?? null)) {
+            $errors['cMIS_STADIO'] = 'Stadio ist Pflicht.';
+        } else {
+            $stadio = (int) $data['cMIS_STADIO'];
+            if ($stadio < 0 || $stadio > 9) {
+                $errors['cMIS_STADIO'] = 'Stadio muss 0-9 sein.';
+            }
+        }
+
+        // Brennstoff: Pflicht
+        $brennstoff = (string) ($data['cMIS_COMBUSTIBILE'] ?? '');
+        if ($brennstoff === '') {
+            $errors['cMIS_COMBUSTIBILE'] = 'Brennstoff ist Pflicht.';
+        } elseif ($this->getBrennstoffAmtCode($brennstoff) === 0) {
+            $errors['cMIS_COMBUSTIBILE'] = 'Unbekannter Brennstoff.';
+        }
+
+        // Abgastemperatur: Pflicht, 10-500°C
+        if ($isEmpty($data['cMIS_T_GAS_COMB'] ?? null)) {
+            $errors['cMIS_T_GAS_COMB'] = 'Abgastemperatur ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_T_GAS_COMB'];
+            if ($v < 10 || $v > 500) {
+                $errors['cMIS_T_GAS_COMB'] = 'Außerhalb 10-500 °C.';
+            }
+        }
+
+        // Verbrennungslufttemperatur: Pflicht, 0-60°C
+        if ($isEmpty($data['cMIS_T_ARIA_COMB'] ?? null)) {
+            $errors['cMIS_T_ARIA_COMB'] = 'Verbrennungslufttemperatur ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_T_ARIA_COMB'];
+            if ($v < 0 || $v > 60) {
+                $errors['cMIS_T_ARIA_COMB'] = 'Außerhalb 0-60 °C.';
+            }
+        }
+
+        // Wärmeträgertemperatur: Pflicht, 5-300°C
+        if ($isEmpty($data['cMIS_T_LIQ_CONV'] ?? null)) {
+            $errors['cMIS_T_LIQ_CONV'] = 'Wärmeträgertemperatur ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_T_LIQ_CONV'];
+            if ($v < 5 || $v > 300) {
+                $errors['cMIS_T_LIQ_CONV'] = 'Außerhalb 5-300 °C.';
+            }
+        }
+
+        // O2 (Sauerstoff): Pflicht, 0.0-21.0 %
+        if ($isEmpty($data['cMIS_OSSIGENO'] ?? null)) {
+            $errors['cMIS_OSSIGENO'] = 'O₂ ist Pflicht.';
+        } else {
+            $v = (float) str_replace(',', '.', (string) $data['cMIS_OSSIGENO']);
+            if ($v < 0 || $v > 21) {
+                $errors['cMIS_OSSIGENO'] = 'Außerhalb 0,0-21,0 %.';
+            }
+        }
+
+        // CO2: Pflicht, 0.0-CO2max je Brennstoff
+        if ($isEmpty($data['cMIS_ANIDRIDE_CARBONICA'] ?? null)) {
+            $errors['cMIS_ANIDRIDE_CARBONICA'] = 'CO₂ ist Pflicht.';
+        } else {
+            $v = (float) str_replace(',', '.', (string) $data['cMIS_ANIDRIDE_CARBONICA']);
+            if ($v < 0 || $v > 99.9) {
+                $errors['cMIS_ANIDRIDE_CARBONICA'] = 'Außerhalb 0,0-99,9 %.';
+            } else {
+                $co2Max = $this->getCo2Max($brennstoff);
+                if ($co2Max > 0 && $v > $co2Max) {
+                    $errors['cMIS_ANIDRIDE_CARBONICA'] = sprintf(
+                        'Über CO₂max %.1f %% für %s.', $co2Max, $brennstoff
+                    );
+                }
+            }
+        }
+
+        // CO: Pflicht, 0-9999 mg/m³
+        if ($isEmpty($data['cMIS_MONOSSSIDO'] ?? null)) {
+            $errors['cMIS_MONOSSSIDO'] = 'CO ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_MONOSSSIDO'];
+            if ($v < 0 || $v > 9999) {
+                $errors['cMIS_MONOSSSIDO'] = 'Außerhalb 0-9999 mg/m³.';
+            }
+        }
+
+        // NOx: Pflicht, 0-9999 mg/m³
+        if ($isEmpty($data['cMIS_BIOSSIDO_AZOTO'] ?? null)) {
+            $errors['cMIS_BIOSSIDO_AZOTO'] = 'NOx ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_BIOSSIDO_AZOTO'];
+            if ($v < 0 || $v > 9999) {
+                $errors['cMIS_BIOSSIDO_AZOTO'] = 'Außerhalb 0-9999 mg/m³.';
+            }
+        }
+
+        // Abgasverlust: Pflicht, 0.0-99.9 %
+        if ($isEmpty($data['cMIS_PERD_FUMI'] ?? null)) {
+            $errors['cMIS_PERD_FUMI'] = 'Abgasverlust ist Pflicht.';
+        } else {
+            $v = (float) str_replace(',', '.', (string) $data['cMIS_PERD_FUMI']);
+            if ($v < 0 || $v > 99.9) {
+                $errors['cMIS_PERD_FUMI'] = 'Außerhalb 0,0-99,9 %.';
+            }
+        }
+
+        // Rußzahl: Pflicht, 0-9
+        if ($isEmpty($data['cMIS_IND_OPACITA'] ?? null)) {
+            $errors['cMIS_IND_OPACITA'] = 'Rußzahl ist Pflicht.';
+        } else {
+            $v = (int) $data['cMIS_IND_OPACITA'];
+            if ($v < 0 || $v > 9) {
+                $errors['cMIS_IND_OPACITA'] = 'Außerhalb 0-9.';
+            }
+        }
+
+        // Ölspuren: Pflicht, 0 oder 1 (im Form "1"=Nein, "0"=Ja)
+        $oel = $data['cMIS_TRACCE_OLEO'] ?? null;
+        if ($isEmpty($oel)) {
+            $errors['cMIS_TRACCE_OLEO'] = 'Ölderivate ist Pflicht.';
+        } elseif (!in_array((string) $oel, ['0', '1'], true)) {
+            $errors['cMIS_TRACCE_OLEO'] = 'Ölderivate muss Ja/Nein sein.';
+        }
+
+        return $errors;
+    }
+
+    /**
      * Validiert Kontrolleur-ID (Format NNNNN.N o.ä.)
      */
     public function validateKontrolleurId(string $id): void

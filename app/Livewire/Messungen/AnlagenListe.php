@@ -449,7 +449,7 @@ class AnlagenListe extends Component
     {
         $this->modalError = null;
         
-        // Validierung
+        // Validierung (Livewire-required-Check + Amt-Validierung)
         $this->validate([
             'messung.cMIS_STADIO' => 'required',
             'messung.cMIS_DATA2' => 'required',
@@ -459,6 +459,13 @@ class AnlagenListe extends Component
             'messung.cMIS_DATA2.required' => 'Datum ist erforderlich.',
             'messung.cMIS_COMBUSTIBILE.required' => 'Brennstoff ist erforderlich.',
         ]);
+
+        // Amt-Validierung: alle Messfelder müssen vollständig und im Bereich sein
+        $formErrors = app(\App\Services\AmtExportService::class)->validateForForm($this->messung);
+        if (!empty($formErrors)) {
+            $this->modalError = 'Daten unvollständig oder außerhalb der Bereiche. Speichern nicht möglich.';
+            return;
+        }
 
         if (!$this->selectedAnlage) {
             $this->modalError = 'Keine Anlage ausgewählt.';
@@ -644,6 +651,19 @@ class AnlagenListe extends Component
         return $query->paginate(25);
     }
 
+    /**
+     * Live-Validierung der Eingaben im Messung-Modal.
+     * Wird bei jeder Eingabe neu berechnet (Livewire-Computed-Property).
+     * Leeres Array = alles OK → Speichern-Button aktiv.
+     */
+    public function getFormErrorsProperty(): array
+    {
+        if (!$this->showMessungModal || empty($this->messung)) {
+            return [];
+        }
+        return app(\App\Services\AmtExportService::class)->validateForForm($this->messung);
+    }
+
     public function getStatistikProperty()
     {
         $jahr = (int) $this->filterJahr;
@@ -661,6 +681,7 @@ class AnlagenListe extends Component
             'anlagen' => $this->anlagen,
             'statistik' => $this->statistik,
             'brennstoffe' => self::BRENNSTOFFE,
+            'formErrors' => $this->formErrors,
         ]);
     }
 }
