@@ -20,6 +20,12 @@ Auf dem Display findest du oben rechts Datum und Uhrzeit im Format:
 - Zeile 2: Datum (z.B. "15.01.26")
 - Zeile 3: "WLAN pronto" oder ähnlich (IGNORIEREN!)
 
+WICHTIG beim Datum:
+- Lies das Jahr EXAKT wie auf dem Display. Das Display zeigt 2-stellig, z.B. "26" (= 2026) oder "25" (= 2025).
+- Aktuelles Jahr ist ' . date('Y') . '. Plausible Jahre: ' . (date('Y')-1) . ', ' . date('Y') . ', ' . (date('Y')+1) . '.
+- Halluziniere KEINE anderen Jahre. Wenn du "26" siehst, schreib "2026" — NICHT "2028" oder "2023".
+- Gib das Jahr 4-stellig zurück.
+
 Verwende GENAU diese Feldnamen:
 {
   "typ": "display",
@@ -38,7 +44,6 @@ Verwende GENAU diese Feldnamen:
 
 Wichtig:
 - Uhrzeit ist IMMER im Format HH:MM (z.B. "10:58"), NICHT "WLAN pronto"!
-- Datum 2-stelliges Jahr zu 4-stellig: 26 → 2026
 - Verwende COn (normiert), nicht COv
 - Verwende NOxn (normiert), nicht NOxv  
 - Nur Zahlen ohne Einheiten
@@ -130,7 +135,7 @@ Wichtig:
 - Die Werte sind HANDGESCHRIEBEN - lies JEDEN Wert einzeln und sorgfältig!
 - Prüfe ob die gelesenen Werte in die Plausibilitätsbereiche passen
 - Wenn ein Wert unplausibel erscheint, schaue nochmal genau hin
-- Datum 2-stelliges Jahr zu 4-stellig: 25 → 2025, 26 → 2026
+- Datum 2-stelliges Jahr zu 4-stellig: Aktuelles Jahr ist ' . date('Y') . '. Plausible Jahre: ' . (date('Y')-1) . ', ' . date('Y') . ', ' . (date('Y')+1) . '. Halluziniere KEINE anderen Jahre — wenn "26" dasteht, schreib "2026", wenn "25" dasteht "2025".
 - Nur Zahlen ohne Einheiten im JSON
 - Dezimaltrennzeichen als Punkt: 8,3 → "8.3", 6,2 → "6.2"
 - Brennstoff: Erdgas/Metano → FUEL_NAT_GAS, Heizöl/Gasolio → FUEL_LIGHT_OIL, Flüssiggas/GPL → FUEL_PROPANE, Pellets → FUEL_PELLETS, Holz/Legna → FUEL_WOOD
@@ -223,6 +228,23 @@ Antworte NUR mit dem JSON, kein anderer Text.';
                     // Jahr korrigieren wenn nur 2-stellig
                     if (isset($data['datum'])) {
                         $data['datum'] = preg_replace('/\.(\d{2})$/', '.20$1', $data['datum']);
+
+                        // Plausibilitätscheck: Jahr muss innerhalb ±1 vom aktuellen Jahr liegen.
+                        // Das Display zeigt immer ein Jahr nahe der Gegenwart — wenn das Modell
+                        // z.B. "26" als "2028" halluziniert, korrigieren wir auf plausibles Jahr.
+                        if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $data['datum'], $dm)) {
+                            $jahr = (int) $dm[3];
+                            $aktuellesJahr = (int) date('Y');
+                            if ($jahr < $aktuellesJahr - 1 || $jahr > $aktuellesJahr + 1) {
+                                // Unplausibel → auf aktuelles Jahr korrigieren und warnen
+                                Log::warning('Extract Messung: unplausibles Jahr erkannt, korrigiert', [
+                                    'erkannt' => $data['datum'],
+                                    'korrigiert_auf' => $aktuellesJahr,
+                                ]);
+                                $data['datum'] = $dm[1] . '.' . $dm[2] . '.' . $aktuellesJahr;
+                                $data['_warn_datum_korrigiert'] = true;
+                            }
+                        }
                     }
                     
                     return response()->json(array_merge(['success' => true], $data));
