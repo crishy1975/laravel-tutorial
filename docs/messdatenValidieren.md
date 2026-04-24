@@ -5,7 +5,8 @@ Wärmeträgertemp 5-300°C
 Co2 0-Co2Max Brennstoff
 
 Co 0-9999 wenn höher dann 9999
-
+O2 von 0 bis 21
+Nox von 0 bis 9999 wenn höher dann 9999
 
 Co2Max
 Brennstoff	CO₂max ca.
