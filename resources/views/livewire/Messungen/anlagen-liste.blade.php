@@ -92,6 +92,10 @@
                 <i class="bi bi-funnel"></i> Filter
                 @php
                     $activeFilters = collect([$filterKodex, $filterBeschreibung, $filterOrt, $filterStrasse, $filterHersteller, $filterGemessen, $filterExportStatus])->filter()->count();
+                    // Status nur als "aktiv" zählen wenn vom Default ('1' = Aktiv) abweicht
+                    if ($filterStatus !== '1') {
+                        $activeFilters++;
+                    }
                 @endphp
                 @if($activeFilters > 0)
                     <span class="badge bg-primary ms-1">{{ $activeFilters }}</span>
@@ -136,6 +140,15 @@
                             <option value="">Alle</option>
                             <option value="1">Exportiert</option>
                             <option value="0">Nicht exp.</option>
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-1">
+                        <label class="form-label small mb-1">Status</label>
+                        <select wire:model="filterStatus" class="form-select form-select-sm">
+                            <option value="1">Aktiv</option>
+                            <option value="4">Stillgelegt</option>
+                            <option value="5">Abmontiert</option>
+                            <option value="">Alle</option>
                         </select>
                     </div>
                     <div class="col-4 col-md-1">

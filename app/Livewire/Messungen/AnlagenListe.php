@@ -25,6 +25,7 @@ class AnlagenListe extends Component
     public $filterHersteller = '';     // sucht in Feld_y (Hersteller Kessel)
     public $filterGemessen = '';
     public $filterExportStatus = '';   // '' | '1' (exportiert) | '0' (nicht exportiert)
+    public $filterStatus = '1';        // Anlagen-Status (Feld_x): '1'=aktiv, '4'=stillgelegt, '5'=abmontiert, ''=alle. Default: nur aktive
     public $filterJahr;
 
     // Multi-Select für Amt-Export
@@ -69,6 +70,7 @@ class AnlagenListe extends Component
         'filterHersteller' => ['except' => ''],
         'filterGemessen' => ['except' => ''],
         'filterExportStatus' => ['except' => ''],
+        'filterStatus' => ['except' => '1'],
         'filterJahr' => ['except' => ''],
     ];
 
@@ -93,6 +95,7 @@ class AnlagenListe extends Component
             'filterHersteller',
             'filterGemessen',
             'filterExportStatus',
+            'filterStatus',
             'filterJahr',
             'page',
         ])) {
@@ -105,6 +108,7 @@ class AnlagenListe extends Component
                 $this->filterHersteller = $saved['filterHersteller'] ?? '';
                 $this->filterGemessen = $saved['filterGemessen'] ?? '';
                 $this->filterExportStatus = $saved['filterExportStatus'] ?? '';
+                $this->filterStatus = $saved['filterStatus'] ?? '1';
                 $this->filterJahr = $saved['filterJahr'] ?? date('Y');
                 $this->sortField = $saved['sortField'] ?? 'Feld_i';
                 $this->sortDirection = $saved['sortDirection'] ?? 'asc';
@@ -126,6 +130,7 @@ class AnlagenListe extends Component
             'filterHersteller' => $this->filterHersteller,
             'filterGemessen' => $this->filterGemessen,
             'filterExportStatus' => $this->filterExportStatus,
+            'filterStatus' => $this->filterStatus,
             'filterJahr' => $this->filterJahr,
             'sortField' => $this->sortField,
             'sortDirection' => $this->sortDirection,
@@ -146,6 +151,7 @@ class AnlagenListe extends Component
     public function updatingFilterHersteller()   { }
     public function updatingFilterGemessen()     { }
     public function updatingFilterExportStatus() { }
+    public function updatingFilterStatus()       { }
 
     public function sortBy($field)
     {
@@ -167,6 +173,7 @@ class AnlagenListe extends Component
         $this->filterHersteller = '';
         $this->filterGemessen = '';
         $this->filterExportStatus = '';
+        $this->filterStatus = '1';
         $this->filterJahr = date('Y');
         $this->resetPage();
         $this->saveToSession();
@@ -582,6 +589,12 @@ class AnlagenListe extends Component
         // Hersteller Kessel (Feld_y)
         if ($this->filterHersteller) {
             $query->where('Feld_y', 'like', "%{$this->filterHersteller}%");
+        }
+
+        // Anlagen-Status (Feld_x): 1=aktiv, 4=stillgelegt, 5=abmontiert
+        // Leerer Wert = alle Status anzeigen. Default '1' zeigt nur aktive.
+        if ($this->filterStatus !== '' && $this->filterStatus !== null) {
+            $query->where('Feld_x', $this->filterStatus);
         }
 
         // Messung ja/nein
