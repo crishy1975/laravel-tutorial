@@ -85,7 +85,17 @@ class AnlagenListe extends Component
 
     public function mount()
     {
-        if (!request()->hasAny(['filterKodex', 'filterBeschreibung', 'filterStrasse', 'filterOrt', 'filterHersteller', 'filterGemessen', 'filterExportStatus', 'filterJahr'])) {
+        if (!request()->hasAny([
+            'filterKodex',
+            'filterBeschreibung',
+            'filterStrasse',
+            'filterOrt',
+            'filterHersteller',
+            'filterGemessen',
+            'filterExportStatus',
+            'filterJahr',
+            'page',
+        ])) {
             $saved = session('anlagen_filter', []);
             if (!empty($saved)) {
                 $this->filterKodex = $saved['filterKodex'] ?? '';
@@ -126,6 +136,7 @@ class AnlagenListe extends Component
     {
         $this->resetPage();
         $this->saveToSession();
+        $this->syncSelectAllOnPage();
     }
 
     public function updatingFilterKodex()       { }
@@ -237,6 +248,14 @@ class AnlagenListe extends Component
      * Synct den "Alle auswählen"-Header-Toggle beim Seitenwechsel.
      */
     public function updatedPage()
+    {
+        $this->syncSelectAllOnPage();
+    }
+
+    /**
+     * Nach manueller Einzel-Auswahl/Abwahl den Header-Toggle synchron halten.
+     */
+    public function updatedSelectedAnlagen(): void
     {
         $this->syncSelectAllOnPage();
     }
@@ -603,14 +622,7 @@ class AnlagenListe extends Component
             $query->orderBy('Feld_n', 'asc');
         }
 
-        $anlagen = $query->paginate(25);
-
-        // Auswahl-Toggle auf aktuelle Seite synchronisieren
-        $pageKodexe = collect($anlagen->items())->pluck('Feld_a')->map(fn($k) => (string) $k)->all();
-        $this->selectAllOnPage = !empty($pageKodexe)
-            && count(array_diff($pageKodexe, $this->selectedAnlagen)) === 0;
-
-        return $anlagen;
+        return $query->paginate(25);
     }
 
     public function getStatistikProperty()

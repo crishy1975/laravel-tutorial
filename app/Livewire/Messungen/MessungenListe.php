@@ -93,7 +93,17 @@ class MessungenListe extends Component
     public function mount()
     {
         // Filter aus Session wiederherstellen (nur wenn keine URL-Parameter)
-        if (!request()->hasAny(['filterKodex', 'filterName', 'filterErgebnis', 'filterBrennstoff', 'filterOhneAnlage', 'filterJahr', 'page'])) {
+        if (!request()->hasAny([
+            'filterKodex',
+            'filterName',
+            'filterDatumVon',
+            'filterDatumBis',
+            'filterErgebnis',
+            'filterBrennstoff',
+            'filterOhneAnlage',
+            'filterJahr',
+            'page',
+        ])) {
             $saved = session('messungen_filter', []);
             if (!empty($saved)) {
                 $this->filterKodex = $saved['filterKodex'] ?? '';
@@ -156,6 +166,10 @@ class MessungenListe extends Component
             $this->sortField = $field;
             $this->sortDirection = 'asc';
         }
+        // Defensiv: sortDirection immer auf Whitelist normalisieren
+        $this->sortDirection = in_array($this->sortDirection, ['asc', 'desc'], true)
+            ? $this->sortDirection
+            : 'asc';
         $this->saveToSession();
     }
 
@@ -456,9 +470,19 @@ class MessungenListe extends Component
 
     public function berechneGrenzwerte()
     {
+        // Ohne Baujahr + Leistung sind die Grenzwerte nicht aussagekräftig
+        // (würden sonst mit Defaults baujahr=2000, leistung=0 berechnet).
+        $boilerYearRaw = $this->messung['boilerYear'] ?? '';
+        $boilerPowerRaw = $this->messung['boilerPower'] ?? '';
+        if ($boilerYearRaw === '' || $boilerYearRaw === null
+            || $boilerPowerRaw === '' || $boilerPowerRaw === null) {
+            $this->grenzwerte = null;
+            return;
+        }
+
         $brennstoff = $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS';
-        $leistung = (float) ($this->messung['boilerPower'] ?? 0);
-        $baujahr = (int) ($this->messung['boilerYear'] ?? 2000);
+        $leistung = (float) $boilerPowerRaw;
+        $baujahr = (int) $boilerYearRaw;
         $co = (int) ($this->messung['cMIS_MONOSSSIDO'] ?? 0);
         $nox = (int) ($this->messung['cMIS_BIOSSIDO_AZOTO'] ?? 0);
         $russ = (int) ($this->messung['cMIS_IND_OPACITA'] ?? 0);
@@ -651,10 +675,12 @@ class MessungenListe extends Component
 
         // Sortierung
         // Datum korrekt sortieren (cMIS_DATA ist im Format ddmmyyyy)
+        // Whitelist für Richtung, da unten via orderByRaw interpoliert
+        $dir = in_array($this->sortDirection, ['asc', 'desc'], true) ? $this->sortDirection : 'asc';
         if ($this->sortField === 'cMIS_DATA') {
-            $query->orderByRaw("STR_TO_DATE(cMIS_DATA, '%d%m%Y') {$this->sortDirection}");
+            $query->orderByRaw("STR_TO_DATE(cMIS_DATA, '%d%m%Y') {$dir}");
         } else {
-            $query->orderBy($this->sortField, $this->sortDirection);
+            $query->orderBy($this->sortField, $dir);
         }
 
         // Sekundäre Sortierung: Stadio aufwärts
