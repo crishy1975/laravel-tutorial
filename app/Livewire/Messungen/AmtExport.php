@@ -104,12 +104,29 @@ class AmtExport extends Component
                 ];
             }
 
+            // Korrektur-Report: erste 50 (analog zu invalid)
+            $correctedPreview = [];
+            $correctedList = $report['corrected'] ?? [];
+            foreach (array_slice($correctedList, 0, 50) as $entry) {
+                $m = $entry['messung'];
+                $correctedPreview[] = [
+                    'id' => $m->id,
+                    'kodex' => $m->cIM_CODICE,
+                    'datum' => $m->cMIS_DATA2 ?: $m->cMIS_DATA,
+                    'stadio' => $m->cMIS_STADIO,
+                    'corrections' => $entry['corrections'],
+                ];
+            }
+
             $this->validationReport = [
                 'total' => $messungen->count(),
                 'valid_count' => $report['valid']->count(),
                 'invalid_count' => count($report['invalid']),
                 'invalid_preview' => $invalidPreview,
                 'invalid_truncated' => count($report['invalid']) > 50,
+                'corrected_count' => count($correctedList),
+                'corrected_preview' => $correctedPreview,
+                'corrected_truncated' => count($correctedList) > 50,
             ];
         } catch (\Throwable $e) {
             $this->errorMessage = 'Analyse-Fehler: ' . $e->getMessage();

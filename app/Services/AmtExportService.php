@@ -136,7 +136,7 @@ class AmtExportService
             }
         }
 
-        // STADIO: 1 Ziffer, 0-9
+        // STADIO: 1 Ziffer, 0-9 (höhere Werte werden via applyAutoCorrections auf 1 gesetzt)
         $stadio = (int) ($m->cMIS_STADIO ?: 0);
         if ($stadio < 0 || $stadio > 9) {
             $errors[] = "Stadio '{$m->cMIS_STADIO}' muss 0-9 sein (max 1 Ziffer)";
@@ -154,52 +154,62 @@ class AmtExportService
             $errors[] = "Brennstoff '{$m->cMIS_COMBUSTIBILE}' liefert ungültigen Amt-Code {$brennstoffCode}";
         }
 
-        // T_GAS_COMB: 0-999
+        // T_GAS_COMB (Abgastemperatur): 10-500°C
         $tGas = (int) $m->cMIS_T_GAS_COMB;
-        if ($tGas < 0 || $tGas > 999) {
-            $errors[] = "Abgastemperatur '{$m->cMIS_T_GAS_COMB}' außerhalb 0-999°C";
+        if ($tGas < 10 || $tGas > 500) {
+            $errors[] = "Abgastemperatur '{$m->cMIS_T_GAS_COMB}' außerhalb 10-500°C";
         }
 
-        // T_ARIA_COMB: 0-99
+        // T_ARIA_COMB (Verbrennungslufttemperatur): 0-60°C
+        // (Negative Werte werden via applyAutoCorrections auf 1 gesetzt)
         $tAria = (int) $m->cMIS_T_ARIA_COMB;
-        if ($tAria < 0 || $tAria > 99) {
-            $errors[] = "Lufttemperatur '{$m->cMIS_T_ARIA_COMB}' außerhalb 0-99°C";
+        if ($tAria < 0 || $tAria > 60) {
+            $errors[] = "Verbrennungslufttemperatur '{$m->cMIS_T_ARIA_COMB}' außerhalb 0-60°C";
         }
 
-        // OSSIGENO: 0.0-99.9
+        // OSSIGENO (O2): 0-21 %
         $o2 = (float) str_replace(',', '.', (string) $m->cMIS_OSSIGENO);
-        if ($o2 < 0 || $o2 > 99.9) {
-            $errors[] = "O2 '{$m->cMIS_OSSIGENO}' außerhalb 0,0-99,9 %";
+        if ($o2 < 0 || $o2 > 21) {
+            $errors[] = "O2 '{$m->cMIS_OSSIGENO}' außerhalb 0,0-21,0 %";
         }
 
-        // MONOSSSIDO (CO): 0-9999
+        // MONOSSSIDO (CO): 0-9999 (höhere Werte werden auf 9999 geclampt)
         $co = (int) $m->cMIS_MONOSSSIDO;
         if ($co < 0 || $co > 9999) {
             $errors[] = "CO '{$m->cMIS_MONOSSSIDO}' außerhalb 0-9999 mg/m³";
         }
 
-        // BIOSSIDO_AZOTO (NOx): 0-9999
+        // BIOSSIDO_AZOTO (NOx): 0-9999 (höhere Werte werden auf 9999 geclampt)
         $nox = (int) $m->cMIS_BIOSSIDO_AZOTO;
         if ($nox < 0 || $nox > 9999) {
             $errors[] = "NOx '{$m->cMIS_BIOSSIDO_AZOTO}' außerhalb 0-9999 mg/m³";
         }
 
-        // ANIDRIDE_CARBONICA (CO2): 0.0-99.9
+        // ANIDRIDE_CARBONICA (CO2): 0.0-99.9 %, zusätzlich max. CO2max je Brennstoff
         $co2 = (float) str_replace(',', '.', (string) $m->cMIS_ANIDRIDE_CARBONICA);
         if ($co2 < 0 || $co2 > 99.9) {
             $errors[] = "CO2 '{$m->cMIS_ANIDRIDE_CARBONICA}' außerhalb 0,0-99,9 %";
+        } else {
+            $co2Max = $this->getCo2Max($m->cMIS_COMBUSTIBILE);
+            if ($co2Max > 0 && $co2 > $co2Max) {
+                $errors[] = sprintf(
+                    "CO2 %.1f %% übersteigt CO2max %.1f %% für Brennstoff %s",
+                    $co2, $co2Max, $m->cMIS_COMBUSTIBILE
+                );
+            }
         }
 
-        // PERD_FUMI: 0.0-99.9
+        // PERD_FUMI (Abgasverlust): 0.0-99.9 %
+        // (Negative Werte werden via applyAutoCorrections auf 1.0 gesetzt)
         $perd = (float) str_replace(',', '.', (string) $m->cMIS_PERD_FUMI);
         if ($perd < 0 || $perd > 99.9) {
             $errors[] = "Abgasverlust '{$m->cMIS_PERD_FUMI}' außerhalb 0,0-99,9 %";
         }
 
-        // T_LIQ_CONV: 0-999
+        // T_LIQ_CONV (Wärmeträgertemperatur): 5-300°C, 0 toleriert (= nicht gemessen)
         $tLiq = (int) ($m->cMIS_T_LIQ_CONV ?: 0);
-        if ($tLiq < 0 || $tLiq > 999) {
-            $errors[] = "Konvektionstemperatur '{$m->cMIS_T_LIQ_CONV}' außerhalb 0-999";
+        if ($tLiq !== 0 && ($tLiq < 5 || $tLiq > 300)) {
+            $errors[] = "Wärmeträgertemperatur '{$m->cMIS_T_LIQ_CONV}' außerhalb 5-300°C";
         }
 
         // IND_OPACITA: 0-9
@@ -225,16 +235,23 @@ class AmtExportService
 
     /**
      * Validiert alle Messungen und gibt Report zurück.
+     * Wendet vorher Auto-Korrekturen an (speichert diese auch in die DB).
      *
      * @param  Collection<int, Messung>  $messungen
-     * @return array{valid: Collection, invalid: array<int, array{messung: Messung, errors: array}>}
+     * @return array{valid: Collection, invalid: array<int, array{messung: Messung, errors: array}>, corrected: array<int, array{messung: Messung, corrections: array}>}
      */
     public function validateAll(Collection $messungen): array
     {
         $valid = collect();
         $invalid = [];
+        $corrected = [];
 
         foreach ($messungen as $m) {
+            $corrections = $this->applyAutoCorrections($m);
+            if (!empty($corrections)) {
+                $corrected[] = ['messung' => $m, 'corrections' => $corrections];
+            }
+
             $errors = $this->validateMessung($m);
             if (empty($errors)) {
                 $valid->push($m);
@@ -243,7 +260,7 @@ class AmtExportService
             }
         }
 
-        return ['valid' => $valid, 'invalid' => $invalid];
+        return ['valid' => $valid, 'invalid' => $invalid, 'corrected' => $corrected];
     }
 
     /**
@@ -262,6 +279,93 @@ class AmtExportService
                 "Kontrolleur-ID '{$id}' ungültig. Nur Ziffern und Punkt erlaubt."
             );
         }
+    }
+
+    /**
+     * Maximaler CO2-Gehalt je Brennstoff (Vol-% trocken, stöchiometrisch).
+     * Referenzwerte; Messungen mit CO2 > CO2max sind physikalisch unmöglich.
+     */
+    public const CO2_MAX = [
+        'FUEL_LIGHT_OIL' => 15.4,  // Heizöl leicht
+        'FUEL_HEAVY_OIL' => 15.4,  // Heizöl schwer (ca.)
+        'FUEL_NAT_GAS'   => 11.9,  // Methan / Erdgas
+        'FUEL_PROPANE'   => 13.8,  // Propan
+        'FUEL_BUTANE'    => 14.1,  // Butan
+        'FUEL_PELLETS'   => 20.0,  // Pellets wie Holz
+        'FUEL_WOOD'      => 20.0,  // Holz
+    ];
+
+    /**
+     * CO2max für einen Brennstoff (0.0 wenn unbekannt → Check greift nicht).
+     */
+    public function getCo2Max(?string $fuelId): float
+    {
+        if (empty($fuelId)) {
+            return 0.0;
+        }
+        return (float) (self::CO2_MAX[$fuelId] ?? 0.0);
+    }
+
+    /**
+     * Wendet Auto-Korrekturen auf das Messung-Modell an und speichert sie in die DB.
+     *
+     * Korrigiert werden:
+     *   - cMIS_PERD_FUMI < 0            → 1.0    (z.B. Brennwertkessel mit -0.1)
+     *   - cMIS_STADIO > 9               → 1      (nur 1 Ziffer im Amt-Format)
+     *   - cMIS_T_ARIA_COMB < 0          → 1      (negative Lufttemp unsinnig)
+     *   - cMIS_MONOSSSIDO > 9999        → 9999   (clamp auf Max-Ziffern)
+     *   - cMIS_BIOSSIDO_AZOTO > 9999    → 9999   (clamp auf Max-Ziffern)
+     *
+     * @return array<int, string>  Liste der durchgeführten Korrekturen (leer = nichts geändert)
+     */
+    public function applyAutoCorrections(Messung $m): array
+    {
+        $corrections = [];
+        $dirty = false;
+
+        $perd = (float) str_replace(',', '.', (string) ($m->cMIS_PERD_FUMI ?? ''));
+        if ($perd < 0) {
+            $corrections[] = "Abgasverlust {$m->cMIS_PERD_FUMI} → 1.0";
+            $m->cMIS_PERD_FUMI = '1.0';
+            $dirty = true;
+        }
+
+        $stadio = (int) ($m->cMIS_STADIO ?? 0);
+        if ($stadio > 9) {
+            $corrections[] = "Stadio {$m->cMIS_STADIO} → 1";
+            $m->cMIS_STADIO = '1';
+            $dirty = true;
+        }
+
+        // Nur echte Einträge (nicht null/leer) auf negativ prüfen
+        if ($m->cMIS_T_ARIA_COMB !== null && $m->cMIS_T_ARIA_COMB !== '') {
+            $tAria = (int) $m->cMIS_T_ARIA_COMB;
+            if ($tAria < 0) {
+                $corrections[] = "Lufttemperatur {$m->cMIS_T_ARIA_COMB} → 1";
+                $m->cMIS_T_ARIA_COMB = '1';
+                $dirty = true;
+            }
+        }
+
+        $co = (int) ($m->cMIS_MONOSSSIDO ?? 0);
+        if ($co > 9999) {
+            $corrections[] = "CO {$m->cMIS_MONOSSSIDO} → 9999";
+            $m->cMIS_MONOSSSIDO = '9999';
+            $dirty = true;
+        }
+
+        $nox = (int) ($m->cMIS_BIOSSIDO_AZOTO ?? 0);
+        if ($nox > 9999) {
+            $corrections[] = "NOx {$m->cMIS_BIOSSIDO_AZOTO} → 9999";
+            $m->cMIS_BIOSSIDO_AZOTO = '9999';
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $m->save();
+        }
+
+        return $corrections;
     }
 
     /**
