@@ -542,62 +542,82 @@
                                 <div class="col-12" x-data="{ 
                                     loading: false, 
                                     status: '',
-                                    processImage(file, source) {
+                                    async resizeImage(file, maxDim = 2000, quality = 0.85) {
+                                        // Bild aus File laden
+                                        const img = await new Promise((resolve, reject) => {
+                                            const i = new Image();
+                                            const url = URL.createObjectURL(file);
+                                            i.onload = () => { URL.revokeObjectURL(url); resolve(i); };
+                                            i.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+                                            i.src = url;
+                                        });
+                                        // Skalieren: längste Seite auf maxDim
+                                        let w = img.naturalWidth, h = img.naturalHeight;
+                                        if (w > maxDim || h > maxDim) {
+                                            if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                                            else        { w = Math.round(w * maxDim / h); h = maxDim; }
+                                        }
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = w;
+                                        canvas.height = h;
+                                        const ctx = canvas.getContext('2d');
+                                        ctx.drawImage(img, 0, 0, w, h);
+                                        // Als JPEG exportieren → reines Base64 (ohne data:-Prefix)
+                                        return canvas.toDataURL('image/jpeg', quality).split(',')[1];
+                                    },
+                                    async processImage(file, source) {
                                         if (!file) return;
                                         this.loading = true;
                                         this.status = '';
-                                        const reader = new FileReader();
-                                        reader.onload = async (e) => {
-                                            try {
-                                                const res = await fetch('/messungen/extract-from-photo', {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
-                                                    },
-                                                    body: JSON.stringify({ image: e.target.result.split(',')[1], source: source || 'auto' })
-                                                });
-                                                const data = await res.json();
-                                                if (data.success) {
-                                                    if (data.typ === 'protokoll') {
-                                                        // Protokoll-Felder mappen
-                                                        if (data.kodex) $wire.set('messung.cIM_CODICE', data.kodex);
-                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
-                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                        $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
-                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                                                        $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
-                                                    } else {
-                                                        // Display-Felder mappen
-                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
-                                                        if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
-                                                        if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
-                                                        $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
-                                                        $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
-                                                        $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
-                                                        $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
-                                                        $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
-                                                        $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
-                                                        $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
-                                                        $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
-                                                    }
-                                                    this.status = 'success';
+                                        try {
+                                            const base64 = await this.resizeImage(file, 2000, 0.85);
+                                            const res = await fetch('/messungen/extract-from-photo', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content
+                                                },
+                                                body: JSON.stringify({ image: base64, source: source || 'auto' })
+                                            });
+                                            const data = await res.json();
+                                            if (data.success) {
+                                                if (data.typ === 'protokoll') {
+                                                    // Protokoll-Felder mappen
+                                                    if (data.kodex) $wire.set('messung.cIM_CODICE', data.kodex);
+                                                    if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                    if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                    $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                    $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                    $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                    $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                    $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                    $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                    $wire.set('messung.cMIS_T_LIQ_CONV', data.t_waerme || '');
+                                                    $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
+                                                    $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
                                                 } else {
-                                                    this.status = data.error || 'Fehler';
+                                                    // Display-Felder mappen
+                                                    if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                    if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
+                                                    if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
+                                                    $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
+                                                    $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
+                                                    $wire.set('messung.cMIS_PERD_FUMI', data.qa || '');
+                                                    $wire.set('messung.cMIS_MONOSSSIDO', data.co || '');
+                                                    $wire.set('messung.cMIS_BIOSSIDO_AZOTO', data.nox || '');
+                                                    $wire.set('messung.cMIS_T_ARIA_COMB', data.t_luft || '');
+                                                    $wire.set('messung.cMIS_T_GAS_COMB', data.t_abgas || '');
+                                                    $wire.set('messung.cMIS_IND_OPACITA', data.russ || '0');
                                                 }
-                                            } catch (err) {
-                                                this.status = 'Verbindungsfehler';
-                                                console.error(err);
+                                                this.status = 'success';
+                                            } else {
+                                                this.status = data.error || 'Fehler';
                                             }
-                                            this.loading = false;
-                                        };
-                                        reader.readAsDataURL(file);
+                                        } catch (err) {
+                                            this.status = 'Bildverarbeitung fehlgeschlagen';
+                                            console.error(err);
+                                        }
+                                        this.loading = false;
                                     }
                                 }">
                                     <div class="d-flex align-items-center gap-2 flex-wrap">
