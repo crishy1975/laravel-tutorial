@@ -389,10 +389,8 @@ class AmtExportService
             }
         }
 
-        // Abgasverlust: Pflicht, 0.0-99.9 %
-        if ($isEmpty($data['cMIS_PERD_FUMI'] ?? null)) {
-            $errors['cMIS_PERD_FUMI'] = 'Abgasverlust ist Pflicht.';
-        } else {
+        // Abgasverlust: optional, aber wenn gesetzt: 0.0-99.9 %
+        if (!$isEmpty($data['cMIS_PERD_FUMI'] ?? null)) {
             $v = (float) str_replace(',', '.', (string) $data['cMIS_PERD_FUMI']);
             if ($v < 0 || $v > 99.9) {
                 $errors['cMIS_PERD_FUMI'] = 'Außerhalb 0,0-99,9 %.';
