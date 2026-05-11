@@ -2318,31 +2318,53 @@ class RechnungController extends Controller
      */
     public function gutschrift(Rechnung $rechnung)
     {
-        try {
-            // Nur aus Rechnungen, nicht aus Gutschriften
-            if ($rechnung->typ_rechnung === 'gutschrift') {
-                return back()->with('error', 'Aus einer Gutschrift kann keine weitere Gutschrift erstellt werden.');
-            }
+        // Nur aus Rechnungen, nicht aus Gutschriften
+        if ($rechnung->typ_rechnung === 'gutschrift') {
+            return back()->with('error', 'Aus einer Gutschrift kann keine weitere Gutschrift erstellt werden.');
+        }
 
+        // ⭐ Schon storniert?
+        if ($rechnung->status === 'cancelled') {
+            return back()->with('error', "Rechnung {$rechnung->rechnungsnummer} ist bereits storniert.");
+        }
+
+        $originalNummer = $rechnung->rechnungsnummer;
+
+        try {
             $gutschrift = $rechnung->erstelleGutschrift();
 
-            Log::info('Gutschrift erstellt', [
+            Log::info('Gutschrift erstellt (Voll-Storno)', [
                 'original_id'       => $rechnung->id,
-                'original_nummer'   => $rechnung->rechnungsnummer,
+                'original_nummer'   => $originalNummer,
                 'gutschrift_id'     => $gutschrift->id,
                 'gutschrift_nummer' => $gutschrift->rechnungsnummer,
             ]);
 
             return redirect()
                 ->route('rechnung.edit', $gutschrift->id)
-                ->with('success', "Gutschrift {$gutschrift->rechnungsnummer} wurde erfolgreich erstellt.");
+                ->with('success', sprintf(
+                    'Gutschrift %s wurde erstellt und als bezahlt markiert. Rechnung %s wurde storniert.',
+                    $gutschrift->rechnungsnummer,
+                    $originalNummer
+                ));
+
+        } catch (\RuntimeException $e) {
+            // Erwartete Geschäftsregel-Verletzung (z.B. schon storniert)
+            Log::warning('Gutschrift abgelehnt', [
+                'rechnung_id' => $rechnung->id,
+                'grund'       => $e->getMessage(),
+            ]);
+            return back()->with('error', $e->getMessage());
+
         } catch (\Exception $e) {
+            // Unerwarteter technischer Fehler
             Log::error('Fehler beim Erstellen der Gutschrift', [
                 'rechnung_id' => $rechnung->id,
                 'error'       => $e->getMessage(),
+                'trace'       => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Fehler beim Erstellen der Gutschrift: ' . $e->getMessage());
+            return back()->with('error', 'Technischer Fehler beim Erstellen der Gutschrift: ' . $e->getMessage());
         }
     }
 }

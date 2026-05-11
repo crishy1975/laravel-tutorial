@@ -1585,92 +1585,143 @@ class Rechnung extends Model
      */
     public function erstelleGutschrift(): self
     {
-        // Jahr / Laufnummer ermitteln (mit Lock)
-        $jahr = now()->year;
+        // ⭐ Schutz: Bereits stornierte Rechnungen nicht erneut gutschreiben
+        if ($this->status === 'cancelled') {
+            throw new \RuntimeException("Rechnung {$this->rechnungsnummer} ist bereits storniert.");
+        }
 
-        $laufnummer = DB::transaction(function () use ($jahr) {
+        // ⭐ Alles in einer Transaktion: Gutschrift + Storno + Mahnungen-Cleanup
+        return DB::transaction(function () {
+            $jahr = now()->year;
+
+            // Laufnummer ermitteln (mit Lock)
             $maxLaufnummer = (int) self::where('jahr', $jahr)
                 ->lockForUpdate()
                 ->max('laufnummer');
-            return $maxLaufnummer + 1;
-        });
+            $laufnummer = $maxLaufnummer + 1;
 
-        // Alle Felder kopieren außer die auszuschließenden
-        $exclude = [
-            'id',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-            'jahr',
-            'laufnummer',
-            'rechnungsdatum',
-            'zahlungsziel',
-            'bezahlt_am',
-            'status',
-            'typ_rechnung',
-            'pdf_pfad',
-            'xml_pfad',
-            'bemerkung',  // Wird neu gesetzt
-        ];
+            // Alle Felder kopieren außer die auszuschließenden
+            $exclude = [
+                'id',
+                'created_at',
+                'updated_at',
+                'deleted_at',
+                'jahr',
+                'laufnummer',
+                'rechnungsdatum',
+                'zahlungsziel',
+                'bezahlt_am',
+                'status',
+                'typ_rechnung',
+                'pdf_pfad',
+                'xml_pfad',
+                'bemerkung',          // Wird neu gesetzt
+                'fattura_causale',    // Wird neu gesetzt (Bezug zur Originalrechnung)
+                'fattura_xml_status', // Gutschrift muss neu ans SdI
+                'fattura_sdi_id',
+                'fattura_uebermittelt_am',
+            ];
 
-        $data = collect($this->attributes)
-            ->except($exclude)
-            ->toArray();
-
-        // Neue Werte setzen
-        $data['jahr'] = $jahr;
-        $data['laufnummer'] = $laufnummer;
-        $data['rechnungsdatum'] = now()->toDateString();
-        $data['zahlungsziel'] = static::berechneZahlungsziel(now(), $this->zahlungsbedingungen)?->toDateString();
-        $data['status'] = 'draft';
-        $data['typ_rechnung'] = 'gutschrift';
-        $data['bezahlt_am'] = null;
-
-        // ⭐ Bemerkung mit Referenz zur Original-Rechnung
-        $data['bemerkung'] = "Gutschrift zu Rechnung {$this->rechnungsnummer}";
-
-        // Gutschrift erstellen
-        $gutschrift = self::create($data);
-
-        // Positionen kopieren
-        foreach ($this->positionen as $position) {
-            $positionData = collect($position->attributes)
-                ->except(['id', 'rechnung_id', 'created_at', 'updated_at', 'deleted_at'])
+            $data = collect($this->attributes)
+                ->except($exclude)
                 ->toArray();
 
-            $positionData['rechnung_id'] = $gutschrift->id;
+            // Neue Werte setzen
+            $data['jahr'] = $jahr;
+            $data['laufnummer'] = $laufnummer;
+            $data['rechnungsdatum'] = now()->toDateString();
+            $data['zahlungsziel'] = static::berechneZahlungsziel(now(), $this->zahlungsbedingungen)?->toDateString();
+            $data['typ_rechnung'] = 'gutschrift';
 
-            RechnungPosition::create($positionData);
-        }
+            // ⭐ Gutschrift sofort als bezahlt markieren (wird nicht eingezogen, sondern verrechnet)
+            $data['status']                = 'paid';
+            $data['bezahlt_am']            = now()->toDateString();
+            $data['zahlungsbedingungen']   = 'bezahlt';
 
-        // Summen neu berechnen (sicherheitshalber)
-        $gutschrift->recalculate();
+            // ⭐ Bemerkung mit Referenz zur Original-Rechnung
+            $data['bemerkung'] = "Gutschrift zu Rechnung {$this->rechnungsnummer} (Voll-Storno)";
 
-        // Log-Eintrag bei Original-Rechnung
-        RechnungLog::create([
-            'rechnung_id' => $this->id,
-            'typ'         => RechnungLogTyp::GUTSCHRIFT_ERSTELLT,
-            'titel'       => 'Gutschrift erstellt',
-            'nachricht'   => "Gutschrift {$gutschrift->rechnungsnummer} wurde aus dieser Rechnung erstellt.",
-            'metadata'    => [
-                'gutschrift_id'     => $gutschrift->id,
-                'gutschrift_nummer' => $gutschrift->rechnungsnummer,
-                'betrag'            => $gutschrift->brutto_summe,
-            ],
-        ]);
+            // ⭐ FatturaPA: Causale mit Bezug zur Originalrechnung (TD04 erfordert klaren Bezug)
+            $data['fattura_causale'] = sprintf(
+                'Nota di credito a storno integrale della fattura n. %s del %s / '
+                . 'Gutschrift zur vollständigen Stornierung der Rechnung Nr. %s vom %s',
+                $this->rechnungsnummer,
+                $this->rechnungsdatum?->format('d.m.Y') ?? '-',
+                $this->rechnungsnummer,
+                $this->rechnungsdatum?->format('d.m.Y') ?? '-'
+            );
 
-        // Log-Eintrag bei Gutschrift
-        RechnungLog::create([
-            'rechnung_id' => $gutschrift->id,
-            'typ'         => RechnungLogTyp::RECHNUNG_ERSTELLT,
-            'titel'       => 'Gutschrift erstellt',
-            'nachricht'   => "Erstellt aus Rechnung {$this->rechnungsnummer}.",
-            'metadata'    => [
-                'original_rechnung_id'     => $this->id,
-                'original_rechnung_nummer' => $this->rechnungsnummer,
-            ],
-        ]);
+            // Gutschrift erstellen
+            $gutschrift = self::create($data);
 
-        return $gutschrift;
+            // Positionen kopieren
+            foreach ($this->positionen as $position) {
+                $positionData = collect($position->attributes)
+                    ->except(['id', 'rechnung_id', 'created_at', 'updated_at', 'deleted_at'])
+                    ->toArray();
+
+                $positionData['rechnung_id'] = $gutschrift->id;
+
+                RechnungPosition::create($positionData);
+            }
+
+            // Summen neu berechnen (sicherheitshalber)
+            $gutschrift->recalculate();
+
+            // ⭐ Originalrechnung stornieren (Voll-Gutschrift → kompletter Ausgleich)
+            $this->status               = 'cancelled';
+            $this->bezahlt_am           = now()->toDateString();
+            $this->zahlungsbedingungen  = 'bezahlt';
+            $this->save();
+
+            // ⭐ Mahnungen-Cleanup: offene Mahn-Entwürfe zu dieser Rechnung löschen
+            // Versendete Mahnungen bleiben (Audit-Trail), werden nur als obsolet geloggt
+            $offeneEntwuerfe = \App\Models\Mahnung::where('rechnung_id', $this->id)
+                ->where('status', 'entwurf')
+                ->get();
+
+            $entwuerfeAnzahl = $offeneEntwuerfe->count();
+            foreach ($offeneEntwuerfe as $entwurf) {
+                $entwurf->delete();
+            }
+
+            $versendete = \App\Models\Mahnung::where('rechnung_id', $this->id)
+                ->where('status', 'gesendet')
+                ->count();
+
+            // Log-Eintrag bei Original-Rechnung: Gutschrift wurde erstellt
+            RechnungLog::create([
+                'rechnung_id' => $this->id,
+                'typ'         => RechnungLogTyp::GUTSCHRIFT_ERSTELLT,
+                'titel'       => 'Storniert durch Gutschrift',
+                'nachricht'   => "Rechnung wurde durch Gutschrift {$gutschrift->rechnungsnummer} vollständig ausgeglichen und auf 'storniert' gesetzt."
+                    . ($entwuerfeAnzahl > 0 ? " {$entwuerfeAnzahl} offene Mahn-Entwürfe wurden gelöscht." : '')
+                    . ($versendete > 0 ? " {$versendete} bereits versendete Mahnung(en) bleiben als Historie erhalten." : ''),
+                'metadata'    => [
+                    'gutschrift_id'         => $gutschrift->id,
+                    'gutschrift_nummer'     => $gutschrift->rechnungsnummer,
+                    'betrag'                => $gutschrift->brutto_summe,
+                    'neuer_status'          => 'cancelled',
+                    'mahnentwuerfe_geloescht' => $entwuerfeAnzahl,
+                    'mahnungen_versendet'   => $versendete,
+                ],
+            ]);
+
+            // Log-Eintrag bei Gutschrift: Bezug zur stornierten Rechnung
+            RechnungLog::create([
+                'rechnung_id' => $gutschrift->id,
+                'typ'         => RechnungLogTyp::RECHNUNG_ERSTELLT,
+                'titel'       => 'Gutschrift erstellt',
+                'nachricht'   => "Voll-Gutschrift zu Rechnung {$this->rechnungsnummer}. Originalrechnung wurde storniert. Gutschrift gilt als verrechnet (bezahlt).",
+                'metadata'    => [
+                    'original_rechnung_id'     => $this->id,
+                    'original_rechnung_nummer' => $this->rechnungsnummer,
+                    'original_status_neu'      => 'cancelled',
+                    'gutschrift_status'        => 'paid',
+                ],
+            ]);
+
+            return $gutschrift;
+        });
     }
 }

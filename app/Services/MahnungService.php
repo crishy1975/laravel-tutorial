@@ -54,6 +54,7 @@ class MahnungService
         // Rechnungen laden: status = 'sent', überfällig, nicht ausgeschlossen
         return Rechnung::with(['rechnungsempfaenger', 'gebaeude.postadresse'])
             ->where('status', 'sent')  // ⭐ Nur 'sent' - 'paid' ist erledigt!
+            ->where('typ_rechnung', 'rechnung')  // ⭐ Gutschriften nicht mahnen!
             ->whereNotNull('rechnungsdatum')
             ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL ? DAY) < ?", [
                 $zahlungsfristTage,
