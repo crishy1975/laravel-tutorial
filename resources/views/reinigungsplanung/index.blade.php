@@ -229,6 +229,7 @@
                             <th>Adresse</th>
                             <th style="width: 160px;">Kontakt</th>
                             <th style="width: 90px;">Tour</th>
+                            <th>Bemerkung</th>
                             <th style="width: 100px;">Letzte</th>
                             <th style="width: 100px;">Nächste</th>
                             <th style="width: 70px;" class="text-center">Status</th>
@@ -286,6 +287,7 @@
                                         -
                                     @endforelse
                                 </td>
+                                <td class="small text-muted">{{ Str::limit($g->bemerkung, 40) }}</td>
                                 <td>{{ $g->letzte_reinigung_datum?->format('d.m.Y') ?? '-' }}</td>
                                 <td>{{ $g->naechste_faelligkeit?->format('d.m.Y') ?? '-' }}</td>
                                 <td class="text-center">
@@ -371,9 +373,15 @@
                             @endif
                         </div>
 
+                        @if($g->bemerkung)
+                            <div class="small text-muted fst-italic mb-1">
+                                <i class="bi bi-sticky"></i> {{ Str::limit($g->bemerkung, 80) }}
+                            </div>
+                        @endif
+
                         <div class="small text-muted">
-                            Letzte: {{ $g->letzte_reinigung_datum?->format('d.m.') ?? '-' }}
-                            · Nächste: {{ $g->naechste_faelligkeit?->format('d.m.') ?? '-' }}
+                            Letzte: {{ $g->letzte_reinigung_datum?->format('d.m.Y') ?? '-' }}
+                            · Nächste: {{ $g->naechste_faelligkeit?->format('d.m.Y') ?? '-' }}
                         </div>
                     </div>
                 @endforeach
