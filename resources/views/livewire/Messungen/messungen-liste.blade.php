@@ -1074,7 +1074,77 @@
 
     {{-- ========== Modal: WhatsApp versenden ========== --}}
     @if($showWhatsappModal)
-        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);"
+             x-data="{
+                loading: false,
+                status: '',
+                canShare: typeof navigator.share === 'function' && typeof navigator.canShare === 'function',
+
+                async shareWithFiles() {
+                    this.loading = true;
+                    this.status = 'PDFs werden geladen...';
+
+                    try {
+                        // Messung-IDs aus Livewire holen
+                        const ids = @js($selectedMessungen);
+                        const files = [];
+
+                        // Jedes PDF laden
+                        for (let i = 0; i < ids.length; i++) {
+                            this.status = `PDF ${i + 1} von ${ids.length} wird geladen...`;
+                            const response = await fetch(`/messungen/protokoll/${ids[i]}`);
+                            if (!response.ok) continue;
+
+                            const blob = await response.blob();
+                            const filename = response.headers.get('Content-Disposition')
+                                ?.match(/filename=\"(.+?)\"/)?.[1] || `Protokoll_${ids[i]}.pdf`;
+                            files.push(new File([blob], filename, { type: 'application/pdf' }));
+                        }
+
+                        if (files.length === 0) {
+                            this.status = 'Keine PDFs konnten geladen werden.';
+                            this.loading = false;
+                            return;
+                        }
+
+                        // Text aus Livewire
+                        const text = $wire.get('waText') || '';
+
+                        // Web Share API mit Dateien
+                        const shareData = { text: text, files: files };
+
+                        if (navigator.canShare && navigator.canShare(shareData)) {
+                            this.status = 'Teilen-Dialog wird geöffnet...';
+                            await navigator.share(shareData);
+                            this.status = '✅ Geteilt!';
+                            $wire.call('closeWhatsappModal');
+                        } else {
+                            // Fallback: ohne Dateien teilen
+                            this.status = 'Dateien-Teilen nicht unterstützt, nur Text...';
+                            await navigator.share({ text: text });
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') {
+                            this.status = 'Teilen abgebrochen.';
+                        } else {
+                            this.status = 'Fehler: ' + err.message;
+                            console.error('Share error:', err);
+                        }
+                    }
+                    this.loading = false;
+                },
+
+                openWaLink() {
+                    const nummer = ($wire.get('waNummer') || '').replace(/[^0-9+]/g, '');
+                    let phone = nummer;
+                    if (!phone.startsWith('+') && !phone.startsWith('39')) {
+                        phone = '39' + phone.replace(/^0/, '');
+                    }
+                    phone = phone.replace(/^\+/, '');
+                    const text = encodeURIComponent($wire.get('waText') || '');
+                    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${text}`, '_blank');
+                }
+             }">
             <div class="modal-dialog modal-md modal-dialog-scrollable modal-fullscreen-sm-down">
                 <div class="modal-content">
                     <div class="modal-header py-2" style="background-color: #25D366; color: white;">
@@ -1086,8 +1156,18 @@
                     </div>
                     <div class="modal-body p-2 p-md-3">
 
-                        {{-- Telefonnummer --}}
-                        <div class="mb-3">
+                        {{-- Modus-Info --}}
+                        <div class="alert py-2 mb-3 small" :class="canShare ? 'alert-success' : 'alert-warning'">
+                            <template x-if="canShare">
+                                <span><i class="bi bi-check-circle"></i> <strong>PDF-Versand verfügbar</strong> – Protokolle werden direkt mit WhatsApp geteilt.</span>
+                            </template>
+                            <template x-if="!canShare">
+                                <span><i class="bi bi-info-circle"></i> <strong>Desktop-Modus</strong> – WhatsApp öffnet mit Text. PDFs bitte manuell anhängen.</span>
+                            </template>
+                        </div>
+
+                        {{-- Telefonnummer (nur im Desktop-Fallback) --}}
+                        <div class="mb-3" x-show="!canShare">
                             <label class="form-label small fw-bold mb-1">
                                 <i class="bi bi-telephone"></i> Telefonnummer
                             </label>
@@ -1100,7 +1180,6 @@
                                            placeholder="Nummer eingeben oder Name suchen...">
                                 </div>
 
-                                {{-- Vorschläge aus Adresse --}}
                                 @if(!empty($waSuggestions))
                                     <div class="position-absolute w-100 bg-white border rounded-bottom shadow-sm"
                                          style="z-index: 1050; max-height: 200px; overflow-y: auto;">
@@ -1157,8 +1236,8 @@
                         <div class="card bg-light">
                             <div class="card-header py-1 px-2">
                                 <h6 class="mb-0 small">
-                                    <i class="bi bi-list-check"></i>
-                                    {{ count($selectedMessungen) }} Messungen
+                                    <i class="bi bi-file-earmark-pdf text-danger"></i>
+                                    {{ count($selectedMessungen) }} Protokolle werden angehängt
                                 </h6>
                             </div>
                             <div class="card-body p-0" style="max-height: 150px; overflow-y: auto;">
@@ -1166,6 +1245,7 @@
                                     <tbody>
                                         @foreach(\App\Models\Messung::whereIn('id', $selectedMessungen)->get() as $sm)
                                             <tr>
+                                                <td><i class="bi bi-file-pdf text-danger"></i></td>
                                                 <td>{{ $sm->cIM_CODICE }}</td>
                                                 <td class="text-truncate" style="max-width: 150px;">{{ $sm->cIM_NAME }}</td>
                                                 <td>{{ $sm->cMIS_DATA2 }}</td>
@@ -1183,21 +1263,39 @@
                             </div>
                         </div>
 
-                        <div class="alert alert-info py-2 mt-3 small">
-                            <i class="bi bi-info-circle"></i>
-                            WhatsApp wird mit der Nachricht geöffnet. Die PDF-Protokolle können dort als Datei angehängt werden.
+                        {{-- Status-Anzeige --}}
+                        <div x-show="status" class="mt-2">
+                            <div class="d-flex align-items-center gap-2 small">
+                                <template x-if="loading">
+                                    <span class="spinner-border spinner-border-sm text-success"></span>
+                                </template>
+                                <span x-text="status" :class="loading ? 'text-muted' : (status.includes('✅') ? 'text-success fw-bold' : 'text-warning')"></span>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer py-2">
                         <button type="button" class="btn btn-secondary" wire:click="closeWhatsappModal">
                             <i class="bi bi-x-lg"></i> Abbrechen
                         </button>
-                        <a href="{{ $waLink }}" target="_blank" rel="noopener"
-                           class="btn text-white {{ $waNummer ? '' : 'disabled' }}"
-                           style="background-color: #25D366;"
-                           @if(!$waNummer) aria-disabled="true" tabindex="-1" @endif>
+
+                        {{-- Mobile: Web Share API mit PDFs --}}
+                        <button x-show="canShare"
+                                x-on:click="shareWithFiles()"
+                                :disabled="loading"
+                                class="btn text-white"
+                                style="background-color: #25D366;">
+                            <span x-show="!loading"><i class="bi bi-whatsapp"></i> Mit PDFs teilen</span>
+                            <span x-show="loading"><i class="bi bi-hourglass-split"></i> Wird geladen...</span>
+                        </button>
+
+                        {{-- Desktop: Fallback WhatsApp-Link --}}
+                        <button x-show="!canShare"
+                                x-on:click="openWaLink()"
+                                class="btn text-white"
+                                style="background-color: #25D366;"
+                                @if(!$waNummer) disabled @endif>
                             <i class="bi bi-whatsapp"></i> In WhatsApp öffnen
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
