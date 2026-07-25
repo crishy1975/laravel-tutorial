@@ -256,6 +256,19 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
         // E-Mail Versand
         Route::post('/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('email.send');
+        // Email-Preview (nur lokal!)
+Route::get('/email-preview', function () {
+    $messungen = \App\Models\Messung::limit(3)->get();
+    
+    return view('emails.messungen-protokolle', [
+        'messungen' => $messungen,
+        'anzahlProtokolle' => $messungen->count(),
+        'nachricht' => 'Dies ist eine Testnachricht mit zusätzlichen Informationen.',
+        'fehler' => [],
+    ]);
+})->middleware('auth');
+
+
 
         // Gutschrift
         Route::post('/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('gutschrift');
