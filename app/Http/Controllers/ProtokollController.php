@@ -23,14 +23,20 @@ class ProtokollController extends Controller
 
     /**
      * Öffentlicher Download über Token (kein Login nötig)
+     * Route: /p/{token}
      */
     public function download($token)
     {
+        // Token validieren (nur alphanumerisch, 8 Zeichen)
+        if (!preg_match('/^[a-zA-Z0-9]{6,20}$/', $token)) {
+            abort(404);
+        }
+
         $dir = 'protokolle';
         $files = Storage::disk('local')->files($dir);
 
         // Datei mit passendem Token finden
-        $match = collect($files)->first(fn($f) => str_contains($f, $token));
+        $match = collect($files)->first(fn($f) => str_starts_with(basename($f), $token . '_'));
 
         if (!$match || !Storage::disk('local')->exists($match)) {
             abort(404, 'Protokoll nicht gefunden oder abgelaufen.');
@@ -38,7 +44,7 @@ class ProtokollController extends Controller
 
         $filename = basename($match);
         // Token-Prefix entfernen für den Download-Namen
-        $downloadName = preg_replace('/^[a-f0-9]+_/', '', $filename);
+        $downloadName = substr($filename, strlen($token) + 1);
 
         return response(Storage::disk('local')->get($match))
             ->header('Content-Type', 'application/pdf')

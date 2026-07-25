@@ -39,9 +39,10 @@ use App\Livewire\Messungen\AmtImport;
 
 
 // --- Diese Route in routes/web.php einfügen (OHNE auth-Middleware!) ---
-// Öffentlicher Download-Link für WhatsApp-Protokolle (kein Login nötig)
-Route::get('/messungen/protokoll/download/{token}', [App\Http\Controllers\ProtokollController::class, 'download'])
+// Kurzer öffentlicher Download-Link für WhatsApp-Protokolle
+Route::get('/p/{token}', [App\Http\Controllers\ProtokollController::class, 'download'])
     ->name('messungen.protokoll.download');
+ 
  
 
 

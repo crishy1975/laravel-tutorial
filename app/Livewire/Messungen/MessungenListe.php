@@ -957,34 +957,35 @@ class MessungenListe extends Component
         $baseUrl = rtrim(config('app.url'), '/');
 
         // PDFs erzeugen und im Storage speichern
-        $text = "📋 *Messprotokolle Resch GmbH*\n";
-        $text .= str_repeat('─', 30) . "\n\n";
+        $text = "📋 *Messprotokolle Resch GmbH*\n\n";
         $errors = [];
 
         foreach ($messungen as $m) {
             $ergebnis = $m->strEsito === '1' ? '✅ Positiv' : ($m->strEsito === '0' ? '❌ Negativ' : '─');
-            $text .= "🔥 *{$m->cIM_CODICE}* – {$m->cIM_NAME}\n";
-            $text .= "📅 {$m->cMIS_DATA2} | {$m->cMIS_COMBUSTIBILE_P} | {$ergebnis}\n";
+            $datum = $m->cMIS_DATA2 ?: '';
 
             try {
                 $pdfString = $protokollController->generatePdfString($m);
-                $token = Str::random(16);
+                $token = Str::random(8);
                 $filename = ProtokollController::getFilename($m);
                 $storagePath = "protokolle/{$token}_{$filename}";
 
                 Storage::disk('local')->put($storagePath, $pdfString);
 
-                $downloadUrl = "{$baseUrl}/messungen/protokoll/download/{$token}";
-                $text .= "📎 {$downloadUrl}\n\n";
+                $text .= "🔥 *Abgaskontrolle vom {$datum}*\n";
+                $text .= "{$m->cIM_NAME} (Kodex {$m->cIM_CODICE}) | {$ergebnis}\n";
+                $text .= "👉 {$baseUrl}/p/{$token}\n\n";
             } catch (\Exception $e) {
                 $errors[] = "PDF für {$m->cIM_CODICE}: {$e->getMessage()}";
+                $text .= "🔥 {$m->cIM_CODICE} – {$m->cIM_NAME}\n";
                 $text .= "⚠️ _PDF konnte nicht erstellt werden_\n\n";
             }
         }
 
-        $text .= str_repeat('─', 30) . "\n";
+        $text .= "─────────────────\n";
         $text .= "Resch GmbH – Kaminkehrer\n";
-        $text .= "📞 338 4693481 | ✉️ info@resch.bz";
+        $text .= "📞 338 4693481\n";
+        $text .= "✉️ info@resch.bz";
 
         $this->waText = $text;
         $this->waNummer = '';
