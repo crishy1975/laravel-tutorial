@@ -1016,7 +1016,7 @@
                                 <div class="card-body py-2 px-2">
                                     <div class="input-group input-group-sm">
                                         <input type="text"
-                                               wire:model="newAdresseName"
+                                               wire:model.live="newAdresseName"
                                                wire:keydown.enter="saveNewAdresse"
                                                class="form-control"
                                                placeholder="Name eingeben..."
@@ -1210,7 +1210,7 @@
                                     <div class="row g-2">
                                         <div class="col-12">
                                             <input type="text"
-                                                   wire:model="newKontaktName"
+                                                   wire:model.live="newKontaktName"
                                                    wire:keydown.enter="saveNewKontakt"
                                                    class="form-control form-control-sm"
                                                    placeholder="Name *"
