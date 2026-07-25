@@ -10,6 +10,7 @@ use App\Models\Impianto;
 use App\Models\Adresse;
 use App\Services\GrenzwertService;
 use Illuminate\Support\Facades\Mail;
+use App\Http\Controllers\ProtokollController;
 
 #[Layout('layouts.app')]
 class MessungenListe extends Component
@@ -792,37 +793,67 @@ class MessungenListe extends Component
 
         try {
             $messungen = Messung::whereIn('id', $this->selectedMessungen)->get();
+            $protokollController = new ProtokollController();
 
-            // Email-Body zusammenbauen
-            $body = $this->emailText ?: '';
-            $body .= "\n\n--- Messungen ---\n\n";
-
+            // PDFs erzeugen
+            $attachments = [];
             foreach ($messungen as $m) {
-                $ergebnis = $m->strEsito === '1' ? 'POSITIV' : ($m->strEsito === '0' ? 'NEGATIV' : '─');
-                $body .= "Kodex: {$m->cIM_CODICE} | {$m->cIM_NAME}\n";
-                $body .= "Datum: {$m->cMIS_DATA2} {$m->cMIS_ORA} | Stadio: {$m->cMIS_STADIO}\n";
-                $body .= "Brennstoff: {$m->cMIS_COMBUSTIBILE_P} | Ergebnis: {$ergebnis}\n";
-                $body .= "O₂: {$m->cMIS_OSSIGENO}% | CO₂: {$m->cMIS_ANIDRIDE_CARBONICA}% | CO: {$m->cMIS_MONOSSSIDO} mg/m³ | NOx: {$m->cMIS_BIOSSIDO_AZOTO} mg/m³\n";
-                $body .= "T-Abgas: {$m->cMIS_T_GAS_COMB}°C | T-Luft: {$m->cMIS_T_ARIA_COMB}°C | qA: {$m->cMIS_PERD_FUMI}%\n";
-                $body .= str_repeat('─', 40) . "\n\n";
+                try {
+                    $pdfString = $protokollController->generatePdfString($m);
+                    $filename = ProtokollController::getFilename($m);
+                    $attachments[] = [
+                        'data' => $pdfString,
+                        'name' => $filename,
+                    ];
+                } catch (\Exception $e) {
+                    // Messung ohne Protokoll-Vorlage: überspringen und vermelden
+                    $attachments[] = [
+                        'data' => null,
+                        'name' => null,
+                        'error' => "Protokoll für {$m->cIM_CODICE} konnte nicht erzeugt werden: {$e->getMessage()}",
+                    ];
+                }
+            }
+
+            // Fehlerhafte PDFs sammeln
+            $errors = collect($attachments)->filter(fn($a) => isset($a['error']))->pluck('error')->toArray();
+            $validAttachments = collect($attachments)->filter(fn($a) => !isset($a['error']))->values()->toArray();
+
+            if (empty($validAttachments)) {
+                $this->emailError = 'Kein Protokoll konnte erzeugt werden. ' . implode(' ', $errors);
+                return;
+            }
+
+            // Email-Body
+            $body = $this->emailText ?: '';
+            if (!empty($body)) {
+                $body .= "\n\n";
+            }
+            $body .= count($validAttachments) . " Messprotokoll(e) als PDF im Anhang.";
+
+            if (!empty($errors)) {
+                $body .= "\n\nHinweis: " . implode("\n", $errors);
             }
 
             $recipients = collect($this->emailEmpfaenger)->pluck('email')->toArray();
             $betreff = $this->emailBetreff;
 
-            Mail::raw($body, function ($message) use ($recipients, $betreff) {
+            Mail::raw($body, function ($message) use ($recipients, $betreff, $validAttachments) {
                 $message->to($recipients)
                         ->subject($betreff);
+
+                foreach ($validAttachments as $att) {
+                    $message->attachData($att['data'], $att['name'], [
+                        'mime' => 'application/pdf',
+                    ]);
+                }
             });
 
             $anzahl = count($recipients);
-            $this->emailSuccess = "Email an {$anzahl} Empfänger gesendet.";
-
-            // Nach kurzer Pause Modal schließen
             $this->selectedMessungen = [];
             $this->selectAll = false;
 
-            session()->flash('success', "Email mit " . count($messungen) . " Messungen an {$anzahl} Empfänger gesendet.");
+            session()->flash('success', count($validAttachments) . " Protokoll(e) an {$anzahl} Empfänger gesendet.");
             $this->closeEmailModal();
 
         } catch (\Exception $e) {

@@ -24,6 +24,22 @@ class ProtokollController extends Controller
     {
         $messung = Messung::findOrFail($messungId);
 
+        $pdfString = $this->generatePdfString($messung);
+
+        $kodex = $messung->cIM_CODICE ?: 'ohne';
+        $datum = str_replace('.', '', $messung->cMIS_DATA2 ?: date('dmY'));
+        $filename = "Protokoll_{$kodex}_{$datum}.pdf";
+
+        return response($pdfString)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
+    }
+
+    /**
+     * Erzeugt das PDF als String (für Anhänge, Downloads etc.)
+     */
+    public function generatePdfString(Messung $messung): string
+    {
         $anlage = null;
         if ($messung->codeInImpianti > 0 && $messung->cIM_CODICE) {
             $anlage = Impianto::where('Feld_a', $messung->cIM_CODICE)->first();
@@ -31,7 +47,7 @@ class ProtokollController extends Controller
 
         $vorlagePath = resource_path('pdf/vorlage.pdf');
         if (!file_exists($vorlagePath)) {
-            abort(404, 'PDF-Vorlage nicht gefunden. Bitte vorlage.pdf in resources/pdf/ ablegen.');
+            throw new \RuntimeException('PDF-Vorlage nicht gefunden. Bitte vorlage.pdf in resources/pdf/ ablegen.');
         }
 
         $pdf = new Fpdi();
@@ -47,13 +63,17 @@ class ProtokollController extends Controller
 
         $this->fillFields($pdf, $messung, $anlage);
 
+        return $pdf->Output('S');
+    }
+
+    /**
+     * Erzeugt den Dateinamen für ein Protokoll-PDF
+     */
+    public static function getFilename(Messung $messung): string
+    {
         $kodex = $messung->cIM_CODICE ?: 'ohne';
         $datum = str_replace('.', '', $messung->cMIS_DATA2 ?: date('dmY'));
-        $filename = "Protokoll_{$kodex}_{$datum}.pdf";
-
-        return response($pdf->Output('S'))
-            ->header('Content-Type', 'application/pdf')
-            ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
+        return "Protokoll_{$kodex}_{$datum}.pdf";
     }
 
     private function fillFields(Fpdi $pdf, Messung $messung, ?Impianto $anlage): void
