@@ -1107,80 +1107,6 @@
     @if($showWhatsappModal)
         <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);"
              x-data="{
-                loading: false,
-                status: '',
-                canShare: false,
-
-                init() {
-                    // Prüfe ob File-Sharing wirklich unterstützt wird (nicht nur die API)
-                    try {
-                        const testFile = new File(['test'], 'test.pdf', { type: 'application/pdf' });
-                        this.canShare = navigator.canShare && navigator.canShare({ files: [testFile] });
-                    } catch (e) {
-                        this.canShare = false;
-                    }
-                },
-
-                async shareWithFiles() {
-                    this.loading = true;
-                    this.status = 'PDFs werden geladen...';
-
-                    try {
-                        const ids = @js($selectedMessungen);
-                        const files = [];
-
-                        for (let i = 0; i < ids.length; i++) {
-                            this.status = `PDF ${i + 1} von ${ids.length} wird geladen...`;
-
-                            // Fetch mit Timeout (15s) und Credentials
-                            const controller = new AbortController();
-                            const timeout = setTimeout(() => controller.abort(), 15000);
-
-                            const response = await fetch(`/messungen/protokoll/${ids[i]}`, {
-                                credentials: 'same-origin',
-                                signal: controller.signal,
-                            });
-                            clearTimeout(timeout);
-
-                            if (!response.ok) {
-                                console.warn(`PDF ${ids[i]}: HTTP ${response.status}`);
-                                continue;
-                            }
-
-                            const blob = await response.blob();
-                            const filename = response.headers.get('Content-Disposition')
-                                ?.match(/filename=\x22(.+?)\x22/)?.[1] || `Protokoll_${ids[i]}.pdf`;
-                            files.push(new File([blob], filename, { type: 'application/pdf' }));
-                        }
-
-                        if (files.length === 0) {
-                            this.status = '⚠️ Keine PDFs konnten geladen werden.';
-                            this.loading = false;
-                            return;
-                        }
-
-                        const text = $wire.get('waText') || '';
-                        const shareData = { text: text, files: files };
-
-                        if (navigator.canShare && navigator.canShare(shareData)) {
-                            this.status = 'Teilen-Dialog wird geöffnet...';
-                            await navigator.share(shareData);
-                            this.status = '✅ Geteilt!';
-                            $wire.call('closeWhatsappModal');
-                        } else {
-                            this.status = '⚠️ Datei-Teilen auf diesem Gerät nicht möglich. Bitte \"In WhatsApp öffnen\" verwenden.';
-                        }
-                    } catch (err) {
-                        if (err.name === 'AbortError') {
-                            this.status = 'Abgebrochen / Zeitüberschreitung.';
-                        } else {
-                            this.status = '⚠️ ' + err.message;
-                            console.error('Share error:', err);
-                        }
-                    }
-                    this.loading = false;
-                },
-
                 openWaLink() {
                     let nummer = $wire.get('waNummer') || $wire.get('waSearch') || '';
                     nummer = nummer.replace(/[^0-9+]/g, '');
@@ -1192,7 +1118,7 @@
                     if (!phone.startsWith('+') && !phone.startsWith('39')) {
                         phone = '39' + phone.replace(/^0/, '');
                     }
-                    phone = phone.replace(/^\+/, '');
+                    phone = phone.replace(/^\\/+/, '');
                     const text = encodeURIComponent($wire.get('waText') || '');
                     window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${text}`, '_blank');
                 }
@@ -1208,21 +1134,10 @@
                     </div>
                     <div class="modal-body p-2 p-md-3">
 
-                        {{-- Modus-Info --}}
-                        <div class="alert py-2 mb-3 small" :class="canShare ? 'alert-success' : 'alert-info'">
-                            <template x-if="canShare">
-                                <span><i class="bi bi-check-circle"></i> <strong>\"Mit PDFs teilen\"</strong> öffnet den Teilen-Dialog mit den Protokollen als Anhang.</span>
-                            </template>
-                            <template x-if="!canShare">
-                                <span><i class="bi bi-info-circle"></i> <strong>\"WhatsApp öffnen\"</strong> sendet den Text. Nummer eingeben und Enter drücken.</span>
-                            </template>
-                        </div>
-
-                        {{-- Telefonnummer --}}
+                        {{-- Empfänger --}}
                         <div class="mb-3">
                             <label class="form-label small fw-bold mb-1">
                                 <i class="bi bi-telephone"></i> Empfänger
-                                <span x-show="canShare" class="text-muted fw-normal">(optional – Kontakt wird im Teilen-Dialog gewählt)</span>
                             </label>
                             <div class="position-relative">
                                 <div class="input-group input-group-sm">
@@ -1231,7 +1146,7 @@
                                            wire:model.live.debounce.300ms="waSearch"
                                            wire:keydown.enter="addManualWaNummer"
                                            class="form-control"
-                                           placeholder="Nummer eingeben oder Name suchen...">
+                                           placeholder="Nummer eingeben oder Name suchen... (Enter)">
                                 </div>
 
                                 @if(!empty($waSuggestions))
@@ -1270,7 +1185,7 @@
                                 <div class="mt-2">
                                     <span class="badge bg-success d-inline-flex align-items-center gap-1 py-1 px-2">
                                         <i class="bi bi-whatsapp"></i>
-                                        {{ $waName ? $waName . ' – ' : '' }}{{ $waNummer }}
+                                        {{ $waName ? $waName . ' \u2013 ' : '' }}{{ $waNummer }}
                                         <button type="button" class="btn-close btn-close-white ms-1"
                                                 style="font-size: 0.5rem;"
                                                 wire:click="$set('waNummer', '')"></button>
@@ -1279,75 +1194,28 @@
                             @endif
                         </div>
 
-                        {{-- Nachricht --}}
+                        {{-- Nachricht mit Links --}}
                         <div class="mb-3">
-                            <label class="form-label small fw-bold mb-1">Nachricht</label>
+                            <label class="form-label small fw-bold mb-1">Nachricht (mit Download-Links)</label>
                             <textarea wire:model="waText"
-                                      class="form-control form-control-sm" rows="6"></textarea>
+                                      class="form-control form-control-sm" rows="8"
+                                      style="font-size: 0.8rem;"></textarea>
                         </div>
 
-                        {{-- Vorschau Messungen --}}
-                        <div class="card bg-light">
-                            <div class="card-header py-1 px-2">
-                                <h6 class="mb-0 small">
-                                    <i class="bi bi-file-earmark-pdf text-danger"></i>
-                                    {{ count($selectedMessungen) }} Protokolle werden angehängt
-                                </h6>
-                            </div>
-                            <div class="card-body p-0" style="max-height: 150px; overflow-y: auto;">
-                                <table class="table table-sm table-striped mb-0 small">
-                                    <tbody>
-                                        @foreach(\App\Models\Messung::whereIn('id', $selectedMessungen)->get() as $sm)
-                                            <tr>
-                                                <td><i class="bi bi-file-pdf text-danger"></i></td>
-                                                <td>{{ $sm->cIM_CODICE }}</td>
-                                                <td class="text-truncate" style="max-width: 150px;">{{ $sm->cIM_NAME }}</td>
-                                                <td>{{ $sm->cMIS_DATA2 }}</td>
-                                                <td class="text-center">
-                                                    @if($sm->strEsito === '1')
-                                                        <span class="text-success">✓</span>
-                                                    @elseif($sm->strEsito === '0')
-                                                        <span class="text-danger">✗</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {{-- Status-Anzeige --}}
-                        <div x-show="status" class="mt-2">
-                            <div class="d-flex align-items-center gap-2 small">
-                                <template x-if="loading">
-                                    <span class="spinner-border spinner-border-sm text-success"></span>
-                                </template>
-                                <span x-text="status" :class="loading ? 'text-muted' : (status.includes('✅') ? 'text-success fw-bold' : 'text-warning')"></span>
-                            </div>
+                        <div class="alert alert-success py-2 small">
+                            <i class="bi bi-check-circle"></i>
+                            Die Protokolle sind als Download-Links in der Nachricht enthalten.
+                            Der Empfänger kann sie direkt im Browser öffnen \u2013 kein Login nötig.
                         </div>
                     </div>
-                    <div class="modal-footer py-2 flex-wrap gap-1">
+                    <div class="modal-footer py-2">
                         <button type="button" class="btn btn-secondary" wire:click="closeWhatsappModal">
                             <i class="bi bi-x-lg"></i> Abbrechen
                         </button>
-
-                        {{-- Web Share API: PDFs direkt teilen (Mobile) --}}
-                        <button x-show="canShare"
-                                x-on:click="shareWithFiles()"
-                                :disabled="loading"
+                        <button x-on:click="openWaLink()"
                                 class="btn text-white"
                                 style="background-color: #25D366;">
-                            <span x-show="!loading"><i class="bi bi-share"></i> Mit PDFs teilen</span>
-                            <span x-show="loading">
-                                <span class="spinner-border spinner-border-sm me-1"></span> Lädt...
-                            </span>
-                        </button>
-
-                        {{-- WhatsApp-Link: immer verfügbar (Nummer erforderlich) --}}
-                        <button x-on:click="openWaLink()"
-                                class="btn btn-outline-success">
-                            <i class="bi bi-whatsapp"></i> WhatsApp öffnen
+                            <i class="bi bi-whatsapp"></i> In WhatsApp öffnen
                         </button>
                     </div>
                 </div>
