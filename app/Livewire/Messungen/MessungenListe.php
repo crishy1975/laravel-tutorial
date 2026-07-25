@@ -85,6 +85,14 @@ class MessungenListe extends Component
     public $emailError = null;
     public $emailSuccess = null;
 
+    // Modal: WhatsApp versenden
+    public $showWhatsappModal = false;
+    public $waSearch = '';
+    public $waSuggestions = [];
+    public $waNummer = '';
+    public $waName = '';
+    public $waText = '';
+
     // Brennstoff-Mapping
     public const BRENNSTOFFE = [
         'FUEL_LIGHT_OIL' => ['nr' => 1, 'text' => 'Heizöl/gasolio'],
@@ -858,6 +866,115 @@ class MessungenListe extends Component
         }
     }
 
+    // ========== WhatsApp ==========
+
+    public function openWhatsappModal()
+    {
+        if (empty($this->selectedMessungen)) {
+            session()->flash('error', 'Bitte mindestens eine Messung auswählen.');
+            return;
+        }
+
+        $messungen = Messung::whereIn('id', $this->selectedMessungen)->get();
+
+        // Nachricht vorbauen
+        $text = "Messprotokolle Resch GmbH\n";
+        $text .= str_repeat('─', 30) . "\n\n";
+
+        foreach ($messungen as $m) {
+            $ergebnis = $m->strEsito === '1' ? '✅ Positiv' : ($m->strEsito === '0' ? '❌ Negativ' : '─');
+            $text .= "📋 *{$m->cIM_CODICE}* – {$m->cIM_NAME}\n";
+            $text .= "📅 {$m->cMIS_DATA2} | {$m->cMIS_COMBUSTIBILE_P} | {$ergebnis}\n\n";
+        }
+
+        $text .= str_repeat('─', 30) . "\n";
+        $text .= "Resch GmbH – Kaminkehrer\n";
+        $text .= "📞 338 4693481 | ✉️ info@resch.bz";
+
+        $this->waText = $text;
+        $this->waNummer = '';
+        $this->waName = '';
+        $this->waSearch = '';
+        $this->waSuggestions = [];
+        $this->showWhatsappModal = true;
+    }
+
+    public function closeWhatsappModal()
+    {
+        $this->showWhatsappModal = false;
+        $this->waSearch = '';
+        $this->waSuggestions = [];
+        $this->waNummer = '';
+        $this->waName = '';
+        $this->waText = '';
+    }
+
+    public function updatedWaSearch()
+    {
+        $search = trim($this->waSearch);
+        if (strlen($search) < 2) {
+            $this->waSuggestions = [];
+            return;
+        }
+
+        $this->waSuggestions = Adresse::where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('handy', 'like', "%{$search}%")
+                  ->orWhere('telefon', 'like', "%{$search}%");
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('handy')->where('handy', '!=', '')
+                  ->orWhere(function ($q2) {
+                      $q2->whereNotNull('telefon')->where('telefon', '!=', '');
+                  });
+            })
+            ->orderBy('name')
+            ->limit(10)
+            ->get()
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'handy' => $a->handy,
+                'telefon' => $a->telefon,
+            ])
+            ->toArray();
+    }
+
+    public function selectWaNummer($adresseId, $field = 'handy')
+    {
+        $adresse = Adresse::find($adresseId);
+        if (!$adresse) return;
+
+        $nummer = $field === 'telefon' ? $adresse->telefon : $adresse->handy;
+        if (!$nummer) return;
+
+        $this->waNummer = $nummer;
+        $this->waName = $adresse->name;
+        $this->waSearch = '';
+        $this->waSuggestions = [];
+    }
+
+    /**
+     * WhatsApp-Link generieren (Computed Property)
+     */
+    public function getWaLinkProperty(): string
+    {
+        if (!$this->waNummer) {
+            return '#';
+        }
+
+        // Nummer bereinigen: nur Ziffern, ggf. +39 Prefix
+        $nummer = preg_replace('/[^0-9+]/', '', $this->waNummer);
+        if (!str_starts_with($nummer, '+') && !str_starts_with($nummer, '39')) {
+            $nummer = '39' . ltrim($nummer, '0');
+        }
+        $nummer = ltrim($nummer, '+');
+
+        $text = urlencode($this->waText);
+
+        return "https://api.whatsapp.com/send?phone={$nummer}&text={$text}";
+    }
+
     // ========== Properties ==========
 
     public function getMessungenProperty()
@@ -985,6 +1102,7 @@ class MessungenListe extends Component
             'statistik' => $this->statistik,
             'brennstoffe' => $this->brennstoffe,
             'formErrors' => $this->formErrors,
+            'waLink' => $this->waLink,
         ]);
     }
 }
