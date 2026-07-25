@@ -7,7 +7,9 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
 use App\Models\Messung;
 use App\Models\Impianto;
+use App\Models\Adresse;
 use App\Services\GrenzwertService;
+use Illuminate\Support\Facades\Mail;
 
 #[Layout('layouts.app')]
 class MessungenListe extends Component
@@ -67,6 +69,20 @@ class MessungenListe extends Component
         'cMIS_TRACCE_OLEO' => '1',
     ];
     public $grenzwerte = null;
+
+    // Selektion für Email-Versand
+    public $selectedMessungen = [];
+    public $selectAll = false;
+
+    // Modal: Email versenden
+    public $showEmailModal = false;
+    public $emailEmpfaenger = [];      // [{email, name}]
+    public $emailSearch = '';
+    public $emailSuggestions = [];
+    public $emailBetreff = '';
+    public $emailText = '';
+    public $emailError = null;
+    public $emailSuccess = null;
 
     // Brennstoff-Mapping
     public const BRENNSTOFFE = [
@@ -627,6 +643,190 @@ class MessungenListe extends Component
             }
         } catch (\Exception $e) {
             $this->modalError = 'Fehler beim Speichern: ' . $e->getMessage();
+        }
+    }
+
+    // ========== Selektion & Email ==========
+
+    public function toggleSelectAll()
+    {
+        if ($this->selectAll) {
+            // Alle IDs der aktuellen Seite selektieren
+            $this->selectedMessungen = $this->messungen->pluck('id')->map(fn($id) => (string) $id)->toArray();
+        } else {
+            $this->selectedMessungen = [];
+        }
+    }
+
+    public function updatedSelectedMessungen()
+    {
+        // selectAll-Status synchronisieren
+        $pageIds = $this->messungen->pluck('id')->map(fn($id) => (string) $id)->toArray();
+        $this->selectAll = !empty($pageIds) && empty(array_diff($pageIds, $this->selectedMessungen));
+    }
+
+    public function openEmailModal()
+    {
+        if (empty($this->selectedMessungen)) {
+            session()->flash('error', 'Bitte mindestens eine Messung auswählen.');
+            return;
+        }
+
+        $anzahl = count($this->selectedMessungen);
+        $this->emailBetreff = "Messprotokolle ({$anzahl} " . ($anzahl === 1 ? 'Messung' : 'Messungen') . ")";
+        $this->emailText = '';
+        $this->emailEmpfaenger = [];
+        $this->emailSearch = '';
+        $this->emailSuggestions = [];
+        $this->emailError = null;
+        $this->emailSuccess = null;
+        $this->showEmailModal = true;
+    }
+
+    public function closeEmailModal()
+    {
+        $this->showEmailModal = false;
+        $this->emailEmpfaenger = [];
+        $this->emailSearch = '';
+        $this->emailSuggestions = [];
+        $this->emailBetreff = '';
+        $this->emailText = '';
+        $this->emailError = null;
+        $this->emailSuccess = null;
+    }
+
+    public function updatedEmailSearch()
+    {
+        $search = trim($this->emailSearch);
+        if (strlen($search) < 2) {
+            $this->emailSuggestions = [];
+            return;
+        }
+
+        $this->emailSuggestions = Adresse::where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('email_zweit', 'like', "%{$search}%")
+                  ->orWhere('pec', 'like', "%{$search}%");
+            })
+            ->whereNotNull('email')
+            ->where('email', '!=', '')
+            ->orderBy('name')
+            ->limit(10)
+            ->get()
+            ->map(fn($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'email' => $a->email,
+                'email_zweit' => $a->email_zweit,
+                'pec' => $a->pec,
+            ])
+            ->toArray();
+    }
+
+    public function selectEmailAdresse($adresseId, $emailField = 'email')
+    {
+        $adresse = Adresse::find($adresseId);
+        if (!$adresse) return;
+
+        $email = match($emailField) {
+            'email_zweit' => $adresse->email_zweit,
+            'pec' => $adresse->pec,
+            default => $adresse->email,
+        };
+
+        if (!$email) return;
+
+        // Doppelte vermeiden
+        $exists = collect($this->emailEmpfaenger)->contains(fn($e) => $e['email'] === $email);
+        if (!$exists) {
+            $this->emailEmpfaenger[] = [
+                'email' => $email,
+                'name' => $adresse->name,
+            ];
+        }
+
+        $this->emailSearch = '';
+        $this->emailSuggestions = [];
+    }
+
+    public function addManualEmail()
+    {
+        $email = trim($this->emailSearch);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        $exists = collect($this->emailEmpfaenger)->contains(fn($e) => $e['email'] === $email);
+        if (!$exists) {
+            $this->emailEmpfaenger[] = [
+                'email' => $email,
+                'name' => $email,
+            ];
+        }
+
+        $this->emailSearch = '';
+        $this->emailSuggestions = [];
+    }
+
+    public function removeEmailEmpfaenger($index)
+    {
+        unset($this->emailEmpfaenger[$index]);
+        $this->emailEmpfaenger = array_values($this->emailEmpfaenger);
+    }
+
+    public function sendEmail()
+    {
+        $this->emailError = null;
+        $this->emailSuccess = null;
+
+        if (empty($this->emailEmpfaenger)) {
+            $this->emailError = 'Bitte mindestens einen Empfänger angeben.';
+            return;
+        }
+
+        if (empty($this->emailBetreff)) {
+            $this->emailError = 'Betreff ist erforderlich.';
+            return;
+        }
+
+        try {
+            $messungen = Messung::whereIn('id', $this->selectedMessungen)->get();
+
+            // Email-Body zusammenbauen
+            $body = $this->emailText ?: '';
+            $body .= "\n\n--- Messungen ---\n\n";
+
+            foreach ($messungen as $m) {
+                $ergebnis = $m->strEsito === '1' ? 'POSITIV' : ($m->strEsito === '0' ? 'NEGATIV' : '─');
+                $body .= "Kodex: {$m->cIM_CODICE} | {$m->cIM_NAME}\n";
+                $body .= "Datum: {$m->cMIS_DATA2} {$m->cMIS_ORA} | Stadio: {$m->cMIS_STADIO}\n";
+                $body .= "Brennstoff: {$m->cMIS_COMBUSTIBILE_P} | Ergebnis: {$ergebnis}\n";
+                $body .= "O₂: {$m->cMIS_OSSIGENO}% | CO₂: {$m->cMIS_ANIDRIDE_CARBONICA}% | CO: {$m->cMIS_MONOSSSIDO} mg/m³ | NOx: {$m->cMIS_BIOSSIDO_AZOTO} mg/m³\n";
+                $body .= "T-Abgas: {$m->cMIS_T_GAS_COMB}°C | T-Luft: {$m->cMIS_T_ARIA_COMB}°C | qA: {$m->cMIS_PERD_FUMI}%\n";
+                $body .= str_repeat('─', 40) . "\n\n";
+            }
+
+            $recipients = collect($this->emailEmpfaenger)->pluck('email')->toArray();
+            $betreff = $this->emailBetreff;
+
+            Mail::raw($body, function ($message) use ($recipients, $betreff) {
+                $message->to($recipients)
+                        ->subject($betreff);
+            });
+
+            $anzahl = count($recipients);
+            $this->emailSuccess = "Email an {$anzahl} Empfänger gesendet.";
+
+            // Nach kurzer Pause Modal schließen
+            $this->selectedMessungen = [];
+            $this->selectAll = false;
+
+            session()->flash('success', "Email mit " . count($messungen) . " Messungen an {$anzahl} Empfänger gesendet.");
+            $this->closeEmailModal();
+
+        } catch (\Exception $e) {
+            $this->emailError = 'Fehler beim Senden: ' . $e->getMessage();
         }
     }
 
