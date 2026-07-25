@@ -1118,9 +1118,9 @@
                     if (!phone.startsWith('+') && !phone.startsWith('39')) {
                         phone = '39' + phone.replace(/^0/, '');
                     }
-                    phone = phone.replace(/^\\/+/, '');
+                    phone = phone.replace('+', '');
                     const text = encodeURIComponent($wire.get('waText') || '');
-                    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${text}`, '_blank');
+                    window.location.href = 'https://api.whatsapp.com/send?phone=' + phone + '&text=' + text;
                 }
              }">
             <div class="modal-dialog modal-md modal-dialog-scrollable modal-fullscreen-sm-down">
