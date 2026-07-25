@@ -1003,6 +1003,37 @@
                             </div>
                         </div>
 
+                        {{-- Neue Adresse anlegen --}}
+                        @if($showNewAdresseForm)
+                            <div class="card border-success mb-3">
+                                <div class="card-header bg-success bg-opacity-10 py-1 px-2">
+                                    <h6 class="mb-0 small text-success">
+                                        <i class="bi bi-person-plus"></i>
+                                        Neue Adresse anlegen: {{ $newAdresseEmail }}
+                                    </h6>
+                                </div>
+                                <div class="card-body py-2 px-2">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text"
+                                               wire:model="newAdresseName"
+                                               wire:keydown.enter="saveNewAdresse"
+                                               class="form-control"
+                                               placeholder="Name eingeben..."
+                                               autofocus>
+                                        <button wire:click="saveNewAdresse"
+                                                class="btn btn-success"
+                                                @disabled(empty($newAdresseName))>
+                                            <i class="bi bi-check-lg"></i> Speichern
+                                        </button>
+                                        <button wire:click="cancelNewAdresse"
+                                                class="btn btn-outline-secondary">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         {{-- Betreff --}}
                         <div class="mb-3">
                             <label class="form-label small fw-bold mb-1">Betreff</label>
@@ -1135,7 +1166,12 @@
                 },
 
                 openWaLink() {
-                    const nummer = ($wire.get('waNummer') || '').replace(/[^0-9+]/g, '');
+                    let nummer = $wire.get('waNummer') || $wire.get('waSearch') || '';
+                    nummer = nummer.replace(/[^0-9+]/g, '');
+                    if (!nummer) {
+                        alert('Bitte eine Telefonnummer eingeben.');
+                        return;
+                    }
                     let phone = nummer;
                     if (!phone.startsWith('+') && !phone.startsWith('39')) {
                         phone = '39' + phone.replace(/^0/, '');
@@ -1166,16 +1202,18 @@
                             </template>
                         </div>
 
-                        {{-- Telefonnummer (nur im Desktop-Fallback) --}}
-                        <div class="mb-3" x-show="!canShare">
+                        {{-- Telefonnummer --}}
+                        <div class="mb-3">
                             <label class="form-label small fw-bold mb-1">
-                                <i class="bi bi-telephone"></i> Telefonnummer
+                                <i class="bi bi-telephone"></i> Empfänger
+                                <span x-show="canShare" class="text-muted fw-normal">(optional – Kontakt wird im Teilen-Dialog gewählt)</span>
                             </label>
                             <div class="position-relative">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">+39</span>
                                     <input type="tel"
                                            wire:model.live.debounce.300ms="waSearch"
+                                           wire:keydown.enter="addManualWaNummer"
                                            class="form-control"
                                            placeholder="Nummer eingeben oder Name suchen...">
                                 </div>
@@ -1292,8 +1330,7 @@
                         <button x-show="!canShare"
                                 x-on:click="openWaLink()"
                                 class="btn text-white"
-                                style="background-color: #25D366;"
-                                @if(!$waNummer) disabled @endif>
+                                style="background-color: #25D366;">
                             <i class="bi bi-whatsapp"></i> In WhatsApp öffnen
                         </button>
                     </div>
