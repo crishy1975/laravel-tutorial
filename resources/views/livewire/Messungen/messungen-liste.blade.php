@@ -1109,39 +1109,57 @@
              x-data="{
                 loading: false,
                 status: '',
-                canShare: typeof navigator.share === 'function' && typeof navigator.canShare === 'function',
+                canShare: false,
+
+                init() {
+                    // Prüfe ob File-Sharing wirklich unterstützt wird (nicht nur die API)
+                    try {
+                        const testFile = new File(['test'], 'test.pdf', { type: 'application/pdf' });
+                        this.canShare = navigator.canShare && navigator.canShare({ files: [testFile] });
+                    } catch (e) {
+                        this.canShare = false;
+                    }
+                },
 
                 async shareWithFiles() {
                     this.loading = true;
                     this.status = 'PDFs werden geladen...';
 
                     try {
-                        // Messung-IDs aus Livewire holen
                         const ids = @js($selectedMessungen);
                         const files = [];
 
-                        // Jedes PDF laden
                         for (let i = 0; i < ids.length; i++) {
                             this.status = `PDF ${i + 1} von ${ids.length} wird geladen...`;
-                            const response = await fetch(`/messungen/protokoll/${ids[i]}`);
-                            if (!response.ok) continue;
+
+                            // Fetch mit Timeout (15s) und Credentials
+                            const controller = new AbortController();
+                            const timeout = setTimeout(() => controller.abort(), 15000);
+
+                            const response = await fetch(`/messungen/protokoll/${ids[i]}`, {
+                                credentials: 'same-origin',
+                                signal: controller.signal,
+                            });
+                            clearTimeout(timeout);
+
+                            if (!response.ok) {
+                                console.warn(`PDF ${ids[i]}: HTTP ${response.status}`);
+                                continue;
+                            }
 
                             const blob = await response.blob();
                             const filename = response.headers.get('Content-Disposition')
-                                ?.match(/filename=\"(.+?)\"/)?.[1] || `Protokoll_${ids[i]}.pdf`;
+                                ?.match(/filename=\x22(.+?)\x22/)?.[1] || `Protokoll_${ids[i]}.pdf`;
                             files.push(new File([blob], filename, { type: 'application/pdf' }));
                         }
 
                         if (files.length === 0) {
-                            this.status = 'Keine PDFs konnten geladen werden.';
+                            this.status = '⚠️ Keine PDFs konnten geladen werden.';
                             this.loading = false;
                             return;
                         }
 
-                        // Text aus Livewire
                         const text = $wire.get('waText') || '';
-
-                        // Web Share API mit Dateien
                         const shareData = { text: text, files: files };
 
                         if (navigator.canShare && navigator.canShare(shareData)) {
@@ -1150,15 +1168,13 @@
                             this.status = '✅ Geteilt!';
                             $wire.call('closeWhatsappModal');
                         } else {
-                            // Fallback: ohne Dateien teilen
-                            this.status = 'Dateien-Teilen nicht unterstützt, nur Text...';
-                            await navigator.share({ text: text });
+                            this.status = '⚠️ Datei-Teilen auf diesem Gerät nicht möglich. Bitte \"In WhatsApp öffnen\" verwenden.';
                         }
                     } catch (err) {
                         if (err.name === 'AbortError') {
-                            this.status = 'Teilen abgebrochen.';
+                            this.status = 'Abgebrochen / Zeitüberschreitung.';
                         } else {
-                            this.status = 'Fehler: ' + err.message;
+                            this.status = '⚠️ ' + err.message;
                             console.error('Share error:', err);
                         }
                     }
@@ -1169,7 +1185,7 @@
                     let nummer = $wire.get('waNummer') || $wire.get('waSearch') || '';
                     nummer = nummer.replace(/[^0-9+]/g, '');
                     if (!nummer) {
-                        alert('Bitte eine Telefonnummer eingeben.');
+                        alert('Bitte eine Telefonnummer eingeben oder auswählen.');
                         return;
                     }
                     let phone = nummer;
@@ -1193,12 +1209,12 @@
                     <div class="modal-body p-2 p-md-3">
 
                         {{-- Modus-Info --}}
-                        <div class="alert py-2 mb-3 small" :class="canShare ? 'alert-success' : 'alert-warning'">
+                        <div class="alert py-2 mb-3 small" :class="canShare ? 'alert-success' : 'alert-info'">
                             <template x-if="canShare">
-                                <span><i class="bi bi-check-circle"></i> <strong>PDF-Versand verfügbar</strong> – Protokolle werden direkt mit WhatsApp geteilt.</span>
+                                <span><i class="bi bi-check-circle"></i> <strong>\"Mit PDFs teilen\"</strong> öffnet den Teilen-Dialog mit den Protokollen als Anhang.</span>
                             </template>
                             <template x-if="!canShare">
-                                <span><i class="bi bi-info-circle"></i> <strong>Desktop-Modus</strong> – WhatsApp öffnet mit Text. PDFs bitte manuell anhängen.</span>
+                                <span><i class="bi bi-info-circle"></i> <strong>\"WhatsApp öffnen\"</strong> sendet den Text. Nummer eingeben und Enter drücken.</span>
                             </template>
                         </div>
 
@@ -1311,27 +1327,27 @@
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer py-2">
+                    <div class="modal-footer py-2 flex-wrap gap-1">
                         <button type="button" class="btn btn-secondary" wire:click="closeWhatsappModal">
                             <i class="bi bi-x-lg"></i> Abbrechen
                         </button>
 
-                        {{-- Mobile: Web Share API mit PDFs --}}
+                        {{-- Web Share API: PDFs direkt teilen (Mobile) --}}
                         <button x-show="canShare"
                                 x-on:click="shareWithFiles()"
                                 :disabled="loading"
                                 class="btn text-white"
                                 style="background-color: #25D366;">
-                            <span x-show="!loading"><i class="bi bi-whatsapp"></i> Mit PDFs teilen</span>
-                            <span x-show="loading"><i class="bi bi-hourglass-split"></i> Wird geladen...</span>
+                            <span x-show="!loading"><i class="bi bi-share"></i> Mit PDFs teilen</span>
+                            <span x-show="loading">
+                                <span class="spinner-border spinner-border-sm me-1"></span> Lädt...
+                            </span>
                         </button>
 
-                        {{-- Desktop: Fallback WhatsApp-Link --}}
-                        <button x-show="!canShare"
-                                x-on:click="openWaLink()"
-                                class="btn text-white"
-                                style="background-color: #25D366;">
-                            <i class="bi bi-whatsapp"></i> In WhatsApp öffnen
+                        {{-- WhatsApp-Link: immer verfügbar (Nummer erforderlich) --}}
+                        <button x-on:click="openWaLink()"
+                                class="btn btn-outline-success">
+                            <i class="bi bi-whatsapp"></i> WhatsApp öffnen
                         </button>
                     </div>
                 </div>
