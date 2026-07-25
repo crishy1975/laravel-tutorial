@@ -80,7 +80,7 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
     // Foto-Extraktion (Claude Vision API)
     Route::post('/extract-from-photo', [\App\Http\Controllers\ExtractMessungController::class, 'extract'])->name('extract-from-photo');
 
-    // Amt-Import (Fix-Width-Datei)
+     // Amt-Import (Fix-Width-Datei)
     Route::get('/amt-import', \App\Livewire\Messungen\AmtImport::class)->name('amt-import');
 
 
@@ -256,22 +256,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
         // E-Mail Versand
         Route::post('/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('email.send');
-
+               
         // Gutschrift
         Route::post('/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('gutschrift');
     });
-
-    // Email-Preview (nur lokal!)
-    Route::get('/email-preview', function () {
-        $messungen = \App\Models\Messung::limit(3)->get();
-
-        return view('emails.messungen-protokolle', [
-            'messungen' => $messungen,
-            'anzahlProtokolle' => $messungen->count(),
-            'nachricht' => 'Dies ist eine Testnachricht mit zusätzlichen Informationen.',
-            'fehler' => [],
-        ]);
-    })->middleware('auth');
+    
 
     // FatturaPA XML Log-Verwaltung (eigener Prefix, kein rechnung/{id})
     Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
