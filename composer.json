@@ -16,7 +16,7 @@
         "livewire/livewire": "*",
         "phpoffice/phpspreadsheet": "^5.3",
         "setasign/fpdf": "^1.8",
-        "setasign/fpdi": "*",
+        "setasign/fpdi": "^2.6",
         "setasign/fpdi-fpdf": "*"
     },
     "require-dev": {
