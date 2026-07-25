@@ -33,6 +33,11 @@
                     <span class="d-none d-sm-inline">Email</span>
                     <span class="badge bg-white text-info ms-1">{{ count($selectedMessungen) }}</span>
                 </button>
+                <button wire:click="openWhatsappModal" class="btn btn-success btn-sm">
+                    <i class="bi bi-whatsapp"></i>
+                    <span class="d-none d-sm-inline">WhatsApp</span>
+                    <span class="badge bg-white text-success ms-1">{{ count($selectedMessungen) }}</span>
+                </button>
             @endif
             <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-building"></i>
@@ -1061,6 +1066,138 @@
                                 @disabled(empty($emailEmpfaenger))>
                             <i class="bi bi-send"></i> Senden
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ========== Modal: WhatsApp versenden ========== --}}
+    @if($showWhatsappModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-md modal-dialog-scrollable modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header py-2" style="background-color: #25D366; color: white;">
+                        <h5 class="modal-title">
+                            <i class="bi bi-whatsapp"></i>
+                            Messungen per WhatsApp senden
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeWhatsappModal"></button>
+                    </div>
+                    <div class="modal-body p-2 p-md-3">
+
+                        {{-- Telefonnummer --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">
+                                <i class="bi bi-telephone"></i> Telefonnummer
+                            </label>
+                            <div class="position-relative">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">+39</span>
+                                    <input type="tel"
+                                           wire:model.live.debounce.300ms="waSearch"
+                                           class="form-control"
+                                           placeholder="Nummer eingeben oder Name suchen...">
+                                </div>
+
+                                {{-- Vorschläge aus Adresse --}}
+                                @if(!empty($waSuggestions))
+                                    <div class="position-absolute w-100 bg-white border rounded-bottom shadow-sm"
+                                         style="z-index: 1050; max-height: 200px; overflow-y: auto;">
+                                        @foreach($waSuggestions as $sug)
+                                            <div class="border-bottom">
+                                                <div class="px-3 pt-2 pb-1">
+                                                    <strong class="small">{{ $sug['name'] }}</strong>
+                                                </div>
+                                                @if($sug['handy'])
+                                                    <button type="button"
+                                                            class="dropdown-item py-1 ps-4 small"
+                                                            wire:click="selectWaNummer({{ $sug['id'] }}, 'handy')">
+                                                        <i class="bi bi-phone text-success me-1"></i>
+                                                        {{ $sug['handy'] }}
+                                                        <span class="text-muted">(Handy)</span>
+                                                    </button>
+                                                @endif
+                                                @if($sug['telefon'])
+                                                    <button type="button"
+                                                            class="dropdown-item py-1 ps-4 small"
+                                                            wire:click="selectWaNummer({{ $sug['id'] }}, 'telefon')">
+                                                        <i class="bi bi-telephone text-primary me-1"></i>
+                                                        {{ $sug['telefon'] }}
+                                                        <span class="text-muted">(Telefon)</span>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+
+                            @if($waNummer)
+                                <div class="mt-2">
+                                    <span class="badge bg-success d-inline-flex align-items-center gap-1 py-1 px-2">
+                                        <i class="bi bi-whatsapp"></i>
+                                        {{ $waName ? $waName . ' – ' : '' }}{{ $waNummer }}
+                                        <button type="button" class="btn-close btn-close-white ms-1"
+                                                style="font-size: 0.5rem;"
+                                                wire:click="$set('waNummer', '')"></button>
+                                    </span>
+                                </div>
+                            @endif
+                        </div>
+
+                        {{-- Nachricht --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">Nachricht</label>
+                            <textarea wire:model="waText"
+                                      class="form-control form-control-sm" rows="6"></textarea>
+                        </div>
+
+                        {{-- Vorschau Messungen --}}
+                        <div class="card bg-light">
+                            <div class="card-header py-1 px-2">
+                                <h6 class="mb-0 small">
+                                    <i class="bi bi-list-check"></i>
+                                    {{ count($selectedMessungen) }} Messungen
+                                </h6>
+                            </div>
+                            <div class="card-body p-0" style="max-height: 150px; overflow-y: auto;">
+                                <table class="table table-sm table-striped mb-0 small">
+                                    <tbody>
+                                        @foreach(\App\Models\Messung::whereIn('id', $selectedMessungen)->get() as $sm)
+                                            <tr>
+                                                <td>{{ $sm->cIM_CODICE }}</td>
+                                                <td class="text-truncate" style="max-width: 150px;">{{ $sm->cIM_NAME }}</td>
+                                                <td>{{ $sm->cMIS_DATA2 }}</td>
+                                                <td class="text-center">
+                                                    @if($sm->strEsito === '1')
+                                                        <span class="text-success">✓</span>
+                                                    @elseif($sm->strEsito === '0')
+                                                        <span class="text-danger">✗</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info py-2 mt-3 small">
+                            <i class="bi bi-info-circle"></i>
+                            WhatsApp wird mit der Nachricht geöffnet. Die PDF-Protokolle können dort als Datei angehängt werden.
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary" wire:click="closeWhatsappModal">
+                            <i class="bi bi-x-lg"></i> Abbrechen
+                        </button>
+                        <a href="{{ $waLink }}" target="_blank" rel="noopener"
+                           class="btn text-white {{ $waNummer ? '' : 'disabled' }}"
+                           style="background-color: #25D366;"
+                           @if(!$waNummer) aria-disabled="true" tabindex="-1" @endif>
+                            <i class="bi bi-whatsapp"></i> In WhatsApp öffnen
+                        </a>
                     </div>
                 </div>
             </div>

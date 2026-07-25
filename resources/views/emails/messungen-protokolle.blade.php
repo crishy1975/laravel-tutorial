@@ -136,7 +136,7 @@
                                 <tr>
                                     <td style="color: #718096; font-size: 12px; line-height: 1.8;">
                                         <strong style="color: #4a5568;">Resch GmbH / S.r.l.</strong><br>
-                                        Kennedystr. 96 – 39011 Lana (BZ)<br>
+                                        Galvanistr. 6 – 39100 Bozen (BZ)<br>
                                         📞 338 4693481 &nbsp;&middot;&nbsp; ✉️ info@resch.bz
                                     </td>
                                     <td align="right" valign="top" style="color: #a0aec0; font-size: 11px;">
