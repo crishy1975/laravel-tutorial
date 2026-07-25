@@ -85,6 +85,11 @@ class MessungenListe extends Component
     public $emailError = null;
     public $emailSuccess = null;
 
+    // Neue Adresse anlegen
+    public $showNewAdresseForm = false;
+    public $newAdresseEmail = '';
+    public $newAdresseName = '';
+
     // Modal: WhatsApp versenden
     public $showWhatsappModal = false;
     public $waSearch = '';
@@ -702,6 +707,9 @@ class MessungenListe extends Component
         $this->emailText = '';
         $this->emailError = null;
         $this->emailSuccess = null;
+        $this->showNewAdresseForm = false;
+        $this->newAdresseEmail = '';
+        $this->newAdresseName = '';
     }
 
     public function updatedEmailSearch()
@@ -766,16 +774,83 @@ class MessungenListe extends Component
             return;
         }
 
+        // Schon als Empfänger hinzugefügt?
+        $alreadyAdded = collect($this->emailEmpfaenger)->contains(fn($e) => $e['email'] === $email);
+        if ($alreadyAdded) {
+            $this->emailSearch = '';
+            $this->emailSuggestions = [];
+            return;
+        }
+
+        // Existiert in der Datenbank?
+        $adresse = Adresse::where('email', $email)
+            ->orWhere('email_zweit', $email)
+            ->orWhere('pec', $email)
+            ->first();
+
+        if ($adresse) {
+            // Bekannte Adresse → direkt hinzufügen
+            $this->emailEmpfaenger[] = [
+                'email' => $email,
+                'name' => $adresse->name,
+            ];
+            $this->emailSearch = '';
+            $this->emailSuggestions = [];
+        } else {
+            // Unbekannte Email → Formular für Name anzeigen
+            $this->newAdresseEmail = $email;
+            $this->newAdresseName = '';
+            $this->showNewAdresseForm = true;
+            $this->emailSuggestions = [];
+        }
+    }
+
+    public function saveNewAdresse()
+    {
+        $email = trim($this->newAdresseEmail);
+        $name = trim($this->newAdresseName);
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        if (empty($name)) {
+            return;
+        }
+
+        // In Datenbank speichern (leere Strings für NOT NULL Felder)
+        Adresse::create([
+            'name' => $name,
+            'email' => $email,
+            'strasse' => '',
+            'hausnummer' => '',
+            'plz' => '',
+            'wohnort' => '',
+            'provinz' => 'BZ',
+            'land' => 'IT',
+        ]);
+
+        // Als Empfänger hinzufügen
         $exists = collect($this->emailEmpfaenger)->contains(fn($e) => $e['email'] === $email);
         if (!$exists) {
             $this->emailEmpfaenger[] = [
                 'email' => $email,
-                'name' => $email,
+                'name' => $name,
             ];
         }
 
+        // Formular zurücksetzen
+        $this->showNewAdresseForm = false;
+        $this->newAdresseEmail = '';
+        $this->newAdresseName = '';
         $this->emailSearch = '';
-        $this->emailSuggestions = [];
+    }
+
+    public function cancelNewAdresse()
+    {
+        $this->showNewAdresseForm = false;
+        $this->newAdresseEmail = '';
+        $this->newAdresseName = '';
     }
 
     public function removeEmailEmpfaenger($index)
@@ -950,6 +1025,21 @@ class MessungenListe extends Component
 
         $this->waNummer = $nummer;
         $this->waName = $adresse->name;
+        $this->waSearch = '';
+        $this->waSuggestions = [];
+    }
+
+    public function addManualWaNummer()
+    {
+        $nummer = trim($this->waSearch);
+        if (empty($nummer)) return;
+
+        // Mindestens ein paar Ziffern drin?
+        $digits = preg_replace('/[^0-9]/', '', $nummer);
+        if (strlen($digits) < 6) return;
+
+        $this->waNummer = $nummer;
+        $this->waName = '';
         $this->waSearch = '';
         $this->waSuggestions = [];
     }
