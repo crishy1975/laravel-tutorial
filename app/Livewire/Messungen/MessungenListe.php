@@ -806,7 +806,6 @@ class MessungenListe extends Component
                         'name' => $filename,
                     ];
                 } catch (\Exception $e) {
-                    // Messung ohne Protokoll-Vorlage: überspringen und vermelden
                     $attachments[] = [
                         'data' => null,
                         'name' => null,
@@ -824,23 +823,21 @@ class MessungenListe extends Component
                 return;
             }
 
-            // Email-Body
-            $body = $this->emailText ?: '';
-            if (!empty($body)) {
-                $body .= "\n\n";
-            }
-            $body .= count($validAttachments) . " Messprotokoll(e) als PDF im Anhang.";
-
-            if (!empty($errors)) {
-                $body .= "\n\nHinweis: " . implode("\n", $errors);
-            }
+            // HTML-Email rendern
+            $htmlBody = view('emails.messungen-protokolle', [
+                'messungen' => $messungen,
+                'anzahlProtokolle' => count($validAttachments),
+                'nachricht' => $this->emailText,
+                'fehler' => $errors,
+            ])->render();
 
             $recipients = collect($this->emailEmpfaenger)->pluck('email')->toArray();
             $betreff = $this->emailBetreff;
 
-            Mail::raw($body, function ($message) use ($recipients, $betreff, $validAttachments) {
+            Mail::send([], [], function ($message) use ($recipients, $betreff, $htmlBody, $validAttachments) {
                 $message->to($recipients)
-                        ->subject($betreff);
+                        ->subject($betreff)
+                        ->html($htmlBody);
 
                 foreach ($validAttachments as $att) {
                     $message->attachData($att['data'], $att['name'], [
