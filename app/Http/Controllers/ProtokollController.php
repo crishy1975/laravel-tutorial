@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Messung;
 use App\Models\Impianto;
+use Illuminate\Support\Facades\Storage;
 use setasign\Fpdi\Fpdi;
 
 class ProtokollController extends Controller
@@ -19,6 +20,30 @@ class ProtokollController extends Controller
     ];
 
     private const PAGE_HEIGHT = 841.89;
+
+    /**
+     * Öffentlicher Download über Token (kein Login nötig)
+     */
+    public function download($token)
+    {
+        $dir = 'protokolle';
+        $files = Storage::disk('local')->files($dir);
+
+        // Datei mit passendem Token finden
+        $match = collect($files)->first(fn($f) => str_contains($f, $token));
+
+        if (!$match || !Storage::disk('local')->exists($match)) {
+            abort(404, 'Protokoll nicht gefunden oder abgelaufen.');
+        }
+
+        $filename = basename($match);
+        // Token-Prefix entfernen für den Download-Namen
+        $downloadName = preg_replace('/^[a-f0-9]+_/', '', $filename);
+
+        return response(Storage::disk('local')->get($match))
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="' . $downloadName . '"');
+    }
 
     public function generate($messungId)
     {

@@ -10,6 +10,8 @@ use App\Models\Impianto;
 use App\Models\Adresse;
 use App\Services\GrenzwertService;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use App\Http\Controllers\ProtokollController;
 
 #[Layout('layouts.app')]
@@ -951,15 +953,33 @@ class MessungenListe extends Component
         }
 
         $messungen = Messung::whereIn('id', $this->selectedMessungen)->get();
+        $protokollController = new ProtokollController();
+        $baseUrl = rtrim(config('app.url'), '/');
 
-        // Nachricht vorbauen
-        $text = "Messprotokolle Resch GmbH\n";
+        // PDFs erzeugen und im Storage speichern
+        $text = "📋 *Messprotokolle Resch GmbH*\n";
         $text .= str_repeat('─', 30) . "\n\n";
+        $errors = [];
 
         foreach ($messungen as $m) {
             $ergebnis = $m->strEsito === '1' ? '✅ Positiv' : ($m->strEsito === '0' ? '❌ Negativ' : '─');
-            $text .= "📋 *{$m->cIM_CODICE}* – {$m->cIM_NAME}\n";
-            $text .= "📅 {$m->cMIS_DATA2} | {$m->cMIS_COMBUSTIBILE_P} | {$ergebnis}\n\n";
+            $text .= "🔥 *{$m->cIM_CODICE}* – {$m->cIM_NAME}\n";
+            $text .= "📅 {$m->cMIS_DATA2} | {$m->cMIS_COMBUSTIBILE_P} | {$ergebnis}\n";
+
+            try {
+                $pdfString = $protokollController->generatePdfString($m);
+                $token = Str::random(16);
+                $filename = ProtokollController::getFilename($m);
+                $storagePath = "protokolle/{$token}_{$filename}";
+
+                Storage::disk('local')->put($storagePath, $pdfString);
+
+                $downloadUrl = "{$baseUrl}/messungen/protokoll/download/{$token}";
+                $text .= "📎 {$downloadUrl}\n\n";
+            } catch (\Exception $e) {
+                $errors[] = "PDF für {$m->cIM_CODICE}: {$e->getMessage()}";
+                $text .= "⚠️ _PDF konnte nicht erstellt werden_\n\n";
+            }
         }
 
         $text .= str_repeat('─', 30) . "\n";
@@ -972,6 +992,10 @@ class MessungenListe extends Component
         $this->waSearch = '';
         $this->waSuggestions = [];
         $this->showWhatsappModal = true;
+
+        if (!empty($errors)) {
+            session()->flash('error', implode(' | ', $errors));
+        }
     }
 
     public function closeWhatsappModal()
@@ -1034,7 +1058,6 @@ class MessungenListe extends Component
         $nummer = trim($this->waSearch);
         if (empty($nummer)) return;
 
-        // Mindestens ein paar Ziffern drin?
         $digits = preg_replace('/[^0-9]/', '', $nummer);
         if (strlen($digits) < 6) return;
 
@@ -1042,27 +1065,6 @@ class MessungenListe extends Component
         $this->waName = '';
         $this->waSearch = '';
         $this->waSuggestions = [];
-    }
-
-    /**
-     * WhatsApp-Link generieren (Computed Property)
-     */
-    public function getWaLinkProperty(): string
-    {
-        if (!$this->waNummer) {
-            return '#';
-        }
-
-        // Nummer bereinigen: nur Ziffern, ggf. +39 Prefix
-        $nummer = preg_replace('/[^0-9+]/', '', $this->waNummer);
-        if (!str_starts_with($nummer, '+') && !str_starts_with($nummer, '39')) {
-            $nummer = '39' . ltrim($nummer, '0');
-        }
-        $nummer = ltrim($nummer, '+');
-
-        $text = urlencode($this->waText);
-
-        return "https://api.whatsapp.com/send?phone={$nummer}&text={$text}";
     }
 
     // ========== Properties ==========
@@ -1192,7 +1194,6 @@ class MessungenListe extends Component
             'statistik' => $this->statistik,
             'brennstoffe' => $this->brennstoffe,
             'formErrors' => $this->formErrors,
-            'waLink' => $this->waLink,
         ]);
     }
 }
