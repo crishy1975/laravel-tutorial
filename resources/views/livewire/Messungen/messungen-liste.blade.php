@@ -957,8 +957,9 @@
                                     <input type="text"
                                            wire:model.live.debounce.300ms="emailSearch"
                                            wire:keydown.enter="addManualEmail"
+                                           wire:blur="addManualEmail"
                                            class="form-control"
-                                           placeholder="Name oder Email suchen... (Enter = manuelle Eingabe)">
+                                           placeholder="Name oder Email suchen...">
                                 </div>
 
                                 {{-- Vorschläge Dropdown --}}
@@ -1145,9 +1146,10 @@
                                     <input type="text"
                                            wire:model.live.debounce.300ms="waSearch"
                                            wire:keydown.enter="addManualWaNummer"
+                                           wire:blur="addManualWaNummer"
                                            class="form-control"
-                                           placeholder="Name oder Nummer... (Enter)"
-                                           inputmode="text">>
+                                           placeholder="Name oder Nummer..."
+                                           inputmode="text">
                                 </div>
 
                                 @if(!empty($waSuggestions))
