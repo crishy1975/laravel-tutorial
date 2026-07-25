@@ -1142,11 +1142,12 @@
                             <div class="position-relative">
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text">+39</span>
-                                    <input type="tel"
+                                    <input type="text"
                                            wire:model.live.debounce.300ms="waSearch"
                                            wire:keydown.enter="addManualWaNummer"
                                            class="form-control"
-                                           placeholder="Nummer eingeben oder Name suchen... (Enter)">
+                                           placeholder="Name oder Nummer... (Enter)"
+                                           inputmode="text">>
                                 </div>
 
                                 @if(!empty($waSuggestions))
@@ -1193,6 +1194,47 @@
                                 </div>
                             @endif
                         </div>
+
+                        {{-- Neuen Kontakt anlegen --}}
+                        @if($showNewKontaktForm)
+                            <div class="card border-success mb-3">
+                                <div class="card-header bg-success bg-opacity-10 py-1 px-2">
+                                    <h6 class="mb-0 small text-success">
+                                        <i class="bi bi-person-plus"></i>
+                                        Neuen Kontakt anlegen: {{ $newKontaktNummer }}
+                                    </h6>
+                                </div>
+                                <div class="card-body py-2 px-2">
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <input type="text"
+                                                   wire:model="newKontaktName"
+                                                   wire:keydown.enter="saveNewKontakt"
+                                                   class="form-control form-control-sm"
+                                                   placeholder="Name *"
+                                                   autofocus>
+                                        </div>
+                                        <div class="col-12">
+                                            <input type="email"
+                                                   wire:model="newKontaktEmail"
+                                                   class="form-control form-control-sm"
+                                                   placeholder="Email (optional)">
+                                        </div>
+                                        <div class="col-12 d-flex gap-1">
+                                            <button wire:click="saveNewKontakt"
+                                                    class="btn btn-success btn-sm flex-grow-1"
+                                                    @disabled(empty($newKontaktName))>
+                                                <i class="bi bi-check-lg"></i> Speichern
+                                            </button>
+                                            <button wire:click="cancelNewKontakt"
+                                                    class="btn btn-outline-secondary btn-sm">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
 
                         {{-- Nachricht mit Links --}}
                         <div class="mb-3">

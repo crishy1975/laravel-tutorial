@@ -100,6 +100,12 @@ class MessungenListe extends Component
     public $waName = '';
     public $waText = '';
 
+    // Neuen Kontakt anlegen (WhatsApp)
+    public $showNewKontaktForm = false;
+    public $newKontaktName = '';
+    public $newKontaktNummer = '';
+    public $newKontaktEmail = '';
+
     // Brennstoff-Mapping
     public const BRENNSTOFFE = [
         'FUEL_LIGHT_OIL' => ['nr' => 1, 'text' => 'Heizöl/gasolio'],
@@ -1007,6 +1013,10 @@ class MessungenListe extends Component
         $this->waNummer = '';
         $this->waName = '';
         $this->waText = '';
+        $this->showNewKontaktForm = false;
+        $this->newKontaktName = '';
+        $this->newKontaktNummer = '';
+        $this->newKontaktEmail = '';
     }
 
     public function updatedWaSearch()
@@ -1056,16 +1066,69 @@ class MessungenListe extends Component
 
     public function addManualWaNummer()
     {
-        $nummer = trim($this->waSearch);
-        if (empty($nummer)) return;
+        $input = trim($this->waSearch);
+        if (empty($input)) return;
 
-        $digits = preg_replace('/[^0-9]/', '', $nummer);
+        $digits = preg_replace('/[^0-9]/', '', $input);
         if (strlen($digits) < 6) return;
 
+        // Existiert in der Datenbank?
+        $adresse = Adresse::where('handy', 'like', "%{$digits}%")
+            ->orWhere('telefon', 'like', "%{$digits}%")
+            ->first();
+
+        if ($adresse) {
+            $this->waNummer = $adresse->handy ?: $adresse->telefon;
+            $this->waName = $adresse->name;
+            $this->waSearch = '';
+            $this->waSuggestions = [];
+        } else {
+            // Unbekannte Nummer → Formular anzeigen
+            $this->newKontaktNummer = $input;
+            $this->newKontaktName = '';
+            $this->newKontaktEmail = '';
+            $this->showNewKontaktForm = true;
+            $this->waSuggestions = [];
+        }
+    }
+
+    public function saveNewKontakt()
+    {
+        $name = trim($this->newKontaktName);
+        $nummer = trim($this->newKontaktNummer);
+        $email = trim($this->newKontaktEmail);
+
+        if (empty($name) || empty($nummer)) return;
+
+        // In Datenbank speichern
+        Adresse::create([
+            'name' => $name,
+            'handy' => $nummer,
+            'email' => $email ?: '',
+            'strasse' => '',
+            'hausnummer' => '',
+            'plz' => '',
+            'wohnort' => '',
+            'provinz' => 'BZ',
+            'land' => 'IT',
+        ]);
+
+        // Als Empfänger setzen
         $this->waNummer = $nummer;
-        $this->waName = '';
+        $this->waName = $name;
         $this->waSearch = '';
-        $this->waSuggestions = [];
+        $this->showNewKontaktForm = false;
+        $this->newKontaktName = '';
+        $this->newKontaktNummer = '';
+        $this->newKontaktEmail = '';
+    }
+
+    public function cancelNewKontakt()
+    {
+        $this->showNewKontaktForm = false;
+        $this->newKontaktName = '';
+        $this->newKontaktNummer = '';
+        $this->newKontaktEmail = '';
     }
 
     // ========== Properties ==========
