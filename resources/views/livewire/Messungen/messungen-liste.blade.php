@@ -27,6 +27,13 @@
             </p>
         </div>
         <div class="d-flex gap-1 gap-sm-2 flex-wrap">
+            @if(count($selectedMessungen) > 0)
+                <button wire:click="openEmailModal" class="btn btn-info btn-sm">
+                    <i class="bi bi-envelope"></i>
+                    <span class="d-none d-sm-inline">Email</span>
+                    <span class="badge bg-white text-info ms-1">{{ count($selectedMessungen) }}</span>
+                </button>
+            @endif
             <a href="{{ route('messungen.anlagen.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-building"></i>
                 <span class="d-none d-sm-inline">Anlagen</span>
@@ -161,6 +168,12 @@
                 <table class="table table-hover table-striped mb-0" id="messungenTable">
                     <thead class="table-dark">
                         <tr>
+                            <th class="text-center" style="width: 40px;">
+                                <input type="checkbox" class="form-check-input"
+                                       wire:model.live="selectAll"
+                                       wire:change="toggleSelectAll"
+                                       title="Alle auswählen">
+                            </th>
                             <th wire:click="sortBy('cIM_CODICE')" class="text-nowrap">
                                 Kodex
                                 @if($sortField === 'cIM_CODICE')
@@ -188,6 +201,11 @@
                     <tbody>
                         @forelse($messungen as $m)
                             <tr class="{{ $m->strEsito === '0' ? 'table-danger' : ($m->codeInImpianti == 0 ? 'table-warning' : '') }}">
+                                <td class="text-center" onclick="event.stopPropagation()">
+                                    <input type="checkbox" class="form-check-input"
+                                           wire:model.live="selectedMessungen"
+                                           value="{{ $m->id }}">
+                                </td>
                                 <td class="text-nowrap">
                                     @if($m->codeInImpianti == 0)
                                         <span class="text-muted">{{ $m->cIM_CODICE ?: '─' }}</span>
@@ -241,7 +259,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
                                     Keine Messungen gefunden
                                 </td>
@@ -280,6 +298,11 @@
             <div class="card mb-2 {{ $m->strEsito === '0' ? 'border-danger' : ($m->codeInImpianti == 0 ? 'border-warning' : '') }}">
                 <div class="card-body p-2">
                     <div class="d-flex justify-content-between align-items-start mb-1">
+                        <div class="me-2 pt-1">
+                            <input type="checkbox" class="form-check-input"
+                                   wire:model.live="selectedMessungen"
+                                   value="{{ $m->id }}">
+                        </div>
                         <div class="flex-grow-1 min-width-0">
                             <h6 class="mb-0 text-truncate">{{ $m->cIM_NAME }}</h6>
                             <small class="text-muted">
@@ -875,6 +898,169 @@
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ========== Modal: Email versenden ========== --}}
+    @if($showEmailModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white py-2">
+                        <h5 class="modal-title">
+                            <i class="bi bi-envelope"></i>
+                            Messungen per Email senden
+                            <span class="badge bg-white text-info ms-1">{{ count($selectedMessungen) }}</span>
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeEmailModal"></button>
+                    </div>
+                    <div class="modal-body p-2 p-md-3">
+
+                        @if($emailError)
+                            <div class="alert alert-danger py-2 mb-2">
+                                <i class="bi bi-exclamation-triangle"></i> {{ $emailError }}
+                            </div>
+                        @endif
+
+                        {{-- Empfänger-Bereich --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">
+                                <i class="bi bi-people"></i> Empfänger
+                            </label>
+
+                            {{-- Gewählte Empfänger als Tags --}}
+                            @if(!empty($emailEmpfaenger))
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    @foreach($emailEmpfaenger as $index => $emp)
+                                        <span class="badge bg-primary d-flex align-items-center gap-1 py-1 px-2">
+                                            {{ $emp['name'] }} &lt;{{ $emp['email'] }}&gt;
+                                            <button type="button" class="btn-close btn-close-white ms-1"
+                                                    style="font-size: 0.5rem;"
+                                                    wire:click="removeEmailEmpfaenger({{ $index }})"></button>
+                                        </span>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            {{-- Suchfeld --}}
+                            <div class="position-relative">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text"
+                                           wire:model.live.debounce.300ms="emailSearch"
+                                           wire:keydown.enter="addManualEmail"
+                                           class="form-control"
+                                           placeholder="Name oder Email suchen... (Enter = manuelle Eingabe)">
+                                </div>
+
+                                {{-- Vorschläge Dropdown --}}
+                                @if(!empty($emailSuggestions))
+                                    <div class="position-absolute w-100 bg-white border rounded-bottom shadow-sm"
+                                         style="z-index: 1050; max-height: 250px; overflow-y: auto;">
+                                        @foreach($emailSuggestions as $suggestion)
+                                            <div class="border-bottom">
+                                                <div class="px-3 pt-2 pb-1">
+                                                    <strong class="small">{{ $suggestion['name'] }}</strong>
+                                                </div>
+                                                @if($suggestion['email'])
+                                                    <button type="button"
+                                                            class="dropdown-item py-1 ps-4 small"
+                                                            wire:click="selectEmailAdresse({{ $suggestion['id'] }}, 'email')">
+                                                        <i class="bi bi-envelope text-primary me-1"></i>
+                                                        {{ $suggestion['email'] }}
+                                                    </button>
+                                                @endif
+                                                @if($suggestion['email_zweit'])
+                                                    <button type="button"
+                                                            class="dropdown-item py-1 ps-4 small"
+                                                            wire:click="selectEmailAdresse({{ $suggestion['id'] }}, 'email_zweit')">
+                                                        <i class="bi bi-envelope text-secondary me-1"></i>
+                                                        {{ $suggestion['email_zweit'] }}
+                                                        <span class="text-muted">(Zweit)</span>
+                                                    </button>
+                                                @endif
+                                                @if($suggestion['pec'])
+                                                    <button type="button"
+                                                            class="dropdown-item py-1 ps-4 small"
+                                                            wire:click="selectEmailAdresse({{ $suggestion['id'] }}, 'pec')">
+                                                        <i class="bi bi-shield-check text-success me-1"></i>
+                                                        {{ $suggestion['pec'] }}
+                                                        <span class="text-muted">(PEC)</span>
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        {{-- Betreff --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">Betreff</label>
+                            <input type="text" wire:model="emailBetreff"
+                                   class="form-control form-control-sm">
+                        </div>
+
+                        {{-- Nachricht --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">Nachricht (optional)</label>
+                            <textarea wire:model="emailText"
+                                      class="form-control form-control-sm" rows="4"
+                                      placeholder="Zusätzlicher Text vor den Messdaten..."></textarea>
+                        </div>
+
+                        {{-- Vorschau: Selektierte Messungen --}}
+                        <div class="card bg-light">
+                            <div class="card-header py-1 px-2">
+                                <h6 class="mb-0 small">
+                                    <i class="bi bi-list-check"></i>
+                                    {{ count($selectedMessungen) }} Messungen werden gesendet
+                                </h6>
+                            </div>
+                            <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                                <table class="table table-sm table-striped mb-0 small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Kodex</th>
+                                            <th>Name</th>
+                                            <th>Datum</th>
+                                            <th class="text-center">Ergebnis</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach(\App\Models\Messung::whereIn('id', $selectedMessungen)->get() as $sm)
+                                            <tr>
+                                                <td>{{ $sm->cIM_CODICE }}</td>
+                                                <td class="text-truncate" style="max-width: 150px;">{{ $sm->cIM_NAME }}</td>
+                                                <td>{{ $sm->cMIS_DATA2 }}</td>
+                                                <td class="text-center">
+                                                    @if($sm->strEsito === '1')
+                                                        <span class="badge bg-success">✓</span>
+                                                    @elseif($sm->strEsito === '0')
+                                                        <span class="badge bg-danger">✗</span>
+                                                    @else
+                                                        <span class="badge bg-secondary">─</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary" wire:click="closeEmailModal">
+                            <i class="bi bi-x-lg"></i> Abbrechen
+                        </button>
+                        <button type="button" class="btn btn-info text-white" wire:click="sendEmail"
+                                @disabled(empty($emailEmpfaenger))>
+                            <i class="bi bi-send"></i> Senden
+                        </button>
                     </div>
                 </div>
             </div>
