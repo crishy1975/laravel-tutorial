@@ -323,8 +323,8 @@ class AnlagenListe extends Component
         // Messung-Daten zurücksetzen
         $this->messung = [
             'cMIS_STADIO' => '1',
-            'cMIS_DATA2' => date('d.m.Y'),
-            'cMIS_ORA' => date('H:i'),
+            'cMIS_DATA2' => now('Europe/Rome')->format('d.m.Y'),
+            'cMIS_ORA' => now('Europe/Rome')->format('H:i'),
             'cMIS_COMBUSTIBILE' => 'FUEL_NAT_GAS',
             'cMIS_OSSIGENO' => '',
             'cMIS_ANIDRIDE_CARBONICA' => '',
@@ -364,8 +364,8 @@ class AnlagenListe extends Component
         // Werte aus letzter Messung übernehmen
         $this->messung = [
             'cMIS_STADIO' => $this->letzteMessung->cMIS_STADIO ?? '1',
-            'cMIS_DATA2' => $this->letzteMessung->cMIS_DATA2 ?? date('d.m.Y'),
-            'cMIS_ORA' => $this->letzteMessung->cMIS_ORA ?? date('H:i'),
+            'cMIS_DATA2' => $this->letzteMessung->cMIS_DATA2 ?? now('Europe/Rome')->format('d.m.Y'),
+            'cMIS_ORA' => $this->letzteMessung->cMIS_ORA ?? now('Europe/Rome')->format('H:i'),
             'cMIS_COMBUSTIBILE' => $this->letzteMessung->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS',
             'cMIS_OSSIGENO' => $this->letzteMessung->cMIS_OSSIGENO ?? '',
             'cMIS_ANIDRIDE_CARBONICA' => $this->letzteMessung->cMIS_ANIDRIDE_CARBONICA ?? '',
