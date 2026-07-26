@@ -708,10 +708,25 @@
                                                        class="form-control form-control-sm">
                                             </div>
                                             <div class="row g-2">
-                                                <div class="col-6">
+                                                <div class="col-6" x-data>
                                                     <label class="form-label small mb-0">Datum</label>
-                                                    <input type="date" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
-                                                           class="form-control form-control-sm">
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
+                                                               class="form-control" placeholder="TT.MM.JJJJ">
+                                                        <button type="button" class="input-group-text" @click="
+                                                            const d = $refs.dp;
+                                                            const cur = $wire.get('messung.cMIS_DATA2');
+                                                            if (cur) {
+                                                                const m = cur.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+                                                                if (m) d.value = m[3]+'-'+m[2]+'-'+m[1];
+                                                            }
+                                                            d.showPicker ? d.showPicker() : d.focus();
+                                                        ">
+                                                            <i class="bi bi-calendar3"></i>
+                                                        </button>
+                                                        <input type="date" x-ref="dp" class="visually-hidden position-absolute" tabindex="-1"
+                                                               @change="if($event.target.value){const[y,m,d]=$event.target.value.split('-');$wire.set('messung.cMIS_DATA2',d+'.'+m+'.'+y)}">
+                                                    </div>
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Uhrzeit</label>

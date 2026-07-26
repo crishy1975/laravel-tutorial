@@ -584,7 +584,7 @@
                                                 if (data.success) {
                                                     if (data.typ === 'protokoll') {
                                                         // Protokoll-Felder mappen
-                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                        // Datum/Uhrzeit: aktuelles beibehalten, nicht aus Bild übernehmen
                                                         if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
                                                         $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
                                                         $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
@@ -597,8 +597,7 @@
                                                         $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
                                                     } else {
                                                         // Display-Felder mappen
-                                                        if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
-                                                        if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
+                                                        // Datum/Uhrzeit: aktuelles beibehalten, nicht aus Bild übernehmen
                                                         if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
                                                         $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
                                                         $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
@@ -654,15 +653,30 @@
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
                                                            class="form-control form-control-sm" required>
                                                 </div>
-                                                <div class="col-4 col-md-3">
+                                                <div class="col-4 col-md-3" x-data>
                                                     <label class="form-label small mb-0">Datum</label>
-                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
-                                                           class="form-control form-control-sm" required>
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
+                                                               class="form-control" placeholder="TT.MM.JJJJ" required>
+                                                        <button type="button" class="input-group-text" @click="
+                                                            const d = $refs.dp;
+                                                            const cur = $wire.get('messung.cMIS_DATA2');
+                                                            if (cur) {
+                                                                const m = cur.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+                                                                if (m) d.value = m[3]+'-'+m[2]+'-'+m[1];
+                                                            }
+                                                            d.showPicker ? d.showPicker() : d.focus();
+                                                        ">
+                                                            <i class="bi bi-calendar3"></i>
+                                                        </button>
+                                                        <input type="date" x-ref="dp" class="visually-hidden position-absolute" tabindex="-1"
+                                                               @change="if($event.target.value){const[y,m,d]=$event.target.value.split('-');$wire.set('messung.cMIS_DATA2',d+'.'+m+'.'+y)}">
+                                                    </div>
                                                 </div>
                                                 <div class="col-4 col-md-2">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
                                                     <input type="time" wire:model.live.debounce.500ms="messung.cMIS_ORA"
-                                                           class="form-control form-control-sm" step="1">
+                                                           class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-12 col-md-5">
                                                     <label class="form-label small mb-0">Brennstoff</label>
