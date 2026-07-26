@@ -308,30 +308,6 @@ class AnlagenListe extends Component
         $this->resetPage();
     }
 
-    // ========== Datum-Konvertierung ==========
-
-    /**
-     * dd.mm.YYYY → YYYY-MM-DD (für HTML date-Input)
-     */
-    private function datumToIso(string $datum): string
-    {
-        if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $datum, $m)) {
-            return "{$m[3]}-{$m[2]}-{$m[1]}";
-        }
-        return $datum;
-    }
-
-    /**
-     * YYYY-MM-DD → dd.mm.YYYY (für Anzeige/Speicherung)
-     */
-    private function datumFromIso(string $datum): string
-    {
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $datum, $m)) {
-            return "{$m[3]}.{$m[2]}.{$m[1]}";
-        }
-        return $datum;
-    }
-
     // ========== Modal: Neue Messung ==========
 
     public function openMessungModal($anlageKodex)
@@ -347,7 +323,7 @@ class AnlagenListe extends Component
         // Messung-Daten zurücksetzen
         $this->messung = [
             'cMIS_STADIO' => '1',
-            'cMIS_DATA2' => date('Y-m-d'),
+            'cMIS_DATA2' => date('d.m.Y'),
             'cMIS_ORA' => date('H:i'),
             'cMIS_COMBUSTIBILE' => 'FUEL_NAT_GAS',
             'cMIS_OSSIGENO' => '',
@@ -386,10 +362,9 @@ class AnlagenListe extends Component
         }
 
         // Werte aus letzter Messung übernehmen
-        $dbDatum = $this->letzteMessung->cMIS_DATA2 ?? '';
         $this->messung = [
             'cMIS_STADIO' => $this->letzteMessung->cMIS_STADIO ?? '1',
-            'cMIS_DATA2' => $dbDatum ? $this->datumToIso($dbDatum) : date('Y-m-d'),
+            'cMIS_DATA2' => $this->letzteMessung->cMIS_DATA2 ?? date('d.m.Y'),
             'cMIS_ORA' => $this->letzteMessung->cMIS_ORA ?? date('H:i'),
             'cMIS_COMBUSTIBILE' => $this->letzteMessung->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS',
             'cMIS_OSSIGENO' => $this->letzteMessung->cMIS_OSSIGENO ?? '',
@@ -498,17 +473,11 @@ class AnlagenListe extends Component
         }
 
         try {
-            // Datum konvertieren (ISO YYYY-MM-DD → ddmmYYYY / dd.mm.YYYY)
-            $isoDate = $this->messung['cMIS_DATA2'] ?? '';
+            // Datum konvertieren
+            $datumParts = explode('.', $this->messung['cMIS_DATA2'] ?? '');
             $dateDMY = '';
-            $datumDisplay = '';
-            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $isoDate, $dm)) {
-                $dateDMY = $dm[3] . $dm[2] . $dm[1];           // ddmmYYYY
-                $datumDisplay = $dm[3] . '.' . $dm[2] . '.' . $dm[1]; // dd.mm.YYYY
-            } elseif (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $isoDate, $dm)) {
-                // Fallback: bereits dd.mm.YYYY
-                $dateDMY = $dm[1] . $dm[2] . $dm[3];
-                $datumDisplay = $isoDate;
+            if (count($datumParts) === 3) {
+                $dateDMY = $datumParts[0] . $datumParts[1] . $datumParts[2];
             }
 
             // Brennstoff-Info
@@ -550,7 +519,7 @@ class AnlagenListe extends Component
                 'cMIS_TIPO' => '001',
                 'cMIS_STADIO' => $this->messung['cMIS_STADIO'] ?? '1',
                 'cMIS_DATA' => $dateDMY,
-                'cMIS_DATA2' => $datumDisplay,
+                'cMIS_DATA2' => $this->messung['cMIS_DATA2'] ?? '',
                 'cMIS_ORA' => $this->messung['cMIS_ORA'] ?? '',
                 'strEsito' => $esito,
                 'cMIS_COMBUSTIBILE' => $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS',
