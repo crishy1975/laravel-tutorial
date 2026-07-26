@@ -633,7 +633,7 @@
                                                 if (data.typ === 'protokoll') {
                                                     // Protokoll-Felder mappen
                                                     if (data.kodex) $wire.set('messung.cIM_CODICE', data.kodex);
-                                                    if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
+                                                    // Datum/Uhrzeit: aktuelles beibehalten, nicht aus Bild übernehmen
                                                     if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
                                                     $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
                                                     $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
@@ -646,8 +646,7 @@
                                                     $wire.set('messung.cMIS_TRACCE_OLEO', data.oelderivate === '1' ? '0' : '1');
                                                 } else {
                                                     // Display-Felder mappen
-                                                    if (data.datum) $wire.set('messung.cMIS_DATA2', data.datum);
-                                                    if (data.uhrzeit) $wire.set('messung.cMIS_ORA', data.uhrzeit);
+                                                    // Datum/Uhrzeit: aktuelles beibehalten, nicht aus Bild übernehmen
                                                     if (data.brennstoff) $wire.set('messung.cMIS_COMBUSTIBILE', data.brennstoff);
                                                     $wire.set('messung.cMIS_OSSIGENO', data.o2 || '');
                                                     $wire.set('messung.cMIS_ANIDRIDE_CARBONICA', data.co2 || '');
@@ -711,7 +710,7 @@
                                             <div class="row g-2">
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Datum</label>
-                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
+                                                    <input type="date" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
                                                            class="form-control form-control-sm">
                                                 </div>
                                                 <div class="col-6">

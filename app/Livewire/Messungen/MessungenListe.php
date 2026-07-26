@@ -392,6 +392,30 @@ class MessungenListe extends Component
         session()->flash('success', "Messung wurde der Anlage {$anlageKodex} zugeordnet.");
     }
 
+    // ========== Datum-Konvertierung ==========
+
+    /**
+     * dd.mm.YYYY → YYYY-MM-DD (für HTML date-Input)
+     */
+    private function datumToIso(string $datum): string
+    {
+        if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $datum, $m)) {
+            return "{$m[3]}-{$m[2]}-{$m[1]}";
+        }
+        return $datum;
+    }
+
+    /**
+     * YYYY-MM-DD → dd.mm.YYYY (für Anzeige/Speicherung)
+     */
+    private function datumFromIso(string $datum): string
+    {
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $datum, $m)) {
+            return "{$m[3]}.{$m[2]}.{$m[1]}";
+        }
+        return $datum;
+    }
+
     // ========== Modal: Neue/Bearbeiten Messung ==========
 
     public function openMessungModal()
@@ -407,7 +431,7 @@ class MessungenListe extends Component
             'cIM_CODICE' => $neuerKodex,
             'cIM_NAME' => '',
             'cMIS_STADIO' => '1',
-            'cMIS_DATA2' => date('d.m.Y'),
+            'cMIS_DATA2' => date('Y-m-d'),
             'cMIS_ORA' => date('H:i'),
             'cMIS_COMBUSTIBILE' => 'FUEL_NAT_GAS',
             'boilerYear' => '',
@@ -433,11 +457,12 @@ class MessungenListe extends Component
         $m = Messung::findOrFail($id);
 
         $this->editMessungId = $id;
+        $dbDatum = $m->cMIS_DATA2 ?? '';
         $this->messung = [
             'cIM_CODICE' => $m->cIM_CODICE ?? '',
             'cIM_NAME' => $m->cIM_NAME ?? '',
             'cMIS_STADIO' => $m->cMIS_STADIO ?? '1',
-            'cMIS_DATA2' => $m->cMIS_DATA2 ?? '',
+            'cMIS_DATA2' => $dbDatum ? $this->datumToIso($dbDatum) : '',
             'cMIS_ORA' => $m->cMIS_ORA ?? '',
             'cMIS_COMBUSTIBILE' => $m->cMIS_COMBUSTIBILE ?? 'FUEL_NAT_GAS',
             'boilerYear' => $m->boilerYear ?? '',
@@ -577,11 +602,17 @@ class MessungenListe extends Component
         }
 
         try {
-            // Datum konvertieren
-            $datumParts = explode('.', $this->messung['cMIS_DATA2'] ?? '');
+            // Datum konvertieren (ISO YYYY-MM-DD → ddmmYYYY / dd.mm.YYYY)
+            $isoDate = $this->messung['cMIS_DATA2'] ?? '';
             $dateDMY = '';
-            if (count($datumParts) === 3) {
-                $dateDMY = $datumParts[0] . $datumParts[1] . $datumParts[2];
+            $datumDisplay = '';
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $isoDate, $dm)) {
+                $dateDMY = $dm[3] . $dm[2] . $dm[1];           // ddmmYYYY
+                $datumDisplay = $dm[3] . '.' . $dm[2] . '.' . $dm[1]; // dd.mm.YYYY
+            } elseif (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $isoDate, $dm)) {
+                // Fallback: bereits dd.mm.YYYY
+                $dateDMY = $dm[1] . $dm[2] . $dm[3];
+                $datumDisplay = $isoDate;
             }
 
             // Brennstoff-Info
@@ -630,7 +661,7 @@ class MessungenListe extends Component
                 'cMIS_TIPO' => '001',
                 'cMIS_STADIO' => $this->messung['cMIS_STADIO'] ?? '1',
                 'cMIS_DATA' => $dateDMY,
-                'cMIS_DATA2' => $this->messung['cMIS_DATA2'] ?? '',
+                'cMIS_DATA2' => $datumDisplay,
                 'cMIS_ORA' => $this->messung['cMIS_ORA'] ?? '',
                 'strEsito' => $esito,
                 'cMIS_COMBUSTIBILE' => $this->messung['cMIS_COMBUSTIBILE'] ?? 'FUEL_NAT_GAS',
