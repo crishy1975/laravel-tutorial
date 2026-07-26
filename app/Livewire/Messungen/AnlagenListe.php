@@ -332,7 +332,7 @@ class AnlagenListe extends Component
             'cMIS_BIOSSIDO_AZOTO' => '',
             'cMIS_T_GAS_COMB' => '',
             'cMIS_T_ARIA_COMB' => '',
-            'cMIS_T_LIQ_CONV' => '',
+            'cMIS_T_LIQ_CONV' => '60',
             'cMIS_PERD_FUMI' => '',
             'cMIS_IND_OPACITA' => '0',
             'cMIS_TRACCE_OLEO' => '1',
