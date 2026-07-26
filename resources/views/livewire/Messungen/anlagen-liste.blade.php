@@ -684,8 +684,8 @@
                                                 </div>
                                                 <div class="col-4 col-md-1">
                                                     <label class="form-label small mb-0">Stadio</label>
-                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
-                                                           class="form-control form-control-sm" required>
+                                                    <input type="number" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
+                                                           class="form-control form-control-sm" min="1" required>
                                                 </div>
                                             </div>
                                         </div>
