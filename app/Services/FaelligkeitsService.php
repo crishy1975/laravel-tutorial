@@ -135,7 +135,9 @@ class FaelligkeitsService
         $altFaellig = (bool) $gebaeude->faellig;
         $geaendert = ($altFaellig !== $istFaellig) 
                   || ($gebaeude->gemachte_reinigungen != $gemachteReinigungen)
-                  || ($gebaeude->geplante_reinigungen != $geplanteReinigungen);
+                  || ($gebaeude->geplante_reinigungen != $geplanteReinigungen)
+                  || (optional($gebaeude->datum_faelligkeit)->format('Y-m-d') !== $naechsteFaelligkeit->format('Y-m-d'))
+                  || (optional($gebaeude->letzter_termin)->format('Y-m-d') !== optional($letzteReinigung)->format('Y-m-d'));
         
         if ($geaendert) {
             $gebaeude->forceFill([
@@ -178,6 +180,7 @@ class FaelligkeitsService
         
         // Letzte Reinigung pro Gebäude
         $letzteReinigungen = DB::table('timeline')
+            ->whereNull('deleted_at')
             ->select('gebaeude_id', DB::raw('MAX(datum) as letzte_reinigung'))
             ->groupBy('gebaeude_id')
             ->pluck('letzte_reinigung', 'gebaeude_id')
@@ -186,6 +189,7 @@ class FaelligkeitsService
         
         // Reinigungen im aktuellen Jahr pro Gebäude
         $reinigungsZaehler = DB::table('timeline')
+            ->whereNull('deleted_at')
             ->select('gebaeude_id', DB::raw('COUNT(*) as anzahl'))
             ->whereYear('datum', $stichtag->year)
             ->groupBy('gebaeude_id')
@@ -246,7 +250,9 @@ class FaelligkeitsService
                 $altFaellig = (bool) $gebaeude->faellig;
                 $needsUpdate = ($altFaellig !== $istFaellig)
                     || ($gebaeude->gemachte_reinigungen != $gemachteReinigungen)
-                    || ($gebaeude->geplante_reinigungen != $geplanteReinigungen);
+                    || ($gebaeude->geplante_reinigungen != $geplanteReinigungen)
+                    || (optional($gebaeude->datum_faelligkeit)->format('Y-m-d') !== $naechsteFaelligkeit->format('Y-m-d'))
+                    || (optional($gebaeude->letzter_termin)->format('Y-m-d') !== optional($letzteReinigung)->format('Y-m-d'));
                 
                 if ($needsUpdate) {
                     $stats['geaendert']++;
