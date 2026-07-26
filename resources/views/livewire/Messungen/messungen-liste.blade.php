@@ -140,6 +140,7 @@
                     <select wire:model="filterBrennstoff" class="form-select form-select-sm">
                         <option value="">Alle</option>
                         @foreach($brennstoffe as $key => $info)
+                            @if(in_array($key, ['FUEL_HEAVY_OIL', 'FUEL_BUTANE'])) @continue @endif
                             <option value="{{ $key }}">{{ $info['text'] }}</option>
                         @endforeach
                     </select>
@@ -745,6 +746,7 @@
                                                     <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
                                                         <option value="">Wählen...</option>
                                                         @foreach($brennstoffe as $key => $info)
+                                                            @if(in_array($key, ['FUEL_HEAVY_OIL', 'FUEL_BUTANE'])) @continue @endif
                                                             <option value="{{ $key }}">{{ $info['text'] }}</option>
                                                         @endforeach
                                                     </select>
