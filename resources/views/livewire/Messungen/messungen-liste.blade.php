@@ -738,8 +738,8 @@
                                             <div class="row g-2 mt-1">
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Stadio</label>
-                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
-                                                           class="form-control form-control-sm">
+                                                    <input type="number" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
+                                                           class="form-control form-control-sm" min="1">
                                                 </div>
                                                 <div class="col-6">
                                                     <label class="form-label small mb-0">Brennstoff</label>
