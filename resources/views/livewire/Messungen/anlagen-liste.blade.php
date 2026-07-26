@@ -648,7 +648,7 @@
                                         </div>
                                         <div class="card-body py-2 px-2">
                                             <div class="row g-2">
-                                                <div class="col-7 col-md-3" x-data>
+                                                <div class="col-7 col-md-4" x-data>
                                                     <label class="form-label small mb-0">Datum</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
@@ -681,7 +681,7 @@
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                                <div class="col-4 col-md-2">
+                                                <div class="col-4 col-md-1">
                                                     <label class="form-label small mb-0">Stadio</label>
                                                     <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
                                                            class="form-control form-control-sm" required>
