@@ -673,7 +673,7 @@
                                                     <input type="time" wire:model.live.debounce.500ms="messung.cMIS_ORA"
                                                            class="form-control form-control-sm">
                                                 </div>
-                                                <div class="col-8 col-md-4">
+                                                <div class="col-8 col-md-3">
                                                     <label class="form-label small mb-0">Brennstoff</label>
                                                     <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
                                                         @foreach($brennstoffe as $key => $info)
@@ -682,7 +682,7 @@
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                                <div class="col-4 col-md-1">
+                                                <div class="col-4 col-md-2">
                                                     <label class="form-label small mb-0">Stadio</label>
                                                     <input type="number" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
                                                            class="form-control form-control-sm" min="1" required>
