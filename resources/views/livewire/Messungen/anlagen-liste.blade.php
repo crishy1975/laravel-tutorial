@@ -648,12 +648,7 @@
                                         </div>
                                         <div class="card-body py-2 px-2">
                                             <div class="row g-2">
-                                                <div class="col-4 col-md-2">
-                                                    <label class="form-label small mb-0">Stadio</label>
-                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
-                                                           class="form-control form-control-sm" required>
-                                                </div>
-                                                <div class="col-4 col-md-3" x-data>
+                                                <div class="col-7 col-md-4" x-data>
                                                     <label class="form-label small mb-0">Datum</label>
                                                     <div class="input-group input-group-sm">
                                                         <input type="text" wire:model.live.debounce.500ms="messung.cMIS_DATA2"
@@ -673,18 +668,23 @@
                                                                @change="if($event.target.value){const[y,m,d]=$event.target.value.split('-');$wire.set('messung.cMIS_DATA2',d+'.'+m+'.'+y)}">
                                                     </div>
                                                 </div>
-                                                <div class="col-4 col-md-2">
+                                                <div class="col-5 col-md-2">
                                                     <label class="form-label small mb-0">Uhrzeit</label>
                                                     <input type="time" wire:model.live.debounce.500ms="messung.cMIS_ORA"
                                                            class="form-control form-control-sm">
                                                 </div>
-                                                <div class="col-12 col-md-5">
+                                                <div class="col-8 col-md-4">
                                                     <label class="form-label small mb-0">Brennstoff</label>
                                                     <select wire:model.live="messung.cMIS_COMBUSTIBILE" class="form-select form-select-sm">
                                                         @foreach($brennstoffe as $key => $info)
                                                             <option value="{{ $key }}">{{ $info['text'] }}</option>
                                                         @endforeach
                                                     </select>
+                                                </div>
+                                                <div class="col-4 col-md-2">
+                                                    <label class="form-label small mb-0">Stadio</label>
+                                                    <input type="text" wire:model.live.debounce.500ms="messung.cMIS_STADIO"
+                                                           class="form-control form-control-sm" required>
                                                 </div>
                                             </div>
                                         </div>
