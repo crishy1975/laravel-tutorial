@@ -315,6 +315,7 @@
                                                             data-id="{{ $g->id }}"
                                                             data-codex="{{ $g->codex }}"
                                                             data-name="{{ $g->gebaeude_name }}"
+                                                            data-bemerkung="{{ $g->bemerkung }}"
                                                             @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                                         <i class="bi bi-calendar-month text-primary"></i> Monate
                                                     </button>
@@ -408,6 +409,7 @@
                                                 data-id="{{ $g->id }}"
                                                 data-codex="{{ $g->codex }}"
                                                 data-name="{{ $g->gebaeude_name }}"
+                                                data-bemerkung="{{ $g->bemerkung }}"
                                                 @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                             <i class="bi bi-calendar-month text-primary"></i> Monate
                                         </button>
@@ -623,7 +625,9 @@
                     <strong id="monateCodex"></strong> – <span id="monateName"></span>
                 </div>
                 <input type="hidden" id="monateGebaeudeId">
-                <div class="row g-2">
+
+                <label class="form-label small fw-bold mb-1">Reinigungsmonate</label>
+                <div class="row g-2 mb-2">
                     @php
                         $monatNamen = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
                     @endphp
@@ -640,10 +644,13 @@
                         </div>
                     @endfor
                 </div>
-                <div class="mt-3 d-flex gap-1">
+                <div class="d-flex gap-1 mb-3">
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="monateAlleAn()">Alle</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="monateAlleAus()">Keine</button>
                 </div>
+
+                <label for="monateBemerkung" class="form-label small fw-bold mb-1">Bemerkung</label>
+                <textarea id="monateBemerkung" class="form-control form-control-sm" rows="3"></textarea>
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
@@ -670,16 +677,13 @@
                 <div class="alert alert-warning py-2 small">
                     <strong id="loeschenCodex"></strong> – <span id="loeschenName"></span>
                 </div>
+                <input type="hidden" id="loeschenGebaeudeId">
             </div>
             <div class="modal-footer py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
-                <form id="loeschenForm" method="POST" action="" data-no-dirty data-no-fetch>
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger btn-sm">
-                        <i class="bi bi-trash"></i> Endgültig löschen
-                    </button>
-                </form>
+                <button type="button" class="btn btn-danger btn-sm" onclick="gebaeudeLoeschen()">
+                    <i class="bi bi-trash"></i> Endgültig löschen
+                </button>
             </div>
         </div>
     </div>
@@ -919,8 +923,8 @@ document.querySelectorAll('.btn-monate').forEach(btn => {
         document.getElementById('monateGebaeudeId').value = this.dataset.id;
         document.getElementById('monateCodex').textContent = this.dataset.codex || '-';
         document.getElementById('monateName').textContent = this.dataset.name || '';
+        document.getElementById('monateBemerkung').value = this.dataset.bemerkung || '';
 
-        // Checkboxen setzen
         for (var mi = 1; mi <= 12; mi++) {
             var key = 'm' + String(mi).padStart(2, '0');
             var check = document.getElementById('check_' + key);
@@ -941,29 +945,38 @@ function monateAlleAus() {
 
 function monateSpeichern() {
     var id = document.getElementById('monateGebaeudeId').value;
-    var data = {};
+    var data = { bemerkung: document.getElementById('monateBemerkung').value };
+
     document.querySelectorAll('.monat-check').forEach(function(c) {
         data[c.dataset.field] = c.checked ? 1 : 0;
     });
 
-    fetch('/gebaeude/' + id, {
-        method: 'POST',
+    var btn = document.querySelector('#modalMonate .btn-primary');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Speichern...';
+
+    fetch('/reinigungsplanung/' + id + '/monate', {
+        method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': CSRF_TOKEN,
-            'X-Requested-With': 'XMLHttpRequest'
+            'Accept': 'application/json'
         },
-        body: JSON.stringify(Object.assign({_method: 'PUT'}, data)),
+        body: JSON.stringify(data),
         credentials: 'same-origin'
     }).then(function(response) {
-        if (response.ok || response.type === 'opaqueredirect' || response.status === 0) {
+        if (response.ok) {
             bootstrap.Modal.getInstance(document.getElementById('modalMonate')).hide();
             window.location.reload();
         } else {
-            alert('Fehler beim Speichern: ' + response.status);
+            response.text().then(function(t) { alert('Fehler: ' + t); });
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
         }
     }).catch(function(err) {
         alert('Netzwerkfehler: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> Speichern';
     });
 }
 
@@ -972,9 +985,40 @@ document.querySelectorAll('.btn-loeschen').forEach(btn => {
     btn.addEventListener('click', function() {
         document.getElementById('loeschenCodex').textContent = this.dataset.codex || '-';
         document.getElementById('loeschenName').textContent = this.dataset.name || '';
-        document.getElementById('loeschenForm').action = '/gebaeude/' + this.dataset.id;
+        document.getElementById('loeschenGebaeudeId').value = this.dataset.id;
         new bootstrap.Modal(document.getElementById('modalLoeschen')).show();
     });
 });
+
+function gebaeudeLoeschen() {
+    var id = document.getElementById('loeschenGebaeudeId').value;
+    var btn = document.querySelector('#modalLoeschen .btn-danger');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Löschen...';
+
+    fetch('/gebaeude/' + id, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({_method: 'DELETE'}),
+        credentials: 'same-origin'
+    }).then(function(response) {
+        if (response.ok || response.type === 'opaqueredirect' || response.status === 0) {
+            bootstrap.Modal.getInstance(document.getElementById('modalLoeschen')).hide();
+            window.location.reload();
+        } else {
+            response.text().then(function(t) { alert('Fehler: ' + t); });
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-trash"></i> Endgültig löschen';
+        }
+    }).catch(function(err) {
+        alert('Netzwerkfehler: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-trash"></i> Endgültig löschen';
+    });
+}
 </script>
 @endpush
