@@ -23,3 +23,5 @@ cd ~/domains/christianresch.esy.es/public_html/martin
 ssh -t -p 65002 u192633ml && bash -i"
 
 php artisan up
+
+$user = \App\Models\User::where('email', 'info@resch.bz')->first();
