@@ -42,8 +42,8 @@ use App\Livewire\Messungen\AmtImport;
 // Kurzer öffentlicher Download-Link für WhatsApp-Protokolle
 Route::get('/p/{token}', [App\Http\Controllers\ProtokollController::class, 'download'])
     ->name('messungen.protokoll.download');
- 
- 
+
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -89,7 +89,7 @@ Route::prefix('messungen')->name('messungen.')->middleware('auth')->group(functi
     // Foto-Extraktion (Claude Vision API)
     Route::post('/extract-from-photo', [\App\Http\Controllers\ExtractMessungController::class, 'extract'])->name('extract-from-photo');
 
-     // Amt-Import (Fix-Width-Datei)
+    // Amt-Import (Fix-Width-Datei)
     Route::get('/amt-import', \App\Livewire\Messungen\AmtImport::class)->name('amt-import');
 
 
@@ -265,11 +265,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
         // E-Mail Versand
         Route::post('/{id}/email/send', [RechnungController::class, 'sendEmail'])->name('email.send');
-               
+
         // Gutschrift
         Route::post('/{rechnung}/gutschrift', [RechnungController::class, 'gutschrift'])->name('gutschrift');
     });
-    
+
 
     // FatturaPA XML Log-Verwaltung (eigener Prefix, kein rechnung/{id})
     Route::prefix('fattura-xml')->name('fattura.xml.')->group(function () {
@@ -322,11 +322,18 @@ Route::middleware(['auth', 'admin'])->group(function () {
     });
 
 
-    // ==================== Reinigungsplanung ====================
     Route::prefix('reinigungsplanung')->name('reinigungsplanung.')->group(function () {
         Route::get('/', [ReinigungsplanungController::class, 'index'])->name('index');
         Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
+
+        // Monate + Bemerkung schnell bearbeiten
+        Route::patch('/{gebaeude}/monate', function ($gebaeude) {
+            $g = \App\Models\Gebaeude::findOrFail($gebaeude);
+            $fields = ['m01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'bemerkung'];
+            $g->update(request()->only($fields));
+            return response()->json(['success' => true]);
+        })->name('monate');
     });
 
 
