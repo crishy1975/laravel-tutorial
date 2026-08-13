@@ -662,22 +662,20 @@ PFAD:  resources/views/layouts/app.blade.php
 
                 // 3. Ungespeicherte Änderungen erkennen
                 var formDirty = false;
+                var dirtyForm = null;
+                var pendingHref = null;
 
                 document.querySelectorAll('form').forEach(function(form) {
-                    // Nur relevante Formulare (nicht Login, Logout, Suche etc.)
                     if (form.hasAttribute('data-no-dirty')) return;
                     var methodField = form.querySelector('input[name="_method"]');
-                    if (!methodField) return; // Nur Edit-Formulare (PUT/PATCH)
+                    if (!methodField) return;
 
-                    // Änderungen tracken
-                    form.addEventListener('input', function() { formDirty = true; });
-                    form.addEventListener('change', function() { formDirty = true; });
-
-                    // Beim Speichern Flag zurücksetzen
+                    form.addEventListener('input', function() { formDirty = true; dirtyForm = form; });
+                    form.addEventListener('change', function() { formDirty = true; dirtyForm = form; });
                     form.addEventListener('submit', function() { formDirty = false; });
                 });
 
-                // Warnung beim Verlassen
+                // Warnung beim Tab schließen / Browser-Zurück (native, nicht anpassbar)
                 window.addEventListener('beforeunload', function(e) {
                     if (formDirty) {
                         e.preventDefault();
@@ -685,7 +683,50 @@ PFAD:  resources/views/layouts/app.blade.php
                     }
                 });
 
-                // Links/Buttons: Warnung nur bei Navigation weg von der Seite
+                // Custom Modal erstellen
+                var modalHtml = ''
+                    + '<div id="dirtyModal" class="modal fade" tabindex="-1" style="z-index:9999">'
+                    + '  <div class="modal-dialog modal-dialog-centered modal-sm">'
+                    + '    <div class="modal-content">'
+                    + '      <div class="modal-header py-2 bg-warning bg-opacity-10">'
+                    + '        <h6 class="modal-title"><i class="bi bi-exclamation-triangle text-warning"></i> Ungespeicherte Änderungen</h6>'
+                    + '        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>'
+                    + '      </div>'
+                    + '      <div class="modal-body py-3">'
+                    + '        <p class="mb-0">Möchtest du die Änderungen speichern?</p>'
+                    + '      </div>'
+                    + '      <div class="modal-footer py-2">'
+                    + '        <button type="button" id="dirtyDiscard" class="btn btn-outline-danger btn-sm">Verwerfen</button>'
+                    + '        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>'
+                    + '        <button type="button" id="dirtySave" class="btn btn-success btn-sm"><i class="bi bi-check-lg"></i> Speichern</button>'
+                    + '      </div>'
+                    + '    </div>'
+                    + '  </div>'
+                    + '</div>';
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                var dirtyModalEl = document.getElementById('dirtyModal');
+                var dirtyModal = new bootstrap.Modal(dirtyModalEl);
+
+                // Verwerfen: Änderungen ignorieren, navigieren
+                document.getElementById('dirtyDiscard').addEventListener('click', function() {
+                    formDirty = false;
+                    dirtyModal.hide();
+                    if (pendingHref) {
+                        window.location.href = pendingHref;
+                    }
+                });
+
+                // Speichern: Formular absenden
+                document.getElementById('dirtySave').addEventListener('click', function() {
+                    formDirty = false;
+                    dirtyModal.hide();
+                    if (dirtyForm) {
+                        dirtyForm.requestSubmit();
+                    }
+                });
+
+                // Links abfangen → Modal zeigen
                 document.addEventListener('click', function(e) {
                     if (!formDirty) return;
                     var link = e.target.closest('a[href]');
@@ -693,12 +734,11 @@ PFAD:  resources/views/layouts/app.blade.php
                     var href = link.getAttribute('href');
                     if (!href || href === '#' || href.startsWith('javascript:')) return;
                     if (link.hasAttribute('data-no-dirty')) return;
+                    if (link.hasAttribute('data-bs-toggle')) return;
 
-                    if (!confirm('Es gibt ungespeicherte Änderungen.\n\nSeite verlassen?')) {
-                        e.preventDefault();
-                    } else {
-                        formDirty = false;
-                    }
+                    e.preventDefault();
+                    pendingHref = href;
+                    dirtyModal.show();
                 });
 
                 // 4. Offene Modals beim Laden schließen
