@@ -602,26 +602,43 @@ PFAD:  resources/views/layouts/app.blade.php
 
     {{-- Navigation: Daten aktualisieren beim Zurück-Button, Modals schließen --}}
     <script>
-        // Back/Forward-Button: Seite neu laden (keine veralteten Daten)
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted || (window.performance && window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward')) {
-                window.location.reload();
-            }
-        });
+        (function() {
+            // 1. Back/Forward-Button: Seite neu laden (keine veralteten Daten)
+            window.addEventListener('pageshow', function(event) {
+                if (event.persisted) {
+                    window.location.reload();
+                    return;
+                }
+            });
 
-        // Offene Bootstrap-Modals beim Seitenladen schließen
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.modal.show').forEach(function(modal) {
-                modal.classList.remove('show');
-                modal.style.display = 'none';
+            // 2. Fallback: Navigation-Type prüfen (back_forward)
+            try {
+                var navEntry = performance.getEntriesByType('navigation')[0];
+                if (navEntry && navEntry.type === 'back_forward') {
+                    window.location.reload();
+                }
+            } catch(e) {}
+
+            // 3. Nach Speichern (Redirect): History-Eintrag ersetzen
+            //    Verhindert doppeltes Zurück-Drücken
+            @if(session('success') || session('status'))
+                history.replaceState(null, '', window.location.href);
+            @endif
+
+            // 4. Offene Modals beim Laden schließen
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('.modal.show, .modal.fade.show').forEach(function(modal) {
+                    modal.classList.remove('show');
+                    modal.style.display = 'none';
+                });
+                document.querySelectorAll('.modal-backdrop').forEach(function(el) {
+                    el.remove();
+                });
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('overflow');
+                document.body.style.removeProperty('padding-right');
             });
-            document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
-                backdrop.remove();
-            });
-            document.body.classList.remove('modal-open');
-            document.body.style.removeProperty('overflow');
-            document.body.style.removeProperty('padding-right');
-        });
+        })();
     </script>
 
 </body>
