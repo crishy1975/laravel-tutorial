@@ -660,7 +660,48 @@ PFAD:  resources/views/layouts/app.blade.php
                     });
                 });
 
-                // 3. Offene Modals beim Laden schließen
+                // 3. Ungespeicherte Änderungen erkennen
+                var formDirty = false;
+
+                document.querySelectorAll('form').forEach(function(form) {
+                    // Nur relevante Formulare (nicht Login, Logout, Suche etc.)
+                    if (form.hasAttribute('data-no-dirty')) return;
+                    var methodField = form.querySelector('input[name="_method"]');
+                    if (!methodField) return; // Nur Edit-Formulare (PUT/PATCH)
+
+                    // Änderungen tracken
+                    form.addEventListener('input', function() { formDirty = true; });
+                    form.addEventListener('change', function() { formDirty = true; });
+
+                    // Beim Speichern Flag zurücksetzen
+                    form.addEventListener('submit', function() { formDirty = false; });
+                });
+
+                // Warnung beim Verlassen
+                window.addEventListener('beforeunload', function(e) {
+                    if (formDirty) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
+                });
+
+                // Links/Buttons: Warnung nur bei Navigation weg von der Seite
+                document.addEventListener('click', function(e) {
+                    if (!formDirty) return;
+                    var link = e.target.closest('a[href]');
+                    if (!link) return;
+                    var href = link.getAttribute('href');
+                    if (!href || href === '#' || href.startsWith('javascript:')) return;
+                    if (link.hasAttribute('data-no-dirty')) return;
+
+                    if (!confirm('Es gibt ungespeicherte Änderungen.\n\nSeite verlassen?')) {
+                        e.preventDefault();
+                    } else {
+                        formDirty = false;
+                    }
+                });
+
+                // 4. Offene Modals beim Laden schließen
                 document.querySelectorAll('.modal.show, .modal.fade.show').forEach(function(m) {
                     m.classList.remove('show');
                     m.style.display = 'none';
