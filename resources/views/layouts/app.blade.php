@@ -17,6 +17,11 @@ PFAD:  resources/views/layouts/app.blade.php
     {{-- Dynamischer Titel --}}
     <title>{{ $title ?? 'UschiWeb' }}</title>
 
+    {{-- Cache-Control: Kein Back-Button-Cache --}}
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     {{-- Bootstrap & Icons --}}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -594,6 +599,30 @@ PFAD:  resources/views/layouts/app.blade.php
     </script>
 
     @stack('scripts')
+
+    {{-- Navigation: Daten aktualisieren beim Zurück-Button, Modals schließen --}}
+    <script>
+        // Back/Forward-Button: Seite neu laden (keine veralteten Daten)
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted || (window.performance && window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward')) {
+                window.location.reload();
+            }
+        });
+
+        // Offene Bootstrap-Modals beim Seitenladen schließen
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.modal.show').forEach(function(modal) {
+                modal.classList.remove('show');
+                modal.style.display = 'none';
+            });
+            document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+                backdrop.remove();
+            });
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        });
+    </script>
 
 </body>
 
