@@ -619,11 +619,19 @@ PFAD:  resources/views/layouts/app.blade.php
                 }
             } catch(e) {}
 
-            // 3. Nach Speichern (Redirect): History-Eintrag ersetzen
+            // 3. Nach Speichern (POST → Redirect → GET): History-Eintrag ersetzen
             //    Verhindert doppeltes Zurück-Drücken
-            @if(session('success') || session('status'))
+            @if(session('success') || session('status') || session('error') || session('warning'))
                 history.replaceState(null, '', window.location.href);
             @endif
+
+            // Fallback: Auch ohne Flash-Message den Redirect erkennen
+            try {
+                var navEntry = performance.getEntriesByType('navigation')[0];
+                if (navEntry && navEntry.type === 'navigate' && navEntry.redirectCount > 0) {
+                    history.replaceState(null, '', window.location.href);
+                }
+            } catch(e) {}
 
             // 4. Offene Modals beim Laden schließen
             document.addEventListener('DOMContentLoaded', function() {
