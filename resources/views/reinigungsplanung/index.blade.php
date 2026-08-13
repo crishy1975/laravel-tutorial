@@ -317,7 +317,7 @@
                                                             data-name="{{ $g->gebaeude_name }}"
                                                             data-bemerkung="{{ $g->bemerkung }}"
                                                             @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
-                                                        <i class="bi bi-calendar-month text-primary"></i> Monate
+                                                        <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                                     </button>
                                                 </li>
                                                 <li><hr class="dropdown-divider"></li>
@@ -411,7 +411,7 @@
                                                 data-name="{{ $g->gebaeude_name }}"
                                                 data-bemerkung="{{ $g->bemerkung }}"
                                                 @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
-                                            <i class="bi bi-calendar-month text-primary"></i> Monate
+                                            <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                         </button>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
@@ -610,13 +610,13 @@
     </div>
 @endforeach
 
-{{-- Modal: Monate bearbeiten (geteilt) --}}
+{{-- Modal: Gebäude bearbeiten (geteilt) --}}
 <div class="modal fade" id="modalMonate" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white py-2">
                 <h6 class="modal-title">
-                    <i class="bi bi-calendar-month"></i> Reinigungsmonate
+                    <i class="bi bi-pencil-square"></i> Gebäude bearbeiten
                 </h6>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
