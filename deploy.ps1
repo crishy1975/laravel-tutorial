@@ -288,7 +288,7 @@ function Run-Migration {
     $WinSCPScript += "option confirm off`n"
     $WinSCPScript += "open sftp://$($AccountConfig.SFTP_USER):$pw@$($AccountConfig.SFTP_HOST):$($AccountConfig.SFTP_PORT) -hostkey=*`n"
     $WinSCPScript += "`n"
-    $WinSCPScript += "call cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Optimize ===' && php artisan optimize:clear && php artisan optimize && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache && echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='`n"
+    $WinSCPScript += "call cd $remotePath && echo '=== Composer Install ===' && composer install --no-dev --optimize-autoloader --no-interaction && echo '' && echo '=== Migrationen ===' && php artisan migrate --force && echo '' && echo '=== Optimize ===' && php artisan optimize:clear && php artisan optimize && echo '' && echo '=== Berechtigungen ===' && chmod -R 775 storage bootstrap/cache; echo '' && echo '=== Wartungsmodus aus ===' && php artisan up && echo '' && echo '=== FERTIG ==='`n"
     $WinSCPScript += "`nclose`nexit`n"
     
     $WinSCPScriptPath = Join-Path $env:TEMP "deploy_migration.txt"
@@ -396,8 +396,11 @@ function Deploy-ToAccount {
     # SCHRITT 2: Migration + Server hochfahren
     $result = Run-Migration -AccountConfig $AccountConfig
     if (-not $result) {
-        Show-Warning "Migration hatte Probleme, Server sollte aber online sein"
+        Show-Warning "Migration hatte Probleme"
     }
+    
+    # SICHERHEIT: Server IMMER hochfahren (egal was vorher passiert ist)
+    Ensure-ServerUp -AccountConfig $AccountConfig
     
     # SSH-Info anzeigen
     Show-SSHInfo -AccountConfig $AccountConfig
