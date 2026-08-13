@@ -600,18 +600,15 @@ PFAD:  resources/views/layouts/app.blade.php
 
     @stack('scripts')
 
-    {{-- Navigation: Daten aktualisieren beim Zurück-Button, Modals schließen --}}
+    {{-- Navigation-Fixes --}}
     <script>
         (function() {
-            // 1. Back/Forward-Button: Seite neu laden (keine veralteten Daten)
+            // 1. Back/Forward-Button: Seite neu laden (frische Daten)
             window.addEventListener('pageshow', function(event) {
                 if (event.persisted) {
                     window.location.reload();
-                    return;
                 }
             });
-
-            // 2. Fallback: Navigation-Type prüfen (back_forward)
             try {
                 var navEntry = performance.getEntriesByType('navigation')[0];
                 if (navEntry && navEntry.type === 'back_forward') {
@@ -619,29 +616,27 @@ PFAD:  resources/views/layouts/app.blade.php
                 }
             } catch(e) {}
 
-            // 3. Nach Speichern (POST → Redirect → GET): History-Eintrag ersetzen
-            //    Verhindert doppeltes Zurück-Drücken
-            @if(session('success') || session('status') || session('error') || session('warning'))
+            // 2. POST → Redirect: Doppeltes Zurück verhindern
+            //    Vor dem Submit Flag setzen, nach dem Redirect History ersetzen
+            if (sessionStorage.getItem('uschi_posted') === 'true') {
+                sessionStorage.removeItem('uschi_posted');
                 history.replaceState(null, '', window.location.href);
-            @endif
+            }
 
-            // Fallback: Auch ohne Flash-Message den Redirect erkennen
-            try {
-                var navEntry = performance.getEntriesByType('navigation')[0];
-                if (navEntry && navEntry.type === 'navigate' && navEntry.redirectCount > 0) {
-                    history.replaceState(null, '', window.location.href);
-                }
-            } catch(e) {}
-
-            // 4. Offene Modals beim Laden schließen
             document.addEventListener('DOMContentLoaded', function() {
-                document.querySelectorAll('.modal.show, .modal.fade.show').forEach(function(modal) {
-                    modal.classList.remove('show');
-                    modal.style.display = 'none';
+                // Alle POST-Formulare tracken
+                document.querySelectorAll('form').forEach(function(form) {
+                    form.addEventListener('submit', function() {
+                        sessionStorage.setItem('uschi_posted', 'true');
+                    });
                 });
-                document.querySelectorAll('.modal-backdrop').forEach(function(el) {
-                    el.remove();
+
+                // 3. Offene Modals beim Laden schließen
+                document.querySelectorAll('.modal.show, .modal.fade.show').forEach(function(m) {
+                    m.classList.remove('show');
+                    m.style.display = 'none';
                 });
+                document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
                 document.body.classList.remove('modal-open');
                 document.body.style.removeProperty('overflow');
                 document.body.style.removeProperty('padding-right');
