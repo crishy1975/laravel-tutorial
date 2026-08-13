@@ -298,12 +298,39 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if(!$g->ist_erledigt)
-                                        <button type="button" class="btn btn-success btn-sm" 
-                                                data-bs-toggle="modal" data-bs-target="#modalErledigt{{ $g->id }}">
-                                            <i class="bi bi-check-lg"></i>
-                                        </button>
-                                    @endif
+                                    <div class="d-flex gap-1">
+                                        @if(!$g->ist_erledigt)
+                                            <button type="button" class="btn btn-success btn-sm" 
+                                                    data-bs-toggle="modal" data-bs-target="#modalErledigt{{ $g->id }}">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        @endif
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="dropdown">
+                                                <i class="bi bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <button type="button" class="dropdown-item btn-monate"
+                                                            data-id="{{ $g->id }}"
+                                                            data-codex="{{ $g->codex }}"
+                                                            data-name="{{ $g->gebaeude_name }}"
+                                                            @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
+                                                        <i class="bi bi-calendar-month text-primary"></i> Monate
+                                                    </button>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <button type="button" class="dropdown-item text-danger btn-loeschen"
+                                                            data-id="{{ $g->id }}"
+                                                            data-codex="{{ $g->codex }}"
+                                                            data-name="{{ $g->gebaeude_name }}">
+                                                        <i class="bi bi-trash"></i> Löschen
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
@@ -371,6 +398,31 @@
                                     <i class="bi bi-check-lg"></i>
                                 </button>
                             @endif
+                            <div class="dropdown {{ $g->ist_erledigt ? 'ms-auto' : '' }}">
+                                <button class="btn btn-outline-secondary btn-sm py-1 px-2" type="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button type="button" class="dropdown-item btn-monate"
+                                                data-id="{{ $g->id }}"
+                                                data-codex="{{ $g->codex }}"
+                                                data-name="{{ $g->gebaeude_name }}"
+                                                @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
+                                            <i class="bi bi-calendar-month text-primary"></i> Monate
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button type="button" class="dropdown-item text-danger btn-loeschen"
+                                                data-id="{{ $g->id }}"
+                                                data-codex="{{ $g->codex }}"
+                                                data-name="{{ $g->gebaeude_name }}">
+                                            <i class="bi bi-trash"></i> Löschen
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
 
                         @if($g->bemerkung)
@@ -555,6 +607,84 @@
         </div>
     </div>
 @endforeach
+
+{{-- Modal: Monate bearbeiten (geteilt) --}}
+<div class="modal fade" id="modalMonate" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h6 class="modal-title">
+                    <i class="bi bi-calendar-month"></i> Reinigungsmonate
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <div class="alert alert-info py-2 mb-3 small">
+                    <strong id="monateCodex"></strong> – <span id="monateName"></span>
+                </div>
+                <input type="hidden" id="monateGebaeudeId">
+                <div class="row g-2">
+                    @php
+                        $monatNamen = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+                    @endphp
+                    @for($mi = 1; $mi <= 12; $mi++)
+                        @php $mKey = 'm' . str_pad($mi, 2, '0', STR_PAD_LEFT); @endphp
+                        <div class="col-4">
+                            <div class="form-check">
+                                <input class="form-check-input monat-check" type="checkbox" 
+                                       id="check_{{ $mKey }}" data-field="{{ $mKey }}">
+                                <label class="form-check-label small" for="check_{{ $mKey }}">
+                                    {{ $monatNamen[$mi - 1] }}
+                                </label>
+                            </div>
+                        </div>
+                    @endfor
+                </div>
+                <div class="mt-3 d-flex gap-1">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="monateAlleAn()">Alle</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="monateAlleAus()">Keine</button>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="monateSpeichern()">
+                    <i class="bi bi-check-lg"></i> Speichern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Modal: Löschen bestätigen (geteilt) --}}
+<div class="modal fade" id="modalLoeschen" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white py-2">
+                <h6 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Gebäude löschen
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="mb-2">Dieses Gebäude wirklich löschen?</p>
+                <div class="alert alert-warning py-2 small">
+                    <strong id="loeschenCodex"></strong> – <span id="loeschenName"></span>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>
+                <form id="loeschenForm" method="POST" action="" data-no-dirty data-no-fetch>
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="bi bi-trash"></i> Endgültig löschen
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('styles')
@@ -781,6 +911,70 @@ document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
 // Filter
 document.getElementById('filterForm')?.addEventListener('keypress', e => {
     if (e.key === 'Enter') { e.preventDefault(); e.target.form.submit(); }
+});
+
+// ========== Monate Modal ==========
+document.querySelectorAll('.btn-monate').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('monateGebaeudeId').value = this.dataset.id;
+        document.getElementById('monateCodex').textContent = this.dataset.codex || '-';
+        document.getElementById('monateName').textContent = this.dataset.name || '';
+
+        // Checkboxen setzen
+        for (var mi = 1; mi <= 12; mi++) {
+            var key = 'm' + String(mi).padStart(2, '0');
+            var check = document.getElementById('check_' + key);
+            if (check) check.checked = this.dataset[key] == '1';
+        }
+
+        new bootstrap.Modal(document.getElementById('modalMonate')).show();
+    });
+});
+
+function monateAlleAn() {
+    document.querySelectorAll('.monat-check').forEach(c => c.checked = true);
+}
+
+function monateAlleAus() {
+    document.querySelectorAll('.monat-check').forEach(c => c.checked = false);
+}
+
+function monateSpeichern() {
+    var id = document.getElementById('monateGebaeudeId').value;
+    var data = {};
+    document.querySelectorAll('.monat-check').forEach(function(c) {
+        data[c.dataset.field] = c.checked ? 1 : 0;
+    });
+
+    fetch('/gebaeude/' + id, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(Object.assign({_method: 'PUT'}, data)),
+        credentials: 'same-origin'
+    }).then(function(response) {
+        if (response.ok || response.type === 'opaqueredirect' || response.status === 0) {
+            bootstrap.Modal.getInstance(document.getElementById('modalMonate')).hide();
+            window.location.reload();
+        } else {
+            alert('Fehler beim Speichern: ' + response.status);
+        }
+    }).catch(function(err) {
+        alert('Netzwerkfehler: ' + err.message);
+    });
+}
+
+// ========== Löschen Modal ==========
+document.querySelectorAll('.btn-loeschen').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.getElementById('loeschenCodex').textContent = this.dataset.codex || '-';
+        document.getElementById('loeschenName').textContent = this.dataset.name || '';
+        document.getElementById('loeschenForm').action = '/gebaeude/' + this.dataset.id;
+        new bootstrap.Modal(document.getElementById('modalLoeschen')).show();
+    });
 });
 </script>
 @endpush
