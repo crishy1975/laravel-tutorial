@@ -240,11 +240,11 @@ class GebaeudeController extends Controller
                 ]);
             });
 
-            $returnTo = $this->safeReturnTo($request->input('returnTo'), route('gebaeude.edit', $gebaeude->id));
+            $returnTo = $this->safeReturnTo($request->input('returnTo'), route('gebaeude.index'));
 
             return redirect()
                 ->to($returnTo)
-                ->with('success', 'Gebäude wurde erfolgreich aktualisiert (inkl. Touren).');
+                ->with('success', 'Gebäude wurde erfolgreich aktualisiert.');
         } catch (ValidationException $ve) {
             Log::warning('Gebaeude.update VALIDATION FAILED', [
                 'debugId' => $debugId,
@@ -548,7 +548,7 @@ class GebaeudeController extends Controller
             $gebaeude = Gebaeude::create($validated);
 
             return redirect()
-                ->route('gebaeude.edit', $gebaeude->id)
+                ->route('gebaeude.index')
                 ->with('success', 'Gebäude erfolgreich angelegt.');
         } catch (ValidationException $ve) {
             Log::warning('Gebaeude.store VALIDATION FAILED', [
