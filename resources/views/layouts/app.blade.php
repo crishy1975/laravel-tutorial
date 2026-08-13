@@ -609,25 +609,54 @@ PFAD:  resources/views/layouts/app.blade.php
                     window.location.reload();
                 }
             });
-            try {
-                var navEntry = performance.getEntriesByType('navigation')[0];
-                if (navEntry && navEntry.type === 'back_forward') {
-                    window.location.reload();
-                }
-            } catch(e) {}
-
-            // 2. POST → Redirect: Doppeltes Zurück verhindern
-            //    Vor dem Submit Flag setzen, nach dem Redirect History ersetzen
-            if (sessionStorage.getItem('uschi_posted') === 'true') {
-                sessionStorage.removeItem('uschi_posted');
-                history.replaceState(null, '', window.location.href);
-            }
 
             document.addEventListener('DOMContentLoaded', function() {
-                // Alle POST-Formulare tracken
+
+                // 2. Speichern-Formulare (PUT/PATCH) per Fetch absenden
+                //    → Kein neuer History-Eintrag, einmal Zurück = Liste
                 document.querySelectorAll('form').forEach(function(form) {
-                    form.addEventListener('submit', function() {
-                        sessionStorage.setItem('uschi_posted', 'true');
+                    // Nur Formulare mit _method=PUT oder PATCH (= Speichern/Update)
+                    var methodField = form.querySelector('input[name="_method"]');
+                    if (!methodField) return;
+                    var method = methodField.value.toUpperCase();
+                    if (method !== 'PUT' && method !== 'PATCH') return;
+                    if (form.hasAttribute('data-no-fetch')) return;
+
+                    form.addEventListener('submit', function(e) {
+                        e.preventDefault();
+
+                        var btn = form.querySelector('[type="submit"], button:not([type="button"])');
+                        var originalHtml = btn ? btn.innerHTML : '';
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Speichern...';
+                        }
+
+                        fetch(form.action, {
+                            method: 'POST',
+                            body: new FormData(form),
+                            credentials: 'same-origin',
+                            redirect: 'manual'
+                        }).then(function(response) {
+                            if (response.type === 'opaqueredirect' || response.ok || response.status === 0) {
+                                // Erfolg: Seite neuladen OHNE History-Eintrag
+                                window.location.replace(window.location.href);
+                            } else if (response.status === 422) {
+                                // Validierungsfehler: normal neuladen (Fehler in Session)
+                                window.location.replace(window.location.href);
+                            } else {
+                                // Anderer Fehler: Seite neuladen
+                                window.location.replace(window.location.href);
+                            }
+                        }).catch(function(err) {
+                            console.error('Fetch fehlgeschlagen:', err);
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.innerHTML = originalHtml;
+                            }
+                            // Fallback: normal absenden
+                            form.submit();
+                        });
                     });
                 });
 
