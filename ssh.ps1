@@ -72,4 +72,9 @@ Write-Host "    php artisan up / down" -ForegroundColor Gray
 Write-Host ""
 
 # SSH starten - bleibt offen
-ssh -p $($Config.SFTP_PORT) -t $($Config.SFTP_USER)@$($Config.SFTP_HOST) "cd $($Config.REMOTE_PATH); exec bash"
+$sshUser = $Config.SFTP_USER
+$sshHost = $Config.SFTP_HOST
+$sshPort = $Config.SFTP_PORT
+$remotePath = $Config.REMOTE_PATH
+
+ssh -p $sshPort -t "$sshUser@$sshHost" "cd $remotePath; exec bash"
