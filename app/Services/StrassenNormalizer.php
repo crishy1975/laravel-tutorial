@@ -132,29 +132,72 @@ class StrassenNormalizer
     }
 
     /**
-     * Resolve: Prüft ob ein manuelles Mapping existiert,
-     * sonst automatische Normalisierung.
+     * Extrahiert den Buchstaben-Prefix aus dem Codex.
+     * "hof12" → "HOF", "ken34" → "KEN", "gal12" → "GAL"
      */
-    public function resolve(string $strasse): string
+    public function extractCodexPrefix(?string $codex): string
     {
-        $mapping = \App\Models\StrassenMapping::where('strasse_original', $strasse)->first();
+        if (empty($codex)) {
+            return '';
+        }
 
+        // Alles vor der ersten Ziffer = Straßen-Prefix
+        if (preg_match('/^([a-zäöü]+)/iu', trim($codex), $matches)) {
+            return mb_strtoupper($matches[1], 'UTF-8');
+        }
+
+        return '';
+    }
+
+    /**
+     * Extrahiert den numerischen Teil aus dem Codex.
+     * "hof12" → "00012", "ken34" → "00034"
+     */
+    public function extractCodexNummer(?string $codex): string
+    {
+        if (empty($codex)) {
+            return '99999';
+        }
+
+        if (preg_match('/(\d+)/', $codex, $matches)) {
+            return str_pad($matches[1], 5, '0', STR_PAD_LEFT);
+        }
+
+        return '99999';
+    }
+
+    /**
+     * Resolve: Codex-Prefix hat Vorrang, dann manuelles Mapping, dann Auto-Normalisierung.
+     */
+    public function resolve(string $strasse, ?string $codex = null): string
+    {
+        // 1. Codex-Prefix (zuverlässigster Identifier)
+        $codexPrefix = $this->extractCodexPrefix($codex);
+        if ($codexPrefix) {
+            return $codexPrefix;
+        }
+
+        // 2. Manuelles Mapping
+        $mapping = \App\Models\StrassenMapping::where('strasse_original', $strasse)->first();
         if ($mapping) {
             return $mapping->sort_key;
         }
 
+        // 3. Automatische Normalisierung
         return $this->normalize($strasse);
     }
 
     /**
      * Analyse: Zeigt Details der Normalisierung.
      */
-    public function analyze(string $strasse): array
+    public function analyze(string $strasse, ?string $codex = null): array
     {
         return [
             'original' => $strasse,
+            'codex' => $codex,
+            'codex_prefix' => $this->extractCodexPrefix($codex),
             'normalized' => $this->normalize($strasse),
-            'resolved' => $this->resolve($strasse),
+            'resolved' => $this->resolve($strasse, $codex),
             'has_mapping' => \App\Models\StrassenMapping::where('strasse_original', $strasse)->exists(),
         ];
     }

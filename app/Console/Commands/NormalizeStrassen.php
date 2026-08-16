@@ -82,8 +82,13 @@ class NormalizeStrassen extends Command
                 ->where('strasse', '!=', '')
                 ->chunk(200, function ($gebaeude) use ($normalizer, &$count) {
                     foreach ($gebaeude as $g) {
-                        $sortKey = $normalizer->resolve($g->strasse);
-                        $hnSortKey = $normalizer->normalizeHausnummer($g->hausnummer);
+                        $sortKey = $normalizer->resolve($g->strasse ?? '', $g->codex ?? null);
+
+                        // Hausnummer: aus Codex-Nummer oder klassisch
+                        $codexNummer = $normalizer->extractCodexNummer($g->codex ?? null);
+                        $hnSortKey = ($g->codex && $codexNummer !== '99999')
+                            ? $codexNummer
+                            : $normalizer->normalizeHausnummer($g->hausnummer);
 
                         if ($g->strasse_sort_key !== $sortKey || $g->hausnummer_sort_key !== $hnSortKey) {
                             $g->update([
