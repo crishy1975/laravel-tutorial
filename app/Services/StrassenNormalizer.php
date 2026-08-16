@@ -36,9 +36,10 @@ class StrassenNormalizer
     ];
 
     // Abkürzungen für Vornamen (werden entfernt)
+    // NUR "J. ", "F. ", "Dr. ", "St. " etc. – Punkt UND Leerzeichen Pflicht!
     private const NAME_ABBREVIATIONS = [
-        '/^[a-zäöü]\.?\s*/iu',        // Einzelbuchstabe: "J. " oder "J "
-        '/^[a-zäöü]{2,3}\.\s*/iu',    // 2-3 Buchstaben mit Punkt: "Dr. ", "St. "
+        '/^[a-zäöü]\.\s+/iu',          // Einzelbuchstabe + Punkt + Space: "J. ", "F. "
+        '/^[a-zäöü]{2,3}\.\s+/iu',     // 2-3 Buchstaben + Punkt + Space: "Dr. ", "St. ", "Naz. "
     ];
 
     /**
