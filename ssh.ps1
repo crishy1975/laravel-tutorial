@@ -77,4 +77,4 @@ $sshHost = $Config.SFTP_HOST
 $sshPort = $Config.SFTP_PORT
 $remotePath = $Config.REMOTE_PATH
 
-ssh -p $sshPort -t "$sshUser@$sshHost" "cd $remotePath; exec bash"
+ssh -p $sshPort -t "$sshUser@$sshHost" "cd $remotePath && exec bash --login"
