@@ -129,10 +129,8 @@ class ReinigungsplanungController extends Controller
             $query->where('faellig', false);
         }
 
-        // Sortierung: Straße, dann Hausnummer (numerisch)
-        $query->orderBy('strasse')
-              ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-              ->orderBy('hausnummer');
+        // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
+        $query->sortByAddress();
 
         // ⭐ Statistiken VOR Pagination berechnen (Clone der Query)
         $statsQuery = clone $query;
@@ -353,10 +351,8 @@ class ReinigungsplanungController extends Controller
             $query->where('faellig', false);
         }
 
-        // Sortierung: Straße, dann Hausnummer (numerisch)
-        $query->orderBy('strasse')
-              ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-              ->orderBy('hausnummer');
+        // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
+        $query->sortByAddress();
 
         $gebaeude = $query->get();
 

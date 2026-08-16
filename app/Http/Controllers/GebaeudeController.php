@@ -383,10 +383,8 @@ class GebaeudeController extends Controller
             });
         }
 
-        // Sortierung: Straße, dann Hausnummer (numerisch)
-        $query->orderBy('strasse')
-            ->orderByRaw('CAST(hausnummer AS UNSIGNED)')
-            ->orderBy('hausnummer');
+        // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
+        $query->sortByAddress();
 
         // Pagination - Filter an URL anhängen
         $gebaeude = $query->paginate(25)->appends($filters);
