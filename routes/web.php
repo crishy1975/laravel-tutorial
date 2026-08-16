@@ -334,6 +334,63 @@ Route::middleware(['auth', 'admin'])->group(function () {
             $g->update(request()->only($fields));
             return response()->json(['success' => true]);
         })->name('monate');
+
+        // Bulk-Aktionen (Mehrfachauswahl)
+        Route::post('/bulk-action', function () {
+            $ids = request()->input('ids', []);
+            $action = request()->input('action');
+            $monat = request()->input('monat');
+            $tourId = request()->input('tour_id');
+            $filterTour = request()->input('filter_tour');
+
+            if (empty($ids)) {
+                return response()->json(['error' => 'Keine IDs'], 400);
+            }
+
+            $gebaeude = \App\Models\Gebaeude::whereIn('id', $ids);
+
+            switch ($action) {
+                case 'delete':
+                    $gebaeude->delete();
+                    break;
+
+                case 'tour-remove':
+                    if ($filterTour) {
+                        foreach ($gebaeude->get() as $g) {
+                            $g->touren()->detach($filterTour);
+                        }
+                    }
+                    break;
+
+                case 'tour-set':
+                    if (!$tourId) {
+                        return response()->json(['error' => 'Keine Tour'], 400);
+                    }
+                    foreach ($gebaeude->get() as $g) {
+                        $g->touren()->syncWithoutDetaching([$tourId]);
+                    }
+                    break;
+
+                case 'month-set':
+                    if ($monat >= 1 && $monat <= 12) {
+                        $field = 'm' . str_pad($monat, 2, '0', STR_PAD_LEFT);
+                        $gebaeude->update([$field => 1]);
+                    }
+                    break;
+
+                case 'month-remove':
+                    if ($monat >= 1 && $monat <= 12) {
+                        $field = 'm' . str_pad($monat, 2, '0', STR_PAD_LEFT);
+                        $gebaeude->update([$field => 0]);
+                    }
+                    break;
+
+                default:
+                    return response()->json(['error' => 'Unbekannte Aktion'], 400);
+            }
+
+            return response()->json(['success' => true, 'count' => count($ids)]);
+        })->name('bulk-action');
     });
 
 

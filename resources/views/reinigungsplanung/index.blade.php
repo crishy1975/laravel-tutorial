@@ -219,11 +219,64 @@
                 <p class="text-muted mt-2 mb-0">Keine Gebäude gefunden.</p>
             </div>
         @else
+            {{-- Bulk-Aktionsleiste (erscheint bei Selektion) --}}
+            <div id="bulkBar" class="alert alert-primary py-2 mb-2 d-none">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <strong class="small"><span id="bulkCount">0</span> ausgewählt</strong>
+
+                    <div class="vr d-none d-sm-block"></div>
+
+                    {{-- Tour setzen --}}
+                    <div class="input-group input-group-sm" style="width: auto; max-width: 200px;">
+                        <select id="bulkTourSelect" class="form-select form-select-sm">
+                            <option value="">Tour wählen...</option>
+                            @foreach($touren as $t)
+                                <option value="{{ $t->id }}">{{ $t->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-info btn-sm text-white" onclick="bulkAction('tour-set')" title="Tour zuweisen">
+                            <i class="bi bi-signpost-2"></i>
+                        </button>
+                    </div>
+
+                    {{-- Tour entfernen (nur wenn Tour gefiltert) --}}
+                    @if($filterTour)
+                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="bulkAction('tour-remove')" title="Tour entfernen">
+                            <i class="bi bi-signpost"></i>
+                            <span class="d-none d-sm-inline">Tour entfernen</span>
+                        </button>
+                    @endif
+
+                    {{-- Monat setzen/entfernen --}}
+                    @if($filterMonat)
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkAction('month-set')" title="Monat {{ $filterMonat }} setzen">
+                            <i class="bi bi-calendar-plus"></i>
+                            <span class="d-none d-sm-inline">Monat {{ $filterMonat }} setzen</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkAction('month-remove')" title="Monat {{ $filterMonat }} entfernen">
+                            <i class="bi bi-calendar-minus"></i>
+                            <span class="d-none d-sm-inline">Monat {{ $filterMonat }} entfernen</span>
+                        </button>
+                    @endif
+
+                    <div class="vr d-none d-sm-block"></div>
+
+                    {{-- Löschen --}}
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkAction('delete')">
+                        <i class="bi bi-trash"></i>
+                        <span class="d-none d-sm-inline">Löschen</span>
+                    </button>
+                </div>
+            </div>
+
             {{-- Desktop: Tabelle --}}
             <div class="table-responsive d-none d-lg-block">
                 <table class="table table-hover table-striped mb-0" id="reinigungsTable">
                     <thead class="table-dark">
                         <tr>
+                            <th style="width: 40px;" class="text-center">
+                                <input type="checkbox" class="form-check-input" id="selectAllDesktop" title="Alle auswählen">
+                            </th>
                             <th style="width: 90px;">Codex</th>
                             <th>Gebäude</th>
                             <th>Adresse</th>
@@ -246,6 +299,9 @@
                                 $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                             @endphp
                             <tr class="{{ $g->ist_erledigt ? 'table-success' : '' }}">
+                                <td class="text-center" onclick="event.stopPropagation()">
+                                    <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
+                                </td>
                                 <td>
                                     <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none fw-bold">
                                         {{ $g->codex ?: '-' }}
@@ -351,6 +407,9 @@
                     @endphp
                     <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }} p-2">
                         <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="me-2 pt-1">
+                                <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
+                            </div>
                             <div class="flex-grow-1 min-width-0">
                                 <a href="{{ route('gebaeude.edit', $g->id) }}" class="text-decoration-none">
                                     <span class="fw-bold text-primary">{{ $g->codex ?: '-' }}</span>
@@ -1018,6 +1077,92 @@ function gebaeudeLoeschen() {
         alert('Netzwerkfehler: ' + err.message);
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-trash"></i> Endgültig löschen';
+    });
+}
+
+// ========== Bulk-Selektion ==========
+var bulkBar = document.getElementById('bulkBar');
+var bulkCount = document.getElementById('bulkCount');
+var selectAllDesktop = document.getElementById('selectAllDesktop');
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.bulk-check:checked')).map(c => c.value);
+}
+
+function updateBulkBar() {
+    var count = getSelectedIds().length;
+    if (bulkCount) bulkCount.textContent = count;
+    if (bulkBar) {
+        if (count > 0) {
+            bulkBar.classList.remove('d-none');
+        } else {
+            bulkBar.classList.add('d-none');
+        }
+    }
+    var allChecks = document.querySelectorAll('.bulk-check');
+    if (selectAllDesktop) {
+        selectAllDesktop.checked = allChecks.length > 0 && count === allChecks.length;
+    }
+}
+
+document.querySelectorAll('.bulk-check').forEach(function(c) {
+    c.addEventListener('change', updateBulkBar);
+});
+
+if (selectAllDesktop) {
+    selectAllDesktop.addEventListener('change', function() {
+        document.querySelectorAll('.bulk-check').forEach(function(c) {
+            c.checked = selectAllDesktop.checked;
+        });
+        updateBulkBar();
+    });
+}
+
+function bulkAction(action) {
+    var ids = getSelectedIds();
+    if (ids.length === 0) return;
+
+    var messages = {
+        'delete': ids.length + ' Gebäude endgültig löschen?',
+        'tour-remove': 'Tour bei ' + ids.length + ' Gebäuden entfernen?',
+        'tour-set': 'Tour bei ' + ids.length + ' Gebäuden setzen?',
+        'month-set': 'Monat bei ' + ids.length + ' Gebäuden setzen?',
+        'month-remove': 'Monat bei ' + ids.length + ' Gebäuden entfernen?'
+    };
+
+    var tourId = null;
+    if (action === 'tour-set') {
+        tourId = document.getElementById('bulkTourSelect').value;
+        if (!tourId) {
+            alert('Bitte eine Tour auswählen.');
+            return;
+        }
+    }
+
+    if (!confirm(messages[action] || 'Aktion ausführen?')) return;
+
+    var body = { ids: ids, action: action };
+    if (tourId) body.tour_id = tourId;
+    body.monat = '{{ $filterMonat ?? "" }}';
+    body.filter_tour = '{{ $filterTour ?? "" }}';
+
+    fetch('/reinigungsplanung/bulk-action', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(body),
+        credentials: 'same-origin'
+    }).then(function(response) {
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            response.text().then(function(t) { alert('Fehler: ' + t); });
+        }
+    }).catch(function(err) {
+        alert('Netzwerkfehler: ' + err.message);
     });
 }
 </script>
