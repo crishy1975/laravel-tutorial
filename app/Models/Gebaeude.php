@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use App\Enums\GebaeudeLogTyp;
+use App\Services\StrassenNormalizer;
 
 class Gebaeude extends Model
 {
@@ -28,7 +29,9 @@ class Gebaeude extends Model
         'rechnungsempfaenger_id',
         'gebaeude_name',
         'strasse',
+        'strasse_sort_key',
         'hausnummer',
+        'hausnummer_sort_key',
         'plz',
         'wohnort',
         'telefon',           // ⭐ NEU
@@ -91,6 +94,35 @@ class Gebaeude extends Model
         'm11' => 'boolean',
         'm12' => 'boolean',
     ];
+
+    // ═══════════════════════════════════════════════════════════
+    // 🏠 STRASSEN-NORMALISIERUNG (Auto-Update beim Speichern)
+    // ═══════════════════════════════════════════════════════════
+
+    protected static function booted(): void
+    {
+        static::saving(function (Gebaeude $gebaeude) {
+            if ($gebaeude->isDirty(['strasse', 'hausnummer', 'codex']) || empty($gebaeude->strasse_sort_key)) {
+                $normalizer = new StrassenNormalizer();
+                $gebaeude->strasse_sort_key = $normalizer->resolve($gebaeude->strasse ?? '', $gebaeude->codex ?? null);
+
+                $codexNummer = $normalizer->extractCodexNummer($gebaeude->codex ?? null);
+                $gebaeude->hausnummer_sort_key = ($gebaeude->codex && $codexNummer !== '99999')
+                    ? $codexNummer
+                    : $normalizer->normalizeHausnummer($gebaeude->hausnummer ?? '');
+            }
+        });
+    }
+
+    /**
+     * Scope: Sortierung nach normalisierter Adresse.
+     * Verwendung: Gebaeude::sortByAddress()->get()
+     */
+    public function scopeSortByAddress($query)
+    {
+        return $query->orderBy('strasse_sort_key')
+                     ->orderBy('hausnummer_sort_key');
+    }
 
     // ═══════════════════════════════════════════════════════════
     // 📞 KONTAKT-HELPER
