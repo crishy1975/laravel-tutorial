@@ -248,16 +248,26 @@
                     @endif
 
                     {{-- Monat setzen/entfernen --}}
-                    @if($filterMonat)
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="bulkAction('month-set')" title="Monat {{ $filterMonat }} setzen">
+                    <div class="input-group input-group-sm" style="width: auto; max-width: 170px;">
+                        <select id="bulkMonatSelect" class="form-select form-select-sm">
+                            @if($filterMonat)
+                                <option value="{{ $filterMonat }}">{{ $filterMonat }} (Filter)</option>
+                            @else
+                                <option value="">Monat...</option>
+                            @endif
+                            @for($mi = 1; $mi <= 12; $mi++)
+                                @if($mi != $filterMonat)
+                                    <option value="{{ $mi }}">{{ $mi }}</option>
+                                @endif
+                            @endfor
+                        </select>
+                        <button type="button" class="btn btn-success btn-sm" onclick="bulkAction('month-set')" title="Monat setzen">
                             <i class="bi bi-calendar-plus"></i>
-                            <span class="d-none d-sm-inline">Monat {{ $filterMonat }} setzen</span>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkAction('month-remove')" title="Monat {{ $filterMonat }} entfernen">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkAction('month-remove')" title="Monat entfernen">
                             <i class="bi bi-calendar-minus"></i>
-                            <span class="d-none d-sm-inline">Monat {{ $filterMonat }} entfernen</span>
                         </button>
-                    @endif
+                    </div>
 
                     <div class="vr d-none d-sm-block"></div>
 
@@ -1143,8 +1153,17 @@ function bulkAction(action) {
 
     var body = { ids: ids, action: action };
     if (tourId) body.tour_id = tourId;
-    body.monat = '{{ $filterMonat ?? "" }}';
     body.filter_tour = '{{ $filterTour ?? "" }}';
+
+    // Monat aus Dropdown lesen
+    var monatSelect = document.getElementById('bulkMonatSelect');
+    var monat = monatSelect ? monatSelect.value : '';
+    body.monat = monat;
+
+    if ((action === 'month-set' || action === 'month-remove') && !monat) {
+        alert('Bitte einen Monat auswählen.');
+        return;
+    }
 
     fetch('/reinigungsplanung/bulk-action', {
         method: 'POST',
