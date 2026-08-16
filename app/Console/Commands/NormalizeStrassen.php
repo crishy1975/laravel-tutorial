@@ -105,9 +105,9 @@ class NormalizeStrassen extends Command
             $this->warn('[DRY-RUN] Nichts gespeichert');
         }
 
-        // 4. Gruppierung anzeigen
+        // 4. Gruppierung nach Sort-Key (Text-Mappings)
         $this->line('');
-        $this->info('Gruppierung nach Sort-Key:');
+        $this->info('Gruppierung nach Sort-Key (Text-Normalisierung):');
         $this->line('');
 
         $groups = StrassenMapping::select('sort_key')
@@ -126,6 +126,28 @@ class NormalizeStrassen extends Command
                 $this->line("  <fg=yellow>{$group->sort_key}</> ({$group->anzahl} Varianten, {$gebaeudeCount} Gebäude)");
                 $this->line("    → {$group->varianten}");
             }
+        }
+
+        // 5. Codex-basierte Gruppierung (tatsächliche Sort-Keys auf Gebäuden)
+        $this->line('');
+        $this->info('Codex-basierte Gruppierung (tatsächliche Sort-Keys):');
+        $this->line('');
+
+        $codexGroups = Gebaeude::select('strasse_sort_key')
+            ->selectRaw('COUNT(*) as anzahl')
+            ->selectRaw('GROUP_CONCAT(DISTINCT strasse SEPARATOR ", ") as varianten')
+            ->selectRaw('MIN(codex) as beispiel_codex')
+            ->whereNotNull('strasse_sort_key')
+            ->where('strasse_sort_key', '!=', '')
+            ->groupBy('strasse_sort_key')
+            ->having('anzahl', '>', 1)
+            ->orderBy('strasse_sort_key')
+            ->get();
+
+        foreach ($codexGroups as $group) {
+            $marker = (strlen($group->strasse_sort_key) <= 5) ? '📌' : '  ';
+            $this->line("  {$marker} <fg=green>{$group->strasse_sort_key}</> ({$group->anzahl} Gebäude, Codex: {$group->beispiel_codex})");
+            $this->line("      Straßen: {$group->varianten}");
         }
 
         $this->line('');
