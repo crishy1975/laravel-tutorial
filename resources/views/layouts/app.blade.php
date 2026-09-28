@@ -189,12 +189,12 @@ PFAD:  resources/views/layouts/app.blade.php
                 font-size: 0.8rem;
                 padding: 0.35rem 0.45rem !important;
             }
-            
+
             /* Text ausblenden, nur Icons zeigen */
             .navbar-custom .nav-text-hide-lg {
                 display: none;
             }
-            
+
             .navbar-custom .navbar-brand span {
                 display: none;
             }
@@ -295,24 +295,24 @@ PFAD:  resources/views/layouts/app.blade.php
 
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    
+
                     {{-- Stammdaten --}}
                     <li class="nav-item dropdown">
                         @php
-                            // ⭐ NEU: Anzahl ausstehender Änderungsvorschläge
-                            $ausstehendeVorschlaege = 0;
-                            try {
-                                $ausstehendeVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::pending()->count();
-                            } catch (\Exception $e) {}
+                        // ⭐ NEU: Anzahl ausstehender Änderungsvorschläge
+                        $ausstehendeVorschlaege = 0;
+                        try {
+                        $ausstehendeVorschlaege = \App\Models\GebaeudeAenderungsvorschlag::pending()->count();
+                        } catch (\Exception $e) {}
                         @endphp
-                        
-                        <a class="nav-link dropdown-toggle {{ request()->is('gebaeude*') || request()->is('adresse*') || request()->is('tour*') || request()->is('aenderungsvorschlaege*') ? 'active' : '' }}" 
-                           href="#" role="button" data-bs-toggle="dropdown">
+
+                        <a class="nav-link dropdown-toggle {{ request()->is('gebaeude*') || request()->is('adresse*') || request()->is('tour*') || request()->is('aenderungsvorschlaege*') ? 'active' : '' }}"
+                            href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-folder"></i> <span class="nav-text-hide-lg">Stamm</span><span class="d-none d-xl-inline">daten</span>
-                            
+
                             {{-- Badge: Zeige Anzahl ausstehender Vorschläge --}}
                             @if($ausstehendeVorschlaege > 0)
-                                <span class="nav-badge">{{ $ausstehendeVorschlaege }}</span>
+                            <span class="nav-badge">{{ $ausstehendeVorschlaege }}</span>
                             @endif
                         </a>
                         <ul class="dropdown-menu">
@@ -321,19 +321,21 @@ PFAD:  resources/views/layouts/app.blade.php
                                     <i class="bi bi-building"></i> Gebäude
                                 </a>
                             </li>
-                            
+
                             {{-- ⭐ NEU: Änderungsvorschläge --}}
                             <li>
                                 <a class="dropdown-item {{ request()->is('aenderungsvorschlaege*') ? 'active' : '' }}" href="{{ route('admin.aenderungsvorschlaege') }}">
                                     <i class="bi bi-clipboard-check"></i> Änderungsvorschläge
                                     @if($ausstehendeVorschlaege > 0)
-                                        <span class="dropdown-badge">{{ $ausstehendeVorschlaege }}</span>
+                                    <span class="dropdown-badge">{{ $ausstehendeVorschlaege }}</span>
                                     @endif
                                 </a>
                             </li>
-                            
-                            <li><hr class="dropdown-divider"></li>
-                            
+
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+
                             <li>
                                 <a class="dropdown-item {{ request()->is('adresse*') ? 'active' : '' }}" href="{{ url('/adresse') }}">
                                     <i class="bi bi-person-lines-fill"></i> Adressen
@@ -349,22 +351,22 @@ PFAD:  resources/views/layouts/app.blade.php
 
                     {{-- Reinigung --}}
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->is('reinigungsplanung*') ? 'active' : '' }}" 
-                           href="{{ route('reinigungsplanung.index') }}">
+                        <a class="nav-link {{ request()->is('reinigungsplanung*') ? 'active' : '' }}"
+                            href="{{ route('reinigungsplanung.index') }}">
                             <i class="bi bi-calendar-check"></i> <span class="nav-text-hide-lg">Reinigung</span>
                             @php
-                                $offeneReinigungen = \App\Models\Gebaeude::where('faellig', true)->count();
+                            $offeneReinigungen = \App\Models\Gebaeude::where('faellig', true)->count();
                             @endphp
                             @if($offeneReinigungen > 0)
-                                <span class="nav-badge">{{ $offeneReinigungen }}</span>
+                            <span class="nav-badge">{{ $offeneReinigungen }}</span>
                             @endif
                         </a>
                     </li>
 
                     {{-- Messungen --}}
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->is('messungen*') ? 'active' : '' }}" 
-                           href="{{ route('messungen.index') }}">
+                        <a class="nav-link {{ request()->is('messungen*') ? 'active' : '' }}"
+                            href="{{ route('messungen.index') }}">
                             <i class="bi bi-rulers"></i> <span class="nav-text-hide-lg">Messungen</span>
                         </a>
                     </li>
@@ -372,16 +374,16 @@ PFAD:  resources/views/layouts/app.blade.php
                     {{-- Angebote --}}
                     <li class="nav-item dropdown">
                         @php
-                            $offeneAngebote = 0;
-                            try {
-                                $offeneAngebote = \App\Models\Angebot::whereIn('status', ['entwurf', 'versendet'])->count();
-                            } catch (\Exception $e) {}
+                        $offeneAngebote = 0;
+                        try {
+                        $offeneAngebote = \App\Models\Angebot::whereIn('status', ['entwurf', 'versendet'])->count();
+                        } catch (\Exception $e) {}
                         @endphp
-                        <a class="nav-link dropdown-toggle {{ request()->routeIs('angebote.*') ? 'active' : '' }}" 
-                           href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->routeIs('angebote.*') ? 'active' : '' }}"
+                            href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-file-earmark-text"></i> <span class="nav-text-hide-lg">Angebote</span>
                             @if($offeneAngebote > 0)
-                                <span class="nav-badge" style="background-color: #17a2b8;">{{ $offeneAngebote }}</span>
+                            <span class="nav-badge" style="background-color: #17a2b8;">{{ $offeneAngebote }}</span>
                             @endif
                         </a>
                         <ul class="dropdown-menu">
@@ -395,7 +397,9 @@ PFAD:  resources/views/layouts/app.blade.php
                                     <i class="bi bi-plus-lg"></i> Neues Angebot
                                 </a>
                             </li>
-                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
                             <li>
                                 <a class="dropdown-item" href="{{ route('angebote.index', ['status' => 'entwurf']) }}">
                                     <i class="bi bi-pencil"></i> Entwürfe
@@ -417,98 +421,105 @@ PFAD:  resources/views/layouts/app.blade.php
                     {{-- Finanzen --}}
                     <li class="nav-item dropdown">
                         @php
-                            $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
-                            $offeneBuchungen = \App\Models\BankBuchung::where('match_status', 'unmatched')->where('typ', 'CRDT')->count();
-                            
-                            $ueberfaelligeRechnungen = 0;
-                            try {
-                                $ueberfaelligeRechnungen = \App\Models\Rechnung::where('status', 'sent')
-                                    ->whereNotNull('rechnungsdatum')
-                                    ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL 30 DAY) < CURDATE()")
-                                    ->count();
+                        $offeneRechnungen = \App\Models\Gebaeude::where('rechnung_schreiben', true)->count();
+                        $offeneBuchungen = \App\Models\BankBuchung::where('match_status', 'unmatched')->where('typ', 'CRDT')->count();
+
+                        $ueberfaelligeRechnungen = 0;
+                        try {
+                        $ueberfaelligeRechnungen = \App\Models\Rechnung::where('status', 'sent')
+                        ->whereNotNull('rechnungsdatum')
+                        ->whereRaw("DATE_ADD(rechnungsdatum, INTERVAL 30 DAY) < CURDATE()")
+                            ->count();
                             } catch (\Exception $e) {
-                                $ueberfaelligeRechnungen = 0;
+                            $ueberfaelligeRechnungen = 0;
                             }
-                            
+
                             $finanzBadgeTotal = $offeneRechnungen + $offeneBuchungen + $ueberfaelligeRechnungen;
 
                             $offeneEingangsrechnungen = 0;
                             try {
-                                $offeneEingangsrechnungen = \App\Models\Eingangsrechnung::where('status', 'offen')->count();
-                                $finanzBadgeTotal += $offeneEingangsrechnungen;
+                            $offeneEingangsrechnungen = \App\Models\Eingangsrechnung::where('status', 'offen')->count();
+                            $finanzBadgeTotal += $offeneEingangsrechnungen;
                             } catch (\Exception $e) {}
-                        @endphp
-                        <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') || request()->is('bank*') || request()->is('mahnungen*') || request()->is('eingangsrechnungen*') ? 'active' : '' }}" 
-                           href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-wallet2"></i> <span class="nav-text-hide-lg">Finanzen</span>
-                            @if($finanzBadgeTotal > 0)
+                            @endphp
+                            <a class="nav-link dropdown-toggle {{ request()->is('rechnung*') || request()->is('preis-aufschlaege*') || request()->is('bank*') || request()->is('mahnungen*') || request()->is('eingangsrechnungen*') || request()->is('tagesinkassi*') ? 'active' : '' }}"
+                                href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-wallet2"></i> <span class="nav-text-hide-lg">Finanzen</span>
+                                @if($finanzBadgeTotal > 0)
                                 <span class="nav-badge">{{ $finanzBadgeTotal }}</span>
-                            @endif
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item {{ request()->is('rechnung*') ? 'active' : '' }}" href="{{ url('/rechnung') }}">
-                                    <i class="bi bi-file-text"></i> Rechnungen
-                                    @if($offeneRechnungen > 0)
+                                @endif
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('rechnung*') ? 'active' : '' }}" href="{{ url('/rechnung') }}">
+                                        <i class="bi bi-file-text"></i> Rechnungen
+                                        @if($offeneRechnungen > 0)
                                         <span class="dropdown-badge">{{ $offeneRechnungen }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('eingangsrechnungen*') ? 'active' : '' }}" href="{{ route('eingangsrechnungen.index') }}">
-                                    <i class="bi bi-receipt"></i> Eingangsrechnungen
-                                    @if($offeneEingangsrechnungen > 0)
+                                        @endif
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('eingangsrechnungen*') ? 'active' : '' }}" href="{{ route('eingangsrechnungen.index') }}">
+                                        <i class="bi bi-receipt"></i> Eingangsrechnungen
+                                        @if($offeneEingangsrechnungen > 0)
                                         <span class="dropdown-badge bg-warning text-dark">{{ $offeneEingangsrechnungen }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('bank*') ? 'active' : '' }}" href="{{ route('bank.index') }}">
-                                    <i class="bi bi-bank"></i> Bank
-                                    @if($offeneBuchungen > 0)
+                                        @endif
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('tagesinkassi*') ? 'active' : '' }}" href="{{ route('tagesinkassi.index') }}">
+                                        <i class="bi bi-cash-coin"></i> Tagesinkassi
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('bank*') ? 'active' : '' }}" href="{{ route('bank.index') }}">
+                                        <i class="bi bi-bank"></i> Bank
+                                        @if($offeneBuchungen > 0)
                                         <span class="dropdown-badge bg-warning text-dark">{{ $offeneBuchungen }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('mahnungen*') ? 'active' : '' }}" href="{{ route('mahnungen.index') }}">
-                                    <i class="bi bi-envelope-exclamation"></i> Mahnwesen
-                                    @if($ueberfaelligeRechnungen > 0)
+                                        @endif
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('mahnungen*') ? 'active' : '' }}" href="{{ route('mahnungen.index') }}">
+                                        <i class="bi bi-envelope-exclamation"></i> Mahnwesen
+                                        @if($ueberfaelligeRechnungen > 0)
                                         <span class="dropdown-badge bg-danger text-white">{{ $ueberfaelligeRechnungen }}</span>
-                                    @endif
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item {{ request()->is('preis-aufschlaege*') ? 'active' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
-                                    <i class="bi bi-percent"></i> Aufschläge
-                                </a>
-                            </li>
-                        </ul>
+                                        @endif
+                                    </a>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li>
+                                    <a class="dropdown-item {{ request()->is('preis-aufschlaege*') ? 'active' : '' }}" href="{{ route('preis-aufschlaege.index') }}">
+                                        <i class="bi bi-percent"></i> Aufschläge
+                                    </a>
+                                </li>
+                            </ul>
                     </li>
 
                     {{-- Personal --}}
                     <li class="nav-item dropdown">
                         @php
-                            $neueLohnstunden = 0;
-                            try {
-                                $neueLohnstunden = \App\Models\Lohnstunde::whereDate('created_at', '>=', now()->subDays(7))->count();
-                            } catch (\Exception $e) {}
+                        $neueLohnstunden = 0;
+                        try {
+                        $neueLohnstunden = \App\Models\Lohnstunde::whereDate('created_at', '>=', now()->subDays(7))->count();
+                        } catch (\Exception $e) {}
                         @endphp
-                        <a class="nav-link dropdown-toggle {{ request()->is('lohnstunden*') ? 'active' : '' }}" 
-                           href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle {{ request()->is('lohnstunden*') ? 'active' : '' }}"
+                            href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-people"></i> <span class="nav-text-hide-lg">Personal</span>
                             @if($neueLohnstunden > 0)
-                                <span class="nav-badge" style="background-color: #17a2b8;">{{ $neueLohnstunden }}</span>
+                            <span class="nav-badge" style="background-color: #17a2b8;">{{ $neueLohnstunden }}</span>
                             @endif
                         </a>
                         <ul class="dropdown-menu">
                             <li>
-                                <a class="dropdown-item {{ request()->is('lohnstunden*') ? 'active' : '' }}" 
-                                   href="{{ route('admin.lohnstunden') }}">
+                                <a class="dropdown-item {{ request()->is('lohnstunden*') ? 'active' : '' }}"
+                                    href="{{ route('admin.lohnstunden') }}">
                                     <i class="bi bi-clock-history"></i> Lohnstunden
                                     @if($neueLohnstunden > 0)
-                                        <span class="dropdown-badge bg-info text-white">{{ $neueLohnstunden }}</span>
+                                    <span class="dropdown-badge bg-info text-white">{{ $neueLohnstunden }}</span>
                                     @endif
                                 </a>
                             </li>
@@ -520,21 +531,21 @@ PFAD:  resources/views/layouts/app.blade.php
                 {{-- Benutzer --}}
                 <div class="user-info">
                     @auth
-                        <i class="bi bi-person-circle"></i>
-                        <span class="d-none d-xl-inline">{{ Auth::user()->name }}</span>
-                        <form method="POST" action="{{ route('logout') }}" class="d-inline ms-1">
-                            @csrf
-                            <button type="submit" class="btn-logout">
-                                <i class="bi bi-box-arrow-right"></i>
-                                <span class="d-none d-sm-inline">Logout</span>
-                            </button>
-                        </form>
+                    <i class="bi bi-person-circle"></i>
+                    <span class="d-none d-xl-inline">{{ Auth::user()->name }}</span>
+                    <form method="POST" action="{{ route('logout') }}" class="d-inline ms-1">
+                        @csrf
+                        <button type="submit" class="btn-logout">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span class="d-none d-sm-inline">Logout</span>
+                        </button>
+                    </form>
                     @endauth
 
                     @guest
-                        <a class="btn-logout" href="{{ route('login') }}">
-                            <i class="bi bi-box-arrow-in-right"></i> Login
-                        </a>
+                    <a class="btn-logout" href="{{ route('login') }}">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </a>
                     @endguest
                 </div>
             </div>
@@ -544,9 +555,9 @@ PFAD:  resources/views/layouts/app.blade.php
     {{-- Hauptinhalt --}}
     <main class="container-fluid px-3 px-md-4 main-content mt-3">
         @hasSection('content')
-            @yield('content')
+        @yield('content')
         @else
-            {{ $slot ?? '' }}
+        {{ $slot ?? '' }}
         @endif
     </main>
 
@@ -670,9 +681,17 @@ PFAD:  resources/views/layouts/app.blade.php
                     var methodField = form.querySelector('input[name="_method"]');
                     if (!methodField) return;
 
-                    form.addEventListener('input', function() { formDirty = true; dirtyForm = form; });
-                    form.addEventListener('change', function() { formDirty = true; dirtyForm = form; });
-                    form.addEventListener('submit', function() { formDirty = false; });
+                    form.addEventListener('input', function() {
+                        formDirty = true;
+                        dirtyForm = form;
+                    });
+                    form.addEventListener('change', function() {
+                        formDirty = true;
+                        dirtyForm = form;
+                    });
+                    form.addEventListener('submit', function() {
+                        formDirty = false;
+                    });
                 });
 
                 // Warnung beim Tab schließen / Browser-Zurück (native, nicht anpassbar)
@@ -684,25 +703,25 @@ PFAD:  resources/views/layouts/app.blade.php
                 });
 
                 // Custom Modal erstellen
-                var modalHtml = ''
-                    + '<div id="dirtyModal" class="modal fade" tabindex="-1" style="z-index:9999">'
-                    + '  <div class="modal-dialog modal-dialog-centered modal-sm">'
-                    + '    <div class="modal-content">'
-                    + '      <div class="modal-header py-2 bg-warning bg-opacity-10">'
-                    + '        <h6 class="modal-title"><i class="bi bi-exclamation-triangle text-warning"></i> Ungespeicherte Änderungen</h6>'
-                    + '        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>'
-                    + '      </div>'
-                    + '      <div class="modal-body py-3">'
-                    + '        <p class="mb-0">Möchtest du die Änderungen speichern?</p>'
-                    + '      </div>'
-                    + '      <div class="modal-footer py-2">'
-                    + '        <button type="button" id="dirtyDiscard" class="btn btn-outline-danger btn-sm">Verwerfen</button>'
-                    + '        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>'
-                    + '        <button type="button" id="dirtySave" class="btn btn-success btn-sm"><i class="bi bi-check-lg"></i> Speichern</button>'
-                    + '      </div>'
-                    + '    </div>'
-                    + '  </div>'
-                    + '</div>';
+                var modalHtml = '' +
+                    '<div id="dirtyModal" class="modal fade" tabindex="-1" style="z-index:9999">' +
+                    '  <div class="modal-dialog modal-dialog-centered modal-sm">' +
+                    '    <div class="modal-content">' +
+                    '      <div class="modal-header py-2 bg-warning bg-opacity-10">' +
+                    '        <h6 class="modal-title"><i class="bi bi-exclamation-triangle text-warning"></i> Ungespeicherte Änderungen</h6>' +
+                    '        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>' +
+                    '      </div>' +
+                    '      <div class="modal-body py-3">' +
+                    '        <p class="mb-0">Möchtest du die Änderungen speichern?</p>' +
+                    '      </div>' +
+                    '      <div class="modal-footer py-2">' +
+                    '        <button type="button" id="dirtyDiscard" class="btn btn-outline-danger btn-sm">Verwerfen</button>' +
+                    '        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Abbrechen</button>' +
+                    '        <button type="button" id="dirtySave" class="btn btn-success btn-sm"><i class="bi bi-check-lg"></i> Speichern</button>' +
+                    '      </div>' +
+                    '    </div>' +
+                    '  </div>' +
+                    '</div>';
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
 
                 var dirtyModalEl = document.getElementById('dirtyModal');
@@ -746,7 +765,9 @@ PFAD:  resources/views/layouts/app.blade.php
                     m.classList.remove('show');
                     m.style.display = 'none';
                 });
-                document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+                document.querySelectorAll('.modal-backdrop').forEach(function(el) {
+                    el.remove();
+                });
                 document.body.classList.remove('modal-open');
                 document.body.style.removeProperty('overflow');
                 document.body.style.removeProperty('padding-right');
