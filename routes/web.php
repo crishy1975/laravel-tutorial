@@ -61,6 +61,18 @@ Route::get('/', function () {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 💶 TAGESINKASSI (Livewire + PDF)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+Route::middleware(['auth', 'admin'])->prefix('tagesinkassi')->name('tagesinkassi.')->group(function () {
+    Route::get('/', \App\Livewire\Tagesinkassi\TagesinkassiListe::class)->name('index');
+    Route::get('/pdf/{jahr}/{monat}', [\App\Http\Controllers\TagesinkassiPdfController::class, 'monat'])
+        ->whereNumber(['jahr', 'monat'])->name('pdf.monat');
+    Route::get('/pdf/{jahr}', [\App\Http\Controllers\TagesinkassiPdfController::class, 'jahr'])
+        ->whereNumber('jahr')->name('pdf.jahr');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 👷 MITARBEITER BEREICH (Livewire)
 // ═══════════════════════════════════════════════════════════════════════════════
 
