@@ -7,11 +7,6 @@ PFAD:  resources/views/pdf/partials/registro-kopf.blade.php
 --}}
 <table class="kopf">
     <tr>
-        <td class="logo">
-            @if($logo)
-                <img src="{{ $logo }}" alt="">
-            @endif
-        </td>
         <td>
             <div class="firma">{{ $firma['name'] }}</div>
             <div class="unter">{{ $firma['untertitel'] }}</div>
