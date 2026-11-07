@@ -93,6 +93,11 @@ class ReinigungsplanungController extends Controller
             $g->ist_erledigt           = !$g->faellig;
             $g->ist_angekuendigt       = !$g->ist_erledigt && $g->angekuendigt_am !== null;
             $g->naechste_faelligkeit   = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
+            // ⭐ Aktive Reinigungsmonate als Liste, z.B. [3, 10]
+            $g->monate_aktiv = array_values(array_filter(
+                range(1, 12),
+                fn ($m) => (bool) $g->{'m' . str_pad((string) $m, 2, '0', STR_PAD_LEFT)}
+            ));
             return $g;
         });
 
