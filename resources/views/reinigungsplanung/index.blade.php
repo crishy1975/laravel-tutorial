@@ -336,6 +336,7 @@
                             @foreach($touren as $t)
                                 <option value="{{ $t->id }}">{{ $t->name }}</option>
                             @endforeach
+                            <option value="__neu__">➕ Neue Tour…</option>
                         </select>
                         <button type="button" class="btn btn-info btn-sm text-white" onclick="bulkAction('tour-set')" title="Tour zuweisen">
                             <i class="bi bi-signpost-2"></i>
@@ -1366,6 +1367,48 @@ var bulkBar = document.getElementById('bulkBar');
 var bulkCount = document.getElementById('bulkCount');
 var selectAllDesktop = document.getElementById('selectAllDesktop');
 
+// ⭐ Neue Tour direkt aus der Tour-Auswahl anlegen
+document.getElementById('bulkTourSelect')?.addEventListener('change', function() {
+    var select = this;
+    if (select.value !== '__neu__') return;
+
+    var name = (prompt('Name der neuen Tour:') || '').trim();
+    if (!name) {
+        select.value = '';
+        return;
+    }
+
+    fetch('{{ route("reinigungsplanung.tourNeu") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ name: name }),
+        credentials: 'same-origin'
+    })
+    .then(r => r.json().then(d => { if (!r.ok) throw new Error(d.message || ('HTTP ' + r.status)); return d; }))
+    .then(data => {
+        var opt = select.querySelector('option[value="' + data.id + '"]');
+        if (!opt) {
+            opt = document.createElement('option');
+            opt.value = data.id;
+            opt.textContent = data.name;
+            // vor "➕ Neue Tour…" einfügen
+            select.insertBefore(opt, select.querySelector('option[value="__neu__"]'));
+        }
+        select.value = data.id;
+        if (data.vorhanden) {
+            alert('Tour "' + data.name + '" gibt es bereits – sie wurde ausgewählt.');
+        }
+    })
+    .catch(err => {
+        alert('Fehler: ' + err.message);
+        select.value = '';
+    });
+});
+
 // ⭐ Auswahl über alle Seiten: null = nur aktuelle Seite, sonst Array aller IDs
 var alleSeitenIds = null;
 
@@ -1483,7 +1526,7 @@ function bulkAction(action) {
     var tourId = null;
     if (action === 'tour-set') {
         tourId = document.getElementById('bulkTourSelect').value;
-        if (!tourId) {
+        if (!tourId || tourId === '__neu__') {
             alert('Bitte eine Tour auswählen.');
             return;
         }

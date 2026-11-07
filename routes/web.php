@@ -340,6 +340,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
         Route::patch('/{gebaeude}/angekuendigt', [ReinigungsplanungController::class, 'setAngekuendigt'])->name('angekuendigt');   // ⭐ NEU
         Route::patch('/{gebaeude}/intern', [ReinigungsplanungController::class, 'setIntern'])->name('intern');
+        Route::post('/tour-neu', [ReinigungsplanungController::class, 'tourAnlegen'])->name('tourNeu');
 
 
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');

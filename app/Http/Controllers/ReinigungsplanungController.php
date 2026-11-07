@@ -233,6 +233,48 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
+     * ⭐ NEU: Neue Tour schnell anlegen (aus der Bulk-Leiste)
+     *
+     * JSON: { "name": "Tour Leifers" }
+     * Existiert bereits eine Tour mit gleichem Namen, wird diese zurückgegeben.
+     *
+     * Route: POST /reinigungsplanung/tour-neu
+     */
+    public function tourAnlegen(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+        ], [
+            'name.required' => 'Bitte einen Namen für die Tour angeben.',
+        ]);
+
+        $name = trim($data['name']);
+
+        // Doppelte Namen vermeiden (Groß-/Kleinschreibung egal)
+        $vorhanden = Tour::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first();
+        if ($vorhanden) {
+            return response()->json([
+                'ok'        => true,
+                'id'        => $vorhanden->id,
+                'name'      => $vorhanden->name,
+                'vorhanden' => true,
+            ]);
+        }
+
+        $tour = new Tour();
+        $tour->name  = $name;
+        $tour->aktiv = true;
+        $tour->save();
+
+        return response()->json([
+            'ok'        => true,
+            'id'        => $tour->id,
+            'name'      => $tour->name,
+            'vorhanden' => false,
+        ], 201);
+    }
+
+    /**
      * Interne Nr. setzen oder schnell um ±1 korrigieren
      *
      * JSON: { "delta": 1 | -1 }  oder  { "intern": "3a" | null }
