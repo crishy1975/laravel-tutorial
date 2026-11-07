@@ -54,6 +54,19 @@
     .monat-strip i.jetzt { outline: 1px solid #0d6efd; outline-offset: 1px; }
     .monat-strip i.on.jetzt { background: #0d6efd; }
 
+    /* ⭐ Telefonnummer unter Kontakt-Buttons */
+    .kontakt-nr {
+        display: block;
+        margin-top: 3px;
+        font-size: .8rem;
+        color: #495057;
+        text-decoration: none;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+    .kontakt-nr i { color: #6c757d; font-size: .75rem; }
+    .kontakt-nr:hover { color: #0d6efd; text-decoration: underline; }
+
     /* ⭐ Adresse */
     .adr-strasse { line-height: 1.25; }
     .adr-ort     { font-size: .8rem; color: #6c757d; line-height: 1.25; }
@@ -501,6 +514,12 @@
                                             </a>
                                         @endif
                                     </div>
+                                    @if($g->handy || $g->telefon)
+                                        <a href="tel:{{ $handyClean ?: $telefonClean }}" class="kontakt-nr">
+                                            <i class="bi {{ $g->handy ? 'bi-phone' : 'bi-telephone' }}"></i>
+                                            {{ $g->handy ?: $g->telefon }}
+                                        </a>
+                                    @endif
                                 </td>
                                 <td>
                                     @forelse($g->touren as $tour)
@@ -624,6 +643,12 @@
                                 <div class="adr-strasse small">{{ trim($g->strasse . ' ' . $g->hausnummer) }}</div>
                                 @if($g->wohnort || $g->plz)
                                     <div class="adr-ort">{{ trim($g->plz . ' ' . $g->wohnort) }}</div>
+                                @endif
+                                @if($g->handy || $g->telefon)
+                                    <a href="tel:{{ $handyClean ?: $telefonClean }}" class="kontakt-nr">
+                                        <i class="bi {{ $g->handy ? 'bi-phone' : 'bi-telephone' }}"></i>
+                                        {{ $g->handy ?: $g->telefon }}
+                                    </a>
                                 @endif
                             </div>
                             <div class="d-flex align-items-center gap-1 flex-shrink-0">
