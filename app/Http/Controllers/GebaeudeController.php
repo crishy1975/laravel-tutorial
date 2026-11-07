@@ -122,6 +122,7 @@ class GebaeudeController extends Controller
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
                 'hausnummer'             => 'nullable|string|max:10',
+                'intern'                 => 'nullable|string|max:20',   // ⭐ NEU
                 'plz'                    => 'nullable|string|max:10',
                 'wohnort'                => 'nullable|string|max:100',
                 'land'                   => 'nullable|string|max:50',
@@ -488,6 +489,7 @@ class GebaeudeController extends Controller
                 'gebaeude_name'          => 'nullable|string|max:100',
                 'strasse'                => 'nullable|string|max:255',
                 'hausnummer'             => 'nullable|string|max:10',
+                'intern'                 => 'nullable|string|max:20',   // ⭐ NEU
                 'plz'                    => 'nullable|string|max:10',
                 'wohnort'                => 'nullable|string|max:100',
                 'land'                   => 'nullable|string|max:50',

@@ -328,6 +328,61 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
+     * ⭐ NEU: Interne Nr. setzen oder schnell um ±1 korrigieren
+     *
+     * Erwartet per JSON (fetch):
+     *   { "delta": 1 | -1 }        → Zahl um 1 erhöhen / verringern
+     *   { "intern": "3a" | null }  → Wert direkt setzen
+     */
+    public function setIntern(Request $request, int $gebaeude)
+    {
+        $g = Gebaeude::findOrFail($gebaeude);
+
+        $data = $request->validate([
+            'delta'  => ['nullable', 'integer', 'in:-1,1'],
+            'intern' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        if (isset($data['delta'])) {
+            $neu = $this->internVerschieben($g->intern, (int) $data['delta']);
+        } else {
+            $neu = isset($data['intern']) ? trim($data['intern']) : null;
+        }
+
+        $g->update(['intern' => ($neu === '' ? null : $neu)]);
+
+        return response()->json([
+            'ok'     => true,
+            'intern' => $g->intern,
+        ]);
+    }
+
+    /**
+     * Zahl in der internen Nr. um $delta verschieben.
+     *
+     * - leer + "+"  → "1"
+     * - "3"  ± 1    → "4" / "2"
+     * - "3a" ± 1    → "4a" / "2a"   (Präfix/Suffix bleiben erhalten)
+     * - kleiner als 1 wird nicht unterschritten
+     * - ohne Zahl ("A") → unverändert
+     */
+    protected function internVerschieben(?string $intern, int $delta): ?string
+    {
+        $intern = trim((string) $intern);
+
+        if ($intern === '') {
+            return $delta > 0 ? '1' : null;
+        }
+
+        if (preg_match('/^(\D*)(\d+)(.*)$/', $intern, $m)) {
+            $zahl = max(1, (int) $m[2] + $delta);
+            return $m[1] . $zahl . $m[3];
+        }
+
+        return $intern;
+    }
+
+    /**
      * Export als CSV
      * 
      * ⭐ OPTIMIERT: Verwendet ebenfalls DB-Felder statt Service
@@ -416,7 +471,7 @@ class ReinigungsplanungController extends Controller
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
             // Header
-            fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status', 'Angekündigt für'], ';');
+            fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Intern', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status', 'Angekündigt für'], ';');
 
             foreach ($gebaeude as $g) {
                 // ⭐ Direkt aus DB-Feldern lesen - KEIN Service-Aufruf!
@@ -431,6 +486,7 @@ class ReinigungsplanungController extends Controller
                     $g->codex,
                     $g->gebaeude_name,
                     trim($g->strasse . ' ' . $g->hausnummer . ', ' . $g->plz . ' ' . $g->wohnort),
+                    $g->intern ?? '',
                     $g->touren->pluck('name')->implode(', '),
                     $letzteReinigung ? $letzteReinigung->format('d.m.Y') : '-',
                     $naechsteFaelligkeit ? $naechsteFaelligkeit->format('d.m.Y') : '-',

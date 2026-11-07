@@ -33,6 +33,12 @@
     #reinigungsTable tbody tr.table-angekuendigt:hover > td {
         background-color: #f8d0a8 !important;
     }
+    /* ⭐ Intern ± Steuerung */
+    .intern-ctrl { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .btn-xs { padding: 0 .35rem; font-size: .75rem; line-height: 1.4; }
+    .intern-wert { min-width: 3.5em; text-align: center; font-weight: 600; }
+    .intern-geaendert { color: #fd7e14 !important; }   /* geändert, Sortierung nach Neuladen */
+
     .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
     .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
     .text-orange   { color: #fd7e14 !important; }
@@ -371,6 +377,15 @@
                                 <td class="small">
                                     {{ $g->strasse }} {{ $g->hausnummer }}
                                     @if($g->wohnort), {{ $g->wohnort }}@endif
+                                    <div class="intern-ctrl mt-1" data-id="{{ $g->id }}">
+                                        <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="-1" title="Intern -1">
+                                            <i class="bi bi-dash"></i>
+                                        </button>
+                                        <span class="intern-wert {{ $g->intern ? '' : 'text-muted' }}">Int. {{ $g->intern ?: '–' }}</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="1" title="Intern +1">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
@@ -438,6 +453,7 @@
                                                             data-codex="{{ $g->codex }}"
                                                             data-name="{{ $g->gebaeude_name }}"
                                                             data-bemerkung="{{ $g->bemerkung }}"
+                                                data-intern="{{ $g->intern }}"
                                                             @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                                         <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                                     </button>
@@ -509,8 +525,17 @@
                             </div>
                         </div>
 
-                        <div class="small text-muted mb-2">
-                            {{ $g->strasse }} {{ $g->hausnummer }}@if($g->wohnort), {{ $g->wohnort }}@endif
+                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
+                            <span>{{ $g->strasse }} {{ $g->hausnummer }}@if($g->wohnort), {{ $g->wohnort }}@endif</span>
+                            <span class="intern-ctrl" data-id="{{ $g->id }}">
+                                <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="-1">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                                <span class="intern-wert {{ $g->intern ? 'text-dark' : '' }}">Int. {{ $g->intern ?: '–' }}</span>
+                                <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="1">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </span>
                         </div>
 
                         <div class="d-flex gap-1 mb-2">
@@ -553,6 +578,7 @@
                                                 data-codex="{{ $g->codex }}"
                                                 data-name="{{ $g->gebaeude_name }}"
                                                 data-bemerkung="{{ $g->bemerkung }}"
+                                                data-intern="{{ $g->intern }}"
                                                 @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                             <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                         </button>
@@ -780,6 +806,9 @@
                     <strong id="monateCodex"></strong> – <span id="monateName"></span>
                 </div>
                 <input type="hidden" id="monateGebaeudeId">
+
+                <label for="monateIntern" class="form-label small fw-bold mb-1">Intern</label>
+                <input type="text" id="monateIntern" class="form-control form-control-sm mb-3" maxlength="20" placeholder="z.B. 3">
 
                 <label class="form-label small fw-bold mb-1">Reinigungsmonate</label>
                 <div class="row g-2 mb-2">
@@ -1105,6 +1134,45 @@ document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
     });
 });
 
+// ========== Intern ± schnell korrigieren ==========
+document.addEventListener('click', function(ev) {
+    const btn = ev.target.closest('.intern-btn');
+    if (!btn) return;
+    ev.preventDefault();
+
+    const ctrl = btn.closest('.intern-ctrl');
+    const id = ctrl?.dataset.id;
+    if (!id) return;
+
+    // Alle Buttons dieses Gebäudes kurz sperren (Doppelklick-Schutz)
+    const alleBtns = document.querySelectorAll('.intern-ctrl[data-id="' + id + '"] .intern-btn');
+    alleBtns.forEach(b => b.disabled = true);
+
+    fetch('/reinigungsplanung/' + id + '/intern', {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ delta: parseInt(btn.dataset.delta, 10) }),
+        credentials: 'same-origin'
+    })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+        // Wert in Desktop + Mobile aktualisieren (ohne Neuladen)
+        document.querySelectorAll('.intern-ctrl[data-id="' + id + '"] .intern-wert').forEach(el => {
+            el.textContent = 'Int. ' + (data.intern || '–');
+            el.classList.toggle('text-muted', !data.intern);
+            el.classList.add('intern-geaendert');
+        });
+        // Bearbeiten-Modal-Daten mitziehen
+        document.querySelectorAll('.btn-monate[data-id="' + id + '"]').forEach(b => b.dataset.intern = data.intern || '');
+    })
+    .catch(err => alert('Fehler: ' + err.message))
+    .finally(() => alleBtns.forEach(b => b.disabled = false));
+});
+
 // Filter
 document.getElementById('filterForm')?.addEventListener('keypress', e => {
     if (e.key === 'Enter') { e.preventDefault(); e.target.form.submit(); }
@@ -1117,6 +1185,7 @@ document.querySelectorAll('.btn-monate').forEach(btn => {
         document.getElementById('monateCodex').textContent = this.dataset.codex || '-';
         document.getElementById('monateName').textContent = this.dataset.name || '';
         document.getElementById('monateBemerkung').value = this.dataset.bemerkung || '';
+        document.getElementById('monateIntern').value = this.dataset.intern || '';
 
         for (var mi = 1; mi <= 12; mi++) {
             var key = 'm' + String(mi).padStart(2, '0');
@@ -1138,7 +1207,10 @@ function monateAlleAus() {
 
 function monateSpeichern() {
     var id = document.getElementById('monateGebaeudeId').value;
-    var data = { bemerkung: document.getElementById('monateBemerkung').value };
+    var data = {
+        bemerkung: document.getElementById('monateBemerkung').value,
+        intern: document.getElementById('monateIntern').value.trim() || null
+    };
 
     document.querySelectorAll('.monat-check').forEach(function(c) {
         data[c.dataset.field] = c.checked ? 1 : 0;
