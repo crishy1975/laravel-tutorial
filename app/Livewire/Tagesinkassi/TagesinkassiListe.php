@@ -9,7 +9,10 @@ PFAD:  app/Livewire/Tagesinkassi/TagesinkassiListe.php
 namespace App\Livewire\Tagesinkassi;
 
 use App\Models\Tagesinkasso;
+use App\Models\TagesinkassiVersand;
+use App\Services\RegistroCorrispettiviPdf;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -37,6 +40,14 @@ class TagesinkassiListe extends Component
     public string $editBetrag10 = '';
     public string $editBetrag22 = '';
     public string $editBemerkung = '';
+
+    // ── Email-Versand ──────────────────────────────────────────────
+    public bool $showEmailModal = false;
+    public string $emailEmpfaenger = '';
+    public string $emailUmfang = 'monat';     // monat | jahr
+    public string $emailBetreff = '';
+    public string $emailText = '';
+    public ?string $emailError = null;
 
     public function mount(): void
     {
@@ -203,6 +214,114 @@ class TagesinkassiListe extends Component
     }
 
     // ════════════════════════════════════════════════════════════════
+    // Email-Versand
+    // ════════════════════════════════════════════════════════════════
+
+    public function openEmailModal(): void
+    {
+        $this->emailEmpfaenger = TagesinkassiVersand::letzteEmpfaenger();
+        $this->emailUmfang     = Tagesinkasso::imMonat($this->jahr, $this->monat)->exists() ? 'monat' : 'jahr';
+        $this->emailError      = null;
+        $this->setzeEmailVorlage();
+        $this->showEmailModal  = true;
+    }
+
+    public function closeEmailModal(): void
+    {
+        $this->showEmailModal = false;
+        $this->emailError     = null;
+    }
+
+    public function updatedEmailUmfang(): void
+    {
+        $this->setzeEmailVorlage();
+    }
+
+    private function setzeEmailVorlage(): void
+    {
+        $d = Carbon::create($this->jahr, $this->monat, 1);
+
+        if ($this->emailUmfang === 'jahr') {
+            $zeitraumDe = "das Jahr {$this->jahr}";
+            $zeitraumIt = "l'anno {$this->jahr}";
+            $betreffZr  = (string) $this->jahr;
+        } else {
+            $zeitraumDe = $d->copy()->locale('de')->isoFormat('MMMM YYYY');
+            $zeitraumIt = $d->copy()->locale('it')->isoFormat('MMMM YYYY');
+            $betreffZr  = $zeitraumDe . ' / ' . $zeitraumIt;
+        }
+
+        $this->emailBetreff = "Registro dei corrispettivi {$betreffZr} – Resch GmbH";
+
+        $this->emailText = "Guten Tag,\n\n"
+            . "im Anhang das Register der Tagesinkassi für {$zeitraumDe}.\n\n"
+            . "Mit freundlichen Grüßen\n\n"
+            . "---\n\n"
+            . "Buongiorno,\n\n"
+            . "in allegato il registro dei corrispettivi per {$zeitraumIt}.\n\n"
+            . "Cordiali saluti\n\n"
+            . "Resch GmbH";
+    }
+
+    public function sendEmail(): void
+    {
+        $this->emailError = null;
+
+        // Adressen: Komma, Strichpunkt oder Leerzeichen als Trenner
+        $adressen = collect(preg_split('/[\s,;]+/', $this->emailEmpfaenger))
+            ->map(fn($a) => trim($a))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($adressen->isEmpty()) {
+            $this->emailError = 'Bitte eine Empfängeradresse eingeben.';
+            return;
+        }
+
+        $ungueltig = $adressen->reject(fn($a) => filter_var($a, FILTER_VALIDATE_EMAIL));
+        if ($ungueltig->isNotEmpty()) {
+            $this->emailError = 'Ungültige Adresse: ' . $ungueltig->implode(', ');
+            return;
+        }
+
+        if (trim($this->emailBetreff) === '') {
+            $this->emailError = 'Bitte einen Betreff eingeben.';
+            return;
+        }
+
+        $registro = app(RegistroCorrispettiviPdf::class);
+        $pdf = $this->emailUmfang === 'jahr'
+            ? $registro->jahr($this->jahr)
+            : $registro->monat($this->jahr, $this->monat);
+
+        $betreff = trim($this->emailBetreff);
+
+        try {
+            Mail::raw($this->emailText, function ($m) use ($adressen, $betreff, $pdf) {
+                $m->to($adressen->all())
+                  ->subject($betreff)
+                  ->attachData($pdf['inhalt'], $pdf['dateiname'], ['mime' => 'application/pdf']);
+            });
+        } catch (\Throwable $e) {
+            report($e);
+            $this->emailError = 'Versand fehlgeschlagen: ' . $e->getMessage();
+            return;
+        }
+
+        TagesinkassiVersand::create([
+            'empfaenger' => $adressen->implode(', '),
+            'umfang'     => $this->emailUmfang,
+            'jahr'       => $this->jahr,
+            'monat'      => $this->emailUmfang === 'jahr' ? null : $this->monat,
+            'betreff'    => $betreff,
+        ]);
+
+        $this->showEmailModal = false;
+        session()->flash('success', $pdf['dateiname'] . ' an ' . $adressen->implode(', ') . ' gesendet.');
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // Hilfsfunktionen
     // ════════════════════════════════════════════════════════════════
 
@@ -282,17 +401,24 @@ class TagesinkassiListe extends Component
             }
         } catch (\Throwable $e) {}
 
+        // Letzter Versand für diesen Monat (oder Jahres-PDF des Jahres)
+        $letzterVersand = TagesinkassiVersand::where('jahr', $this->jahr)
+            ->where(fn($q) => $q->where('monat', $this->monat)->orWhere('umfang', 'jahr'))
+            ->latest('id')
+            ->first();
+
         $monatLabel = Carbon::create($this->jahr, $this->monat, 1)->locale('de')->isoFormat('MMMM YYYY');
 
         return view('livewire.tagesinkassi.tagesinkassi-liste', [
-            'eintraege'    => $eintraege,
-            'summe10'      => $summe10,
-            'summe22'      => $summe22,
-            'summeMonat'   => round($summe10 + $summe22, 2),
-            'summeJahr'    => round((float) $jahr->s10 + (float) $jahr->s22, 2),
-            'tageJahr'     => (int) $jahr->anzahl,
-            'neuWochentag' => $neuWochentag,
-            'monatLabel'   => $monatLabel,
+            'eintraege'      => $eintraege,
+            'summe10'        => $summe10,
+            'summe22'        => $summe22,
+            'summeMonat'     => round($summe10 + $summe22, 2),
+            'summeJahr'      => round((float) $jahr->s10 + (float) $jahr->s22, 2),
+            'tageJahr'       => (int) $jahr->anzahl,
+            'neuWochentag'   => $neuWochentag,
+            'monatLabel'     => $monatLabel,
+            'letzterVersand' => $letzterVersand,
         ]);
     }
 }

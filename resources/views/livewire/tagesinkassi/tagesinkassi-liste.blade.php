@@ -43,9 +43,31 @@ PFAD:  resources/views/livewire/tagesinkassi/tagesinkassi-liste.blade.php
             <h1 class="h5 mb-0">
                 <i class="bi bi-cash-coin text-primary"></i> Tagesinkassi
             </h1>
-            <p class="text-muted mb-0 small">Registro dei corrispettivi – {{ $monatLabel }}</p>
+            <p class="text-muted mb-0 small">
+                Registro dei corrispettivi – {{ $monatLabel }}
+                @if($letzterVersand)
+                    <br>
+                    <span class="text-success">
+                        <i class="bi bi-envelope-check"></i>
+                        {{ $letzterVersand->umfang === 'jahr' ? 'Jahres-PDF' : 'Gesendet' }}
+                        am {{ $letzterVersand->created_at->format('d.m.Y H:i') }}
+                        an {{ $letzterVersand->empfaenger }}
+                    </span>
+                @endif
+            </p>
         </div>
         <div class="d-flex gap-1 gap-sm-2 flex-wrap">
+            <a href="{{ route('tagesinkassi.import') }}" class="btn btn-outline-primary btn-sm"
+               title="Kartenzahlungen aus dem POS-Portal importieren">
+                <i class="bi bi-upload"></i>
+                <span class="d-none d-sm-inline">POS-Import</span>
+            </a>
+            <button wire:click="openEmailModal" class="btn btn-info btn-sm text-white"
+                    @disabled($tageJahr === 0)
+                    title="Registro per Email senden">
+                <i class="bi bi-envelope"></i>
+                <span class="d-none d-sm-inline">Per Email</span>
+            </button>
             <a href="{{ route('tagesinkassi.pdf.monat', [$jahr, $monat]) }}" target="_blank"
                class="btn btn-outline-danger btn-sm {{ $eintraege->isEmpty() ? 'disabled' : '' }}"
                title="Registro für {{ $monatLabel }} als PDF">
@@ -139,7 +161,7 @@ PFAD:  resources/views/livewire/tagesinkassi/tagesinkassi-liste.blade.php
                         <label class="form-label small mb-1">Betrag 10 % (brutto)</label>
                         <div class="input-group input-group-sm has-validation">
                             <input type="text" inputmode="decimal" wire:model="neuBetrag10" x-ref="betrag10"
-                                   class="form-control betrag text-end @error('neuBetrag10') is-invalid @enderror"
+                                   class="form-control text-end @error('neuBetrag10') is-invalid @enderror"
                                    placeholder="0,00" autofocus>
                             <span class="input-group-text">€</span>
                             @error('neuBetrag10') <div class="invalid-feedback">{{ $message }}</div> @enderror
@@ -247,7 +269,8 @@ PFAD:  resources/views/livewire/tagesinkassi/tagesinkassi-liste.blade.php
                             <tr>
                                 <td colspan="6" class="text-center text-muted py-4">
                                     <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
-                                    Für {{ $monatLabel }} ist noch nichts erfasst. Oben den ersten Betrag eingeben.
+                                    Für {{ $monatLabel }} ist noch nichts erfasst. Oben den ersten Betrag eingeben oder
+                                    <a href="{{ route('tagesinkassi.import') }}">POS-Export importieren</a>.
                                 </td>
                             </tr>
                         @endforelse
@@ -267,5 +290,93 @@ PFAD:  resources/views/livewire/tagesinkassi/tagesinkassi-liste.blade.php
             </div>
         </div>
     </div>
+
+    {{-- ========== Modal: Registro per Email senden ========== --}}
+    @if($showEmailModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);"
+             wire:keydown.escape="closeEmailModal">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white py-2">
+                        <h5 class="modal-title">
+                            <i class="bi bi-envelope"></i> Registro per Email senden
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" wire:click="closeEmailModal"></button>
+                    </div>
+                    <div class="modal-body p-2 p-md-3">
+
+                        @if($emailError)
+                            <div class="alert alert-danger py-2 mb-2">
+                                <i class="bi bi-exclamation-triangle"></i> {{ $emailError }}
+                            </div>
+                        @endif
+
+                        {{-- Umfang --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">PDF</label>
+                            <div class="d-flex gap-3 flex-wrap">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" id="umfangMonat"
+                                           value="monat" wire:model.live="emailUmfang"
+                                           @disabled($eintraege->isEmpty())>
+                                    <label class="form-check-label" for="umfangMonat">
+                                        {{ $monatLabel }}
+                                        <span class="text-muted small">({{ $eintraege->count() }} Tage, {{ $eur($summeMonat) }})</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" id="umfangJahr"
+                                           value="jahr" wire:model.live="emailUmfang">
+                                    <label class="form-check-label" for="umfangJahr">
+                                        Ganzes Jahr {{ $jahr }}
+                                        <span class="text-muted small">({{ $tageJahr }} Tage, {{ $eur($summeJahr) }})</span>
+                                    </label>
+                                </div>
+                            </div>
+                            @if($eintraege->isEmpty() && $emailUmfang === 'monat')
+                                <div class="text-warning small mt-1">
+                                    <i class="bi bi-exclamation-circle"></i> Für {{ $monatLabel }} gibt es keine Einträge.
+                                </div>
+                            @endif
+                        </div>
+
+                        {{-- Empfänger --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">
+                                <i class="bi bi-person"></i> Empfänger
+                            </label>
+                            <input type="text" wire:model="emailEmpfaenger"
+                                   class="form-control form-control-sm"
+                                   placeholder="berater@beispiel.it">
+                            <div class="form-text">Mehrere Adressen mit Komma trennen. Die zuletzt verwendete Adresse wird beim nächsten Mal vorgeschlagen.</div>
+                        </div>
+
+                        {{-- Betreff --}}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">Betreff</label>
+                            <input type="text" wire:model="emailBetreff" class="form-control form-control-sm">
+                        </div>
+
+                        {{-- Nachricht --}}
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1">Nachricht</label>
+                            <textarea wire:model="emailText" class="form-control form-control-sm" rows="10"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary" wire:click="closeEmailModal">
+                            <i class="bi bi-x-lg"></i> Abbrechen
+                        </button>
+                        <button type="button" class="btn btn-info text-white" wire:click="sendEmail"
+                                wire:loading.attr="disabled" wire:target="sendEmail"
+                                @disabled($emailUmfang === 'monat' && $eintraege->isEmpty())>
+                            <span wire:loading.remove wire:target="sendEmail"><i class="bi bi-send"></i> Senden</span>
+                            <span wire:loading wire:target="sendEmail"><span class="spinner-border spinner-border-sm"></span> Wird gesendet…</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
 </div>

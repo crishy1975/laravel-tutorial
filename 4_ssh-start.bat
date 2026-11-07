@@ -1,5 +1,5 @@
 @echo off
-REM Startet eine SSH-Session zu Hostinger
+REM Startet eine SSH-Session (IONOS / Hostinger)
 REM Doppelklick zum Verbinden!
 
 PowerShell -ExecutionPolicy Bypass -File "%~dp0ssh.ps1"
