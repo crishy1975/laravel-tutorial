@@ -9,10 +9,16 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Carbon;
+use App\Services\FaelligkeitsService;
 use Throwable;
 
 class TimelineController extends Controller
 {
+    public function __construct(
+        protected FaelligkeitsService $faelligkeitsService
+    ) {}
+
     /**
      * Speichert einen Timeline-Eintrag zu einem Gebäude.
      *
@@ -213,6 +219,12 @@ class TimelineController extends Controller
 
             $entry->delete();
 
+            // ⭐ NEU: Nur dieses Gebäude neu berechnen (Letzte / Nächste / Status)
+            $gebaeude = Gebaeude::find($gid);
+            if ($gebaeude) {
+                $this->gebaeudeNachLoeschenAktualisieren($gebaeude);
+            }
+
             Log::info('Timeline.destroy OK', [
                 'debugId'     => $debugId,
                 'entry_id'    => $id,
@@ -249,6 +261,45 @@ class TimelineController extends Controller
 
             return back()
                 ->with('error', "Löschen fehlgeschlagen. (Fehler-ID: {$debugId})");
+        }
+    }
+
+    /**
+     * ⭐ NEU: Nach dem Löschen eines Timeline-Eintrags das Gebäude aktualisieren.
+     *
+     * - letzter_termin = jüngster verbleibender Timeline-Eintrag (oder NULL)
+     * - danach FaelligkeitsService (wie in Reinigungsplanung::markErledigt)
+     *   → berechnet datum_faelligkeit (Nächste) und faellig (Status)
+     */
+    protected function gebaeudeNachLoeschenAktualisieren(Gebaeude $gebaeude): void
+    {
+        try {
+            $letzte = Timeline::where('gebaeude_id', $gebaeude->id)->max('datum');
+
+            $gebaeude->update([
+                'letzter_termin' => $letzte ? Carbon::parse($letzte)->toDateString() : null,
+            ]);
+
+            $gebaeude->refresh();
+            $this->faelligkeitsService->aktualisiereGebaeude($gebaeude);
+
+            Log::info('Timeline.destroy Gebaeude aktualisiert', [
+                'gebaeude_id'    => $gebaeude->id,
+                'letzter_termin' => $letzte,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('Timeline.destroy Gebaeude-Aktualisierung fehlgeschlagen', [
+                'gebaeude_id' => $gebaeude->id,
+                'msg'         => $e->getMessage(),
+            ]);
+
+            // Fallback: zumindest den Status über die Model-Logik setzen
+            try {
+                $gebaeude->refresh();
+                $gebaeude->recomputeFaellig();
+            } catch (Throwable $ignore) {
+                // nichts weiter tun
+            }
         }
     }
 
