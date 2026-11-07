@@ -33,6 +33,27 @@
     #reinigungsTable tbody tr.table-angekuendigt:hover > td {
         background-color: #f8d0a8 !important;
     }
+    /* ⭐ Monate kompakt */
+    .monate-anzeige {
+        border: 0; background: transparent; padding: 2px; margin: 0;
+        display: inline-flex; align-items: center; gap: 3px; flex-wrap: nowrap;
+        border-radius: 6px; cursor: pointer; line-height: 1;
+    }
+    .monate-anzeige:hover { background: rgba(0,0,0,.05); }
+    .monat-chip {
+        display: inline-block;
+        font-size: .7rem; font-weight: 600;
+        padding: 3px 6px; border-radius: 4px;
+        background: #e9ecef; color: #495057;
+    }
+    .monat-chip.jetzt { background: #0d6efd; color: #fff; }
+    .monate-leer { color: #adb5bd; padding: 0 4px; }
+    .monat-strip { display: inline-flex; gap: 2px; align-items: flex-end; }
+    .monat-strip i { display: block; width: 5px; height: 12px; border-radius: 2px; background: #e9ecef; }
+    .monat-strip i.on { background: #6c757d; }
+    .monat-strip i.jetzt { outline: 1px solid #0d6efd; outline-offset: 1px; }
+    .monat-strip i.on.jetzt { background: #0d6efd; }
+
     /* ⭐ Adresse */
     .adr-strasse { line-height: 1.25; }
     .adr-ort     { font-size: .8rem; color: #6c757d; line-height: 1.25; }
@@ -413,6 +434,7 @@
                             <th style="width: 110px;" class="text-center">Intern</th>
                             <th style="width: 160px;">Kontakt</th>
                             <th style="width: 90px;">Tour</th>
+                            <th style="width: 100px;">Monate</th>
                             <th>Bemerkung</th>
                             <th style="width: 100px;">Letzte</th>
                             <th style="width: 100px;">Nächste</th>
@@ -486,6 +508,9 @@
                                     @empty
                                         -
                                     @endforelse
+                                </td>
+                                <td>
+                                    @include('reinigungsplanung.partials._monate', ['g' => $g])
                                 </td>
                                 <td class="small text-muted">{{ Str::limit($g->bemerkung, 40) }}</td>
                                 <td>{{ $g->letzte_reinigung_datum?->format('d.m.Y') ?? '-' }}</td>
@@ -691,9 +716,14 @@
                             </div>
                         @endif
 
-                        <div class="small text-muted">
-                            Letzte: {{ $g->letzte_reinigung_datum?->format('d.m.Y') ?? '-' }}
-                            · Nächste: {{ $g->naechste_faelligkeit?->format('d.m.Y') ?? '-' }}
+                        <div class="small text-muted d-flex flex-wrap align-items-center gap-2">
+                            <span>
+                                Letzte: {{ $g->letzte_reinigung_datum?->format('d.m.Y') ?? '-' }}
+                                · Nächste: {{ $g->naechste_faelligkeit?->format('d.m.Y') ?? '-' }}
+                            </span>
+                            <span class="ms-auto">
+                                @include('reinigungsplanung.partials._monate', ['g' => $g])
+                            </span>
                         </div>
                     </div>
                 @endforeach
@@ -1253,6 +1283,14 @@ document.addEventListener('click', function(ev) {
 // Filter
 document.getElementById('filterForm')?.addEventListener('keypress', e => {
     if (e.key === 'Enter') { e.preventDefault(); e.target.form.submit(); }
+});
+
+// ⭐ Klick auf Monats-Anzeige → Bearbeiten-Modal dieses Gebäudes öffnen
+document.addEventListener('click', function(ev) {
+    var anz = ev.target.closest('.monate-anzeige');
+    if (!anz) return;
+    ev.preventDefault();
+    document.querySelector('.btn-monate[data-id="' + anz.dataset.id + '"]')?.click();
 });
 
 // ========== Monate Modal ==========
