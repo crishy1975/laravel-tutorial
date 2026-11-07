@@ -33,11 +33,58 @@
     #reinigungsTable tbody tr.table-angekuendigt:hover > td {
         background-color: #f8d0a8 !important;
     }
-    /* ⭐ Intern ± Steuerung */
-    .intern-ctrl { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-    .btn-xs { padding: 0 .35rem; font-size: .75rem; line-height: 1.4; }
-    .intern-wert { min-width: 3.5em; text-align: center; font-weight: 600; }
-    .intern-geaendert { color: #fd7e14 !important; }   /* geändert, Sortierung nach Neuladen */
+    /* ⭐ Adresse */
+    .adr-strasse { line-height: 1.25; }
+    .adr-ort     { font-size: .8rem; color: #6c757d; line-height: 1.25; }
+
+    /* ⭐ Intern-Stepper  [ − | 3 | + ] */
+    .intern-ctrl {
+        display: inline-flex;
+        align-items: stretch;
+        height: 28px;
+        border: 1px solid #ced4da;
+        border-radius: 999px;
+        background: #fff;
+        overflow: hidden;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    .intern-btn {
+        border: 0;
+        background: transparent;
+        width: 28px;
+        padding: 0;
+        color: #6c757d;
+        font-size: .9rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background-color .12s, color .12s;
+    }
+    .intern-btn:hover  { background: #e9ecef; color: #212529; }
+    .intern-btn:active { background: #dee2e6; }
+    .intern-btn:disabled { opacity: .4; cursor: default; }
+    .intern-wert {
+        min-width: 2.4em;
+        padding: 0 .4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: #212529;
+        border-left: 1px solid #e9ecef;
+        border-right: 1px solid #e9ecef;
+        transition: background-color .2s, color .2s;
+    }
+    .intern-wert.leer { color: #adb5bd; font-weight: 400; }
+    .intern-wert.intern-geaendert { background: #fff3e6; color: #e8590c; }  /* geändert – Sortierung nach Neuladen */
+    .intern-label { font-size: .75rem; color: #6c757d; }
+
+    /* Auf Touch-Geräten etwas größer */
+    @media (pointer: coarse) {
+        .intern-ctrl { height: 32px; }
+        .intern-btn  { width: 32px; }
+    }
 
     .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
     .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
@@ -346,6 +393,7 @@
                             <th style="width: 90px;">Codex</th>
                             <th>Gebäude</th>
                             <th>Adresse</th>
+                            <th style="width: 110px;" class="text-center">Intern</th>
                             <th style="width: 160px;">Kontakt</th>
                             <th style="width: 90px;">Tour</th>
                             <th>Bemerkung</th>
@@ -374,15 +422,19 @@
                                     </a>
                                 </td>
                                 <td>{{ $g->gebaeude_name ?: '(kein Name)' }}</td>
-                                <td class="small">
-                                    {{ $g->strasse }} {{ $g->hausnummer }}
-                                    @if($g->wohnort), {{ $g->wohnort }}@endif
-                                    <div class="intern-ctrl mt-1" data-id="{{ $g->id }}">
-                                        <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="-1" title="Intern -1">
+                                <td>
+                                    <div class="adr-strasse">{{ trim($g->strasse . ' ' . $g->hausnummer) }}</div>
+                                    @if($g->wohnort || $g->plz)
+                                        <div class="adr-ort">{{ trim($g->plz . ' ' . $g->wohnort) }}</div>
+                                    @endif
+                                </td>
+                                <td class="text-center">
+                                    <div class="intern-ctrl" data-id="{{ $g->id }}">
+                                        <button type="button" class="intern-btn" data-delta="-1" title="Intern −1" aria-label="Intern verringern">
                                             <i class="bi bi-dash"></i>
                                         </button>
-                                        <span class="intern-wert {{ $g->intern ? '' : 'text-muted' }}">Int. {{ $g->intern ?: '–' }}</span>
-                                        <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="1" title="Intern +1">
+                                        <span class="intern-wert {{ $g->intern ? '' : 'leer' }}">{{ $g->intern ?: '–' }}</span>
+                                        <button type="button" class="intern-btn" data-delta="1" title="Intern +1" aria-label="Intern erhöhen">
                                             <i class="bi bi-plus"></i>
                                         </button>
                                     </div>
@@ -525,17 +577,25 @@
                             </div>
                         </div>
 
-                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
-                            <span>{{ $g->strasse }} {{ $g->hausnummer }}@if($g->wohnort), {{ $g->wohnort }}@endif</span>
-                            <span class="intern-ctrl" data-id="{{ $g->id }}">
-                                <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="-1">
-                                    <i class="bi bi-dash"></i>
-                                </button>
-                                <span class="intern-wert {{ $g->intern ? 'text-dark' : '' }}">Int. {{ $g->intern ?: '–' }}</span>
-                                <button type="button" class="btn btn-outline-secondary btn-xs intern-btn" data-delta="1">
-                                    <i class="bi bi-plus"></i>
-                                </button>
-                            </span>
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                            <div class="min-width-0">
+                                <div class="adr-strasse small">{{ trim($g->strasse . ' ' . $g->hausnummer) }}</div>
+                                @if($g->wohnort || $g->plz)
+                                    <div class="adr-ort">{{ trim($g->plz . ' ' . $g->wohnort) }}</div>
+                                @endif
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                <span class="intern-label">Int.</span>
+                                <div class="intern-ctrl" data-id="{{ $g->id }}">
+                                    <button type="button" class="intern-btn" data-delta="-1" aria-label="Intern verringern">
+                                        <i class="bi bi-dash"></i>
+                                    </button>
+                                    <span class="intern-wert {{ $g->intern ? '' : 'leer' }}">{{ $g->intern ?: '–' }}</span>
+                                    <button type="button" class="intern-btn" data-delta="1" aria-label="Intern erhöhen">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="d-flex gap-1 mb-2">
@@ -1162,8 +1222,8 @@ document.addEventListener('click', function(ev) {
     .then(data => {
         // Wert in Desktop + Mobile aktualisieren (ohne Neuladen)
         document.querySelectorAll('.intern-ctrl[data-id="' + id + '"] .intern-wert').forEach(el => {
-            el.textContent = 'Int. ' + (data.intern || '–');
-            el.classList.toggle('text-muted', !data.intern);
+            el.textContent = data.intern || '–';
+            el.classList.toggle('leer', !data.intern);
             el.classList.add('intern-geaendert');
         });
         // Bearbeiten-Modal-Daten mitziehen
