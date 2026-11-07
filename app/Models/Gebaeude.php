@@ -32,6 +32,8 @@ class Gebaeude extends Model
         'strasse_sort_key',
         'hausnummer',
         'hausnummer_sort_key',
+        'intern',            // ⭐ NEU: Interne Nr. (Wohnung)
+        'intern_sort_key',   // ⭐ NEU: automatisch berechnet
         'plz',
         'wohnort',
         'telefon',           // ⭐ NEU
@@ -115,17 +117,60 @@ class Gebaeude extends Model
                     ? $codexNummer
                     : $normalizer->normalizeHausnummer($gebaeude->hausnummer ?? '');
             }
+
+            // ⭐ NEU: Sortierschlüssel für interne Nr.
+            if ($gebaeude->isDirty('intern') || ($gebaeude->intern && empty($gebaeude->intern_sort_key))) {
+                $gebaeude->intern_sort_key = static::berechneInternSortKey($gebaeude->intern);
+            }
         });
     }
 
     /**
+     * Sortierschlüssel für die interne Nr.
+     *
+     * - leer          → ''        (Hauseingang zuerst)
+     * - "3"           → '000003'
+     * - "3a"          → '000003a'
+     * - "A" (ohne Zahl) → '999999a' (nach allen Nummern)
+     */
+    public static function berechneInternSortKey(?string $intern): string
+    {
+        $intern = trim((string) $intern);
+
+        if ($intern === '') {
+            return '';
+        }
+
+        if (preg_match('/^\D*(\d+)(.*)$/', $intern, $m)) {
+            return str_pad($m[1], 6, '0', STR_PAD_LEFT) . mb_strtolower(trim($m[2]));
+        }
+
+        return '999999' . mb_strtolower($intern);
+    }
+
+    /**
      * Scope: Sortierung nach normalisierter Adresse.
+     * Straße → Hausnummer → Intern
      * Verwendung: Gebaeude::sortByAddress()->get()
      */
     public function scopeSortByAddress($query)
     {
         return $query->orderBy('strasse_sort_key')
-                     ->orderBy('hausnummer_sort_key');
+                     ->orderBy('hausnummer_sort_key')
+                     ->orderByRaw("COALESCE(intern_sort_key, '')")
+                     ->orderBy('id');
+    }
+
+    /**
+     * Adresse als Text: "Straße 5 / Int. 3"
+     */
+    public function getAdresseKurzAttribute(): string
+    {
+        $text = trim(($this->strasse ?? '') . ' ' . ($this->hausnummer ?? ''));
+        if ($this->intern) {
+            $text .= ' / Int. ' . $this->intern;
+        }
+        return $text;
     }
 
     // ═══════════════════════════════════════════════════════════
