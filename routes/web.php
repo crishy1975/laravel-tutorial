@@ -338,6 +338,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::prefix('reinigungsplanung')->name('reinigungsplanung.')->group(function () {
         Route::get('/', [ReinigungsplanungController::class, 'index'])->name('index');
         Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
+        Route::patch('/{gebaeude}/angekuendigt', [ReinigungsplanungController::class, 'setAngekuendigt'])->name('angekuendigt');   // ⭐ NEU
+
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
 
         // Monate + Bemerkung schnell bearbeiten
