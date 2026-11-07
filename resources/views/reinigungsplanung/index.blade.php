@@ -3,6 +3,41 @@
 @section('title', 'Reinigungsplanung')
 
 @section('content')
+<style>
+    @media (max-width: 575.98px) {
+        .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .card-body { padding: 0.5rem; }
+    }
+    @media print { .no-print, .btn, button { display: none !important; } }
+
+    /* ⭐ Status "Angekündigt" = Orange */
+    .table-angekuendigt {
+        --bs-table-color: #000;
+        --bs-table-bg: #ffe0c2;
+        --bs-table-border-color: #f0c9a3;
+        --bs-table-striped-bg: #fbd7b4;
+        --bs-table-striped-color: #000;
+        --bs-table-active-bg: #f5cba3;
+        --bs-table-active-color: #000;
+        --bs-table-hover-bg: #f8d0a8;
+        --bs-table-hover-color: #000;
+        color: var(--bs-table-color);
+        border-color: var(--bs-table-border-color);
+    }
+    /* Direkt auf die Zellen – unabhängig von Bootstrap-Version / table-striped */
+    #reinigungsTable tbody tr.table-angekuendigt > td {
+        background-color: #ffe0c2 !important;
+        box-shadow: none !important;
+        color: #000;
+    }
+    #reinigungsTable tbody tr.table-angekuendigt:hover > td {
+        background-color: #f8d0a8 !important;
+    }
+    .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
+    .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
+    .text-orange   { color: #fd7e14 !important; }
+    .border-orange { border-color: #fd7e14 !important; }
+</style>
 <div class="container-fluid py-2 py-md-4">
     {{-- Header --}}
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -811,34 +846,7 @@
 
 @endsection
 
-@push('styles')
-<style>
-    @media (max-width: 575.98px) {
-        .container-fluid { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .card-body { padding: 0.5rem; }
-    }
-    @media print { .no-print, .btn, button { display: none !important; } }
 
-    /* ⭐ Status "Angekündigt" = Orange */
-    .table-angekuendigt {
-        --bs-table-color: #000;
-        --bs-table-bg: #ffe0c2;
-        --bs-table-border-color: #f0c9a3;
-        --bs-table-striped-bg: #fbd7b4;
-        --bs-table-striped-color: #000;
-        --bs-table-active-bg: #f5cba3;
-        --bs-table-active-color: #000;
-        --bs-table-hover-bg: #f8d0a8;
-        --bs-table-hover-color: #000;
-        color: var(--bs-table-color);
-        border-color: var(--bs-table-border-color);
-    }
-    .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
-    .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
-    .text-orange   { color: #fd7e14 !important; }
-    .border-orange { border-color: #fd7e14 !important; }
-</style>
-@endpush
 
 @push('scripts')
 <script>
