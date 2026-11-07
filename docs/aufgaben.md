@@ -1,7 +1,4 @@
-messung
-    ansicht
-    smartview
-    pdf
-    export
-    foto dräger
-    hoi Fetzer
+status in reinigungsplanung mit angemeldet
+
+gebäude mit intern und sortierung
+
