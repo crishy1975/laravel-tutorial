@@ -2,15 +2,15 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // DATEI: app/Http/Controllers/ReinigungsplanungController.php
 // AKTION: Komplette Datei ersetzen
-// 
-// ⭐ KORREKTUR: FaelligkeitsService wird NICHT mehr bei index() aufgerufen!
-//    Die Fälligkeitsdaten werden aus der Datenbank gelesen (bereits gespeichert).
-//    Der Service wird nur bei markErledigt() aufgerufen (Timeline-Eintrag).
 //
-// ⭐ NEU: Status "Angekündigt" (angekuendigt_am / angekuendigt_fuer)
-//    - setAngekuendigt(): manuell oder automatisch bei SMS/WhatsApp
-//    - markErledigt(): setzt Ankündigung wieder auf NULL
-//    - Status-Filter + Statistik "angekuendigt"
+// ⭐ FaelligkeitsService wird NICHT bei index() aufgerufen –
+//    faellig / datum_faelligkeit / letzter_termin kommen aus der DB.
+//    Der Service läuft nur bei markErledigt() (Timeline-Eintrag).
+//
+// ⭐ Status "Angekündigt" (angekuendigt_am / angekuendigt_fuer)
+// ⭐ Interne Nr. (intern) mit ±-Korrektur
+// ⭐ NEU: Filterlogik zentral in buildQuery() – genutzt von
+//         index(), export() und ids() ("alle Seiten auswählen")
 // ═══════════════════════════════════════════════════════════════════════════════
 
 namespace App\Http\Controllers;
@@ -26,57 +26,41 @@ use Illuminate\Support\Facades\Auth;
 
 class ReinigungsplanungController extends Controller
 {
+    protected const SESSION_KEY = 'reinigungsplanung_filter';
+
+    protected const FILTER_KEYS = ['codex', 'gebaeude', 'monat', 'tour', 'status', 'datum', 'person'];
+
     public function __construct(
         protected FaelligkeitsService $faelligkeitsService
     ) {}
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // ÜBERSICHT
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
      * Reinigungsplanung-Übersicht mit Filtern
-     * 
-     * ⭐ OPTIMIERT: Keine FaelligkeitsService-Aufrufe mehr!
-     *    Die Felder faellig, datum_faelligkeit, letzter_termin sind bereits in der DB.
      */
     public function index(Request $request)
     {
-        // ⭐ Session-Key für Filter
-        $sessionKey = 'reinigungsplanung_filter';
-        
         // Wenn clear_filter gesetzt → Session löschen und redirect
         if ($request->has('clear_filter')) {
-            $request->session()->forget($sessionKey);
+            $request->session()->forget(self::SESSION_KEY);
             return redirect()->route('reinigungsplanung.index');
         }
-        
-        // Prüfen ob Query-Parameter vorhanden sind
-        $hasQueryParams = $request->hasAny(['codex', 'gebaeude', 'monat', 'tour', 'status', 'datum', 'person']);
-        
-        // Filter aus Request oder Session
-        if ($hasQueryParams) {
-            // Query-Parameter → in Session speichern
-            $filters = [
-                'codex'    => $request->input('codex', ''),
-                'gebaeude' => $request->input('gebaeude', ''),
-                'monat'    => $request->input('monat', ''),
-                'tour'     => $request->input('tour', ''),
-                'status'   => $request->input('status', ''),
-                'datum'    => $request->input('datum', ''),
-                'person'   => $request->input('person', ''),
-            ];
-            $request->session()->put($sessionKey, $filters);
+
+        // Filter aus Request (→ Session speichern) oder aus Session
+        if ($request->hasAny(self::FILTER_KEYS)) {
+            $filters = [];
+            foreach (self::FILTER_KEYS as $key) {
+                $filters[$key] = $request->input($key, '');
+            }
+            $request->session()->put(self::SESSION_KEY, $filters);
         } else {
-            // Keine Query-Parameter → aus Session laden (falls vorhanden)
-            $filters = $request->session()->get($sessionKey, [
-                'codex'    => '',
-                'gebaeude' => '',
-                'monat'    => '',
-                'tour'     => '',
-                'status'   => '',
-                'datum'    => '',
-                'person'   => '',
-            ]);
+            $filters = $this->filtersAusSession($request);
         }
-        
-        // Filter-Werte extrahieren
+
+        // Filter-Werte für die View
         $filterCodex    = $filters['codex'] ?? '';
         $filterGebaeude = $filters['gebaeude'] ?? '';
         $filterMonat    = $filters['monat'] ?? '';
@@ -85,143 +69,37 @@ class ReinigungsplanungController extends Controller
         $filterDatum    = $filters['datum'] ?? '';
         $filterPerson   = $filters['person'] ?? '';
 
-        // Query aufbauen
-        $query = Gebaeude::query()->with(['touren']);
-        
-        // ⭐ Filter nach Datum und/oder Person (über Timeline)
-        if (!empty($filterDatum) || !empty($filterPerson)) {
-            $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
-                if (!empty($filterDatum)) {
-                    $q->whereDate('datum', $filterDatum);
-                }
-                if (!empty($filterPerson)) {
-                    $q->where('person_id', $filterPerson);
-                }
-            });
-        }
+        // ── Statistik (gleiche Filter, aber OHNE Status) ──────────────────
+        $statsBase = $this->buildQuery(array_merge($filters, ['status' => '']));
 
-        // Filter: Monat (nur wenn ausgewählt) - zeigt nur Gebäude die in diesem Monat aktiv sind
-        if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {
-            $monatFeld = 'm' . str_pad($filterMonat, 2, '0', STR_PAD_LEFT);
-            $query->where($monatFeld, true);
-        }
-
-        // Filter: Codex
-        if (!empty($filterCodex)) {
-            $query->where('codex', 'LIKE', '%' . $filterCodex . '%');
-        }
-
-        // Filter: Gebäude-Name
-        if (!empty($filterGebaeude)) {
-            $query->where(function ($q) use ($filterGebaeude) {
-                $q->where('gebaeude_name', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('strasse', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('wohnort', 'LIKE', '%' . $filterGebaeude . '%');
-            });
-        }
-
-        // Filter: Tour (Tabelle heißt "tour" nicht "touren")
-        if (!empty($filterTour)) {
-            $query->whereHas('touren', function ($q) use ($filterTour) {
-                $q->where('tour.id', $filterTour);
-            });
-        }
-
-        // ⭐ Filter: Status über DB-Felder 'faellig' + 'angekuendigt_am'
-        $this->applyStatusFilter($query, $filterStatus);
-
-        // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
-        $query->sortByAddress();
-
-        // ⭐ Statistiken VOR Pagination berechnen (Clone der Query)
-        $statsQuery = clone $query;
-        $totalCount = $statsQuery->count();
-        
-        // Für Status-Statistik: Ohne Status-Filter
-        $statsBaseQuery = Gebaeude::query()->with(['touren']);
-        
-        // Gleiche Filter wie oben (außer Status)
-        if (!empty($filterDatum) || !empty($filterPerson)) {
-            $statsBaseQuery->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
-                if (!empty($filterDatum)) {
-                    $q->whereDate('datum', $filterDatum);
-                }
-                if (!empty($filterPerson)) {
-                    $q->where('person_id', $filterPerson);
-                }
-            });
-        }
-        if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {
-            $monatFeld = 'm' . str_pad($filterMonat, 2, '0', STR_PAD_LEFT);
-            $statsBaseQuery->where($monatFeld, true);
-        }
-        if (!empty($filterCodex)) {
-            $statsBaseQuery->where('codex', 'LIKE', '%' . $filterCodex . '%');
-        }
-        if (!empty($filterGebaeude)) {
-            $statsBaseQuery->where(function ($q) use ($filterGebaeude) {
-                $q->where('gebaeude_name', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('strasse', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('wohnort', 'LIKE', '%' . $filterGebaeude . '%');
-            });
-        }
-        if (!empty($filterTour)) {
-            $statsBaseQuery->whereHas('touren', function ($q) use ($filterTour) {
-                $q->where('tour.id', $filterTour);
-            });
-        }
-        
-        $gesamtCount       = $statsBaseQuery->count();
-        $offenCount        = $this->mitMindestensEinemMonat(
-                                 (clone $statsBaseQuery)->where('faellig', true)->whereNull('angekuendigt_am')
-                             )->count();
-        $erledigtCount     = (clone $statsBaseQuery)->where('faellig', false)->count();
-        $angekuendigtCount = (clone $statsBaseQuery)->where('faellig', true)->whereNotNull('angekuendigt_am')->count();
-        
         $stats = [
-            'gesamt'       => $gesamtCount,
-            'offen'        => $offenCount,
-            'erledigt'     => $erledigtCount,
-            'angekuendigt' => $angekuendigtCount,
+            'gesamt'       => (clone $statsBase)->count(),
+            'offen'        => $this->buildQuery(array_merge($filters, ['status' => 'offen']))->count(),
+            'angekuendigt' => $this->buildQuery(array_merge($filters, ['status' => 'angekuendigt']))->count(),
+            'erledigt'     => $this->buildQuery(array_merge($filters, ['status' => 'erledigt']))->count(),
         ];
 
-        // ⭐ Pagination (20 pro Seite) - direkt über Query Builder
-        $perPage = 20;
-        $gebaeude = $query->paginate($perPage)->appends($filters);
+        // ── Liste (mit Status-Filter) ──────────────────────────────────────
+        $perPage  = 20;
+        $gebaeude = $this->buildQuery($filters)
+            ->with(['touren'])
+            ->sortByAddress()
+            ->paginate($perPage)
+            ->appends($filters);
 
-        // ⭐ Attribute für View hinzufügen (aus DB-Feldern, KEIN Service-Aufruf!)
+        // Attribute für View (aus DB-Feldern, KEIN Service-Aufruf!)
         $gebaeude->getCollection()->transform(function ($g) {
-            // Diese Felder sind bereits in der Datenbank gespeichert!
             $g->letzte_reinigung_datum = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
-            $g->ist_erledigt = !$g->faellig; // Erledigt = nicht fällig
-            $g->ist_angekuendigt = !$g->ist_erledigt && $g->angekuendigt_am !== null;
-            $g->naechste_faelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
+            $g->ist_erledigt           = !$g->faellig;
+            $g->ist_angekuendigt       = !$g->ist_erledigt && $g->angekuendigt_am !== null;
+            $g->naechste_faelligkeit   = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
             return $g;
         });
 
-        // Touren für Dropdown
         $touren = Tour::orderBy('name')->get(['id', 'name', 'aktiv']);
+        $users  = User::orderBy('name')->get(['id', 'name']);
+        $monate = $this->monatsNamen();
 
-        // User für Dropdown (Person-Auswahl)
-        $users = User::orderBy('name')->get(['id', 'name']);
-
-        // Monatsnamen für Dropdown
-        $monate = [
-            1  => 'Januar',
-            2  => 'Februar',
-            3  => 'März',
-            4  => 'April',
-            5  => 'Mai',
-            6  => 'Juni',
-            7  => 'Juli',
-            8  => 'August',
-            9  => 'September',
-            10 => 'Oktober',
-            11 => 'November',
-            12 => 'Dezember',
-        ];
-
-        // ⭐ Nachricht-Vorschläge für SMS/WhatsApp Modal
         $nachrichtVorschlaege = Textvorschlag::fuerKategorie('reinigung_nachricht');
 
         return view('reinigungsplanung.index', compact(
@@ -242,8 +120,37 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
+     * ⭐ NEU: Alle Gebäude-IDs zum aktuellen Filter (alle Seiten).
+     *
+     * Für "Alle X Gebäude auf allen Seiten auswählen" in der Bulk-Leiste.
+     * Nutzt exakt dieselben Filter wie die Liste (aus der Session).
+     *
+     * Route: GET /reinigungsplanung/ids
+     */
+    public function ids(Request $request)
+    {
+        $filters = $this->filtersAusSession($request);
+
+        $ids = $this->buildQuery($filters)
+            ->sortByAddress()
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->values();
+
+        return response()->json([
+            'ok'    => true,
+            'count' => $ids->count(),
+            'ids'   => $ids,
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // AKTIONEN
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
      * Schnell-Aktion: Als erledigt markieren (Timeline-Eintrag erstellen)
-     * 
+     *
      * ⭐ HIER wird der FaelligkeitsService aufgerufen - nur bei Änderungen!
      */
     public function markErledigt(Request $request, int $gebaeudeId)
@@ -258,10 +165,8 @@ class ReinigungsplanungController extends Controller
 
         $datum = isset($data['datum']) ? Carbon::parse($data['datum']) : now();
 
-        // User laden für person_name
         $user = User::find($data['person_id']);
 
-        // Timeline-Eintrag erstellen
         $gebaeude->timelines()->create([
             'datum'       => $datum,
             'bemerkung'   => $data['bemerkung'] ?? 'Reinigung durchgeführt',
@@ -269,21 +174,20 @@ class ReinigungsplanungController extends Controller
             'person_name' => $user->name,
         ]);
 
-        // Gebäude aktualisieren + ⭐ Ankündigung zurücksetzen
+        // Gebäude aktualisieren + Ankündigung zurücksetzen
         $updateData = [
             'letzter_termin'    => $datum,
             'angekuendigt_fuer' => null,
             'angekuendigt_am'   => null,
         ];
-        
+
         // rechnung_schreiben = true (nur wenn FatturaPA-Profil vorhanden)
         if ($gebaeude->fattura_profile_id) {
             $updateData['rechnung_schreiben'] = true;
         }
-        
+
         $gebaeude->update($updateData);
 
-        // ⭐ FaelligkeitsService: Nur HIER aufrufen (bei Timeline-Änderung)
         $this->faelligkeitsService->aktualisiereGebaeude($gebaeude);
 
         if ($request->expectsJson()) {
@@ -297,10 +201,9 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ NEU: Gebäude als angekündigt markieren / Markierung entfernen
+     * Gebäude als angekündigt markieren / Markierung entfernen
      *
-     * Erwartet per JSON (fetch):
-     *   { "angekuendigt": 1|0, "termin": "YYYY-MM-DD"|null }
+     * JSON: { "angekuendigt": 1|0, "termin": "YYYY-MM-DD"|null }
      */
     public function setAngekuendigt(Request $request, int $gebaeude)
     {
@@ -330,11 +233,9 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ NEU: Interne Nr. setzen oder schnell um ±1 korrigieren
+     * Interne Nr. setzen oder schnell um ±1 korrigieren
      *
-     * Erwartet per JSON (fetch):
-     *   { "delta": 1 | -1 }        → Zahl um 1 erhöhen / verringern
-     *   { "intern": "3a" | null }  → Wert direkt setzen
+     * JSON: { "delta": 1 | -1 }  oder  { "intern": "3a" | null }
      */
     public function setIntern(Request $request, int $gebaeude)
     {
@@ -364,7 +265,7 @@ class ReinigungsplanungController extends Controller
      *
      * - leer + "+"  → "1"
      * - "3"  ± 1    → "4" / "2"
-     * - "3a" ± 1    → "4a" / "2a"   (Präfix/Suffix bleiben erhalten)
+     * - "3a" ± 1    → "4a" / "2a"
      * - kleiner als 1 wird nicht unterschritten
      * - ohne Zahl ("A") → unverändert
      */
@@ -384,82 +285,32 @@ class ReinigungsplanungController extends Controller
         return $intern;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // EXPORT
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
-     * Export als CSV
-     * 
-     * ⭐ OPTIMIERT: Verwendet ebenfalls DB-Felder statt Service
+     * Export als CSV (gleiche Filter wie die Liste)
      */
     public function export(Request $request)
     {
-        // ⭐ Filter auch aus Session laden für Export
-        $sessionKey = 'reinigungsplanung_filter';
-        $filters = $request->session()->get($sessionKey, []);
-        
-        // Query-Parameter überschreiben Session
-        $filterCodex    = $request->input('codex', $filters['codex'] ?? '');
-        $filterGebaeude = $request->input('gebaeude', $filters['gebaeude'] ?? '');
-        $filterMonat    = $request->input('monat', $filters['monat'] ?? '');
-        $filterTour     = $request->input('tour', $filters['tour'] ?? '');
-        $filterStatus   = $request->input('status', $filters['status'] ?? '');
-        $filterDatum    = $request->input('datum', $filters['datum'] ?? '');
-        $filterPerson   = $request->input('person', $filters['person'] ?? '');
-
-        $query = Gebaeude::query()->with(['touren']);
-        
-        // ⭐ Filter nach Datum und/oder Person (über Timeline)
-        if (!empty($filterDatum) || !empty($filterPerson)) {
-            $query->whereHas('timelines', function ($q) use ($filterDatum, $filterPerson) {
-                if (!empty($filterDatum)) {
-                    $q->whereDate('datum', $filterDatum);
-                }
-                if (!empty($filterPerson)) {
-                    $q->where('person_id', $filterPerson);
-                }
-            });
+        // Session-Filter, Query-Parameter überschreiben
+        $filters = $this->filtersAusSession($request);
+        foreach (self::FILTER_KEYS as $key) {
+            if ($request->has($key)) {
+                $filters[$key] = $request->input($key, '');
+            }
         }
 
-        // Filter: Monat (nur wenn ausgewählt)
-        if (!empty($filterMonat) && $filterMonat >= 1 && $filterMonat <= 12) {
-            $monatFeld = 'm' . str_pad($filterMonat, 2, '0', STR_PAD_LEFT);
-            $query->where($monatFeld, true);
-        }
+        $gebaeude = $this->buildQuery($filters)
+            ->with(['touren'])
+            ->sortByAddress()
+            ->get();
 
-        if (!empty($filterCodex)) {
-            $query->where('codex', 'LIKE', '%' . $filterCodex . '%');
-        }
-
-        if (!empty($filterGebaeude)) {
-            $query->where(function ($q) use ($filterGebaeude) {
-                $q->where('gebaeude_name', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('strasse', 'LIKE', '%' . $filterGebaeude . '%')
-                  ->orWhere('wohnort', 'LIKE', '%' . $filterGebaeude . '%');
-            });
-        }
-
-        // Filter: Tour (Tabelle heißt "tour" nicht "touren")
-        if (!empty($filterTour)) {
-            $query->whereHas('touren', function ($q) use ($filterTour) {
-                $q->where('tour.id', $filterTour);
-            });
-        }
-
-        // ⭐ Status-Filter über DB-Felder
-        $this->applyStatusFilter($query, $filterStatus);
-
-        // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
-        $query->sortByAddress();
-
-        $gebaeude = $query->get();
-
-        // CSV erstellen
-        $monate = [
-            1 => 'Januar', 2 => 'Februar', 3 => 'März', 4 => 'April',
-            5 => 'Mai', 6 => 'Juni', 7 => 'Juli', 8 => 'August',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Dezember',
-        ];
-
-        $monatName = !empty($filterMonat) ? $monate[$filterMonat] : 'Alle';
-        $filename = 'reinigungsplanung_' . $monatName . '_' . now()->year . '.csv';
+        $monate      = $this->monatsNamen();
+        $filterMonat = $filters['monat'] ?? '';
+        $monatName   = !empty($filterMonat) && isset($monate[(int) $filterMonat]) ? $monate[(int) $filterMonat] : 'Alle';
+        $filename    = 'reinigungsplanung_' . $monatName . '_' . now()->year . '.csv';
 
         $headers = [
             'Content-Type'        => 'text/csv; charset=UTF-8',
@@ -468,19 +319,17 @@ class ReinigungsplanungController extends Controller
 
         $callback = function () use ($gebaeude) {
             $file = fopen('php://output', 'w');
-            
+
             // BOM für Excel UTF-8
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-            // Header
             fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Intern', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status', 'Angekündigt für'], ';');
 
             foreach ($gebaeude as $g) {
-                // ⭐ Direkt aus DB-Feldern lesen - KEIN Service-Aufruf!
-                $letzteReinigung = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
+                $letzteReinigung     = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
                 $naechsteFaelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
-                $istFaellig = (bool) $g->faellig;
-                $istAngekuendigt = $istFaellig && $g->angekuendigt_am !== null;
+                $istFaellig          = (bool) $g->faellig;
+                $istAngekuendigt     = $istFaellig && $g->angekuendigt_am !== null;
 
                 $status = !$istFaellig ? 'Erledigt' : ($istAngekuendigt ? 'Angekündigt' : 'Offen');
 
@@ -503,8 +352,83 @@ class ReinigungsplanungController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILTER-LOGIK (zentral)
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
-     * ⭐ Nur Gebäude, bei denen mindestens ein Reinigungsmonat (m01–m12) gesetzt ist.
+     * Filter aus der Session (mit leeren Defaults)
+     */
+    protected function filtersAusSession(Request $request): array
+    {
+        $defaults = array_fill_keys(self::FILTER_KEYS, '');
+        return array_merge($defaults, (array) $request->session()->get(self::SESSION_KEY, []));
+    }
+
+    /**
+     * ⭐ Baut die gefilterte Gebäude-Query (ohne Sortierung/Pagination).
+     *
+     * Wird von index(), export() und ids() verwendet,
+     * damit überall exakt dieselben Gebäude herauskommen.
+     */
+    protected function buildQuery(array $f)
+    {
+        $query = Gebaeude::query();
+
+        $datum  = $f['datum'] ?? '';
+        $person = $f['person'] ?? '';
+        $monat  = $f['monat'] ?? '';
+        $codex  = $f['codex'] ?? '';
+        $suche  = $f['gebaeude'] ?? '';
+        $tour   = $f['tour'] ?? '';
+        $status = $f['status'] ?? '';
+
+        // Datum und/oder Person (über Timeline)
+        if (!empty($datum) || !empty($person)) {
+            $query->whereHas('timelines', function ($q) use ($datum, $person) {
+                if (!empty($datum)) {
+                    $q->whereDate('datum', $datum);
+                }
+                if (!empty($person)) {
+                    $q->where('person_id', $person);
+                }
+            });
+        }
+
+        // Monat: nur Gebäude, die in diesem Monat aktiv sind
+        if (!empty($monat) && $monat >= 1 && $monat <= 12) {
+            $query->where('m' . str_pad((string) $monat, 2, '0', STR_PAD_LEFT), true);
+        }
+
+        // Codex
+        if (!empty($codex)) {
+            $query->where('codex', 'LIKE', '%' . $codex . '%');
+        }
+
+        // Gebäude-Name / Straße / Ort
+        if (!empty($suche)) {
+            $query->where(function ($q) use ($suche) {
+                $q->where('gebaeude_name', 'LIKE', '%' . $suche . '%')
+                  ->orWhere('strasse', 'LIKE', '%' . $suche . '%')
+                  ->orWhere('wohnort', 'LIKE', '%' . $suche . '%');
+            });
+        }
+
+        // Tour (Tabelle heißt "tour")
+        if (!empty($tour)) {
+            $query->whereHas('touren', function ($q) use ($tour) {
+                $q->where('tour.id', $tour);
+            });
+        }
+
+        // Status
+        $this->applyStatusFilter($query, $status);
+
+        return $query;
+    }
+
+    /**
+     * Nur Gebäude, bei denen mindestens ein Reinigungsmonat (m01–m12) gesetzt ist.
      */
     protected function mitMindestensEinemMonat($query)
     {
@@ -516,7 +440,7 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
-     * ⭐ Status-Filter (offen / angekündigt / erledigt)
+     * Status-Filter (offen / angekündigt / erledigt)
      *
      * - offen:        fällig, NICHT angekündigt und mind. ein Monat gesetzt
      * - angekuendigt: fällig und angekündigt
@@ -526,11 +450,29 @@ class ReinigungsplanungController extends Controller
     {
         if ($filterStatus === 'offen') {
             $query->where('faellig', true)->whereNull('angekuendigt_am');
-            $this->mitMindestensEinemMonat($query);   // ⭐ nur eingeplante Anlagen
+            $this->mitMindestensEinemMonat($query);
         } elseif ($filterStatus === 'angekuendigt') {
             $query->where('faellig', true)->whereNotNull('angekuendigt_am');
         } elseif ($filterStatus === 'erledigt') {
             $query->where('faellig', false);
         }
+    }
+
+    protected function monatsNamen(): array
+    {
+        return [
+            1  => 'Januar',
+            2  => 'Februar',
+            3  => 'März',
+            4  => 'April',
+            5  => 'Mai',
+            6  => 'Juni',
+            7  => 'Juli',
+            8  => 'August',
+            9  => 'September',
+            10 => 'Oktober',
+            11 => 'November',
+            12 => 'Dezember',
+        ];
     }
 }

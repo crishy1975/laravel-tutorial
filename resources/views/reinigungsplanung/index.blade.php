@@ -379,6 +379,22 @@
                         <i class="bi bi-trash"></i>
                         <span class="d-none d-sm-inline">Löschen</span>
                     </button>
+
+                    @if($gebaeude->hasPages())
+                        {{-- ⭐ Auswahl über alle Seiten --}}
+                        <div id="bulkAlleSeitenHinweis" class="w-100 small d-none">
+                            <i class="bi bi-info-circle"></i>
+                            Alle <strong>{{ $gebaeude->count() }}</strong> Gebäude dieser Seite sind ausgewählt.
+                            <a href="#" id="bulkAlleSeitenLink" class="fw-semibold">
+                                Alle {{ $gebaeude->total() }} Gebäude auf allen Seiten auswählen
+                            </a>
+                        </div>
+                        <div id="bulkAlleSeitenAktiv" class="w-100 small d-none">
+                            <i class="bi bi-check2-all"></i>
+                            <strong>Alle <span id="bulkAlleSeitenAnzahl">{{ $gebaeude->total() }}</span> Gebäude auf allen Seiten</strong> sind ausgewählt.
+                            <a href="#" id="bulkAuswahlAufheben">Auswahl aufheben</a>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -1350,9 +1366,17 @@ var bulkBar = document.getElementById('bulkBar');
 var bulkCount = document.getElementById('bulkCount');
 var selectAllDesktop = document.getElementById('selectAllDesktop');
 
+// ⭐ Auswahl über alle Seiten: null = nur aktuelle Seite, sonst Array aller IDs
+var alleSeitenIds = null;
+
 // Jedes Gebäude hat 2 Checkboxen (Desktop-Tabelle + Mobile-Liste)
 // → immer nur eindeutige IDs zählen
 function getSelectedIds() {
+    if (alleSeitenIds) return alleSeitenIds;
+    return getPageSelectedIds();
+}
+
+function getPageSelectedIds() {
     return [...new Set(
         Array.from(document.querySelectorAll('.bulk-check:checked')).map(c => c.value)
     )];
@@ -1374,15 +1398,58 @@ function updateBulkBar() {
             bulkBar.classList.add('d-none');
         }
     }
-    var allCount = getAllIds().length;
+    var pageCount = getPageSelectedIds().length;
+    var allCount  = getAllIds().length;
+    var seiteKomplett = allCount > 0 && pageCount === allCount;
+
     if (selectAllDesktop) {
-        selectAllDesktop.checked = allCount > 0 && count === allCount;
-        selectAllDesktop.indeterminate = count > 0 && count < allCount;
+        selectAllDesktop.checked = seiteKomplett;
+        selectAllDesktop.indeterminate = pageCount > 0 && pageCount < allCount;
     }
+
+    // Hinweis "alle Seiten auswählen" / "alle Seiten ausgewählt"
+    var hinweis = document.getElementById('bulkAlleSeitenHinweis');
+    var aktiv   = document.getElementById('bulkAlleSeitenAktiv');
+    if (hinweis) hinweis.classList.toggle('d-none', !(seiteKomplett && !alleSeitenIds));
+    if (aktiv)   aktiv.classList.toggle('d-none', !alleSeitenIds);
 }
+
+// Link: alle Gebäude auf allen Seiten auswählen (IDs vom Server holen)
+document.getElementById('bulkAlleSeitenLink')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    var link = this;
+    link.classList.add('disabled');
+    link.textContent = 'Lade…';
+
+    fetch('{{ route("reinigungsplanung.ids") }}', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin'
+    })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+        alleSeitenIds = data.ids || [];
+        var anz = document.getElementById('bulkAlleSeitenAnzahl');
+        if (anz) anz.textContent = alleSeitenIds.length;
+        updateBulkBar();
+    })
+    .catch(err => alert('Fehler: ' + err.message))
+    .finally(() => {
+        link.classList.remove('disabled');
+        link.textContent = 'Alle {{ $gebaeude->total() }} Gebäude auf allen Seiten auswählen';
+    });
+});
+
+// Link: Auswahl komplett aufheben
+document.getElementById('bulkAuswahlAufheben')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    alleSeitenIds = null;
+    document.querySelectorAll('.bulk-check').forEach(c => c.checked = false);
+    updateBulkBar();
+});
 
 document.querySelectorAll('.bulk-check').forEach(function(c) {
     c.addEventListener('change', function() {
+        alleSeitenIds = null;   // manuelle Änderung → zurück auf Seiten-Auswahl
         // Zwilling (Desktop ↔ Mobile) mitziehen
         document.querySelectorAll('.bulk-check[value="' + this.value + '"]').forEach(function(t) {
             t.checked = c.checked;
@@ -1393,6 +1460,7 @@ document.querySelectorAll('.bulk-check').forEach(function(c) {
 
 if (selectAllDesktop) {
     selectAllDesktop.addEventListener('change', function() {
+        alleSeitenIds = null;
         document.querySelectorAll('.bulk-check').forEach(function(c) {
             c.checked = selectAllDesktop.checked;
         });
