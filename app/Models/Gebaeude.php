@@ -46,6 +46,8 @@ class Gebaeude extends Model
         'geplante_reinigungen',
         'gemachte_reinigungen',
         'faellig',
+        'angekuendigt_fuer', // ⭐ NEU: Angekündigter Termin
+        'angekuendigt_am',   // ⭐ NEU: Zeitpunkt der Ankündigung
         'rechnung_schreiben',
         'm01',
         'm02',
@@ -75,6 +77,8 @@ class Gebaeude extends Model
         'veraendert_wann'      => 'datetime',
         'letzter_termin'       => 'date',
         'datum_faelligkeit'    => 'date',
+        'angekuendigt_fuer'    => 'date',      // ⭐ NEU
+        'angekuendigt_am'      => 'datetime',  // ⭐ NEU
         'created_at'           => 'datetime',
         'updated_at'           => 'datetime',
         'faellig'              => 'boolean',
@@ -122,6 +126,18 @@ class Gebaeude extends Model
     {
         return $query->orderBy('strasse_sort_key')
                      ->orderBy('hausnummer_sort_key');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 📣 ANKÜNDIGUNG
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Ist das Gebäude angekündigt (offen + Ankündigung gesetzt)?
+     */
+    public function istAngekuendigt(): bool
+    {
+        return (bool) $this->faellig && $this->angekuendigt_am !== null;
     }
 
     // ═══════════════════════════════════════════════════════════
