@@ -6,6 +6,11 @@
 // ⭐ KORREKTUR: FaelligkeitsService wird NICHT mehr bei index() aufgerufen!
 //    Die Fälligkeitsdaten werden aus der Datenbank gelesen (bereits gespeichert).
 //    Der Service wird nur bei markErledigt() aufgerufen (Timeline-Eintrag).
+//
+// ⭐ NEU: Status "Angekündigt" (angekuendigt_am / angekuendigt_fuer)
+//    - setAngekuendigt(): manuell oder automatisch bei SMS/WhatsApp
+//    - markErledigt(): setzt Ankündigung wieder auf NULL
+//    - Status-Filter + Statistik "angekuendigt"
 // ═══════════════════════════════════════════════════════════════════════════════
 
 namespace App\Http\Controllers;
@@ -122,12 +127,8 @@ class ReinigungsplanungController extends Controller
             });
         }
 
-        // ⭐ Filter: Status direkt über DB-Feld 'faellig'
-        if ($filterStatus === 'offen') {
-            $query->where('faellig', true);
-        } elseif ($filterStatus === 'erledigt') {
-            $query->where('faellig', false);
-        }
+        // ⭐ Filter: Status über DB-Felder 'faellig' + 'angekuendigt_am'
+        $this->applyStatusFilter($query, $filterStatus);
 
         // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
         $query->sortByAddress();
@@ -170,14 +171,16 @@ class ReinigungsplanungController extends Controller
             });
         }
         
-        $gesamtCount = $statsBaseQuery->count();
-        $offenCount = (clone $statsBaseQuery)->where('faellig', true)->count();
-        $erledigtCount = (clone $statsBaseQuery)->where('faellig', false)->count();
+        $gesamtCount       = $statsBaseQuery->count();
+        $offenCount        = (clone $statsBaseQuery)->where('faellig', true)->whereNull('angekuendigt_am')->count();
+        $erledigtCount     = (clone $statsBaseQuery)->where('faellig', false)->count();
+        $angekuendigtCount = (clone $statsBaseQuery)->where('faellig', true)->whereNotNull('angekuendigt_am')->count();
         
         $stats = [
-            'gesamt'   => $gesamtCount,
-            'offen'    => $offenCount,
-            'erledigt' => $erledigtCount,
+            'gesamt'       => $gesamtCount,
+            'offen'        => $offenCount,
+            'erledigt'     => $erledigtCount,
+            'angekuendigt' => $angekuendigtCount,
         ];
 
         // ⭐ Pagination (20 pro Seite) - direkt über Query Builder
@@ -189,6 +192,7 @@ class ReinigungsplanungController extends Controller
             // Diese Felder sind bereits in der Datenbank gespeichert!
             $g->letzte_reinigung_datum = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
             $g->ist_erledigt = !$g->faellig; // Erledigt = nicht fällig
+            $g->ist_angekuendigt = !$g->ist_erledigt && $g->angekuendigt_am !== null;
             $g->naechste_faelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
             return $g;
         });
@@ -263,9 +267,14 @@ class ReinigungsplanungController extends Controller
             'person_name' => $user->name,
         ]);
 
-        // Gebäude aktualisieren: rechnung_schreiben = true (nur wenn FatturaPA-Profil vorhanden)
-        $updateData = ['letzter_termin' => $datum];
+        // Gebäude aktualisieren + ⭐ Ankündigung zurücksetzen
+        $updateData = [
+            'letzter_termin'    => $datum,
+            'angekuendigt_fuer' => null,
+            'angekuendigt_am'   => null,
+        ];
         
+        // rechnung_schreiben = true (nur wenn FatturaPA-Profil vorhanden)
         if ($gebaeude->fattura_profile_id) {
             $updateData['rechnung_schreiben'] = true;
         }
@@ -283,6 +292,39 @@ class ReinigungsplanungController extends Controller
         }
 
         return back()->with('success', 'Reinigung für ' . ($gebaeude->gebaeude_name ?: $gebaeude->codex) . ' eingetragen.');
+    }
+
+    /**
+     * ⭐ NEU: Gebäude als angekündigt markieren / Markierung entfernen
+     *
+     * Erwartet per JSON (fetch):
+     *   { "angekuendigt": 1|0, "termin": "YYYY-MM-DD"|null }
+     */
+    public function setAngekuendigt(Request $request, int $gebaeude)
+    {
+        $g = Gebaeude::findOrFail($gebaeude);
+
+        $data = $request->validate([
+            'angekuendigt' => ['required', 'boolean'],
+            'termin'       => ['nullable', 'date'],
+        ]);
+
+        if ($data['angekuendigt']) {
+            $g->update([
+                'angekuendigt_fuer' => $data['termin'] ?? null,
+                'angekuendigt_am'   => now(),
+            ]);
+        } else {
+            $g->update([
+                'angekuendigt_fuer' => null,
+                'angekuendigt_am'   => null,
+            ]);
+        }
+
+        return response()->json([
+            'ok'           => true,
+            'angekuendigt' => (bool) $data['angekuendigt'],
+        ]);
     }
 
     /**
@@ -344,12 +386,8 @@ class ReinigungsplanungController extends Controller
             });
         }
 
-        // ⭐ Status-Filter über DB-Feld
-        if ($filterStatus === 'offen') {
-            $query->where('faellig', true);
-        } elseif ($filterStatus === 'erledigt') {
-            $query->where('faellig', false);
-        }
+        // ⭐ Status-Filter über DB-Felder
+        $this->applyStatusFilter($query, $filterStatus);
 
         // Sortierung: Normalisierte Adresse (Codex-Prefix → Straße → Hausnummer)
         $query->sortByAddress();
@@ -378,13 +416,16 @@ class ReinigungsplanungController extends Controller
             fprintf($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
             // Header
-            fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status'], ';');
+            fputcsv($file, ['Codex', 'Gebäude', 'Adresse', 'Tour(en)', 'Letzte Reinigung', 'Nächste Fälligkeit', 'Status', 'Angekündigt für'], ';');
 
             foreach ($gebaeude as $g) {
                 // ⭐ Direkt aus DB-Feldern lesen - KEIN Service-Aufruf!
                 $letzteReinigung = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
                 $naechsteFaelligkeit = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
                 $istFaellig = (bool) $g->faellig;
+                $istAngekuendigt = $istFaellig && $g->angekuendigt_am !== null;
+
+                $status = !$istFaellig ? 'Erledigt' : ($istAngekuendigt ? 'Angekündigt' : 'Offen');
 
                 fputcsv($file, [
                     $g->codex,
@@ -393,7 +434,8 @@ class ReinigungsplanungController extends Controller
                     $g->touren->pluck('name')->implode(', '),
                     $letzteReinigung ? $letzteReinigung->format('d.m.Y') : '-',
                     $naechsteFaelligkeit ? $naechsteFaelligkeit->format('d.m.Y') : '-',
-                    $istFaellig ? 'Offen' : 'Erledigt',
+                    $status,
+                    ($istAngekuendigt && $g->angekuendigt_fuer) ? Carbon::parse($g->angekuendigt_fuer)->format('d.m.Y') : '',
                 ], ';');
             }
 
@@ -401,5 +443,23 @@ class ReinigungsplanungController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * ⭐ Status-Filter (offen / angekündigt / erledigt)
+     *
+     * - offen:        fällig und NICHT angekündigt
+     * - angekuendigt: fällig und angekündigt
+     * - erledigt:     nicht fällig
+     */
+    protected function applyStatusFilter($query, ?string $filterStatus): void
+    {
+        if ($filterStatus === 'offen') {
+            $query->where('faellig', true)->whereNull('angekuendigt_am');
+        } elseif ($filterStatus === 'angekuendigt') {
+            $query->where('faellig', true)->whereNotNull('angekuendigt_am');
+        } elseif ($filterStatus === 'erledigt') {
+            $query->where('faellig', false);
+        }
     }
 }

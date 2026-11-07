@@ -24,6 +24,8 @@ class TimelineController extends Controller
      *  - datum (nullable|date)     -> Standard: heute
      *  - bemerkung (nullable|str)
      *  - returnTo (optional)       -> Ziel-URL für Redirects
+     *
+     * ⭐ NEU: Setzt eine bestehende Ankündigung (angekuendigt_am/_fuer) auf NULL.
      */
     public function timelineStore(Request $request, int $id)
     {
@@ -109,6 +111,12 @@ class TimelineController extends Controller
                 $updates['letzter_termin'] = $datum;
             }
 
+            // ⭐ NEU: Ankündigung zurücksetzen (Reinigung ist erledigt)
+            if (Schema::hasColumn($tableGebaeude, 'angekuendigt_am')) {
+                $updates['angekuendigt_am']   = null;
+                $updates['angekuendigt_fuer'] = null;
+            }
+
             if (!empty($updates)) {
                 Gebaeude::whereKey($gebaeude->id)->update($updates);
             }
@@ -119,12 +127,11 @@ class TimelineController extends Controller
                 'debugId'            => $debugId,
                 'timeline_id'        => $timeline->id,
                 'gebaeude_id'        => $gebaeude->id,
-                'set_updates'        => $updates,
+                'set_updates'        => array_keys($updates),
                 'fattura_profile_id' => $gebaeude->fattura_profile_id,
             ]);
 
             // 6) Fälligkeit direkt nach erfolgreichem Commit neu berechnen
-            //    Erwartet die Methode Gebaeude::recomputeFaellig() (wie von uns vorgeschlagen).
             $faellig = null;
             try {
                 $gebaeude->refresh();              // sicherheitshalber neu laden
@@ -140,7 +147,6 @@ class TimelineController extends Controller
 
             // 7) Response je nach Erwartung: JSON oder Redirect
             if ($request->expectsJson()) {
-                // ⭐ NEU: Info über rechnung_schreiben im Response
                 $rechnungSchreibenAktiviert = isset($updates['rechnung_schreiben']) && $updates['rechnung_schreiben'] == 1;
                 
                 return response()->json([
@@ -153,7 +159,6 @@ class TimelineController extends Controller
                 ], 201);
             }
 
-            // ⭐ NEU: Unterschiedliche Meldung je nach FatturaPA-Profil
             $message = 'Timeline-Eintrag hinzugefügt.';
             if (isset($updates['rechnung_schreiben'])) {
                 $message .= ' Rechnung schreiben aktiviert.';
@@ -265,18 +270,6 @@ class TimelineController extends Controller
 
         // Flag setzen
         $entry->verrechnen = $validated['verrechnen'];
-
-        // OPTIONAL:
-        // Wenn du beim Einschalten automatisch "verrechnet_am" setzen möchtest:
-        // if ($entry->verrechnen && !$entry->verrechnet_am) {
-        //     $entry->verrechnet_am = now();
-        // }
-        //
-        // Wenn du beim Ausschalten das Datum wieder löschen willst:
-        // if (!$entry->verrechnen) {
-        //     $entry->verrechnet_am = null;
-        //     $entry->verrechnet_mit_rn_nummer = null;
-        // }
 
         $entry->save();
 

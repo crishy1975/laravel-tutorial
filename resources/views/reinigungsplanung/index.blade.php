@@ -79,7 +79,7 @@
 
     {{-- Statistik-Karten --}}
     <div class="row g-2 mb-3">
-        <div class="col-4">
+        <div class="col-3">
             <div class="card border-primary h-100">
                 <div class="card-body text-center py-2 py-md-3">
                     <h2 class="h3 h2-md fw-bold text-primary mb-0">{{ $stats['gesamt'] }}</h2>
@@ -88,15 +88,24 @@
                 </div>
             </div>
         </div>
-        <div class="col-4">
+        <div class="col-3">
             <div class="card border-warning h-100">
                 <div class="card-body text-center py-2 py-md-3">
                     <h2 class="h3 h2-md fw-bold text-warning mb-0">{{ $stats['offen'] }}</h2>
-                    <small class="text-muted">Offen</small>
+                    <small class="text-muted" style="font-size: 0.7rem;">Offen</small>
                 </div>
             </div>
         </div>
-        <div class="col-4">
+        <div class="col-3">
+            <div class="card border-info h-100">
+                <div class="card-body text-center py-2 py-md-3">
+                    <h2 class="h3 h2-md fw-bold text-info mb-0">{{ $stats['angekuendigt'] }}</h2>
+                    <small class="text-muted d-none d-sm-inline">Angekündigt</small>
+                    <small class="text-muted d-sm-none" style="font-size: 0.7rem;">Angek.</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-3">
             <div class="card border-success h-100">
                 <div class="card-body text-center py-2 py-md-3">
                     <h2 class="h3 h2-md fw-bold text-success mb-0">{{ $stats['erledigt'] }}</h2>
@@ -180,6 +189,7 @@
                             <select name="status" id="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                 <option value="" @selected($filterStatus == '')>Alle</option>
                                 <option value="offen" @selected($filterStatus == 'offen')>Offen</option>
+                                <option value="angekuendigt" @selected($filterStatus == 'angekuendigt')>Angekündigt</option>
                                 <option value="erledigt" @selected($filterStatus == 'erledigt')>Erledigt</option>
                             </select>
                         </div>
@@ -206,11 +216,16 @@
                 <i class="bi bi-building"></i>
                 {{ $gebaeude->total() }} Gebäude
             </h6>
-            @if($stats['offen'] > 0)
-                <span class="badge bg-warning text-dark">{{ $stats['offen'] }} offen</span>
-            @else
-                <span class="badge bg-success"><i class="bi bi-check"></i> Alle erledigt</span>
-            @endif
+            <div class="d-flex gap-1">
+                @if($stats['angekuendigt'] > 0)
+                    <span class="badge bg-info text-dark"><i class="bi bi-megaphone"></i> {{ $stats['angekuendigt'] }} angekündigt</span>
+                @endif
+                @if($stats['offen'] > 0)
+                    <span class="badge bg-warning text-dark">{{ $stats['offen'] }} offen</span>
+                @elseif($stats['angekuendigt'] == 0)
+                    <span class="badge bg-success"><i class="bi bi-check"></i> Alle erledigt</span>
+                @endif
+            </div>
         </div>
 
         @if($gebaeude->isEmpty())
@@ -295,7 +310,7 @@
                             <th>Bemerkung</th>
                             <th style="width: 100px;">Letzte</th>
                             <th style="width: 100px;">Nächste</th>
-                            <th style="width: 70px;" class="text-center">Status</th>
+                            <th style="width: 90px;" class="text-center">Status</th>
                             <th style="width: 70px;"></th>
                         </tr>
                     </thead>
@@ -308,7 +323,7 @@
                                 $smsNr = $handyClean ?: $telefonClean;
                                 $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                             @endphp
-                            <tr class="{{ $g->ist_erledigt ? 'table-success' : '' }}">
+                            <tr class="{{ $g->ist_erledigt ? 'table-success' : ($g->ist_angekuendigt ? 'table-info' : '') }}">
                                 <td class="text-center" onclick="event.stopPropagation()">
                                     <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
                                 </td>
@@ -331,11 +346,11 @@
                                         @endif
                                         @if($smsNr)
                                             <button type="button" class="btn btn-outline-secondary schnell-sms" 
-                                                    data-nummer="{{ $smsNr }}" title="SMS senden">
+                                                    data-id="{{ $g->id }}" data-nummer="{{ $smsNr }}" title="SMS senden">
                                                 <i class="bi bi-chat-dots"></i>
                                             </button>
                                             <button type="button" class="btn btn-outline-success schnell-whatsapp" 
-                                                    data-nummer="{{ ltrim($smsNr, '+') }}" title="WhatsApp senden">
+                                                    data-id="{{ $g->id }}" data-nummer="{{ ltrim($smsNr, '+') }}" title="WhatsApp senden">
                                                 <i class="bi bi-whatsapp"></i>
                                             </button>
                                         @endif
@@ -359,6 +374,12 @@
                                 <td class="text-center">
                                     @if($g->ist_erledigt)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+                                    @elseif($g->ist_angekuendigt)
+                                        <span class="badge bg-info text-dark"
+                                              title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
+                                            <i class="bi bi-megaphone"></i>
+                                            {{ $g->angekuendigt_fuer?->format('d.m.') ?? 'Angek.' }}
+                                        </span>
                                     @else
                                         <span class="badge bg-warning text-dark">Offen</span>
                                     @endif
@@ -386,6 +407,18 @@
                                                         <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                                     </button>
                                                 </li>
+                                                @unless($g->ist_erledigt)
+                                                <li>
+                                                    <button type="button" class="dropdown-item btn-angekuendigt"
+                                                            data-id="{{ $g->id }}" data-aktiv="{{ $g->ist_angekuendigt ? 1 : 0 }}">
+                                                        @if($g->ist_angekuendigt)
+                                                            <i class="bi bi-megaphone text-muted"></i> Ankündigung entfernen
+                                                        @else
+                                                            <i class="bi bi-megaphone text-info"></i> Als angekündigt markieren
+                                                        @endif
+                                                    </button>
+                                                </li>
+                                                @endunless
                                                 <li><hr class="dropdown-divider"></li>
                                                 <li>
                                                     <button type="button" class="dropdown-item text-danger btn-loeschen"
@@ -415,7 +448,7 @@
                         $smsNr = $handyClean ?: $telefonClean;
                         $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                     @endphp
-                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : '' }} p-2">
+                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : ($g->ist_angekuendigt ? 'bg-info bg-opacity-10' : '') }} p-2">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <div class="me-2 pt-1">
                                 <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
@@ -429,6 +462,12 @@
                             <div class="flex-shrink-0 ms-2">
                                 @if($g->ist_erledigt)
                                     <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+                                @elseif($g->ist_angekuendigt)
+                                    <span class="badge bg-info text-dark"
+                                          title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
+                                        <i class="bi bi-megaphone"></i>
+                                        {{ $g->angekuendigt_fuer?->format('d.m.') ?? 'Angek.' }}
+                                    </span>
                                 @else
                                     <span class="badge bg-warning text-dark">Offen</span>
                                 @endif
@@ -447,11 +486,11 @@
                             @endif
                             @if($smsNr)
                                 <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 schnell-sms"
-                                        data-nummer="{{ $smsNr }}">
+                                        data-id="{{ $g->id }}" data-nummer="{{ $smsNr }}">
                                     <i class="bi bi-chat-dots"></i> SMS
                                 </button>
                                 <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 schnell-whatsapp"
-                                        data-nummer="{{ ltrim($smsNr, '+') }}">
+                                        data-id="{{ $g->id }}" data-nummer="{{ ltrim($smsNr, '+') }}">
                                     <i class="bi bi-whatsapp"></i> WA
                                 </button>
                             @endif
@@ -483,6 +522,18 @@
                                             <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                         </button>
                                     </li>
+                                    @unless($g->ist_erledigt)
+                                    <li>
+                                        <button type="button" class="dropdown-item btn-angekuendigt"
+                                                data-id="{{ $g->id }}" data-aktiv="{{ $g->ist_angekuendigt ? 1 : 0 }}">
+                                            @if($g->ist_angekuendigt)
+                                                <i class="bi bi-megaphone text-muted"></i> Ankündigung entfernen
+                                            @else
+                                                <i class="bi bi-megaphone text-info"></i> Als angekündigt markieren
+                                            @endif
+                                        </button>
+                                    </li>
+                                    @endunless
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <button type="button" class="dropdown-item text-danger btn-loeschen"
@@ -950,7 +1001,43 @@ function getAktuelleNachricht() {
     return g ? getNachrichtFertig(JSON.parse(g)) : null;
 }
 
-// SMS
+// ========== Angekündigt ==========
+function getVorlageDatum() {
+    try {
+        const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        return v?.datum || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setAngekuendigt(id, aktiv, termin) {
+    return fetch('/reinigungsplanung/' + id + '/angekuendigt', {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ angekuendigt: aktiv ? 1 : 0, termin: termin || null }),
+        credentials: 'same-origin',
+        keepalive: true   // läuft weiter, auch wenn die SMS-App die Seite verlässt
+    }).then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+    });
+}
+
+// Menüpunkt: Als angekündigt markieren / entfernen
+document.querySelectorAll('.btn-angekuendigt').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const aktiv = this.dataset.aktiv !== '1';
+        setAngekuendigt(this.dataset.id, aktiv, aktiv ? getVorlageDatum() : null)
+            .then(() => window.location.reload())
+            .catch(err => alert('Fehler: ' + err.message));
+    });
+});
+
+// SMS (markiert automatisch als angekündigt)
 document.querySelectorAll('.schnell-sms').forEach(btn => {
     btn.addEventListener('click', function() {
         const nr = this.dataset.nummer;
@@ -960,13 +1047,17 @@ document.querySelectorAll('.schnell-sms').forEach(btn => {
             new bootstrap.Modal(document.getElementById('modalVorlage')).show();
             return;
         }
+
+        if (this.dataset.id) {
+            setAngekuendigt(this.dataset.id, true, getVorlageDatum()).catch(console.error);
+        }
         
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         window.location.href = `sms:${nr}${isIOS ? '&' : '?'}body=${encodeURIComponent(msg)}`;
     });
 });
 
-// WhatsApp
+// WhatsApp (markiert automatisch als angekündigt)
 document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
     btn.addEventListener('click', function() {
         const nr = this.dataset.nummer;
@@ -978,6 +1069,12 @@ document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
         }
         
         window.open(`https://wa.me/${nr}?text=${encodeURIComponent(msg)}`, '_blank');
+
+        if (this.dataset.id) {
+            setAngekuendigt(this.dataset.id, true, getVorlageDatum())
+                .then(() => window.location.reload())
+                .catch(console.error);
+        }
     });
 });
 
