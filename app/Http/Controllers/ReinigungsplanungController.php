@@ -172,7 +172,9 @@ class ReinigungsplanungController extends Controller
         }
         
         $gesamtCount       = $statsBaseQuery->count();
-        $offenCount        = (clone $statsBaseQuery)->where('faellig', true)->whereNull('angekuendigt_am')->count();
+        $offenCount        = $this->mitMindestensEinemMonat(
+                                 (clone $statsBaseQuery)->where('faellig', true)->whereNull('angekuendigt_am')
+                             )->count();
         $erledigtCount     = (clone $statsBaseQuery)->where('faellig', false)->count();
         $angekuendigtCount = (clone $statsBaseQuery)->where('faellig', true)->whereNotNull('angekuendigt_am')->count();
         
@@ -502,9 +504,21 @@ class ReinigungsplanungController extends Controller
     }
 
     /**
+     * ⭐ Nur Gebäude, bei denen mindestens ein Reinigungsmonat (m01–m12) gesetzt ist.
+     */
+    protected function mitMindestensEinemMonat($query)
+    {
+        return $query->where(function ($q) {
+            for ($i = 1; $i <= 12; $i++) {
+                $q->orWhere('m' . str_pad((string) $i, 2, '0', STR_PAD_LEFT), true);
+            }
+        });
+    }
+
+    /**
      * ⭐ Status-Filter (offen / angekündigt / erledigt)
      *
-     * - offen:        fällig und NICHT angekündigt
+     * - offen:        fällig, NICHT angekündigt und mind. ein Monat gesetzt
      * - angekuendigt: fällig und angekündigt
      * - erledigt:     nicht fällig
      */
@@ -512,6 +526,7 @@ class ReinigungsplanungController extends Controller
     {
         if ($filterStatus === 'offen') {
             $query->where('faellig', true)->whereNull('angekuendigt_am');
+            $this->mitMindestensEinemMonat($query);   // ⭐ nur eingeplante Anlagen
         } elseif ($filterStatus === 'angekuendigt') {
             $query->where('faellig', true)->whereNotNull('angekuendigt_am');
         } elseif ($filterStatus === 'erledigt') {
