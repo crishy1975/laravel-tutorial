@@ -1350,8 +1350,18 @@ var bulkBar = document.getElementById('bulkBar');
 var bulkCount = document.getElementById('bulkCount');
 var selectAllDesktop = document.getElementById('selectAllDesktop');
 
+// Jedes Gebäude hat 2 Checkboxen (Desktop-Tabelle + Mobile-Liste)
+// → immer nur eindeutige IDs zählen
 function getSelectedIds() {
-    return Array.from(document.querySelectorAll('.bulk-check:checked')).map(c => c.value);
+    return [...new Set(
+        Array.from(document.querySelectorAll('.bulk-check:checked')).map(c => c.value)
+    )];
+}
+
+function getAllIds() {
+    return [...new Set(
+        Array.from(document.querySelectorAll('.bulk-check')).map(c => c.value)
+    )];
 }
 
 function updateBulkBar() {
@@ -1364,14 +1374,21 @@ function updateBulkBar() {
             bulkBar.classList.add('d-none');
         }
     }
-    var allChecks = document.querySelectorAll('.bulk-check');
+    var allCount = getAllIds().length;
     if (selectAllDesktop) {
-        selectAllDesktop.checked = allChecks.length > 0 && count === allChecks.length;
+        selectAllDesktop.checked = allCount > 0 && count === allCount;
+        selectAllDesktop.indeterminate = count > 0 && count < allCount;
     }
 }
 
 document.querySelectorAll('.bulk-check').forEach(function(c) {
-    c.addEventListener('change', updateBulkBar);
+    c.addEventListener('change', function() {
+        // Zwilling (Desktop ↔ Mobile) mitziehen
+        document.querySelectorAll('.bulk-check[value="' + this.value + '"]').forEach(function(t) {
+            t.checked = c.checked;
+        });
+        updateBulkBar();
+    });
 });
 
 if (selectAllDesktop) {
