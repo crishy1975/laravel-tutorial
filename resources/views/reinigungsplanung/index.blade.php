@@ -97,9 +97,9 @@
             </div>
         </div>
         <div class="col-3">
-            <div class="card border-info h-100">
+            <div class="card border-orange h-100">
                 <div class="card-body text-center py-2 py-md-3">
-                    <h2 class="h3 h2-md fw-bold text-info mb-0">{{ $stats['angekuendigt'] }}</h2>
+                    <h2 class="h3 h2-md fw-bold text-orange mb-0">{{ $stats['angekuendigt'] }}</h2>
                     <small class="text-muted d-none d-sm-inline">Angekündigt</small>
                     <small class="text-muted d-sm-none" style="font-size: 0.7rem;">Angek.</small>
                 </div>
@@ -218,7 +218,7 @@
             </h6>
             <div class="d-flex gap-1">
                 @if($stats['angekuendigt'] > 0)
-                    <span class="badge bg-info text-dark"><i class="bi bi-megaphone"></i> {{ $stats['angekuendigt'] }} angekündigt</span>
+                    <span class="badge bg-orange"><i class="bi bi-megaphone"></i> {{ $stats['angekuendigt'] }} angekündigt</span>
                 @endif
                 @if($stats['offen'] > 0)
                     <span class="badge bg-warning text-dark">{{ $stats['offen'] }} offen</span>
@@ -323,7 +323,7 @@
                                 $smsNr = $handyClean ?: $telefonClean;
                                 $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                             @endphp
-                            <tr class="{{ $g->ist_erledigt ? 'table-success' : ($g->ist_angekuendigt ? 'table-info' : '') }}">
+                            <tr class="{{ $g->ist_erledigt ? 'table-success' : ($g->ist_angekuendigt ? 'table-angekuendigt' : '') }}">
                                 <td class="text-center" onclick="event.stopPropagation()">
                                     <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
                                 </td>
@@ -375,7 +375,7 @@
                                     @if($g->ist_erledigt)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                     @elseif($g->ist_angekuendigt)
-                                        <span class="badge bg-info text-dark"
+                                        <span class="badge bg-orange"
                                               title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
                                             <i class="bi bi-megaphone"></i>
                                             {{ $g->angekuendigt_fuer?->format('d.m.') ?? 'Angek.' }}
@@ -414,7 +414,7 @@
                                                         @if($g->ist_angekuendigt)
                                                             <i class="bi bi-megaphone text-muted"></i> Ankündigung entfernen
                                                         @else
-                                                            <i class="bi bi-megaphone text-info"></i> Als angekündigt markieren
+                                                            <i class="bi bi-megaphone text-orange"></i> Als angekündigt markieren
                                                         @endif
                                                     </button>
                                                 </li>
@@ -448,7 +448,7 @@
                         $smsNr = $handyClean ?: $telefonClean;
                         $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                     @endphp
-                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : ($g->ist_angekuendigt ? 'bg-info bg-opacity-10' : '') }} p-2">
+                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : ($g->ist_angekuendigt ? 'bg-angekuendigt-light' : '') }} p-2">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <div class="me-2 pt-1">
                                 <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
@@ -463,7 +463,7 @@
                                 @if($g->ist_erledigt)
                                     <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
                                 @elseif($g->ist_angekuendigt)
-                                    <span class="badge bg-info text-dark"
+                                    <span class="badge bg-orange"
                                           title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
                                         <i class="bi bi-megaphone"></i>
                                         {{ $g->angekuendigt_fuer?->format('d.m.') ?? 'Angek.' }}
@@ -529,7 +529,7 @@
                                             @if($g->ist_angekuendigt)
                                                 <i class="bi bi-megaphone text-muted"></i> Ankündigung entfernen
                                             @else
-                                                <i class="bi bi-megaphone text-info"></i> Als angekündigt markieren
+                                                <i class="bi bi-megaphone text-orange"></i> Als angekündigt markieren
                                             @endif
                                         </button>
                                     </li>
@@ -818,6 +818,25 @@
         .card-body { padding: 0.5rem; }
     }
     @media print { .no-print, .btn, button { display: none !important; } }
+
+    /* ⭐ Status "Angekündigt" = Orange */
+    .table-angekuendigt {
+        --bs-table-color: #000;
+        --bs-table-bg: #ffe0c2;
+        --bs-table-border-color: #f0c9a3;
+        --bs-table-striped-bg: #fbd7b4;
+        --bs-table-striped-color: #000;
+        --bs-table-active-bg: #f5cba3;
+        --bs-table-active-color: #000;
+        --bs-table-hover-bg: #f8d0a8;
+        --bs-table-hover-color: #000;
+        color: var(--bs-table-color);
+        border-color: var(--bs-table-border-color);
+    }
+    .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
+    .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
+    .text-orange   { color: #fd7e14 !important; }
+    .border-orange { border-color: #fd7e14 !important; }
 </style>
 @endpush
 
