@@ -506,6 +506,7 @@
                                                             data-name="{{ $g->gebaeude_name }}"
                                                             data-bemerkung="{{ $g->bemerkung }}"
                                                 data-intern="{{ $g->intern }}"
+                                                data-erledigt="{{ $g->ist_erledigt ? 1 : 0 }}"
                                                             @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                                         <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                                     </button>
@@ -639,6 +640,7 @@
                                                 data-name="{{ $g->gebaeude_name }}"
                                                 data-bemerkung="{{ $g->bemerkung }}"
                                                 data-intern="{{ $g->intern }}"
+                                                data-erledigt="{{ $g->ist_erledigt ? 1 : 0 }}"
                                                 @for($mi = 1; $mi <= 12; $mi++) data-m{{ str_pad($mi, 2, '0', STR_PAD_LEFT) }}="{{ $g->{'m'.str_pad($mi, 2, '0', STR_PAD_LEFT)} ?? 0 }}" @endfor>
                                             <i class="bi bi-pencil-square text-primary"></i> Bearbeiten
                                         </button>
@@ -866,6 +868,20 @@
                     <strong id="monateCodex"></strong> – <span id="monateName"></span>
                 </div>
                 <input type="hidden" id="monateGebaeudeId">
+
+                {{-- ⭐ Status: nur sichtbar, wenn Gebäude erledigt ist --}}
+                <div id="monateStatusBox" class="d-none mb-3 p-2 rounded border border-success bg-success bg-opacity-10">
+                    <div class="small mb-1">
+                        <i class="bi bi-check-circle-fill text-success"></i>
+                        Status: <strong>Erledigt</strong>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="monateAufOffen">
+                        <label class="form-check-label small" for="monateAufOffen">
+                            Wieder auf <strong>offen</strong> setzen
+                        </label>
+                    </div>
+                </div>
 
                 <label for="monateIntern" class="form-label small fw-bold mb-1">Intern</label>
                 <input type="text" id="monateIntern" class="form-control form-control-sm mb-3" maxlength="20" placeholder="z.B. 3">
@@ -1247,6 +1263,10 @@ document.querySelectorAll('.btn-monate').forEach(btn => {
         document.getElementById('monateBemerkung').value = this.dataset.bemerkung || '';
         document.getElementById('monateIntern').value = this.dataset.intern || '';
 
+        // Status-Box nur bei erledigten Gebäuden zeigen
+        document.getElementById('monateAufOffen').checked = false;
+        document.getElementById('monateStatusBox').classList.toggle('d-none', this.dataset.erledigt !== '1');
+
         for (var mi = 1; mi <= 12; mi++) {
             var key = 'm' + String(mi).padStart(2, '0');
             var check = document.getElementById('check_' + key);
@@ -1271,6 +1291,11 @@ function monateSpeichern() {
         bemerkung: document.getElementById('monateBemerkung').value,
         intern: document.getElementById('monateIntern').value.trim() || null
     };
+
+    // ⭐ Auf "offen" zurücksetzen
+    if (document.getElementById('monateAufOffen').checked) {
+        data.faellig = 1;
+    }
 
     document.querySelectorAll('.monat-check').forEach(function(c) {
         data[c.dataset.field] = c.checked ? 1 : 0;
