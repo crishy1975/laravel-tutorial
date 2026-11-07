@@ -31,8 +31,8 @@
     @error('gebaeude_name') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  {{-- Strasse + Hausnummer --}}
-  <div class="col-8 col-md-9">
+  {{-- Strasse + Hausnummer + Intern --}}
+  <div class="col-12 col-md-6">
     <label for="strasse" class="form-label small mb-1">
       <i class="bi bi-signpost-2 d-none d-sm-inline"></i> Strasse
     </label>
@@ -42,12 +42,24 @@
     @error('strasse') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
-  <div class="col-4 col-md-3">
+  <div class="col-6 col-md-3">
     <label for="hausnummer" class="form-label small mb-1">Nr.</label>
     <input type="text" id="hausnummer" name="hausnummer"
       class="form-control @error('hausnummer') is-invalid @enderror"
       value="{{ old('hausnummer', $gebaeude->hausnummer ?? '') }}">
     @error('hausnummer') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
+
+  {{-- ⭐ NEU: Interne Nr. (Wohnung / Interno) --}}
+  <div class="col-6 col-md-3">
+    <label for="intern" class="form-label small mb-1">
+      <i class="bi bi-door-closed d-none d-sm-inline"></i> Intern
+    </label>
+    <input type="text" id="intern" name="intern"
+      class="form-control @error('intern') is-invalid @enderror"
+      value="{{ old('intern', $gebaeude->intern ?? '') }}"
+      placeholder="z.B. 3" maxlength="20">
+    @error('intern') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
   {{-- Land + PLZ + Ort --}}
