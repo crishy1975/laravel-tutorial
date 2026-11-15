@@ -334,7 +334,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/importieren', [UnternehmensprofilController::class, 'importieren'])->name('importieren');
     });
 
-
+    // ==================== reinigungsplanung ====================
     Route::prefix('reinigungsplanung')->name('reinigungsplanung.')->group(function () {
         Route::get('/', [ReinigungsplanungController::class, 'index'])->name('index');
         Route::post('/{gebaeude}/erledigt', [ReinigungsplanungController::class, 'markErledigt'])->name('erledigt');
@@ -342,6 +342,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::patch('/{gebaeude}/intern', [ReinigungsplanungController::class, 'setIntern'])->name('intern');
         Route::post('/tour-neu', [ReinigungsplanungController::class, 'tourAnlegen'])->name('tourNeu');
         Route::get('/ids', [ReinigungsplanungController::class, 'ids'])->name('ids');
+
+        Route::post('/nicht-erreicht', [ReinigungsplanungController::class, 'setNichtErreicht'])->name('nichtErreicht');
+        Route::get('/meldungen', [GemeindeMeldungController::class, 'index'])->name('meldungen');
+        Route::post('/meldungen/senden', [GemeindeMeldungController::class, 'senden'])->name('meldungen.senden');
+        Route::get('/meldungen/{meldung}', [GemeindeMeldungController::class, 'show'])->name('meldungen.show');
 
 
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
