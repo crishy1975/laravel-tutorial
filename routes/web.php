@@ -344,9 +344,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/ids', [ReinigungsplanungController::class, 'ids'])->name('ids');
 
         Route::post('/nicht-erreicht', [ReinigungsplanungController::class, 'setNichtErreicht'])->name('nichtErreicht');
-        Route::get('/meldungen', [GemeindeMeldungController::class, 'index'])->name('meldungen');
-        Route::post('/meldungen/senden', [GemeindeMeldungController::class, 'senden'])->name('meldungen.senden');
-        Route::get('/meldungen/{meldung}', [GemeindeMeldungController::class, 'show'])->name('meldungen.show');
+        Route::get('/meldungen', [\App\Http\Controllers\GemeindeMeldungController::class, 'index'])->name('meldungen');
+        Route::post('/meldungen/senden', [\App\Http\Controllers\GemeindeMeldungController::class, 'senden'])->name('meldungen.senden');
+        Route::get('/meldungen/{meldung}', [\App\Http\Controllers\GemeindeMeldungController::class, 'show'])->name('meldungen.show');
 
 
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
