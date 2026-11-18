@@ -119,12 +119,12 @@
                                 <div class="col-12 col-md-5">
                                     <label class="form-label small fw-bold mb-1">
                                         Empfänger
-                                        @if($gemeinde->pec) <span class="badge bg-success">PEC</span>
-                                        @elseif($gemeinde->email) <span class="badge bg-secondary">E-Mail</span>
-                                        @endif
+                                        <span class="badge versand-badge"></span>
                                     </label>
-                                    <input type="email" name="empfaenger" class="form-control form-control-sm"
+                                    <input type="email" name="empfaenger" class="form-control form-control-sm empfaenger-input"
+                                           data-gemeinde-pec="{{ $gemeinde->pec }}"
                                            value="{{ old('empfaenger', $gr['empfaenger']) }}" placeholder="pec@gemeinde.it">
+                                    <small class="text-muted versand-hinweis"></small>
                                 </div>
                                 <div class="col-12 col-md-7">
                                     <label class="form-label small fw-bold mb-1">Betreff</label>
@@ -190,8 +190,10 @@
                                 <td>{{ $m->empfaenger ?: '–' }}</td>
                                 <td class="text-center">{{ count($m->gebaeude_ids ?? []) }}</td>
                                 <td>
-                                    @if($m->versandart === 'mail')
-                                        <span class="badge bg-success">gesendet</span>
+                                    @if($m->versandart === 'pec')
+                                        <span class="badge bg-success">PEC</span>
+                                    @elseif($m->versandart === 'mail')
+                                        <span class="badge bg-primary">E-Mail</span>
                                     @else
                                         <span class="badge bg-secondary">manuell</span>
                                     @endif
@@ -222,12 +224,48 @@ document.querySelectorAll('.meldung-alle').forEach(a => {
     });
 });
 
+// ⭐ Versandweg anzeigen: PEC-Empfänger → über PEC, sonst normale E-Mail
+function istPec(adresse, gemeindePec) {
+    adresse = (adresse || '').trim().toLowerCase();
+    if (!adresse) return false;
+    if (gemeindePec && gemeindePec.trim().toLowerCase() === adresse) return true;
+    const domain = adresse.split('@')[1] || '';
+    return /(^|\.)(pec|legalmail|postacert|cert|cgn|pecsicura|registerpec)\./.test(domain);
+}
+
+function versandAnzeigen(input) {
+    const box    = input.closest('.col-12');
+    const badge  = box.querySelector('.versand-badge');
+    const hinweis = box.querySelector('.versand-hinweis');
+    if (!input.value.trim()) {
+        badge.className = 'badge versand-badge d-none';
+        hinweis.textContent = '';
+        return;
+    }
+    if (istPec(input.value, input.dataset.gemeindePec)) {
+        badge.className = 'badge versand-badge bg-success';
+        badge.textContent = 'PEC';
+        hinweis.textContent = 'Versand über resch@pec.it';
+    } else {
+        badge.className = 'badge versand-badge bg-primary';
+        badge.textContent = 'E-Mail';
+        hinweis.textContent = 'Versand über die normale Firmen-Mail (keine PEC)';
+    }
+}
+
+document.querySelectorAll('.empfaenger-input').forEach(inp => {
+    versandAnzeigen(inp);
+    inp.addEventListener('input', () => versandAnzeigen(inp));
+});
+
 function meldungBestaetigen(form) {
     const anzahl = form.querySelectorAll('input[name="gebaeude_ids[]"]:checked').length;
     const empf = form.querySelector('input[name="empfaenger"]').value.trim();
     if (!anzahl) { alert('Bitte mindestens ein Gebäude auswählen.'); return false; }
     if (!empf)   { alert('Bitte einen Empfänger eintragen.'); return false; }
-    return confirm('Meldung mit ' + anzahl + ' Gebäude(n) jetzt an ' + empf + ' senden?');
+    const inp = form.querySelector('.empfaenger-input');
+    const weg = istPec(empf, inp.dataset.gemeindePec) ? 'per PEC' : 'per normaler E-Mail';
+    return confirm('Meldung mit ' + anzahl + ' Gebäude(n) jetzt ' + weg + ' an ' + empf + ' senden?');
 }
 </script>
 @endsection
