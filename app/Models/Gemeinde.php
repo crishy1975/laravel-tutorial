@@ -1,4 +1,7 @@
 <?php
+// ═══════════════════════════════════════════════════════════════
+// ZIEL: app/Models/Gemeinde.php  (komplett ersetzen)
+// ═══════════════════════════════════════════════════════════════
 
 namespace App\Models;
 
@@ -25,30 +28,56 @@ class Gemeinde extends Model
         'aktiv' => 'boolean',
     ];
 
-    public const STANDARD_BETREFF = 'Nicht erreichte Kunden – Kaminkehrung / Utenti non raggiungibili – pulizia camini';
+    public const STANDARD_BETREFF = 'Meldung gemäß Art. 42 Abs. 5 Buchst. c) DLH Nr. 27/2009 – Überprüfung und Reinigung von Feuerungsanlagen nicht möglich / Segnalazione ai sensi dell\'art. 42, comma 5, lett. c) DPP n. 27/2009 – controllo e pulizia impianti di combustione non eseguiti';
 
     public const STANDARD_TEXT = <<<'TXT'
-Sehr geehrter Herr Bürgermeister,
+An den Bürgermeister / die Bürgermeisterin der Gemeinde {GEMEINDE}
 
-wir teilen Ihnen mit, dass wir in der Gemeinde {GEMEINDE} folgende {ANZAHL} Kunden trotz Ankündigung für die vorgeschriebene Kaminkehrung nicht erreichen konnten:
+Sehr geehrte Damen und Herren,
+
+im Sinne der Handwerksordnung (Landesgesetz vom 25. Februar 2008, Nr. 1)
+und der Durchführungsverordnung (Dekret des Landeshauptmanns vom 19. Mai 2009,
+Nr. 27, Art. 42 Abs. 5 Buchst. c) melden wir Ihnen folgende {ANZAHL} Benützer
+von Feuerungsanlagen, bei denen die vorgeschriebene Überprüfung und Reinigung
+nicht durchgeführt werden konnte.
+
+Die Termine wurden gemäß Art. 43 Abs. 1 der genannten Verordnung
+ordnungsgemäß angekündigt. Die Benützer haben die Überprüfung und Reinigung
+verweigert bzw. wurden trotz mehrfacher Versuche nicht angetroffen, ohne
+einen neuen Termin zu vereinbaren.
 
 {LISTE}
 
-Wir bitten um Kenntnisnahme.
+Wir ersuchen um Kenntnisnahme und um Veranlassung der erforderlichen
+Maßnahmen. Für Rückfragen stehen wir gerne zur Verfügung.
 
 Mit freundlichen Grüßen
-Resch GmbH
+Christian Resch – Resch GmbH
 
 ------------------------------------------------------------
 
-Egregio Signor Sindaco,
+Al Sindaco / Alla Sindaca del Comune di {GEMEINDE}
 
-con la presente comunichiamo che nel Comune di {GEMEINDE}, nonostante il preavviso, non è stato possibile raggiungere i seguenti {ANZAHL} utenti per la pulizia obbligatoria dei camini:
+Gentili Signore e Signori,
+
+ai sensi dell'Ordinamento dell'artigianato (legge provinciale 25 febbraio
+2008, n. 1) e del relativo regolamento di esecuzione (decreto del Presidente
+della Provincia 19 maggio 2009, n. 27, art. 42, comma 5, lett. c)
+segnaliamo i seguenti {ANZAHL} utenti di impianti di combustione presso i
+quali non è stato possibile eseguire il controllo e la pulizia prescritti.
+
+Gli interventi sono stati regolarmente preavvisati ai sensi dell'art. 43,
+comma 1, del citato regolamento. Gli utenti hanno rifiutato il controllo e
+la pulizia ovvero, nonostante ripetuti tentativi, non sono stati reperiti e
+non hanno concordato un nuovo appuntamento.
 
 {LISTE}
 
+Chiediamo di prenderne atto e di disporre i provvedimenti necessari.
+Restiamo a disposizione per eventuali chiarimenti.
+
 Distinti saluti
-Resch S.r.l.
+Christian Resch – Resch S.r.l.
 
 Galvanistr. 6 / via Galvani 6 – 39100 Bozen/Bolzano
 info@resch.bz – resch@pec.it
