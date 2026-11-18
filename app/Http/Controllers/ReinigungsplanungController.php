@@ -151,16 +151,21 @@ class ReinigungsplanungController extends Controller
 
         $query = Gebaeude::whereIn('id', $data['ids']);
 
+        // Jedes Gebäude einzeln und "atomar" ändern: Nur wer die Änderung
+        // tatsächlich durchführt, schreibt ins Protokoll (verhindert doppelte
+        // Einträge bei Doppelklick / gleichzeitigen Anfragen).
         if ($data['aktiv']) {
-            // Nur Gebäude, die noch nicht als "nicht erreicht" markiert sind
-            $betroffen = (clone $query)->whereNull('nicht_erreicht_am')->get();
-            Gebaeude::whereIn('id', $betroffen->pluck('id'))->update(['nicht_erreicht_am' => now()]);
+            $betroffen = (clone $query)->whereNull('nicht_erreicht_am')->get()
+                ->filter(fn ($g) => Gebaeude::whereKey($g->id)
+                    ->whereNull('nicht_erreicht_am')
+                    ->update(['nicht_erreicht_am' => now()]) === 1);
         } else {
-            // Nur Gebäude, bei denen wirklich etwas entfernt wird
             $betroffen = (clone $query)->where(function ($q) {
                 $q->whereNotNull('nicht_erreicht_am')->orWhereNotNull('gemeldet_am');
-            })->get();
-            Gebaeude::whereIn('id', $betroffen->pluck('id'))->update(['nicht_erreicht_am' => null, 'gemeldet_am' => null]);
+            })->get()
+                ->filter(fn ($g) => Gebaeude::whereKey($g->id)
+                    ->where(fn ($q) => $q->whereNotNull('nicht_erreicht_am')->orWhereNotNull('gemeldet_am'))
+                    ->update(['nicht_erreicht_am' => null, 'gemeldet_am' => null]) === 1);
         }
 
         // ⭐ Vermerk im Protokoll
