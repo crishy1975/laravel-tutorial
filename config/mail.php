@@ -49,6 +49,20 @@ return [
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        // ⭐ PEC (Aruba) – für Meldungen an Gemeinden
+        //    Port 587 → scheme "smtp" (STARTTLS)
+        //    Port 465 → scheme "smtps" (SSL)
+        'pec' => [
+            'transport' => 'smtp',
+            'scheme' => env('PEC_SCHEME', 'smtp'),
+            'host' => env('PEC_HOST', 'smtps.pec.aruba.it'),
+            'port' => env('PEC_PORT', 587),
+            'username' => env('PEC_USERNAME'),
+            'password' => env('PEC_PASSWORD'),
+            'timeout' => 30,
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],
@@ -113,6 +127,25 @@ return [
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', 'Example'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | ⭐ Meldungen an Gemeinden (nicht erreichte Kunden)
+    |--------------------------------------------------------------------------
+    |
+    | meldung_mailer: welcher Mailer für Meldungen verwendet wird
+    | meldung_kopie:  optionale BCC-Adresse (leer = keine Kopie)
+    | pec_from:       Absender – Aruba akzeptiert nur die eigene PEC-Adresse
+    |
+    */
+
+    'meldung_mailer' => env('MELDUNG_MAILER', 'pec'),
+    'meldung_kopie' => env('MELDUNG_KOPIE'),
+
+    'pec_from' => [
+        'address' => env('PEC_FROM_ADDRESS', 'resch@pec.it'),
+        'name' => env('PEC_FROM_NAME', 'Resch GmbH'),
     ],
 
 ];
