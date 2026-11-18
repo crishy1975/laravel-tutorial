@@ -120,8 +120,8 @@ class GemeindeMeldungController extends Controller
         }
 
         // 2) Protokoll + Status setzen
-        DB::transaction(function () use ($data, $senden, $istPec, $request) {
-            GemeindeMeldung::create([
+        $meldung = DB::transaction(function () use ($data, $senden, $istPec, $request) {
+            $meldung = GemeindeMeldung::create([
                 'gemeinde_id'  => $data['gemeinde_id'] ?? null,
                 'empfaenger'   => $data['empfaenger'] ?? null,
                 'betreff'      => $data['betreff'],
@@ -133,7 +133,12 @@ class GemeindeMeldungController extends Controller
             ]);
 
             Gebaeude::whereIn('id', $data['gebaeude_ids'])->update(['gemeldet_am' => now()]);
+
+            return $meldung;
         });
+
+        // 3) ⭐ Vermerk im Protokoll jedes Gebäudes
+        $this->protokollVermerk($meldung, $gemeinde, $senden, $istPec);
 
         $anzahl = count($data['gebaeude_ids']);
 
@@ -150,6 +155,46 @@ class GemeindeMeldungController extends Controller
     public function show(GemeindeMeldung $meldung)
     {
         return response($meldung->text, 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
+    /**
+     * ⭐ Vermerk "an Gemeinde gemeldet" im Protokoll (Aktivitäten) jedes Gebäudes.
+     *
+     * Nutzt dieselbe Notiz-Funktion wie der "Notiz"-Button.
+     * Ein Fehler hier bricht die Meldung nicht ab, er wird nur geloggt.
+     */
+    protected function protokollVermerk(GemeindeMeldung $meldung, ?Gemeinde $gemeinde, bool $senden, bool $istPec): void
+    {
+        $gemeindeName = $gemeinde?->name ?? 'unbekannt';
+
+        $weg = $senden
+            ? ($istPec ? 'per PEC' : 'per E-Mail') . ' an ' . $meldung->empfaenger
+            : 'ohne Versand (manuell als gemeldet markiert)';
+
+        $gebaeude = Gebaeude::whereIn('id', $meldung->gebaeude_ids ?? [])->get();
+
+        foreach ($gebaeude as $g) {
+            $text = "An Gemeinde {$gemeindeName} gemeldet – {$weg} (Meldung Nr. {$meldung->id}).\n"
+                  . "Grund: Überprüfung und Reinigung verweigert bzw. trotz mehrfacher Versuche nicht angetroffen "
+                  . "(Art. 42 Abs. 5 Buchst. c DLH Nr. 27/2009).";
+
+            if ($g->angekuendigt_fuer) {
+                $text .= "\nAngekündigt für: " . $g->angekuendigt_fuer->format('d.m.Y');
+            }
+            if ($g->nicht_erreicht_am) {
+                $text .= "\nNicht erreicht seit: " . $g->nicht_erreicht_am->format('d.m.Y');
+            }
+
+            try {
+                $g->notizHinzufuegen($text);
+            } catch (Throwable $e) {
+                Log::warning('Gemeinde-Meldung: Protokoll-Vermerk fehlgeschlagen', [
+                    'gebaeude_id' => $g->id,
+                    'meldung_id'  => $meldung->id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
