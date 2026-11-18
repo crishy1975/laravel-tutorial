@@ -80,7 +80,7 @@
                             <td class="text-center">{!! $gm->aktiv ? '<i class="bi bi-check-lg text-success"></i>' : '–' !!}</td>
                             <td class="text-end text-nowrap">
                                 <button type="button" class="btn btn-outline-primary btn-sm btn-gemeinde-edit"
-                                        data-gemeinde='@json($gm->only(['id','name','aliase','pec','email','betreff','text','aktiv']))'>
+                                        data-gemeinde="{{ json_encode($gm->only(['id', 'name', 'aliase', 'pec', 'email', 'betreff', 'text', 'aktiv'])) }}">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <form method="POST" action="{{ route('gemeinden.destroy', $gm) }}" class="d-inline"
