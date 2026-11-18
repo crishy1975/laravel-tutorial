@@ -1,5 +1,7 @@
 <?php
-// app/Http/Controllers/GemeindeMeldungController.php
+// ═══════════════════════════════════════════════════════════════
+// ZIEL: app/Http/Controllers/GemeindeMeldungController.php  (komplett ersetzen)
+// ═══════════════════════════════════════════════════════════════
 // Meldung nicht erreichter Kunden an die Gemeinde (Bürgermeister)
 
 namespace App\Http\Controllers;
@@ -81,7 +83,15 @@ class GemeindeMeldungController extends Controller
         if ($senden) {
             try {
                 $this->mailer()->raw($data['text'], function ($m) use ($data) {
-                    $m->to($data['empfaenger'])->subject($data['betreff']);
+                    // Aruba PEC akzeptiert nur die eigene Adresse als Absender
+                    // → From, Sender und Return-Path (Envelope) fest setzen
+                    $pecAbsender = config('mail.pec_from.address', 'resch@pec.it');
+
+                    $m->from($pecAbsender, config('mail.pec_from.name', 'Resch GmbH'))
+                      ->sender($pecAbsender)
+                      ->returnPath($pecAbsender)
+                      ->to($data['empfaenger'])
+                      ->subject($data['betreff']);
 
                     if ($kopie = config('mail.meldung_kopie')) {
                         $m->bcc($kopie);
