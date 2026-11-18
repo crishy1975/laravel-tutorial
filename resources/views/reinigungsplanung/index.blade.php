@@ -1284,7 +1284,7 @@ function getVorlageDatum() {
     }
 }
 
-function setAngekuendigt(id, aktiv, termin) {
+function setAngekuendigt(id, aktiv, termin, quelle) {
     return fetch('/reinigungsplanung/' + id + '/angekuendigt', {
         method: 'PATCH',
         headers: {
@@ -1292,7 +1292,7 @@ function setAngekuendigt(id, aktiv, termin) {
             'X-CSRF-TOKEN': CSRF_TOKEN,
             'Accept': 'application/json'
         },
-        body: JSON.stringify({ angekuendigt: aktiv ? 1 : 0, termin: termin || null }),
+        body: JSON.stringify({ angekuendigt: aktiv ? 1 : 0, termin: termin || null, quelle: quelle || 'manuell' }),
         credentials: 'same-origin',
         keepalive: true   // läuft weiter, auch wenn die SMS-App die Seite verlässt
     }).then(r => {
@@ -1304,7 +1304,7 @@ function setAngekuendigt(id, aktiv, termin) {
 document.querySelectorAll('.btn-angekuendigt').forEach(btn => {
     btn.addEventListener('click', function() {
         const aktiv = this.dataset.aktiv !== '1';
-        setAngekuendigt(this.dataset.id, aktiv, aktiv ? getVorlageDatum() : null)
+        setAngekuendigt(this.dataset.id, aktiv, aktiv ? getVorlageDatum() : null, 'manuell')
             .then(() => window.location.reload())
             .catch(err => alert('Fehler: ' + err.message));
     });
@@ -1322,7 +1322,7 @@ document.querySelectorAll('.schnell-sms').forEach(btn => {
         }
 
         if (this.dataset.id) {
-            setAngekuendigt(this.dataset.id, true, getVorlageDatum()).catch(console.error);
+            setAngekuendigt(this.dataset.id, true, getVorlageDatum(), 'sms').catch(console.error);
         }
         
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -1344,7 +1344,7 @@ document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
         window.open(`https://wa.me/${nr}?text=${encodeURIComponent(msg)}`, '_blank');
 
         if (this.dataset.id) {
-            setAngekuendigt(this.dataset.id, true, getVorlageDatum())
+            setAngekuendigt(this.dataset.id, true, getVorlageDatum(), 'whatsapp')
                 .then(() => window.location.reload())
                 .catch(console.error);
         }

@@ -1,7 +1,6 @@
 <?php
 // ═══════════════════════════════════════════════════════════════════════════════
-// DATEI: app/Http/Controllers/ReinigungsplanungController.php
-// AKTION: Komplette Datei ersetzen
+// ZIEL: app/Http/Controllers/ReinigungsplanungController.php  (komplett ersetzen)
 //
 // ⭐ FaelligkeitsService wird NICHT bei index() aufgerufen –
 //    faellig / datum_faelligkeit / letzter_termin kommen aus der DB.
@@ -153,13 +152,33 @@ class ReinigungsplanungController extends Controller
         $query = Gebaeude::whereIn('id', $data['ids']);
 
         if ($data['aktiv']) {
-            // Nur Gebäude setzen, die noch nicht als "nicht erreicht" markiert sind
-            $anzahl = (clone $query)->whereNull('nicht_erreicht_am')->update(['nicht_erreicht_am' => now()]);
+            // Nur Gebäude, die noch nicht als "nicht erreicht" markiert sind
+            $betroffen = (clone $query)->whereNull('nicht_erreicht_am')->get();
+            Gebaeude::whereIn('id', $betroffen->pluck('id'))->update(['nicht_erreicht_am' => now()]);
         } else {
-            $anzahl = $query->update(['nicht_erreicht_am' => null, 'gemeldet_am' => null]);
+            // Nur Gebäude, bei denen wirklich etwas entfernt wird
+            $betroffen = (clone $query)->where(function ($q) {
+                $q->whereNotNull('nicht_erreicht_am')->orWhereNotNull('gemeldet_am');
+            })->get();
+            Gebaeude::whereIn('id', $betroffen->pluck('id'))->update(['nicht_erreicht_am' => null, 'gemeldet_am' => null]);
         }
 
-        return response()->json(['ok' => true, 'anzahl' => $anzahl]);
+        // ⭐ Vermerk im Protokoll
+        foreach ($betroffen as $g) {
+            if ($data['aktiv']) {
+                $text = 'Kunde nicht erreicht – Überprüfung und Reinigung konnten nicht durchgeführt werden.';
+                if ($g->angekuendigt_fuer) {
+                    $text .= "\nAngekündigt für: " . $g->angekuendigt_fuer->format('d.m.Y');
+                }
+            } else {
+                $text = $g->gemeldet_am
+                    ? 'Markierung „nicht erreicht“ und „an Gemeinde gemeldet“ entfernt.'
+                    : 'Markierung „nicht erreicht“ entfernt.';
+            }
+            $this->protokoll($g, $text);
+        }
+
+        return response()->json(['ok' => true, 'anzahl' => $betroffen->count()]);
     }
 
     /**
@@ -257,24 +276,56 @@ class ReinigungsplanungController extends Controller
         $data = $request->validate([
             'angekuendigt' => ['required', 'boolean'],
             'termin'       => ['nullable', 'date'],
+            'quelle'       => ['nullable', 'in:sms,whatsapp,manuell'],
         ]);
+
+        $warAngekuendigt = $g->angekuendigt_am !== null;
 
         if ($data['angekuendigt']) {
             $g->update([
                 'angekuendigt_fuer' => $data['termin'] ?? null,
                 'angekuendigt_am'   => now(),
             ]);
+
+            // ⭐ Vermerk im Protokoll
+            $wege = ['sms' => 'per SMS', 'whatsapp' => 'per WhatsApp', 'manuell' => 'manuell markiert'];
+            $text = 'Reinigung angekündigt – ' . ($wege[$data['quelle'] ?? 'manuell'] ?? 'manuell markiert');
+            if (!empty($data['termin'])) {
+                $text .= "\nTermin: " . Carbon::parse($data['termin'])->format('d.m.Y');
+            }
+            $this->protokoll($g, $text);
         } else {
             $g->update([
                 'angekuendigt_fuer' => null,
                 'angekuendigt_am'   => null,
             ]);
+
+            if ($warAngekuendigt) {
+                $this->protokoll($g, 'Ankündigung entfernt.');
+            }
         }
 
         return response()->json([
             'ok'           => true,
             'angekuendigt' => (bool) $data['angekuendigt'],
         ]);
+    }
+
+    /**
+     * ⭐ Vermerk im Protokoll (Aktivitäten) des Gebäudes.
+     * Nutzt dieselbe Notiz-Funktion wie der "Notiz"-Button.
+     * Ein Fehler bricht die eigentliche Aktion nicht ab.
+     */
+    protected function protokoll(Gebaeude $g, string $text): void
+    {
+        try {
+            $g->notizHinzufuegen($text);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Reinigungsplanung: Protokoll-Vermerk fehlgeschlagen', [
+                'gebaeude_id' => $g->id,
+                'error'       => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
