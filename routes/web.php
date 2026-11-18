@@ -15,6 +15,8 @@ use App\Http\Controllers\FaelligkeitsSimulatorController;
 use App\Http\Controllers\GebaeudeController;
 use App\Http\Controllers\GebaeudeDocumentController;
 use App\Http\Controllers\GebaeudeLogController;
+use App\Http\Controllers\GemeindeController;
+use App\Http\Controllers\GemeindeMeldungController;
 use App\Http\Controllers\MahnungController;
 use App\Http\Controllers\PreisAufschlagController;
 use App\Http\Controllers\ProfileController;
@@ -343,18 +345,18 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/tour-neu', [ReinigungsplanungController::class, 'tourAnlegen'])->name('tourNeu');
         Route::get('/ids', [ReinigungsplanungController::class, 'ids'])->name('ids');
 
+        // Nicht erreicht / Meldungen an Gemeinden
         Route::post('/nicht-erreicht', [ReinigungsplanungController::class, 'setNichtErreicht'])->name('nichtErreicht');
-        Route::get('/meldungen', [\App\Http\Controllers\GemeindeMeldungController::class, 'index'])->name('meldungen');
-        Route::post('/meldungen/senden', [\App\Http\Controllers\GemeindeMeldungController::class, 'senden'])->name('meldungen.senden');
-        Route::get('/meldungen/{meldung}', [\App\Http\Controllers\GemeindeMeldungController::class, 'show'])->name('meldungen.show');
-
+        Route::get('/meldungen', [GemeindeMeldungController::class, 'index'])->name('meldungen');
+        Route::post('/meldungen/senden', [GemeindeMeldungController::class, 'senden'])->name('meldungen.senden');
+        Route::get('/meldungen/{meldung}', [GemeindeMeldungController::class, 'show'])->whereNumber('meldung')->name('meldungen.show');
 
         Route::get('/export', [ReinigungsplanungController::class, 'export'])->name('export');
 
         // Monate + Bemerkung schnell bearbeiten
         Route::patch('/{gebaeude}/monate', function ($gebaeude) {
             $g = \App\Models\Gebaeude::findOrFail($gebaeude);
-            $fields = ['m01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'bemerkung'];
+            $fields = ['m01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'bemerkung', 'intern'];
             $g->update(request()->only($fields));
             return response()->json(['success' => true]);
         })->name('monate');
@@ -415,6 +417,15 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
             return response()->json(['success' => true, 'count' => count($ids)]);
         })->name('bulk-action');
+    });
+
+
+    // ==================== Gemeinden (Empfänger + Vorlagen für Meldungen) ====================
+    Route::prefix('gemeinden')->name('gemeinden.')->group(function () {
+        Route::get('/', [GemeindeController::class, 'index'])->name('index');
+        Route::post('/', [GemeindeController::class, 'store'])->name('store');
+        Route::put('/{gemeinde}', [GemeindeController::class, 'update'])->whereNumber('gemeinde')->name('update');
+        Route::delete('/{gemeinde}', [GemeindeController::class, 'destroy'])->whereNumber('gemeinde')->name('destroy');
     });
 
 
