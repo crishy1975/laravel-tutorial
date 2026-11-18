@@ -1,4 +1,8 @@
 <?php
+// ═══════════════════════════════════════════════════════════════
+// ZIEL: config/mail.php  (komplette Datei ersetzen)
+// Zugangsdaten NICHT hier eintragen – nur in der .env (PEC_...)
+// ═══════════════════════════════════════════════════════════════
 
 return [
 
@@ -57,8 +61,8 @@ return [
             'scheme' => env('PEC_SCHEME', 'smtp'),
             'host' => env('PEC_HOST', 'smtps.pec.aruba.it'),
             'port' => env('PEC_PORT', 587),
-            'username' => env('2482736@aruba.it'),
-            'password' => env('8qaWGD5!(XVGgD3'),
+            'username' => env('PEC_USERNAME'),
+            'password' => env('PEC_PASSWORD'),
             'timeout' => 30,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
