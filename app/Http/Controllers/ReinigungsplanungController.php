@@ -77,7 +77,13 @@ class ReinigungsplanungController extends Controller
             'offen'        => $this->buildQuery(array_merge($filters, ['status' => 'offen']))->count(),
             'angekuendigt' => $this->buildQuery(array_merge($filters, ['status' => 'angekuendigt']))->count(),
             'erledigt'     => $this->buildQuery(array_merge($filters, ['status' => 'erledigt']))->count(),
+            // ⭐ NEU
+            'nicht_erreicht' => $this->buildQuery(array_merge($filters, ['status' => 'nicht_erreicht']))->count(),
+            'gemeldet'       => $this->buildQuery(array_merge($filters, ['status' => 'gemeldet']))->count(),
         ];
+
+        // Anzahl offener Meldungen (unabhängig vom Filter) für den Button
+        $meldungenOffen = Gebaeude::whereNotNull('nicht_erreicht_am')->whereNull('gemeldet_am')->count();
 
         // ── Liste (mit Status-Filter) ──────────────────────────────────────
         $perPage  = 20;
@@ -91,7 +97,10 @@ class ReinigungsplanungController extends Controller
         $gebaeude->getCollection()->transform(function ($g) {
             $g->letzte_reinigung_datum = $g->letzter_termin ? Carbon::parse($g->letzter_termin) : null;
             $g->ist_erledigt           = !$g->faellig;
-            $g->ist_angekuendigt       = !$g->ist_erledigt && $g->angekuendigt_am !== null;
+            $g->ist_gemeldet           = !$g->ist_erledigt && $g->gemeldet_am !== null;
+            $g->ist_nicht_erreicht     = !$g->ist_erledigt && !$g->ist_gemeldet && $g->nicht_erreicht_am !== null;
+            $g->ist_angekuendigt       = !$g->ist_erledigt && !$g->ist_gemeldet && !$g->ist_nicht_erreicht
+                                         && $g->angekuendigt_am !== null;
             $g->naechste_faelligkeit   = $g->datum_faelligkeit ? Carbon::parse($g->datum_faelligkeit) : null;
             // ⭐ Aktive Reinigungsmonate als Liste, z.B. [3, 10]
             $g->monate_aktiv = array_values(array_filter(
@@ -120,8 +129,37 @@ class ReinigungsplanungController extends Controller
             'filterStatus',
             'filterDatum',
             'filterPerson',
-            'nachrichtVorschlaege'
+            'nachrichtVorschlaege',
+            'meldungenOffen'
         ));
+    }
+
+    /**
+     * ⭐ NEU: Status "nicht erreicht" setzen / entfernen (einzeln oder mehrere)
+     *
+     * JSON: { "ids": [1,2,3], "aktiv": 1|0 }
+     * Beim Entfernen wird auch "gemeldet" zurückgesetzt.
+     *
+     * Route: POST /reinigungsplanung/nicht-erreicht
+     */
+    public function setNichtErreicht(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'aktiv' => ['required', 'boolean'],
+        ]);
+
+        $query = Gebaeude::whereIn('id', $data['ids']);
+
+        if ($data['aktiv']) {
+            // Nur Gebäude setzen, die noch nicht als "nicht erreicht" markiert sind
+            $anzahl = (clone $query)->whereNull('nicht_erreicht_am')->update(['nicht_erreicht_am' => now()]);
+        } else {
+            $anzahl = $query->update(['nicht_erreicht_am' => null, 'gemeldet_am' => null]);
+        }
+
+        return response()->json(['ok' => true, 'anzahl' => $anzahl]);
     }
 
     /**
@@ -184,6 +222,8 @@ class ReinigungsplanungController extends Controller
             'letzter_termin'    => $datum,
             'angekuendigt_fuer' => null,
             'angekuendigt_am'   => null,
+            'nicht_erreicht_am' => null,   // ⭐ NEU: Status zurücksetzen
+            'gemeldet_am'       => null,
         ];
 
         // rechnung_schreiben = true (nur wenn FatturaPA-Profil vorhanden)
@@ -378,7 +418,13 @@ class ReinigungsplanungController extends Controller
                 $istFaellig          = (bool) $g->faellig;
                 $istAngekuendigt     = $istFaellig && $g->angekuendigt_am !== null;
 
-                $status = !$istFaellig ? 'Erledigt' : ($istAngekuendigt ? 'Angekündigt' : 'Offen');
+                $status = match (true) {
+                    !$istFaellig                 => 'Erledigt',
+                    $g->gemeldet_am !== null       => 'Gemeldet',
+                    $g->nicht_erreicht_am !== null => 'Nicht erreicht',
+                    $istAngekuendigt             => 'Angekündigt',
+                    default                      => 'Offen',
+                };
 
                 fputcsv($file, [
                     $g->codex,
@@ -489,17 +535,29 @@ class ReinigungsplanungController extends Controller
     /**
      * Status-Filter (offen / angekündigt / erledigt)
      *
-     * - offen:        fällig, NICHT angekündigt und mind. ein Monat gesetzt
-     * - angekuendigt: fällig und angekündigt
-     * - erledigt:     nicht fällig
+     * - offen:          fällig, nicht angekündigt, nicht "nicht erreicht", mind. ein Monat
+     * - angekuendigt:   fällig, angekündigt, nicht "nicht erreicht"
+     * - nicht_erreicht: fällig, nicht erreicht, noch nicht gemeldet
+     * - gemeldet:       fällig, an Gemeinde gemeldet
+     * - erledigt:       nicht fällig
      */
     protected function applyStatusFilter($query, ?string $filterStatus): void
     {
         if ($filterStatus === 'offen') {
-            $query->where('faellig', true)->whereNull('angekuendigt_am');
+            $query->where('faellig', true)
+                  ->whereNull('angekuendigt_am')
+                  ->whereNull('nicht_erreicht_am');
             $this->mitMindestensEinemMonat($query);
         } elseif ($filterStatus === 'angekuendigt') {
-            $query->where('faellig', true)->whereNotNull('angekuendigt_am');
+            $query->where('faellig', true)
+                  ->whereNotNull('angekuendigt_am')
+                  ->whereNull('nicht_erreicht_am');
+        } elseif ($filterStatus === 'nicht_erreicht') {
+            $query->where('faellig', true)
+                  ->whereNotNull('nicht_erreicht_am')
+                  ->whereNull('gemeldet_am');
+        } elseif ($filterStatus === 'gemeldet') {
+            $query->where('faellig', true)->whereNotNull('gemeldet_am');
         } elseif ($filterStatus === 'erledigt') {
             $query->where('faellig', false);
         }

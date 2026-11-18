@@ -123,6 +123,12 @@ class TimelineController extends Controller
                 $updates['angekuendigt_fuer'] = null;
             }
 
+            // ⭐ NEU: "nicht erreicht" / "gemeldet" zurücksetzen
+            if (Schema::hasColumn($tableGebaeude, 'nicht_erreicht_am')) {
+                $updates['nicht_erreicht_am'] = null;
+                $updates['gemeldet_am']       = null;
+            }
+
             if (!empty($updates)) {
                 Gebaeude::whereKey($gebaeude->id)->update($updates);
             }

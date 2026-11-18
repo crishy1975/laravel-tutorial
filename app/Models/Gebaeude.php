@@ -50,6 +50,8 @@ class Gebaeude extends Model
         'faellig',
         'angekuendigt_fuer', // ⭐ NEU: Angekündigter Termin
         'angekuendigt_am',   // ⭐ NEU: Zeitpunkt der Ankündigung
+        'nicht_erreicht_am', // ⭐ NEU: Kunde nicht erreicht
+        'gemeldet_am',       // ⭐ NEU: an Gemeinde gemeldet
         'rechnung_schreiben',
         'm01',
         'm02',
@@ -81,6 +83,8 @@ class Gebaeude extends Model
         'datum_faelligkeit'    => 'date',
         'angekuendigt_fuer'    => 'date',      // ⭐ NEU
         'angekuendigt_am'      => 'datetime',  // ⭐ NEU
+        'nicht_erreicht_am'    => 'datetime',  // ⭐ NEU
+        'gemeldet_am'          => 'datetime',  // ⭐ NEU
         'created_at'           => 'datetime',
         'updated_at'           => 'datetime',
         'faellig'              => 'boolean',
