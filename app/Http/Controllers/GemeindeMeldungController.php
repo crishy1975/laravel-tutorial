@@ -80,16 +80,28 @@ class GemeindeMeldungController extends Controller
         }
 
         // 1) Mail versenden
+        //    Empfänger ist PEC  → über Aruba PEC (Absender resch@pec.it)
+        //    Empfänger ist keine PEC → über normale Firmen-Mail (Absender aus MAIL_FROM_ADDRESS)
+        $gemeinde = !empty($data['gemeinde_id']) ? Gemeinde::find($data['gemeinde_id']) : null;
+        $istPec   = $senden && $this->istPecAdresse($data['empfaenger'] ?? null, $gemeinde);
+
         if ($senden) {
             try {
-                $this->mailer()->raw($data['text'], function ($m) use ($data) {
-                    // Aruba PEC akzeptiert nur die eigene Adresse als Absender
-                    // → From, Sender und Return-Path (Envelope) fest setzen
-                    $pecAbsender = config('mail.pec_from.address', 'resch@pec.it');
+                $mailer = $istPec ? $this->pecMailer() : Mail::mailer();
 
-                    $m->from($pecAbsender, config('mail.pec_from.name', 'Resch GmbH'))
-                      ->sender($pecAbsender)
-                      ->returnPath($pecAbsender)
+                $mailer->raw($data['text'], function ($m) use ($data, $istPec) {
+                    if ($istPec) {
+                        // Aruba PEC akzeptiert nur die eigene Adresse als Absender
+                        $absender = config('mail.pec_from.address', 'resch@pec.it');
+                        $name     = config('mail.pec_from.name', 'Resch GmbH');
+                    } else {
+                        $absender = config('mail.from.address');
+                        $name     = config('mail.from.name');
+                    }
+
+                    $m->from($absender, $name)
+                      ->sender($absender)
+                      ->returnPath($absender)
                       ->to($data['empfaenger'])
                       ->subject($data['betreff']);
 
@@ -108,14 +120,14 @@ class GemeindeMeldungController extends Controller
         }
 
         // 2) Protokoll + Status setzen
-        DB::transaction(function () use ($data, $senden, $request) {
+        DB::transaction(function () use ($data, $senden, $istPec, $request) {
             GemeindeMeldung::create([
                 'gemeinde_id'  => $data['gemeinde_id'] ?? null,
                 'empfaenger'   => $data['empfaenger'] ?? null,
                 'betreff'      => $data['betreff'],
                 'text'         => $data['text'],
                 'gebaeude_ids' => array_map('intval', $data['gebaeude_ids']),
-                'versandart'   => $senden ? 'mail' : 'manuell',
+                'versandart'   => $senden ? ($istPec ? 'pec' : 'mail') : 'manuell',
                 'user_id'      => $request->user()?->id,
                 'gesendet_am'  => now(),
             ]);
@@ -128,7 +140,7 @@ class GemeindeMeldungController extends Controller
         return redirect()
             ->route('reinigungsplanung.meldungen')
             ->with('success', $senden
-                ? "Meldung an {$data['empfaenger']} gesendet ({$anzahl} Gebäude)."
+                ? "Meldung an {$data['empfaenger']} gesendet – " . ($istPec ? 'per PEC' : 'per E-Mail') . " ({$anzahl} Gebäude)."
                 : "{$anzahl} Gebäude als gemeldet markiert (ohne Versand).");
     }
 
@@ -141,9 +153,31 @@ class GemeindeMeldungController extends Controller
     }
 
     /**
-     * Mailer für Meldungen: "pec" falls konfiguriert, sonst Standard-Mailer
+     * Ist die Empfängeradresse eine PEC-Adresse?
+     *
+     * - entspricht der hinterlegten PEC der Gemeinde, oder
+     * - Domain typisch für PEC (pec., legalmail., postacert., cert., …)
      */
-    protected function mailer()
+    protected function istPecAdresse(?string $adresse, ?Gemeinde $gemeinde = null): bool
+    {
+        $adresse = mb_strtolower(trim((string) $adresse));
+        if ($adresse === '') {
+            return false;
+        }
+
+        if ($gemeinde && $gemeinde->pec && mb_strtolower(trim($gemeinde->pec)) === $adresse) {
+            return true;
+        }
+
+        $domain = substr(strrchr($adresse, '@') ?: '', 1);
+
+        return (bool) preg_match('/(^|\.)(pec|legalmail|postacert|cert|cgn|pecsicura|registerpec)\./', $domain);
+    }
+
+    /**
+     * Mailer für PEC-Versand: "pec" falls konfiguriert, sonst Standard-Mailer
+     */
+    protected function pecMailer()
     {
         $name = config('mail.meldung_mailer', 'pec');
 
