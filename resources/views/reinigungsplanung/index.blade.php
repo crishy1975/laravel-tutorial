@@ -1,3 +1,7 @@
+{{-- ═══════════════════════════════════════════════════════════════
+     ZIEL: resources/views/reinigungsplanung/index.blade.php
+     Reinigungsplanung – Übersicht (Status, Intern, Monate, Nicht erreicht)
+     ═══════════════════════════════════════════════════════════════ --}}
 @extends('layouts.app')
 
 @section('title', 'Reinigungsplanung')
@@ -122,6 +126,18 @@
 
     .bg-angekuendigt-light { background-color: rgba(253, 126, 20, 0.15) !important; }
     .bg-orange     { background-color: #fd7e14 !important; color: #fff !important; }
+
+    /* ⭐ Status "Nicht erreicht" (rot) und "Gemeldet" (violett) */
+    .bg-nicht-erreicht { background-color: #dc3545 !important; color: #fff !important; }
+    .bg-gemeldet       { background-color: #6f42c1 !important; color: #fff !important; }
+    .bg-nicht-erreicht-light { background-color: rgba(220, 53, 69, 0.12) !important; }
+    .bg-gemeldet-light       { background-color: rgba(111, 66, 193, 0.12) !important; }
+    #reinigungsTable tbody tr.table-nicht-erreicht > td { background-color: #f8d7da !important; box-shadow: none !important; color: #000; }
+    #reinigungsTable tbody tr.table-nicht-erreicht:hover > td { background-color: #f1c2c7 !important; }
+    #reinigungsTable tbody tr.table-gemeldet > td { background-color: #e5dbf5 !important; box-shadow: none !important; color: #000; }
+    #reinigungsTable tbody tr.table-gemeldet:hover > td { background-color: #d8c9ef !important; }
+    .btn-nicht-erreicht { background: #dc3545; color: #fff; border-color: #dc3545; }
+    .btn-nicht-erreicht:hover { background: #bb2d3b; color: #fff; }
     .text-orange   { color: #fd7e14 !important; }
     .border-orange { border-color: #fd7e14 !important; }
 </style>
@@ -151,6 +167,12 @@
             <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalVorlage">
                 <i class="bi bi-chat-quote"></i> Nachricht-Vorlage
             </button>
+            <a href="{{ route('reinigungsplanung.meldungen') }}" class="btn btn-outline-danger position-relative">
+                <i class="bi bi-envelope-exclamation"></i> Meldungen Gemeinde
+                @if($meldungenOffen > 0)
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ $meldungenOffen }}</span>
+                @endif
+            </a>
             <a href="{{ route('reinigungsplanung.export', request()->query()) }}" class="btn btn-outline-secondary">
                 <i class="bi bi-file-earmark-excel"></i> CSV
             </a>
@@ -167,6 +189,12 @@
                 <li>
                     <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalVorlage">
                         <i class="bi bi-chat-quote"></i> Nachricht-Vorlage
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{{ route('reinigungsplanung.meldungen') }}">
+                        <i class="bi bi-envelope-exclamation text-danger"></i> Meldungen Gemeinde
+                        @if($meldungenOffen > 0)<span class="badge bg-danger ms-1">{{ $meldungenOffen }}</span>@endif
                     </a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
@@ -312,6 +340,8 @@
                                 <option value="" @selected($filterStatus == '')>Alle</option>
                                 <option value="offen" @selected($filterStatus == 'offen')>Offen</option>
                                 <option value="angekuendigt" @selected($filterStatus == 'angekuendigt')>Angekündigt</option>
+                                <option value="nicht_erreicht" @selected($filterStatus == 'nicht_erreicht')>Nicht erreicht</option>
+                                <option value="gemeldet" @selected($filterStatus == 'gemeldet')>Gemeldet</option>
                                 <option value="erledigt" @selected($filterStatus == 'erledigt')>Erledigt</option>
                             </select>
                         </div>
@@ -338,7 +368,13 @@
                 <i class="bi bi-building"></i>
                 {{ $gebaeude->total() }} Gebäude
             </h6>
-            <div class="d-flex gap-1">
+            <div class="d-flex gap-1 flex-wrap justify-content-end">
+                @if($stats['nicht_erreicht'] > 0)
+                    <span class="badge bg-nicht-erreicht"><i class="bi bi-person-x"></i> {{ $stats['nicht_erreicht'] }} nicht erreicht</span>
+                @endif
+                @if($stats['gemeldet'] > 0)
+                    <span class="badge bg-gemeldet"><i class="bi bi-envelope-check"></i> {{ $stats['gemeldet'] }} gemeldet</span>
+                @endif
                 @if($stats['angekuendigt'] > 0)
                     <span class="badge bg-orange"><i class="bi bi-megaphone"></i> {{ $stats['angekuendigt'] }} angekündigt</span>
                 @endif
@@ -409,6 +445,19 @@
 
                     <div class="vr d-none d-sm-block"></div>
 
+                    {{-- ⭐ Nicht erreicht --}}
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-nicht-erreicht btn-sm" onclick="bulkNichtErreicht(true)" title="Als nicht erreicht markieren">
+                            <i class="bi bi-person-x"></i>
+                            <span class="d-none d-sm-inline">Nicht erreicht</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="bulkNichtErreicht(false)" title="Markierung 'nicht erreicht' entfernen">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                    </div>
+
+                    <div class="vr d-none d-sm-block"></div>
+
                     {{-- Löschen --}}
                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkAction('delete')">
                         <i class="bi bi-trash"></i>
@@ -464,7 +513,7 @@
                                 $smsNr = $handyClean ?: $telefonClean;
                                 $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                             @endphp
-                            <tr class="{{ $g->ist_erledigt ? 'table-success' : ($g->ist_angekuendigt ? 'table-angekuendigt' : '') }}">
+                            <tr class="{{ $g->ist_erledigt ? 'table-success' : ($g->ist_gemeldet ? 'table-gemeldet' : ($g->ist_nicht_erreicht ? 'table-nicht-erreicht' : ($g->ist_angekuendigt ? 'table-angekuendigt' : ''))) }}">
                                 <td class="text-center" onclick="event.stopPropagation()">
                                     <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
                                 </td>
@@ -537,6 +586,14 @@
                                 <td class="text-center">
                                     @if($g->ist_erledigt)
                                         <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+                                    @elseif($g->ist_gemeldet)
+                                        <span class="badge bg-gemeldet" title="An Gemeinde gemeldet am {{ $g->gemeldet_am->format('d.m.Y H:i') }}">
+                                            <i class="bi bi-envelope-check"></i> {{ $g->gemeldet_am->format('d.m.') }}
+                                        </span>
+                                    @elseif($g->ist_nicht_erreicht)
+                                        <span class="badge bg-nicht-erreicht" title="Nicht erreicht seit {{ $g->nicht_erreicht_am->format('d.m.Y H:i') }}">
+                                            <i class="bi bi-person-x"></i> Nicht err.
+                                        </span>
                                     @elseif($g->ist_angekuendigt)
                                         <span class="badge bg-orange"
                                               title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
@@ -572,6 +629,16 @@
                                                     </button>
                                                 </li>
                                                 @unless($g->ist_erledigt)
+                                                <li>
+                                                    <button type="button" class="dropdown-item btn-nicht-erreicht-toggle"
+                                                            data-id="{{ $g->id }}" data-aktiv="{{ ($g->ist_nicht_erreicht || $g->ist_gemeldet) ? 1 : 0 }}">
+                                                        @if($g->ist_nicht_erreicht || $g->ist_gemeldet)
+                                                            <i class="bi bi-arrow-counterclockwise text-muted"></i> „Nicht erreicht“ entfernen
+                                                        @else
+                                                            <i class="bi bi-person-x text-danger"></i> Nicht erreicht
+                                                        @endif
+                                                    </button>
+                                                </li>
                                                 <li>
                                                     <button type="button" class="dropdown-item btn-angekuendigt"
                                                             data-id="{{ $g->id }}" data-aktiv="{{ $g->ist_angekuendigt ? 1 : 0 }}">
@@ -612,7 +679,7 @@
                         $smsNr = $handyClean ?: $telefonClean;
                         $adresseEncoded = urlencode(trim("{$g->strasse} {$g->hausnummer}, {$g->plz} {$g->wohnort}"));
                     @endphp
-                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : ($g->ist_angekuendigt ? 'bg-angekuendigt-light' : '') }} p-2">
+                    <div class="border-bottom {{ $g->ist_erledigt ? 'bg-success bg-opacity-10' : ($g->ist_gemeldet ? 'bg-gemeldet-light' : ($g->ist_nicht_erreicht ? 'bg-nicht-erreicht-light' : ($g->ist_angekuendigt ? 'bg-angekuendigt-light' : ''))) }} p-2">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <div class="me-2 pt-1">
                                 <input type="checkbox" class="form-check-input bulk-check" value="{{ $g->id }}">
@@ -626,7 +693,15 @@
                             <div class="flex-shrink-0 ms-2">
                                 @if($g->ist_erledigt)
                                     <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
-                                @elseif($g->ist_angekuendigt)
+                                @elseif($g->ist_gemeldet)
+                                        <span class="badge bg-gemeldet" title="An Gemeinde gemeldet am {{ $g->gemeldet_am->format('d.m.Y H:i') }}">
+                                            <i class="bi bi-envelope-check"></i> {{ $g->gemeldet_am->format('d.m.') }}
+                                        </span>
+                                    @elseif($g->ist_nicht_erreicht)
+                                        <span class="badge bg-nicht-erreicht" title="Nicht erreicht seit {{ $g->nicht_erreicht_am->format('d.m.Y H:i') }}">
+                                            <i class="bi bi-person-x"></i> Nicht err.
+                                        </span>
+                                    @elseif($g->ist_angekuendigt)
                                     <span class="badge bg-orange"
                                           title="Angekündigt am {{ $g->angekuendigt_am->format('d.m.Y H:i') }}">
                                         <i class="bi bi-megaphone"></i>
@@ -711,6 +786,16 @@
                                         </button>
                                     </li>
                                     @unless($g->ist_erledigt)
+                                                <li>
+                                                    <button type="button" class="dropdown-item btn-nicht-erreicht-toggle"
+                                                            data-id="{{ $g->id }}" data-aktiv="{{ ($g->ist_nicht_erreicht || $g->ist_gemeldet) ? 1 : 0 }}">
+                                                        @if($g->ist_nicht_erreicht || $g->ist_gemeldet)
+                                                            <i class="bi bi-arrow-counterclockwise text-muted"></i> „Nicht erreicht“ entfernen
+                                                        @else
+                                                            <i class="bi bi-person-x text-danger"></i> Nicht erreicht
+                                                        @endif
+                                                    </button>
+                                                </li>
                                     <li>
                                         <button type="button" class="dropdown-item btn-angekuendigt"
                                                 data-id="{{ $g->id }}" data-aktiv="{{ $g->ist_angekuendigt ? 1 : 0 }}">
@@ -1265,6 +1350,44 @@ document.querySelectorAll('.schnell-whatsapp').forEach(btn => {
         }
     });
 });
+
+// ========== ⭐ Nicht erreicht ==========
+function setNichtErreicht(ids, aktiv) {
+    return fetch('{{ route("reinigungsplanung.nichtErreicht") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ ids: ids, aktiv: aktiv ? 1 : 0 }),
+        credentials: 'same-origin'
+    }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+}
+
+// Menüpunkt je Gebäude
+document.querySelectorAll('.btn-nicht-erreicht-toggle').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const aktiv = this.dataset.aktiv !== '1';
+        if (!aktiv && !confirm('Markierung „nicht erreicht“ (und ggf. „gemeldet“) entfernen?')) return;
+        setNichtErreicht([this.dataset.id], aktiv)
+            .then(() => window.location.reload())
+            .catch(err => alert('Fehler: ' + err.message));
+    });
+});
+
+// Bulk-Leiste
+function bulkNichtErreicht(aktiv) {
+    var ids = getSelectedIds();
+    if (ids.length === 0) return;
+    var frage = aktiv
+        ? ids.length + ' Gebäude als „nicht erreicht“ markieren?'
+        : 'Bei ' + ids.length + ' Gebäuden „nicht erreicht“ (und „gemeldet“) entfernen?';
+    if (!confirm(frage)) return;
+    setNichtErreicht(ids, aktiv)
+        .then(() => window.location.reload())
+        .catch(err => alert('Fehler: ' + err.message));
+}
 
 // ========== Intern ± schnell korrigieren ==========
 document.addEventListener('click', function(ev) {
